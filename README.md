@@ -11,6 +11,27 @@
 - Minimum SDK: 26
 - Package Name: `com.ssafy.dib`
 
+### 패키지 구조
+
+기준 경로: `app/src/main/java/com/ssafy/dib`
+
+```text
+com.ssafy.dib/
+├── core/
+│   └── navigation/  # AppNavHost 및 화면 경로 정의
+├── data/           # 데이터 소스 및 Repository 구현체
+├── domain/         # 도메인 모델, Repository 인터페이스, 비즈니스 규칙
+├── feature/
+│   └── home/       # 홈 화면
+├── ui/
+│   └── theme/      # Compose 테마
+└── MainActivity.kt
+```
+
+앱 시작 시 `MainActivity → AppNavHost → HomeScreen` 순서로 홈 화면을 표시합니다.
+화면 경로는 `core/navigation/Screen.kt`에서 관리합니다.
+아직 구현 코드가 없는 `data`, `domain`은 README로 역할과 디렉터리를 유지합니다.
+
 ### 권장 테스트 환경
 
 - Device: Pixel 8
