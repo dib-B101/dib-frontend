@@ -31,3 +31,9 @@ temp/
 .cache/
 .coverage
 coverage/
+
+# Android / Gradle local files
+.gradle/
+.kotlin/
+local.properties
+/build/
