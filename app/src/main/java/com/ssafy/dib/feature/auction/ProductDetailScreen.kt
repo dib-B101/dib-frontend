@@ -68,7 +68,12 @@ fun ProductDetailScreen(productId: String, onBack: () -> Unit, modifier: Modifie
             StickyBidAction(
                 price = product.price + 500,
                 favorite = favorite,
-                onFavorite = { favorite = it },
+                onFavorite = { selected ->
+                    favorite = selected
+                    scope.launch {
+                        snackbar.showSnackbar(if (selected) "찜 목록에 저장했어요" else "찜에서 삭제했어요")
+                    }
+                },
                 onBid = { if (remainingSeconds > 0) showBidSheet = true }
             )
         },
@@ -83,7 +88,7 @@ fun ProductDetailScreen(productId: String, onBack: () -> Unit, modifier: Modifie
                     }
                 }
             }
-            item { ProductSummary(product.name, product.price, product.bidCount, remainingSeconds) }
+            item { ProductSummary(product.name, product.category, product.price, product.bidCount, remainingSeconds) }
             item {
                 SellerSummary(onClick = {
                     scope.launch { snackbar.showSnackbar("판매자 프로필 화면은 다음 단계에서 연결해요") }
@@ -125,11 +130,11 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit) {
 }
 
 @Composable
-private fun ProductSummary(name: String, price: Int, bidCount: Int, remainingSeconds: Int) {
+private fun ProductSummary(name: String, category: String, price: Int, bidCount: Int, remainingSeconds: Int) {
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Badge("마감 임박", urgent = true)
-            Badge("카메라 · 상태 중")
+            Badge("$category · 상태 중")
         }
         Text(name, fontSize = 20.sp, lineHeight = 30.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

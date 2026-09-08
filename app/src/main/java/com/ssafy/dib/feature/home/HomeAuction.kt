@@ -1,7 +1,7 @@
 package com.ssafy.dib.feature.home
 
 /** Wireframe-only display data; these values do not represent live auctions. */
-internal enum class ProductPhoto { Camera, Headphones }
+internal enum class ProductPhoto { Camera, Headphones, Placeholder }
 
 internal data class HomeAuction(
     val id: String,
@@ -19,23 +19,23 @@ internal data class HomeAuction(
 
 internal val recommended = listOf(
     HomeAuction("headphones", "무선 헤드폰", 52_000, 7, 1_080, "디지털", ProductPhoto.Headphones),
-    HomeAuction("sneakers", "빈티지 스니커즈", 81_000, 4, 4_320, "패션", ProductPhoto.Camera)
+    HomeAuction("sneakers", "빈티지 스니커즈", 81_000, 4, 4_320, "패션", ProductPhoto.Placeholder)
 )
 
 internal val deadlineAuction =
     HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", ProductPhoto.Camera)
 
 internal val popularAuctions = listOf(
-    HomeAuction("keyboard", "기계식 키보드", 48_000, 12, 7_200, "디지털", ProductPhoto.Headphones),
+    HomeAuction("keyboard", "기계식 키보드", 48_000, 12, 7_200, "디지털", ProductPhoto.Placeholder),
     recommended[1],
     recommended[0]
 )
 
 internal val allAuctions = listOf(
-    HomeAuction("retro-console", "레트로 게임기", 63_000, 9, 1_440, "디지털", ProductPhoto.Headphones),
-    HomeAuction("projector", "미니 빔프로젝터", 45_000, 0, 7_200, "디지털", ProductPhoto.Headphones, "시작가"),
-    HomeAuction("cross-bag", "가죽 크로스백", 28_500, 6, 2_760, "패션", ProductPhoto.Camera),
-    HomeAuction("lp-player", "LP 플레이어", 91_000, 11, 10_800, "라이프", ProductPhoto.Camera)
+    HomeAuction("retro-console", "레트로 게임기", 63_000, 9, 1_440, "디지털", ProductPhoto.Placeholder),
+    HomeAuction("projector", "미니 빔프로젝터", 45_000, 0, 7_200, "디지털", ProductPhoto.Placeholder, "시작가"),
+    HomeAuction("cross-bag", "가죽 크로스백", 28_500, 6, 2_760, "패션", ProductPhoto.Placeholder),
+    HomeAuction("lp-player", "LP 플레이어", 91_000, 11, 10_800, "라이프", ProductPhoto.Placeholder)
 )
 
 internal val allHomeAuctions = recommended + deadlineAuction + popularAuctions + allAuctions

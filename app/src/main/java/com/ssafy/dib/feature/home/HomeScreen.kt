@@ -74,7 +74,7 @@ fun HomeScreen(
             DibBottomNavigation(
                 selectedTab = DibMainTab.Home,
                 onTabSelected = { tab ->
-                    if (tab == DibMainTab.Home) onTabSelected(tab)
+                    if (tab == DibMainTab.Home || tab == DibMainTab.Feed) onTabSelected(tab)
                     else scope.launch { snackbar.showSnackbar("${tab.label} 화면은 다음 단계에서 연결해요") }
                 }
             )
@@ -385,6 +385,12 @@ private fun EmptySearchResult(onReset: () -> Unit) {
 @Composable
 internal fun ProductPhoto(photo: ProductPhoto, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.clip(RoundedCornerShape(10.dp))) {
+        if (photo == ProductPhoto.Placeholder) {
+            Box(Modifier.matchParentSize().background(Colors.Image), contentAlignment = Alignment.Center) {
+                Text("상품 이미지", color = Colors.Muted, fontSize = 12.sp)
+            }
+            return@BoxWithConstraints
+        }
         val scale = maxOf(1f, maxWidth.value / maxHeight.value)
         Image(
             painter = painterResource(R.drawable.product_photo),
