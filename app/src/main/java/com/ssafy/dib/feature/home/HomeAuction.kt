@@ -18,7 +18,8 @@ data class HomeAuction(
     val isHighestBidder: Boolean? = null,
     val myBidAmount: Int? = null,
     val sellerMemberId: String = "seller01",
-    val imageUrls: List<String> = emptyList()
+    val imageUrls: List<String> = emptyList(),
+    val startPrice: Int = price
 ) {
     val priceLabel: String get() = "%,d원".format(price)
     val meta: String get() = "입찰 ${bidCount}명 · ${remainingTimeLabel(remainingSeconds)} 남음"
@@ -30,7 +31,7 @@ internal val recommended = listOf(
 )
 
 internal val deadlineAuction =
-    HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", ProductPhoto.Camera)
+    HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", ProductPhoto.Camera, startPrice = 20_000)
 
 internal val popularAuctions = listOf(
     HomeAuction("keyboard", "기계식 키보드", 48_000, 12, 7_200, "디지털", ProductPhoto.Placeholder),
@@ -60,7 +61,8 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     isHighestBidder = isHighestBidder,
     myBidAmount = myBidAmount,
     sellerMemberId = sellerMemberId,
-    imageUrls = imageUrls
+    imageUrls = imageUrls,
+    startPrice = startPrice
 )
 
 internal fun remainingTimeLabel(seconds: Int): String = when {
