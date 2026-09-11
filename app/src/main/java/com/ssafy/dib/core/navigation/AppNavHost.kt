@@ -45,6 +45,7 @@ import com.ssafy.dib.feature.main.MyTradesScreen
 import com.ssafy.dib.feature.main.NotificationSettingsScreen
 import com.ssafy.dib.feature.main.ProfileEditScreen
 import com.ssafy.dib.feature.main.ProductRegisterScreen
+import com.ssafy.dib.feature.main.ProductRegistrationForm
 import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
@@ -60,6 +61,10 @@ import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
+import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.domain.product.ProductImageUpload
+import com.ssafy.dib.domain.product.ProductRegistration
+import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
@@ -574,7 +579,87 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Register.route) {
-            ProductRegisterScreen(onBack = navController::navigateUp)
+            var productCategories by remember {
+                mutableStateOf(
+                    if (auth.networkConfig.isRestConfigured) emptyList() else listOf(
+                        ProductCategory("1", "디지털"),
+                        ProductCategory("2", "패션"),
+                        ProductCategory("3", "라이프")
+                    )
+                )
+            }
+            var categoriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var categoriesError by remember { mutableStateOf<String?>(null) }
+            var categoriesRevision by remember { mutableStateOf(0) }
+            var productSubmitLoading by remember { mutableStateOf(false) }
+            var productSubmitError by remember { mutableStateOf<String?>(null) }
+            var productResult by remember { mutableStateOf<ProductRegistrationResult?>(null) }
+
+            LaunchedEffect(categoriesRevision) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                categoriesLoading = true
+                categoriesError = null
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+                    is ApiResult.Success -> productCategories = result.value
+                    is ApiResult.Failure -> {
+                        categoriesError = result.error.message.ifBlank { "카테고리를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                categoriesLoading = false
+            }
+
+            ProductRegisterScreen(
+                categories = productCategories,
+                categoriesLoading = categoriesLoading,
+                categoriesError = categoriesError,
+                submitLoading = productSubmitLoading,
+                submitError = productSubmitError,
+                result = productResult,
+                onRetryCategories = { categoriesRevision++ },
+                onSubmit = { form: ProductRegistrationForm ->
+                    productSubmitLoading = true
+                    productSubmitError = null
+                    coroutineScope.launch {
+                        val uploads = withContext(Dispatchers.IO) {
+                            runCatching {
+                                val types = listOf("LEFT", "RIGHT", "TOP", "BOTTOM", "BACK")
+                                form.imageUris.mapIndexed { index, uri ->
+                                    ProductImageUpload(
+                                        fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-$index.jpg",
+                                        mediaType = context.contentResolver.getType(uri) ?: "image/jpeg",
+                                        bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                            ?: error("선택한 사진을 읽을 수 없습니다."),
+                                        type = if (index == 0) "FRONT" else types[(index - 1) % types.size]
+                                    )
+                                }
+                            }
+                        }
+                        uploads.fold(
+                            onSuccess = { images ->
+                                when (val result = withContext(Dispatchers.IO) {
+                                    auth.productRepository.registerProduct(
+                                        ProductRegistration(
+                                            title = form.title,
+                                            description = form.description,
+                                            categoryId = form.categoryId,
+                                            condition = form.condition,
+                                            images = images
+                                        )
+                                    )
+                                }) {
+                                    is ApiResult.Success -> productResult = result.value
+                                    is ApiResult.Failure -> productSubmitError = productSubmissionMessage(result.error)
+                                }
+                            },
+                            onFailure = { productSubmitError = it.message ?: "선택한 사진을 읽지 못했어요." }
+                        )
+                        productSubmitLoading = false
+                    }
+                },
+                onComplete = { navController.navigateUp() },
+                onBack = navController::navigateUp
+            )
         }
         composable(Screen.Trades.route) {
             MyTradesScreen(
@@ -972,4 +1057,15 @@ private fun reportSubmissionMessage(error: ApiFailure): String = when (error.cod
     "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
     "MEMBER_NOT_FOUND" -> "신고할 회원을 찾을 수 없어요."
     else -> error.message.ifBlank { "신고를 접수하지 못했어요. 잠시 후 다시 시도해주세요." }
+}
+
+private fun productSubmissionMessage(error: ApiFailure): String = when (error.code) {
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    "IMAGE_REQUIRED" -> "상품 사진을 한 장 이상 선택해주세요."
+    "INVALID_CONTENT_TYPE" -> "지원하지 않는 사진 형식이 포함돼 있어요."
+    "FILE_TOO_LARGE" -> "용량이 너무 큰 사진이 포함돼 있어요."
+    "FILE_COUNT_EXCEEDED" -> "상품 사진은 최대 10장까지 등록할 수 있어요."
+    "S3_UPLOAD_FAILED" -> "사진 업로드에 실패했어요. 다시 시도해주세요."
+    "DUPLICATE_REQUEST" -> "이미 처리된 상품 등록 요청이에요."
+    else -> error.message.ifBlank { "상품을 등록하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
