@@ -52,6 +52,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
+import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -193,13 +194,46 @@ fun InquiryHistoryScreen(
 }
 
 @Composable
-fun ReportHistoryScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ReportHistoryScreen(
+    onBack: () -> Unit,
+    reports: List<ReportSummary>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     SimpleHeaderScaffold("신고 내역", onBack, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { HistoryCard("상품 신고", "빈티지 필름 카메라", "허위 정보가 포함되어 있어요", "검토 완료") }
-            item { HistoryCard("판매자 신고", "seller01", "부적절한 메시지를 받았어요", "접수됨") }
+            when {
+                isLoading -> item { Row(Modifier.fillMaxWidth().padding(40.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
+                errorMessage != null -> item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
+                reports != null && reports.isEmpty() -> item { Text("접수한 신고가 없어요.", Modifier.fillMaxWidth().padding(vertical = 40.dp), color = Colors.Muted, fontSize = 13.sp) }
+                reports != null -> items(reports.size) { index ->
+                    val report = reports[index]
+                    HistoryCard(reportTypeLabel(report.type), report.targetLabel, report.content, reportStatusLabel(report.status))
+                }
+                else -> {
+                    item { HistoryCard("상품 신고", "빈티지 필름 카메라", "허위 정보가 포함되어 있어요", "검토 완료") }
+                    item { HistoryCard("판매자 신고", "seller01", "부적절한 메시지를 받았어요", "접수됨") }
+                }
+            }
         }
     }
+}
+
+private fun reportTypeLabel(type: String) = when (type.uppercase()) {
+    "AUCTION" -> "경매 신고"
+    "MEMBER" -> "회원 신고"
+    "ORDER" -> "거래 신고"
+    "CHATTING" -> "채팅 신고"
+    else -> "신고"
+}
+
+private fun reportStatusLabel(status: String) = when (status.uppercase()) {
+    "PENDING" -> "접수됨"
+    "ACCEPTED" -> "검토 완료"
+    "REFUNDED" -> "환불 완료"
+    else -> status
 }
 
 @Composable private fun HistoryCard(type: String, target: String, reason: String, status: String) { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Color(0xFF41AA8E), fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }

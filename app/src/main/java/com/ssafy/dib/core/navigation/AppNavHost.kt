@@ -59,6 +59,7 @@ import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
+import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
@@ -537,7 +538,9 @@ fun AppNavHost() {
                         )
                     )
                 },
-                onSellerClick = { navController.navigate(Screen.SellerProfile.route) },
+                onSellerClick = { sellerMemberId ->
+                    navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId.ifBlank { "seller01" }))
+                },
                 onReportClick = {
                     if (signedIn == true) {
                         navController.navigate(
@@ -782,7 +785,30 @@ fun AppNavHost() {
             )
         }
         composable(Screen.ReportHistory.route) {
-            ReportHistoryScreen(onBack = navController::navigateUp)
+            var reports by remember { mutableStateOf<List<ReportSummary>?>(null) }
+            var reportsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var reportsError by remember { mutableStateOf<String?>(null) }
+            var reportsRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(reportsRevision) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                reportsLoading = true
+                reportsError = null
+                when (val result = withContext(Dispatchers.IO) { auth.reportRepository.getMyReports() }) {
+                    is ApiResult.Success -> reports = result.value
+                    is ApiResult.Failure -> {
+                        reportsError = result.error.message.ifBlank { "신고 내역을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                reportsLoading = false
+            }
+            ReportHistoryScreen(
+                onBack = navController::navigateUp,
+                reports = reports,
+                isLoading = reportsLoading,
+                errorMessage = reportsError,
+                onRetry = { reportsRevision++ }
+            )
         }
         composable(Screen.Withdrawal.route) {
             WithdrawalScreen(
@@ -809,35 +835,91 @@ fun AppNavHost() {
                 onClose = navController::navigateUp
             )
         }
-        composable(Screen.SellerProfile.route) {
+        composable(
+            route = Screen.SellerProfile.route,
+            arguments = listOf(navArgument("memberId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val memberId = backStackEntry.arguments?.getString("memberId").orEmpty()
             SellerProfileScreen(
                 onBack = navController::navigateUp,
-                onReviewsClick = { navController.navigate(Screen.SellerReviews.route) },
-                onListingsClick = { navController.navigate(Screen.SellerListings.route) },
-                onReportClick = { navController.navigate(Screen.SellerReport.route) }
+                onReviewsClick = { navController.navigate(Screen.SellerReviews.createRoute(memberId)) },
+                onListingsClick = { navController.navigate(Screen.SellerListings.createRoute(memberId)) },
+                onReportClick = {
+                    if (signedIn == true) navController.navigate(Screen.SellerReport.createRoute(memberId))
+                    else navController.navigate(Screen.Login.route)
+                }
             )
         }
-        composable(Screen.SellerReviews.route) {
+        composable(
+            route = Screen.SellerReviews.route,
+            arguments = listOf(navArgument("memberId") { type = NavType.StringType })
+        ) {
             SellerReviewsScreen(onBack = navController::navigateUp)
         }
-        composable(Screen.SellerListings.route) {
+        composable(
+            route = Screen.SellerListings.route,
+            arguments = listOf(navArgument("memberId") { type = NavType.StringType })
+        ) {
             SellerListingsScreen(
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) }
             )
         }
-        composable(Screen.SellerReport.route) {
+        composable(
+            route = Screen.SellerReport.route,
+            arguments = listOf(navArgument("memberId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val memberId = backStackEntry.arguments?.getString("memberId").orEmpty()
+            var submitted by remember { mutableStateOf(false) }
+            var submitting by remember { mutableStateOf(false) }
+            var reportError by remember { mutableStateOf<String?>(null) }
             SellerReportScreen(
                 onBack = navController::navigateUp,
+                submitted = submitted,
+                isSubmitting = submitting,
+                errorMessage = reportError,
+                onSubmit = { content ->
+                    submitting = true
+                    reportError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.reportRepository.reportMember(memberId, content)
+                        }) {
+                            is ApiResult.Success -> submitted = true
+                            is ApiResult.Failure -> reportError = reportSubmissionMessage(result.error)
+                        }
+                        submitting = false
+                    }
+                },
                 onSubmitted = { navController.navigateUp() }
             )
         }
         composable(
             route = Screen.ProductReport.route,
             arguments = listOf(navArgument("productId") { type = NavType.StringType })
-        ) {
+        ) { backStackEntry ->
+            val auctionId = backStackEntry.arguments?.getString("productId").orEmpty()
+            var submitted by remember { mutableStateOf(false) }
+            var submitting by remember { mutableStateOf(false) }
+            var reportError by remember { mutableStateOf<String?>(null) }
             ProductReportScreen(
                 onBack = navController::navigateUp,
+                submitted = submitted,
+                isSubmitting = submitting,
+                errorMessage = reportError,
+                onSubmit = { content ->
+                    submitting = true
+                    reportError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.reportRepository.reportAuction(auctionId, content)
+                        }) {
+                            is ApiResult.Success -> submitted = true
+                            is ApiResult.Failure -> reportError = reportSubmissionMessage(result.error)
+                        }
+                        submitting = false
+                    }
+                },
                 onSubmitted = { navController.navigateUp() }
             )
         }
@@ -881,4 +963,13 @@ private fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "INVALID_PASSWORD" -> "비밀번호 조건을 확인해주세요."
     "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
     else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
+}
+
+private fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    "SELF_REPORT_NOT_ALLOWED" -> "본인은 신고할 수 없어요."
+    "DUPLICATE_REPORT" -> "이미 접수된 신고가 있어요."
+    "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
+    "MEMBER_NOT_FOUND" -> "신고할 회원을 찾을 수 없어요."
+    else -> error.message.ifBlank { "신고를 접수하지 못했어요. 잠시 후 다시 시도해주세요." }
 }

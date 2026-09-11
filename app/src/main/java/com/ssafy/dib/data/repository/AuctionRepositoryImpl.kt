@@ -34,6 +34,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         ?: auctionTime.coerceAtLeast(0)
     return AuctionSummary(
         auctionId = auctionId.idValue(),
+        sellerMemberId = memberId?.idValue().orEmpty(),
         productId = productId?.idValue() ?: product?.productId?.idValue().orEmpty(),
         title = title ?: productName ?: product?.title ?: product?.name ?: "경매 상품",
         categoryName = categoryName ?: product?.categoryName ?: "기타",

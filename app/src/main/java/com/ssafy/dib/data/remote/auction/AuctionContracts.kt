@@ -13,6 +13,7 @@ data class AuctionListResponse(
 @Serializable
 data class AuctionDto(
     val auctionId: JsonElement,
+    val memberId: JsonElement? = null,
     val productId: JsonElement? = null,
     val categoryId: JsonElement? = null,
     val title: String? = null,
