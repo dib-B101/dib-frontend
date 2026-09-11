@@ -943,10 +943,32 @@ fun AppNavHost() {
             )
         }
         composable(Screen.RegisteredProducts.route) {
+            var registeredProducts by remember { mutableStateOf<List<com.ssafy.dib.domain.product.RegisteredProduct>?>(null) }
+            var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var registeredProductsError by remember { mutableStateOf<String?>(null) }
+            var registeredProductsRevision by remember { mutableStateOf(0) }
+
+            LaunchedEffect(registeredProductsRevision) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                registeredProductsLoading = true
+                registeredProductsError = null
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
+                    is ApiResult.Success -> registeredProducts = result.value
+                    is ApiResult.Failure -> {
+                        registeredProductsError = result.error.message.ifBlank { "등록 상품을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                registeredProductsLoading = false
+            }
             RegisteredProductsScreen(
                 onBack = navController::navigateUp,
                 onRegister = { navController.navigate(Screen.Register.route) },
-                onTabSelected = ::navigateMain
+                onTabSelected = ::navigateMain,
+                remoteProducts = registeredProducts,
+                isLoading = registeredProductsLoading,
+                errorMessage = registeredProductsError,
+                onRetry = { registeredProductsRevision++ }
             )
         }
         composable(Screen.Inquiries.route) {

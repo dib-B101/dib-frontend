@@ -44,8 +44,17 @@ data class ProductDetail(
     val sellerTradeCount: Int?
 )
 
+data class RegisteredProduct(
+    val productId: String,
+    val title: String,
+    val condition: String,
+    val status: String,
+    val thumbnailUrl: String?
+)
+
 interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
+    fun getMyProducts(status: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
 }

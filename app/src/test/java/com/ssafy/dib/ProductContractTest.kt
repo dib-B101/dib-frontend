@@ -4,6 +4,7 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.product.CategoryListResponse
 import com.ssafy.dib.data.remote.product.ProductCreatePayload
 import com.ssafy.dib.data.remote.product.ProductDetailResponse
+import com.ssafy.dib.data.remote.product.ProductListResponse
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -54,5 +55,20 @@ class ProductContractTest {
         assertEquals(listOf("https://cdn.example/front.jpg", "https://cdn.example/back.jpg"), product.imageUrls)
         assertEquals("필름상점", product.sellerNickname)
         assertEquals(32, product.sellerTradeCount)
+    }
+
+    @Test
+    fun myProductCardMapsModerationState() {
+        val response = DibJson.instance.decodeFromString(
+            ProductListResponse.serializer(),
+            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","status":"REGISTERED","thumbnailUrl":"https://cdn.example/mug.jpg"}],"hasNext":false}"""
+        )
+
+        val product = response.items.single().toDomain()
+
+        assertEquals("12", product.productId)
+        assertEquals("달빛 유약 머그컵", product.title)
+        assertEquals("REGISTERED", product.status)
+        assertEquals("https://cdn.example/mug.jpg", product.thumbnailUrl)
     }
 }

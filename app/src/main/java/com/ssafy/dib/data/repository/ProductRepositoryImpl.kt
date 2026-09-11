@@ -4,10 +4,12 @@ import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.remote.product.CategoryDto
 import com.ssafy.dib.data.remote.product.ProductRemoteDataSource
 import com.ssafy.dib.data.remote.product.ProductDetailResponse
+import com.ssafy.dib.data.remote.product.ProductCardDto
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.domain.product.ProductDetail
+import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.product.ProductRepository
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -23,6 +25,12 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
     override fun getProduct(productId: String): ApiResult<ProductDetail> =
         when (val result = remote.getProduct(productId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getMyProducts(status: String?, size: Int): ApiResult<List<RegisteredProduct>> =
+        when (val result = remote.getMyProducts(status, size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map(ProductCardDto::toDomain), result.status)
             is ApiResult.Failure -> result
         }
 
@@ -42,6 +50,7 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
+internal fun ProductCardDto.toDomain() = RegisteredProduct(productId.idValue(), title ?: name ?: "등록 상품", condition, status, thumbnailUrl)
 
 internal fun ProductDetailResponse.toDomain(): ProductDetail {
     val imageUrls = product.images.mapNotNull { image ->

@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +52,8 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
@@ -71,32 +75,46 @@ fun ProfileEditScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-private data class RegisteredProduct(val title: String, val detail: String, val status: String)
-
 @Composable
-fun RegisteredProductsScreen(onBack: () -> Unit, onRegister: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val products = listOf(
-        RegisteredProduct("빈티지 필름 카메라", "AI 검수 중", "검수 중"),
-        RegisteredProduct("달빛 유약 머그컵", "경매 등록 가능", "승인"),
-        RegisteredProduct("핸드메이드 가죽 지갑", "이미지 정책 확인 필요", "거부")
+fun RegisteredProductsScreen(
+    onBack: () -> Unit,
+    onRegister: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    remoteProducts: List<RegisteredProduct>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val products = remoteProducts ?: listOf(
+        RegisteredProduct("sample-pending", "빈티지 필름 카메라", "NORMAL", "PENDING", null),
+        RegisteredProduct("sample-registered", "달빛 유약 머그컵", "GOOD", "REGISTERED", null),
+        RegisteredProduct("sample-rejected", "핸드메이드 가죽 지갑", "BAD", "REJECTED", null)
     )
     var filter by rememberSaveable { mutableStateOf("전체") }
     MyListScaffold("등록 상품 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 중", "승인", "거부").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
-            val filtered = products.filter { filter == "전체" || it.status == filter }
+            item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 중", "승인", "거부", "판매 완료").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
+            if (isLoading) item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
+            if (errorMessage != null) item { Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry) { Text("다시 불러오기") } } }
+            val filtered = if (isLoading || errorMessage != null) emptyList() else products.filter { filter == "전체" || productStatusLabel(it.status) == filter }
+            if (!isLoading && errorMessage == null && filtered.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("등록한 상품이 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("상품을 등록하면 검수 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp) } }
             items(filtered.size) { index ->
                 val product = filtered[index]
                 Row(Modifier.fillMaxWidth().height(76.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(56.dp).background(Color(0xFFD1D6DE), RoundedCornerShape(8.dp)))
-                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(product.detail, color = Colors.Muted, fontSize = 11.sp) }
-                    Text(product.status, color = when (product.status) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(56.dp))
+                    val statusLabel = productStatusLabel(product.status)
+                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
+                    Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
             item { Button(onRegister, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("새 상품 등록", fontWeight = FontWeight.Bold) } }
         }
     }
 }
+
+private fun productStatusLabel(status: String) = when (status.uppercase()) { "PENDING" -> "검수 중"; "REGISTERED" -> "승인"; "REJECTED" -> "거부"; "SOLD" -> "판매 완료"; else -> status }
+private fun productStatusDescription(status: String) = when (status.uppercase()) { "PENDING" -> "AI 검수 중"; "REGISTERED" -> "경매 등록 가능"; "REJECTED" -> "검수 결과 확인 필요"; "SOLD" -> "판매가 완료된 상품"; else -> "상품 상태 확인 필요" }
 
 @Composable
 fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
