@@ -9,6 +9,7 @@ import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 
 class AuctionRepositoryImpl(
     private val remote: AuctionRemoteDataSource,
@@ -32,6 +33,13 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
     val endTime = scheduledEndAt.toInstantOrNull() ?: endedAt.toInstantOrNull()
     val remaining = endTime?.let { Duration.between(referenceTime, it).seconds.coerceAtLeast(0) }
         ?: auctionTime.coerceAtLeast(0)
+    val detailedImages = product?.images.orEmpty().mapNotNull { image ->
+        (image as? JsonPrimitive)?.contentOrNull
+            ?: runCatching {
+                image.jsonObject["imageUrl"]?.let { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: image.jsonObject["url"]?.let { (it as? JsonPrimitive)?.contentOrNull }
+            }.getOrNull()
+    }.filter(String::isNotBlank).distinct()
     return AuctionSummary(
         auctionId = auctionId.idValue(),
         sellerMemberId = memberId?.idValue().orEmpty(),
@@ -45,7 +53,8 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         status = status,
         bookmarked = bookmarked,
         isHighestBidder = myBid?.isHighestBidder,
-        myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt()
+        myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
+        imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) }
     )
 }
 

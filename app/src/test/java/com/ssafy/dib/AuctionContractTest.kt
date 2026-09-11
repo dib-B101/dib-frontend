@@ -16,6 +16,7 @@ class AuctionContractTest {
             """{
                 "items":[{
                     "auctionId":3,
+                    "memberId":17,
                     "productId":8,
                     "startPrice":10000,
                     "currentPrice":12500,
@@ -25,7 +26,7 @@ class AuctionContractTest {
                     "status":"ACTIVE",
                     "bookmarked":true,
                     "myBid":{"amount":12000,"isHighestBidder":false},
-                    "product":{"name":"빈티지 카메라","categoryName":"디지털기기"}
+                    "product":{"name":"빈티지 카메라","categoryName":"디지털기기","thumbnailUrl":"https://cdn.example/thumb.jpg","images":[{"imageUrl":"https://cdn.example/front.jpg"},"https://cdn.example/side.jpg"]}
                 }],
                 "hasNext":false
             }""".trimIndent()
@@ -35,10 +36,18 @@ class AuctionContractTest {
 
         assertEquals("3", auction.auctionId)
         assertEquals("8", auction.productId)
+        assertEquals("17", auction.sellerMemberId)
         assertEquals("빈티지 카메라", auction.title)
         assertEquals(12_500, auction.currentPrice)
         assertEquals(600, auction.remainingSeconds)
         assertTrue(auction.bookmarked)
         assertEquals(12_000, auction.myBidAmount)
+        assertEquals(
+            listOf(
+                "https://cdn.example/front.jpg",
+                "https://cdn.example/side.jpg"
+            ),
+            auction.imageUrls
+        )
     }
 }

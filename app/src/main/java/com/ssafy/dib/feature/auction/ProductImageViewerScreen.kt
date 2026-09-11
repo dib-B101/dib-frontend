@@ -32,11 +32,12 @@ import com.ssafy.dib.feature.home.allHomeAuctions
 fun ProductImageViewerScreen(
     productId: String,
     initialPage: Int,
+    imageUrls: List<String>,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val product = allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
-    val pageCount = 5
+    val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, pageCount - 1), pageCount = { pageCount })
     val background = Color(0xFF1A1A1A)
 
@@ -59,7 +60,7 @@ fun ProductImageViewerScreen(
         }
 
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) {
-            ZoomableProductImage(product.photo, it)
+            ZoomableProductImage(product.photo, imageUrls.getOrNull(it), it)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -80,7 +81,7 @@ fun ProductImageViewerScreen(
 }
 
 @Composable
-private fun ZoomableProductImage(photo: ProductPhoto, page: Int) {
+private fun ZoomableProductImage(photo: ProductPhoto, imageUrl: String?, page: Int) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -117,9 +118,10 @@ private fun ZoomableProductImage(photo: ProductPhoto, page: Int) {
             .transformable(transformState),
         contentAlignment = Alignment.Center
     ) {
-        if (page == 0) {
+        if (imageUrl != null || page == 0) {
             ProductPhoto(
                 photo,
+                imageUrl,
                 Modifier.fillMaxWidth().height(560.dp).graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
