@@ -794,6 +794,10 @@ fun AppNavHost() {
             var orderDetailRevision by remember(orderId) { mutableStateOf(0) }
             var confirmationLoading by remember(orderId) { mutableStateOf(false) }
             var confirmationError by remember(orderId) { mutableStateOf<String?>(null) }
+            var paymentPreparation by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.PaymentPreparation?>(null) }
+            var paymentLoading by remember(orderId) { mutableStateOf(false) }
+            var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
+            var paymentPrepareKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
 
             LaunchedEffect(orderId, orderDetailRevision) {
                 if (orderId == "sample") return@LaunchedEffect
@@ -821,6 +825,47 @@ fun AppNavHost() {
                 errorMessage = orderDetailError,
                 confirmationLoading = confirmationLoading,
                 confirmationError = confirmationError,
+                paymentPreparation = paymentPreparation,
+                paymentLoading = paymentLoading,
+                paymentError = paymentError,
+                onPreparePayment = {
+                    paymentLoading = true
+                    paymentError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.paymentRepository.prepare(orderId, "CARD", paymentPrepareKey)
+                        }) {
+                            is ApiResult.Success -> paymentPreparation = result.value
+                            is ApiResult.Failure -> {
+                                paymentError = result.error.message.ifBlank { "결제를 준비하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        paymentLoading = false
+                    }
+                },
+                onCheckPayment = {
+                    paymentLoading = true
+                    paymentError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }) {
+                            is ApiResult.Success -> {
+                                remoteOrder = result.value
+                                if (result.value.status.uppercase() != "PENDING") {
+                                    paymentPreparation = null
+                                    ordersRevision++
+                                }
+                            }
+                            is ApiResult.Failure -> paymentError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                        }
+                        paymentLoading = false
+                    }
+                },
+                onResetPayment = {
+                    paymentPreparation = null
+                    paymentError = null
+                    paymentPrepareKey = java.util.UUID.randomUUID().toString()
+                },
                 onRetry = { orderDetailRevision++ },
                 onConfirmPurchase = {
                     confirmationLoading = true
