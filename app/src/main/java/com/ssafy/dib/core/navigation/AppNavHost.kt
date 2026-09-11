@@ -57,6 +57,8 @@ import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.support.InquiryDetail
+import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
@@ -701,7 +703,83 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Inquiries.route) {
-            InquiryHistoryScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
+            var inquiries by remember { mutableStateOf<List<InquirySummary>?>(null) }
+            var inquiriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var inquiriesError by remember { mutableStateOf<String?>(null) }
+            var inquiriesRevision by remember { mutableStateOf(0) }
+            var selectedInquiry by remember { mutableStateOf<InquiryDetail?>(null) }
+            var inquiryDetailLoading by remember { mutableStateOf(false) }
+            var inquiryDetailError by remember { mutableStateOf<String?>(null) }
+            var inquirySubmitLoading by remember { mutableStateOf(false) }
+            var inquirySubmitError by remember { mutableStateOf<String?>(null) }
+            var inquirySubmissionRevision by remember { mutableStateOf(0) }
+
+            LaunchedEffect(inquiriesRevision) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                inquiriesLoading = true
+                inquiriesError = null
+                when (val result = withContext(Dispatchers.IO) { auth.inquiryRepository.getInquiries() }) {
+                    is ApiResult.Success -> inquiries = result.value
+                    is ApiResult.Failure -> {
+                        inquiriesError = result.error.message.ifBlank { "문의 내역을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                inquiriesLoading = false
+            }
+
+            InquiryHistoryScreen(
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain,
+                remoteInquiries = inquiries,
+                isLoading = inquiriesLoading,
+                errorMessage = inquiriesError,
+                selectedInquiry = selectedInquiry,
+                detailLoading = inquiryDetailLoading,
+                detailError = inquiryDetailError,
+                submitLoading = inquirySubmitLoading,
+                submitError = inquirySubmitError,
+                submissionRevision = inquirySubmissionRevision,
+                onRetry = { inquiriesRevision++ },
+                onInquiryClick = { questionId ->
+                    inquiryDetailLoading = true
+                    inquiryDetailError = null
+                    selectedInquiry = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.inquiryRepository.getInquiry(questionId)
+                        }) {
+                            is ApiResult.Success -> selectedInquiry = result.value
+                            is ApiResult.Failure -> inquiryDetailError = result.error.message.ifBlank { "문의 상세를 불러오지 못했어요." }
+                        }
+                        inquiryDetailLoading = false
+                    }
+                },
+                onDetailDismiss = {
+                    selectedInquiry = null
+                    inquiryDetailLoading = false
+                    inquiryDetailError = null
+                },
+                onSubmit = { title, content ->
+                    inquirySubmitLoading = true
+                    inquirySubmitError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.inquiryRepository.createInquiry(title, content)
+                        }) {
+                            is ApiResult.Success -> {
+                                inquirySubmissionRevision++
+                                inquiriesRevision++
+                            }
+                            is ApiResult.Failure -> inquirySubmitError = when (result.error.code) {
+                                "INVALID_QUESTION" -> "제목과 문의 내용을 확인해주세요."
+                                else -> result.error.message.ifBlank { "문의를 등록하지 못했어요." }
+                            }
+                        }
+                        inquirySubmitLoading = false
+                    }
+                }
+            )
         }
         composable(Screen.ReportHistory.route) {
             ReportHistoryScreen(onBack = navController::navigateUp)
