@@ -113,7 +113,18 @@ fun HomeScreen(
                     }
                 }
             }
-            if (closingSoon) {
+            if (remoteAuctions?.isEmpty() == true && !remoteLoading) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 72.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("아직 진행 중인 경매가 없어요", color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("상품이 등록되면 이곳에서 바로 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp)
+                    }
+                }
+            } else if (closingSoon) {
                 item {
                     DeadlineSection(
                         auction = highlightedDeadline,

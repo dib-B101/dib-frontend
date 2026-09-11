@@ -48,6 +48,8 @@ fun ProductDetailScreen(
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
+    realtimeStatus: String?,
+    realtimeNotice: String?,
     isAuthenticated: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
@@ -84,6 +86,18 @@ fun ProductDetailScreen(
             delay(1_000)
             remainingSeconds--
         }
+    }
+
+    LaunchedEffect(remoteAuction?.price, remoteAuction?.bidCount, remoteAuction?.remainingSeconds, remoteAuction?.status) {
+        remoteAuction?.let { updated ->
+            currentPrice = updated.price
+            remainingSeconds = if (updated.status == "ENDED") 0 else updated.remainingSeconds
+            updated.isHighestBidder?.let { isHighestBidder = it }
+        }
+    }
+
+    LaunchedEffect(realtimeNotice) {
+        realtimeNotice?.let { snackbar.showSnackbar(it.substringBefore('|')) }
     }
 
     LaunchedEffect(paidBidAmount) {
@@ -140,6 +154,17 @@ fun ProductDetailScreen(
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
+            realtimeStatus?.let { status ->
+                item {
+                    Text(
+                        "● $status",
+                        Modifier.fillMaxWidth().background(Colors.Mint.copy(alpha = .18f)).padding(horizontal = 16.dp, vertical = 7.dp),
+                        color = Colors.MintInk,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             remoteError?.let { message ->
                 item {
                     Row(
