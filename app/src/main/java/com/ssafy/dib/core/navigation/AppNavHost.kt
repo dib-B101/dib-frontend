@@ -55,6 +55,8 @@ import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
+import com.ssafy.dib.domain.order.OrderRole
+import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
@@ -80,6 +82,11 @@ fun AppNavHost() {
     var auctionsLoading by remember { mutableStateOf(false) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
+    var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
+    var saleOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
+    var ordersLoading by remember { mutableStateOf(false) }
+    var ordersError by remember { mutableStateOf<String?>(null) }
+    var ordersRevision by remember { mutableStateOf(0) }
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
@@ -134,6 +141,31 @@ fun AppNavHost() {
             }
         }
         auctionsLoading = false
+    }
+
+    LaunchedEffect(ordersRevision, signedIn) {
+        if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        ordersLoading = true
+        ordersError = null
+        val (buyerResult, sellerResult) = withContext(Dispatchers.IO) {
+            auth.orderRepository.getOrders(OrderRole.BUYER) to
+                auth.orderRepository.getOrders(OrderRole.SELLER)
+        }
+        when (buyerResult) {
+            is ApiResult.Success -> purchaseOrders = buyerResult.value
+            is ApiResult.Failure -> ordersError = buyerResult.error.message.ifBlank { "구매 내역을 불러오지 못했어요." }
+        }
+        when (sellerResult) {
+            is ApiResult.Success -> saleOrders = sellerResult.value
+            is ApiResult.Failure -> if (ordersError == null) {
+                ordersError = sellerResult.error.message.ifBlank { "판매 내역을 불러오지 못했어요." }
+            }
+        }
+        if (
+            (buyerResult is ApiResult.Failure && buyerResult.error.requiresLogin) ||
+            (sellerResult is ApiResult.Failure && sellerResult.error.requiresLogin)
+        ) signedIn = false
+        ordersLoading = false
     }
 
     NavHost(
@@ -543,7 +575,12 @@ fun AppNavHost() {
             MyTradesScreen(
                 onTabSelected = ::navigateMain,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTransactionClick = { role -> navController.navigate(Screen.Transaction.createRoute(role)) }
+                onTransactionClick = { role -> navController.navigate(Screen.Transaction.createRoute(role)) },
+                remotePurchaseOrders = purchaseOrders,
+                remoteSaleOrders = saleOrders,
+                remoteLoading = ordersLoading,
+                remoteError = ordersError,
+                onRetry = { ordersRevision++ }
             )
         }
         composable(
