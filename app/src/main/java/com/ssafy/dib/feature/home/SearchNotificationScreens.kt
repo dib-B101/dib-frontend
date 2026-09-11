@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -20,7 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+
+data class AuctionSearchFilters(
+    val categoryId: String?,
+    val minPrice: Long?,
+    val maxPrice: Long?,
+    val status: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +38,12 @@ fun AuctionSearchScreen(
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    remoteCategories: List<ProductCategory>?,
+    remoteAuctions: List<HomeAuction>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onSearch: (AuctionSearchFilters) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -37,18 +53,30 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
-    var loading by rememberSaveable { mutableStateOf(false) }
-    var loadRevision by rememberSaveable { mutableIntStateOf(0) }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val online = remember(loadRevision, submitted) { isNetworkAvailable(context) }
-    LaunchedEffect(submitted, query, category, price, status, loadRevision) {
-        if (submitted) { loading = true; kotlinx.coroutines.delay(450); loading = false }
+    val fallbackCategories = remember {
+        listOf(ProductCategory("1", "디지털기기"), ProductCategory("8", "예술·창작"))
     }
-    val results = if (!submitted) emptyList() else allHomeAuctions.distinctBy(HomeAuction::id).filter {
+    val categories = remoteCategories ?: fallbackCategories
+    val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
+    fun filters() = AuctionSearchFilters(
+        categoryId = selectedCategoryId,
+        minPrice = if (price == "5~10만원") 50_000 else null,
+        maxPrice = when (price) { "5만원 이하" -> 50_000; "5~10만원" -> 100_000; else -> null },
+        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" }
+    )
+    fun submit() {
+        submitted = true
+        if (query.isNotBlank()) recent = (listOf(query.trim()) + recent).distinct().take(5)
+        onSearch(filters())
+    }
+    val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
+        (category == "전체" || it.category.contains(category.removeSuffix("기기"))) &&
+            (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
+            it.status == filters().status
+    }
+    val results = if (!submitted) emptyList() else sourceAuctions.filter {
         val keywordMatch = query.isBlank() || it.name.contains(query, true) || it.category.contains(query, true) || query.contains("카메라") && it.id == "camera"
-        val categoryMatch = category == "전체" || it.category.contains(category.removeSuffix("기기"))
-        val priceMatch = price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000
-        keywordMatch && categoryMatch && priceMatch
+        keywordMatch
     }
 
     Scaffold(
@@ -66,22 +94,22 @@ fun AuctionSearchScreen(
                     trailingIcon = if(query.isNotBlank()) ({ Text("×", Modifier.clickable { query=""; submitted=false }, fontSize = 20.sp) }) else null,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submitted = true; if(query.isNotBlank()) recent = (listOf(query.trim()) + recent).distinct().take(5) }),
+                    keyboardActions = KeyboardActions(onSearch = { submit() }),
                     shape = RoundedCornerShape(14.dp)
                 )
             }
             if (!submitted) {
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("최근 검색어", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("전체 삭제", Modifier.clickable { recent = emptyList() }, color = Colors.Muted, fontSize = 12.sp) } }
-                if (recent.isNotEmpty()) item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { recent.take(3).forEach { word -> FilterChip(selected=false,onClick={query=word;submitted=true},label={Text(word,fontSize=12.sp)}) } } }
+                if (recent.isNotEmpty()) item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { recent.take(3).forEach { word -> FilterChip(selected=false,onClick={query=word; submit()},label={Text(word,fontSize=12.sp)}) } } }
                 item { Text("인기 검색어", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-                items(5) { index -> val word=listOf("빈티지 카메라","핸드메이드 도자기","한정판 스니커즈","원화 작품","레트로 게임기")[index]; Row(Modifier.fillMaxWidth().height(32.dp).clickable { query=word; submitted=true }, verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) androidx.compose.ui.graphics.Color(0xFFF5634F) else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,fontSize=14.sp,fontWeight=if(index<3)FontWeight.Bold else FontWeight.Normal) } }
-            } else if (loading) {
+                items(5) { index -> val word=listOf("빈티지 카메라","핸드메이드 도자기","한정판 스니커즈","원화 작품","레트로 게임기")[index]; Row(Modifier.fillMaxWidth().height(32.dp).clickable { query=word; submit() }, verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) androidx.compose.ui.graphics.Color(0xFFF5634F) else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,fontSize=14.sp,fontWeight=if(index<3)FontWeight.Bold else FontWeight.Normal) } }
+            } else if (isLoading) {
                 item { LoadingContent("경매를 불러오고 있어요") }
-            } else if (!online) {
-                item { NetworkErrorContent { loadRevision++ } }
+            } else if (errorMessage != null) {
+                item { NetworkErrorContent(onRetry) }
             } else {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("검색 결과 ${results.size}개", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("마감 임박순", color = Colors.Muted, fontSize = 12.sp) } }
-                item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(true,{}, {Text("전체")}); FilterChip(category!="전체",{}, {Text(category)}); FilterChip(price!="전체",{}, {Text(price)}); FilterChip(false,{showFilters=true},{Text("필터")}) } }
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("검색 결과 ${results.size}개", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("조건에 맞는 경매", color = Colors.Muted, fontSize = 12.sp) } }
+                item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(true,{}, {Text(status)}); FilterChip(category!="전체",{}, {Text(category)}); FilterChip(price!="전체",{}, {Text(price)}); FilterChip(false,{showFilters=true},{Text("필터")}) } }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text("검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
             }
@@ -90,16 +118,16 @@ fun AuctionSearchScreen(
     if(showFilters) ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=androidx.compose.ui.graphics.Color.White){
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("×",Modifier.clickable{showFilters=false},fontSize=22.sp)}
-            FilterGroup("카테고리",listOf("전체","디지털기기","예술·창작"),category){category=it}
+            FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
             FilterGroup("가격 범위",listOf("전체","5만원 이하","5~10만원"),price){price=it}
             FilterGroup("경매 상태",listOf("진행 중","예정","종료"),status){status=it}
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"},color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submitted=true},Modifier.weight(1f).height(48.dp),shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("${results.size}개 결과 보기",fontWeight=FontWeight.Bold)}}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"},color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(48.dp),shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }
     }
 }
 
-@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){Column(modifier.clickable(onClick=onClick),verticalArrangement=Arrangement.spacedBy(5.dp)){Box(Modifier.fillMaxWidth().height(122.dp).background(androidx.compose.ui.graphics.Color(0xFFD1D4D9),RoundedCornerShape(10.dp))){Surface(Modifier.padding(8.dp),color=Colors.Navy,shape=RoundedCornerShape(12.dp)){Text("진행중",Modifier.padding(horizontal=8.dp,vertical=5.dp),color=androidx.compose.ui.graphics.Color.White,fontSize=9.sp)}};Text(auction.name,fontSize=12.sp,fontWeight=FontWeight.Bold);Text("${auction.pricePrefix} ${auction.priceLabel}",color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}명",color=Colors.Muted,fontSize=9.sp)}}
-@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text(title,fontSize=13.sp,fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{FilterChip(selected=selected==it,onClick={onSelect(it)},label={Text(it,fontSize=12.sp)})}}}}
+@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clickable(onClick=onClick),verticalArrangement=Arrangement.spacedBy(5.dp)){Box(Modifier.fillMaxWidth().height(122.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=Colors.Navy,shape=RoundedCornerShape(12.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=androidx.compose.ui.graphics.Color.White,fontSize=9.sp)}};Text(auction.name,fontSize=12.sp,fontWeight=FontWeight.Bold);Text("${auction.pricePrefix} ${auction.priceLabel}",color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}명",color=Colors.Muted,fontSize=9.sp)}}
+@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text(title,fontSize=13.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{FilterChip(selected=selected==it,onClick={onSelect(it)},label={Text(it,fontSize=12.sp)})}}}}
 
 @Composable
 fun NotificationCenterScreen(onBack:()->Unit,onTabSelected:(DibMainTab)->Unit,modifier:Modifier=Modifier){
