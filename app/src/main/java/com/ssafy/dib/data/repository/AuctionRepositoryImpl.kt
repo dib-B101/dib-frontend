@@ -43,7 +43,8 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
         status = status,
         bookmarked = bookmarked,
-        isHighestBidder = myBid?.isHighestBidder
+        isHighestBidder = myBid?.isHighestBidder,
+        myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt()
     )
 }
 

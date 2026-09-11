@@ -10,13 +10,17 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 data class AuctionRealtimeUpdate(
+    val eventType: String,
     val auctionId: String,
+    val commandId: String? = null,
     val currentPrice: Int? = null,
     val bidCount: Int? = null,
     val remainingSeconds: Int? = null,
     val status: String? = null,
     val isHighestBidder: Boolean? = null,
     val message: String? = null,
+    val errorCode: String? = null,
+    val minAllowedAmount: Int? = null,
     val occurredAt: String? = null
 )
 
@@ -27,6 +31,7 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
         val occurredAt = payload.string("occurredAt") ?: envelope.occurredAt
         return when (envelope.eventType) {
             SocketEventTypes.AUCTION_SNAPSHOT -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
                 currentPrice = payload.int("currentPrice"),
                 bidCount = payload.int("bidCount"),
@@ -36,6 +41,7 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 occurredAt = occurredAt
             )
             SocketEventTypes.HIGHEST_BID_UPDATED -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
                 currentPrice = payload.int("currentPrice"),
                 bidCount = payload.int("bidCount"),
@@ -43,12 +49,14 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 occurredAt = occurredAt
             )
             SocketEventTypes.AUCTION_EXTENDED -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
                 remainingSeconds = remaining(payload.string("endedAt")),
                 message = "마감 시간이 ${payload.int("extensionSeconds") ?: 15}초 연장됐어요.",
                 occurredAt = occurredAt
             )
             SocketEventTypes.AUCTION_ENDED -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
                 currentPrice = payload.int("finalPrice"),
                 remainingSeconds = 0,
@@ -57,7 +65,9 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 occurredAt = occurredAt
             )
             SocketEventTypes.BID_ACCEPTED -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
+                commandId = payload.string("commandId") ?: envelope.commandId,
                 currentPrice = payload.int("newCurrentPrice"),
                 remainingSeconds = remaining(payload.string("endedAt")),
                 isHighestBidder = payload.boolean("isHighestBidder"),
@@ -65,10 +75,14 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 occurredAt = occurredAt
             )
             SocketEventTypes.BID_REJECTED -> AuctionRealtimeUpdate(
+                eventType = envelope.eventType,
                 auctionId = auctionId,
+                commandId = payload.string("commandId") ?: envelope.commandId,
                 currentPrice = payload.int("currentPrice"),
                 remainingSeconds = remaining(payload.string("endedAt")),
                 message = payload.string("message") ?: "입찰이 반영되지 않았어요.",
+                errorCode = payload.string("code"),
+                minAllowedAmount = payload.int("minAllowedAmount"),
                 occurredAt = occurredAt
             )
             else -> null

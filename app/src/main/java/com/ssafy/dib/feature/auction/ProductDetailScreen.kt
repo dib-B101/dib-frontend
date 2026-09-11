@@ -39,6 +39,15 @@ import kotlinx.coroutines.launch
 
 private enum class DetailAuctionState { Active, HighestBidder, Lost, Won }
 
+data class RealtimeBidFeedback(
+    val accepted: Boolean,
+    val message: String,
+    val currentPrice: Int?,
+    val minAllowedAmount: Int?,
+    val errorCode: String?,
+    val eventKey: String
+)
+
 /** Figma 01_Wireframe / 03_Product_Detail states with a functional bid sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +59,10 @@ fun ProductDetailScreen(
     onRetry: () -> Unit,
     realtimeStatus: String?,
     realtimeNotice: String?,
+    realtimeBiddingEnabled: Boolean,
+    realtimeBidFeedback: RealtimeBidFeedback?,
+    onRealtimeBid: (Int) -> Boolean,
+    onDepositInvalid: () -> Unit,
     isAuthenticated: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
@@ -72,8 +85,10 @@ fun ProductDetailScreen(
     var remainingSeconds by rememberSaveable(productId) { mutableIntStateOf(if (productId == "lost" || productId == "won") 0 else product.remainingSeconds) }
     var currentPrice by rememberSaveable(productId) { mutableIntStateOf(product.price) }
     var isHighestBidder by rememberSaveable(productId) { mutableStateOf(productId == "won") }
+    var myHighestBidAmount by rememberSaveable(productId) { mutableStateOf(product.myBidAmount) }
     var bidError by rememberSaveable { mutableStateOf("") }
     var priceUpdateScheduled by rememberSaveable { mutableStateOf(false) }
+    var bidSubmitting by rememberSaveable(productId) { mutableStateOf(false) }
     val auctionState = when {
         remainingSeconds > 0 && isHighestBidder -> DetailAuctionState.HighestBidder
         remainingSeconds > 0 -> DetailAuctionState.Active
@@ -92,7 +107,11 @@ fun ProductDetailScreen(
         remoteAuction?.let { updated ->
             currentPrice = updated.price
             remainingSeconds = if (updated.status == "ENDED") 0 else updated.remainingSeconds
+            updated.myBidAmount?.let { myHighestBidAmount = it }
             updated.isHighestBidder?.let { isHighestBidder = it }
+            myHighestBidAmount?.let { ownBid ->
+                if (isHighestBidder && updated.price > ownBid) isHighestBidder = false
+            }
         }
     }
 
@@ -100,8 +119,37 @@ fun ProductDetailScreen(
         realtimeNotice?.let { snackbar.showSnackbar(it.substringBefore('|')) }
     }
 
+    LaunchedEffect(realtimeBidFeedback?.eventKey) {
+        val feedback = realtimeBidFeedback ?: return@LaunchedEffect
+        bidSubmitting = false
+        feedback.currentPrice?.let { currentPrice = it }
+        if (feedback.accepted) {
+            isHighestBidder = true
+            myHighestBidAmount = feedback.currentPrice
+            bidError = ""
+            snackbar.showSnackbar(feedback.message)
+        } else {
+            if (feedback.errorCode == "DEPOSIT_REQUIRED") onDepositInvalid()
+            if (feedback.errorCode == "AUCTION_NOT_ACTIVE") remainingSeconds = 0
+            val minimumGuide = feedback.minAllowedAmount?.let { "\n최소 ${"%,d".format(it)}원부터 입찰할 수 있어요." }.orEmpty()
+            bidError = feedback.message + minimumGuide
+            showBidSheet = feedback.errorCode != "AUCTION_NOT_ACTIVE"
+            snackbar.showSnackbar(feedback.message)
+        }
+    }
+
     LaunchedEffect(paidBidAmount) {
         if (paidBidAmount > 0) {
+            if (realtimeBiddingEnabled) {
+                val sent = onRealtimeBid(paidBidAmount)
+                bidSubmitting = sent
+                onPaymentConsumed()
+                snackbar.showSnackbar(
+                    if (sent) "${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요."
+                    else "실시간 연결을 준비하고 있어요. 잠시 후 다시 입찰해주세요."
+                )
+                return@LaunchedEffect
+            }
             val wasExtended = remainingSeconds in 1..30
             currentPrice = paidBidAmount
             isHighestBidder = true
@@ -133,6 +181,7 @@ fun ProductDetailScreen(
                 price = currentPrice + 1,
                 favorite = favorite,
                 state = auctionState,
+                submitting = bidSubmitting,
                 onFavorite = { selected ->
                     if (isAuthenticated) {
                         favorite = selected
@@ -145,7 +194,7 @@ fun ProductDetailScreen(
                 },
                 onBid = {
                     if (!isAuthenticated) onLoginRequired()
-                    else if (auctionState == DetailAuctionState.Active) showBidSheet = true
+                    else if (auctionState == DetailAuctionState.Active && !bidSubmitting) showBidSheet = true
                 },
                 onTransaction = onTransactionClick
             )
@@ -195,7 +244,7 @@ fun ProductDetailScreen(
 
     if (showBidSheet) {
         LaunchedEffect(Unit) {
-            if (!priceUpdateScheduled) {
+            if (!realtimeBiddingEnabled && !priceUpdateScheduled) {
                 priceUpdateScheduled = true
                 delay(2_500)
                 if (showBidSheet) {
@@ -433,6 +482,7 @@ private fun StickyBidAction(
     price: Int,
     favorite: Boolean,
     state: DetailAuctionState,
+    submitting: Boolean,
     onFavorite: (Boolean) -> Unit,
     onBid: () -> Unit,
     onTransaction: () -> Unit
@@ -457,7 +507,7 @@ private fun StickyBidAction(
             }
             Button(
                 onClick = onBid,
-                enabled = state == DetailAuctionState.Active,
+                enabled = state == DetailAuctionState.Active && !submitting,
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -467,7 +517,11 @@ private fun StickyBidAction(
                 )
             ) {
                 Text(
-                    if (state == DetailAuctionState.HighestBidder) "✓ 현재 최고 입찰 중이에요" else "%,d원 입찰하기".format(price),
+                    when {
+                        submitting -> "입찰 결과 확인 중"
+                        state == DetailAuctionState.HighestBidder -> "✓ 현재 최고 입찰 중이에요"
+                        else -> "%,d원 입찰하기".format(price)
+                    },
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

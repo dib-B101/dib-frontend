@@ -15,7 +15,8 @@ data class HomeAuction(
     val photo: ProductPhoto,
     val pricePrefix: String = "현재가",
     val status: String = "ACTIVE",
-    val isHighestBidder: Boolean? = null
+    val isHighestBidder: Boolean? = null,
+    val myBidAmount: Int? = null
 ) {
     val priceLabel: String get() = "%,d원".format(price)
     val meta: String get() = "입찰 ${bidCount}명 · ${remainingTimeLabel(remainingSeconds)} 남음"
@@ -54,7 +55,8 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     photo = ProductPhoto.Placeholder,
     pricePrefix = if (currentPrice > 0) "현재가" else "시작가",
     status = status,
-    isHighestBidder = isHighestBidder
+    isHighestBidder = isHighestBidder,
+    myBidAmount = myBidAmount
 )
 
 internal fun remainingTimeLabel(seconds: Int): String = when {

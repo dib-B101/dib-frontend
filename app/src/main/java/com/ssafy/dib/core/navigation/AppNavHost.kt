@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.feature.auction.ProductDetailScreen
+import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
 import com.ssafy.dib.feature.auction.ProductImageViewerScreen
 import com.ssafy.dib.feature.auction.ProductReportScreen
@@ -51,6 +52,8 @@ import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
+import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
+import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -276,6 +279,9 @@ fun AppNavHost() {
             var detailRevision by remember(productId) { mutableStateOf(0) }
             var realtimeState by remember(productId) { mutableStateOf<RealtimeConnectionState?>(null) }
             var realtimeNotice by remember(productId) { mutableStateOf<String?>(null) }
+            var realtimeConnection by remember(productId) { mutableStateOf<AuctionRealtimeConnection?>(null) }
+            var pendingBidCommandId by remember(productId) { mutableStateOf<String?>(null) }
+            var realtimeBidFeedback by remember(productId) { mutableStateOf<RealtimeBidFeedback?>(null) }
             LaunchedEffect(productId, detailRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 detailLoading = true
@@ -292,6 +298,7 @@ fun AppNavHost() {
             DisposableEffect(productId, auth.networkConfig.isWebSocketConfigured) {
                 val connection = if (auth.networkConfig.isWebSocketConfigured) {
                     auth.createAuctionRealtimeConnection().also { realtime ->
+                        realtimeConnection = realtime
                         realtime.start(
                             auctionId = productId,
                             onUpdate = { update ->
@@ -306,8 +313,24 @@ fun AppNavHost() {
                                             isHighestBidder = update.isHighestBidder ?: base.isHighestBidder
                                         )
                                     }
-                                    update.message?.let { message ->
-                                        realtimeNotice = "$message|${update.occurredAt.orEmpty()}"
+                                    val isBidResult = update.eventType in setOf(
+                                        SocketEventTypes.BID_ACCEPTED,
+                                        SocketEventTypes.BID_REJECTED
+                                    )
+                                    if (isBidResult && update.commandId == pendingBidCommandId) {
+                                        realtimeBidFeedback = RealtimeBidFeedback(
+                                            accepted = update.eventType == SocketEventTypes.BID_ACCEPTED,
+                                            message = update.message.orEmpty(),
+                                            currentPrice = update.currentPrice,
+                                            minAllowedAmount = update.minAllowedAmount,
+                                            errorCode = update.errorCode,
+                                            eventKey = "${update.eventType}:${update.commandId}:${update.occurredAt.orEmpty()}"
+                                        )
+                                        pendingBidCommandId = null
+                                    } else {
+                                        update.message?.let { message ->
+                                            realtimeNotice = "$message|${update.occurredAt.orEmpty()}"
+                                        }
                                     }
                                 }
                             },
@@ -315,7 +338,11 @@ fun AppNavHost() {
                         )
                     }
                 } else null
-                onDispose { connection?.close() }
+                onDispose {
+                    realtimeConnection = null
+                    pendingBidCommandId = null
+                    connection?.close()
+                }
             }
             ProductDetailScreen(
                 productId = productId,
@@ -330,6 +357,19 @@ fun AppNavHost() {
                     RealtimeConnectionState.Disconnected, null -> null
                 },
                 realtimeNotice = realtimeNotice,
+                realtimeBiddingEnabled = auth.networkConfig.isWebSocketConfigured,
+                realtimeBidFeedback = realtimeBidFeedback,
+                onRealtimeBid = { amount ->
+                    realtimeConnection?.placeBid(amount)?.let { commandId ->
+                        pendingBidCommandId = commandId
+                        true
+                    } ?: false
+                },
+                onDepositInvalid = {
+                    val updatedPaidProducts = depositPaidProductIds - productId
+                    depositPaidProductIds = updatedPaidProducts
+                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
+                },
                 isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->

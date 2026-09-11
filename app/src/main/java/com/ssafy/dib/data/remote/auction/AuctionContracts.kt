@@ -32,7 +32,10 @@ data class AuctionDto(
 )
 
 @Serializable
-data class MyBidDto(val isHighestBidder: Boolean = false)
+data class MyBidDto(
+    val amount: Long? = null,
+    val isHighestBidder: Boolean = false
+)
 
 @Serializable
 data class AuctionProductDto(

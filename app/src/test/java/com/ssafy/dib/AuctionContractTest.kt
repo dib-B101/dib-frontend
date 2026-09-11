@@ -24,6 +24,7 @@ class AuctionContractTest {
                     "serverTime":"2026-09-11T06:00:00Z",
                     "status":"ACTIVE",
                     "bookmarked":true,
+                    "myBid":{"amount":12000,"isHighestBidder":false},
                     "product":{"name":"빈티지 카메라","categoryName":"디지털기기"}
                 }],
                 "hasNext":false
@@ -38,5 +39,6 @@ class AuctionContractTest {
         assertEquals(12_500, auction.currentPrice)
         assertEquals(600, auction.remainingSeconds)
         assertTrue(auction.bookmarked)
+        assertEquals(12_000, auction.myBidAmount)
     }
 }

@@ -18,7 +18,10 @@ class AuctionRealtimeConnection(
     private var auctionId = ""
     private var reconnectAttempt = 0
     private var reconnectTask: ScheduledFuture<*>? = null
+    private var pendingBidRetryTask: ScheduledFuture<*>? = null
+    private var pendingBidRetryAttempt = 0
     private var lastKnownOccurredAt: String? = null
+    @Volatile private var pendingBidCommand: SocketEnvelope? = null
     private var onUpdate: (AuctionRealtimeUpdate) -> Unit = {}
     private var onState: (RealtimeConnectionState) -> Unit = {}
 
@@ -39,6 +42,10 @@ class AuctionRealtimeConnection(
         active = false
         reconnectTask?.cancel(false)
         reconnectTask = null
+        pendingBidRetryTask?.cancel(false)
+        pendingBidRetryTask = null
+        pendingBidRetryAttempt = 0
+        pendingBidCommand = null
         if (auctionId.isNotBlank()) socket.send(SocketCommands.unsubscribeAuction(auctionId))
         socket.disconnect()
         onState(RealtimeConnectionState.Disconnected)
@@ -49,21 +56,38 @@ class AuctionRealtimeConnection(
         reconnectExecutor.shutdownNow()
     }
 
+    @Synchronized
+    fun placeBid(amount: Int): String? {
+        if (!active || amount <= 0 || pendingBidCommand != null) return null
+        val command = SocketCommands.placeBid(auctionId, amount.toLong())
+        pendingBidCommand = command
+        sendPendingBid()
+        return command.commandId
+    }
+
     private fun connect(state: RealtimeConnectionState) {
         if (!active) return
         onState(state)
         socket.connect(object : DibSocketListener {
             override fun onConnected() {
                 if (!active) return
-                reconnectAttempt = 0
+                clearReconnectBackoff()
                 onState(RealtimeConnectionState.Connected)
                 socket.send(SocketCommands.subscribeAuction(auctionId, lastKnownOccurredAt))
+                sendPendingBid()
             }
 
             override fun onEvent(envelope: SocketEnvelope) {
                 if (!active) return
                 parser.parse(envelope)?.takeIf { it.auctionId == auctionId }?.let { update ->
-                    if (isNewer(update.occurredAt)) {
+                    val isBidResult = update.eventType in setOf(SocketEventTypes.BID_ACCEPTED, SocketEventTypes.BID_REJECTED)
+                    if (isBidResult && update.commandId == pendingBidCommand?.commandId) {
+                        pendingBidCommand = null
+                        pendingBidRetryTask?.cancel(false)
+                        pendingBidRetryTask = null
+                        pendingBidRetryAttempt = 0
+                    }
+                    if (isBidResult || isNewer(update.occurredAt)) {
                         update.occurredAt?.let { lastKnownOccurredAt = it }
                         onUpdate(update)
                     }
@@ -88,6 +112,27 @@ class AuctionRealtimeConnection(
         reconnectTask = reconnectExecutor.schedule(
             { connect(RealtimeConnectionState.Reconnecting) },
             delaySeconds,
+            TimeUnit.SECONDS
+        )
+    }
+
+    @Synchronized
+    private fun clearReconnectBackoff() {
+        reconnectTask?.cancel(false)
+        reconnectTask = null
+        reconnectAttempt = 0
+    }
+
+    @Synchronized
+    private fun sendPendingBid() {
+        val command = pendingBidCommand ?: return
+        if (!socket.send(command)) scheduleReconnect()
+        pendingBidRetryTask?.cancel(false)
+        val retryDelaySeconds = (5L shl pendingBidRetryAttempt.coerceAtMost(2)).coerceAtMost(20)
+        pendingBidRetryAttempt++
+        pendingBidRetryTask = reconnectExecutor.schedule(
+            { if (active && pendingBidCommand?.commandId == command.commandId) sendPendingBid() },
+            retryDelaySeconds,
             TimeUnit.SECONDS
         )
     }
