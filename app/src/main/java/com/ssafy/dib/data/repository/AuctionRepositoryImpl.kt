@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.auction.AuctionDto
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
+import com.ssafy.dib.domain.auction.AuctionCommandResult
 import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
@@ -33,6 +34,25 @@ class AuctionRepositoryImpl(
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(now()), result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult> =
+        when (val result = remote.createAuction(productId, startPrice, auctionTime, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(AuctionCommandResult(result.value.auctionId?.idValue().orEmpty(), result.value.message), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult> =
+        when (val result = remote.updateAuction(auctionId, startPrice, auctionTime)) {
+            is ApiResult.Success -> ApiResult.Success(AuctionCommandResult(result.value.auctionId?.idValue() ?: auctionId, result.value.message), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun cancelAuction(auctionId: String, idempotencyKey: String) = remote.cancelAuction(auctionId, idempotencyKey)
+
+    override fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.startAuction(auctionId, idempotencyKey)) {
+        is ApiResult.Success -> ApiResult.Success(result.value.message, result.status)
+        is ApiResult.Failure -> result
+    }
 }
 
 internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {

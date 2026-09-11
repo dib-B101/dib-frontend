@@ -84,6 +84,7 @@ fun RegisteredProductsScreen(
     isLoading: Boolean,
     errorMessage: String?,
     onRetry: () -> Unit,
+    onAuctionRegister: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val products = remoteProducts ?: listOf(
@@ -101,10 +102,11 @@ fun RegisteredProductsScreen(
             if (!isLoading && errorMessage == null && filtered.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("등록한 상품이 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("상품을 등록하면 검수 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp) } }
             items(filtered.size) { index ->
                 val product = filtered[index]
-                Row(Modifier.fillMaxWidth().height(76.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                val canRegisterAuction = remoteProducts != null && product.status == "REGISTERED"
+                Row(Modifier.fillMaxWidth().height(76.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(56.dp))
                     val statusLabel = productStatusLabel(product.status)
-                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
+                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
                     Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
