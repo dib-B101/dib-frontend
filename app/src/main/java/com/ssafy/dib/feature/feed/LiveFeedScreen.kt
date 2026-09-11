@@ -1,0 +1,145 @@
+package com.ssafy.dib.feature.feed
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ssafy.dib.R
+import com.ssafy.dib.feature.home.formatClock
+import kotlinx.coroutines.delay
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiveFeedScreen(
+    paidBidAmount: Int,
+    onPaymentConsumed: () -> Unit,
+    onClose: () -> Unit,
+    onProductClick: (String) -> Unit,
+    onDepositPayment: (String, Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var following by rememberSaveable { mutableStateOf(true) }
+    var favorite by rememberSaveable { mutableStateOf(false) }
+    var showProducts by rememberSaveable { mutableStateOf(false) }
+    var showBidSheet by rememberSaveable { mutableStateOf(false) }
+    var currentPrice by rememberSaveable { mutableIntStateOf(34_500) }
+    var remaining by rememberSaveable { mutableIntStateOf(42) }
+    var comment by rememberSaveable { mutableStateOf("") }
+    var comments by rememberSaveable { mutableStateOf(listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?")) }
+    var showBidFeedback by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
+    LaunchedEffect(paidBidAmount) {
+        if (paidBidAmount > 0) {
+            currentPrice = paidBidAmount
+            remaining = maxOf(remaining, 30)
+            showBidFeedback = true
+            onPaymentConsumed()
+            delay(1_500)
+            showBidFeedback = false
+        }
+    }
+
+    Box(modifier.fillMaxSize().safeDrawingPadding().background(Color(0xFF17212D))) {
+        Image(painterResource(R.drawable.live_video), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.12f), Color.Transparent, Color(0xFF07101D).copy(.72f)))))
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(0xFFEF596B), shape = RoundedCornerShape(14.dp)) { Text("●  LIVE", Modifier.padding(horizontal = 14.dp, vertical = 7.dp), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                Text("시청 1,248", Modifier.padding(start = 10.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("×", Modifier.size(44.dp).clickable(onClick = onClose).wrapContentSize(), color = Color.White, fontSize = 27.sp)
+            }
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
+                Text("하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Surface(onClick = { following = !following }, color = if (following) Color.White else Color(0xFF102342), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)) {
+                    Text(if (following) "팔로잉" else "팔로우", Modifier.padding(horizontal = 17.dp, vertical = 8.dp), color = if (following) Color(0xFF102342) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Column(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 222.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            comments.takeLast(3).forEach { message -> Surface(color = Color(0xAD090E17), shape = RoundedCornerShape(10.dp)) { Text(message, Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color.White, fontSize = 10.sp) } }
+        }
+        Column(Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 210.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LiveAction(if (favorite) "♥" else "♡", if (favorite) Color(0xFFEB606F) else Color.White) { favorite = !favorite }
+            LiveAction("···", Color.White) { showProducts = true }
+        }
+        Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().height(42.dp).background(Color.Black.copy(.5f), RoundedCornerShape(21.dp)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                BasicTextField(value = comment, onValueChange = { comment = it.take(40) }, Modifier.weight(1f), singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text("댓글을 입력하세요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
+                Text("↑", Modifier.size(32.dp).background(Color.White, CircleShape).clickable { if (comment.isNotBlank()) { comments = comments + "dib러버  ${comment.trim()}"; comment = "" } }.wrapContentSize(), color = Color(0xFF0F2444), fontWeight = FontWeight.Bold)
+            }
+            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().height(104.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
+                    Text("상품 2 / 5 · 목록보기  ∧", Modifier.clickable { showProducts = true }, color = Color(0xFF596373), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(52.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(8.dp)))
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Text("달빛 유약 머그컵", color = Color(0xFF0F2444), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("현재가 ${"%,d".format(currentPrice)}원", color = Color(0xFF0F2444), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("${formatClock(remaining)} 남음", color = Color(0xFFF2704E), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(onClick = { showBidSheet = true }, enabled = remaining > 0, modifier = Modifier.size(64.dp, 58.dp), shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F2444)), contentPadding = PaddingValues(0.dp)) { Text("입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center)) {
+            Surface(color = Color(0xFFBDEEDF), shape = RoundedCornerShape(12.dp)) { Text("✓ 입찰이 접수됐어요", Modifier.padding(16.dp), color = Color(0xFF216551), fontWeight = FontWeight.Bold) }
+        }
+    }
+
+    if (showProducts) ModalBottomSheet(onDismissRequest = { showProducts = false }, containerColor = Color.White) {
+        LazyColumn(Modifier.fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { Text("라이브 상품 5개", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            items(5) { index ->
+                Row(Modifier.fillMaxWidth().height(72.dp).clickable { showProducts = false; onProductClick(if (index == 1) "camera" else "headphones") }, verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(64.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)))
+                    Column(Modifier.padding(start = 12.dp)) { Text(listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold); Text(if (index == 1) "현재 경매 중" else "대기", color = if (index == 1) Color(0xFFEF596B) else Color.Gray, fontSize = 11.sp) }
+                }
+            }
+        }
+    }
+    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { amount -> showBidSheet = false; onDepositPayment("camera", amount) }
+}
+
+@Composable private fun LiveAction(text: String, color: Color, onClick: () -> Unit) { Box(Modifier.size(44.dp).background(Color.Black.copy(.42f), CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Text(text, color = color, fontSize = 25.sp, fontWeight = FontWeight.Bold) } }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+    val minimum = currentPrice + 500
+    var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
+    val parsed = amount.toIntOrNull() ?: 0
+    val valid = parsed >= minimum && parsed % 500 == 0
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("현재가 ${"%,d".format(currentPrice)}원 · 최소 ${"%,d".format(minimum)}원", color = Color.Gray, fontSize = 12.sp)
+            OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
+            Text("첫 입찰에는 상품별 고정 보증금 1,000원이 필요해요", color = Color(0xFF596373), fontSize = 11.sp)
+            Button({ onConfirm(parsed) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13284B))) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
+        }
+    }
+}

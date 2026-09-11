@@ -7,9 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,15 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -34,20 +30,21 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
 @Composable
 fun HomeScreen(
     onProductClick: (String) -> Unit,
+    onLiveClick: () -> Unit,
+    onSearchClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onCategoryClick: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var query by rememberSaveable { mutableStateOf("") }
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
     var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    var closingSoon by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (deadlineSeconds > 0) {
@@ -66,83 +63,82 @@ fun HomeScreen(
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            HomeHeader {
-                scope.launch { snackbar.showSnackbar("알림 화면은 다음 단계에서 연결해요") }
-            }
+            HomeHeader(onNotificationsClick)
         },
         bottomBar = {
             DibBottomNavigation(
                 selectedTab = DibMainTab.Home,
                 onTabSelected = { tab ->
-                    if (tab == DibMainTab.Home || tab == DibMainTab.Feed) onTabSelected(tab)
-                    else scope.launch { snackbar.showSnackbar("${tab.label} 화면은 다음 단계에서 연결해요") }
+                    onTabSelected(tab)
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbar) }
+        }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            item { SearchField(query = query, onQueryChange = { query = it }) }
+            item { SearchField(onSearchClick) }
 
-            if (query.isBlank()) {
-                item {
-                    AuctionGridSection(
-                        title = "추천 경매",
-                        action = "전체보기",
-                        auctions = recommended,
-                        imageHeight = 104,
-                        favoriteIds = favoriteIds,
-                        onFavorite = ::updateFavorite,
-                        onProductClick = onProductClick
-                    )
-                }
+            item {
+                HomeAuctionSwitcher(closingSoon, { closingSoon = false }, { closingSoon = true }, onCategoryClick)
+            }
+            if (closingSoon) {
                 item {
                     DeadlineSection(
                         deadlineSeconds = deadlineSeconds,
                         favorite = "camera" in favoriteIds,
                         onFavorite = { updateFavorite("camera", it) },
                         onProductClick = { onProductClick("camera") },
-                        onFeedClick = {
-                            scope.launch { snackbar.showSnackbar("피드 화면은 다음 단계에서 연결해요") }
-                        }
+                        onFeedClick = onLiveClick
                     )
                 }
-                item {
-                    PopularSection(
-                        auctions = popularAuctions,
-                        onProductClick = onProductClick
-                    )
-                }
-                item {
-                    AuctionGridSection(
-                        title = "전체 경매",
-                        action = "둘러보기",
-                        auctions = allAuctions,
-                        imageHeight = 100,
-                        favoriteIds = favoriteIds,
-                        onFavorite = ::updateFavorite,
-                        onProductClick = onProductClick
-                    )
-                }
+                item { AuctionGridSection("곧 마감되는 경매", "", recommended, 100, favoriteIds, ::updateFavorite, onProductClick) }
             } else {
-                val results = allHomeAuctions.distinctBy(HomeAuction::id).filter {
-                    it.name.contains(query.trim(), ignoreCase = true)
-                }
-                item {
-                    if (results.isEmpty()) {
-                        EmptySearchResult { query = "" }
-                    } else {
-                        SearchResults(
-                            auctions = results,
-                            favoriteIds = favoriteIds,
-                            onFavorite = ::updateFavorite,
-                            onProductClick = onProductClick
-                        )
+                item { HomeLiveSection(onLiveClick) }
+                item { AuctionGridSection("전체 경매", "둘러보기", allAuctions, 100, favoriteIds, ::updateFavorite, onProductClick) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit, onClosing: () -> Unit, onCategory: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.weight(1f).fillMaxHeight().background(Color(0xFFF6F7F9), RoundedCornerShape(20.dp)).padding(4.dp)) {
+            listOf("일반" to false, "마감임박" to true).forEach { (label, value) ->
+                val selected = selectedClosing == value
+                Surface(
+                    onClick = if(value) onClosing else onGeneral,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    color = if(selected) Color.White else Color.Transparent,
+                    shape = RoundedCornerShape(16.dp),
+                    shadowElevation = if(selected) 2.dp else 0.dp
+                ) { Box(contentAlignment = Alignment.Center) { Text(label, color = if(selected) Colors.Navy else Colors.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold) } }
+            }
+        }
+        OutlinedButton(onClick = onCategory, Modifier.width(64.dp).fillMaxHeight(), shape = RoundedCornerShape(20.dp), contentPadding = PaddingValues(0.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border)) { Text("카테고리", color = Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+    }
+}
+
+@Composable
+private fun HomeLiveSection(onLiveClick: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader("지금 LIVE", "라이브 보기", onLiveClick)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                Triple("하루공방 라이브", "달빛 유약 머그컵", true),
+                Triple("빈티지마켓 라이브", "빈티지 필름 카메라", false)
+            ).forEach { (title, product, live) ->
+                Column(Modifier.weight(1f).height(176.dp).clickable(onClick = onLiveClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.fillMaxWidth().height(100.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
+                        Surface(Modifier.padding(8.dp), color = if(live) Color(0xFFEF596B) else Colors.Navy, shape = RoundedCornerShape(14.dp)) { Text(if(live) "●  LIVE" else "예정", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        Text("♡", Modifier.align(Alignment.TopEnd).padding(10.dp), color = Color.White, fontSize = 24.sp)
                     }
+                    Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(product, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(if(live) "상품 5개 · 목록 보기" else "상품 3개 · 오늘 20:00", color = Colors.Muted, fontSize = 9.sp)
                 }
             }
         }
@@ -167,37 +163,18 @@ private fun HomeHeader(onNotificationsClick: () -> Unit) {
 }
 
 @Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    val focusManager = LocalFocusManager.current
-    BasicTextField(
-        value = query,
-        onValueChange = onQueryChange,
+private fun SearchField(onClick: () -> Unit) {
+    Row(
         modifier = Modifier.fillMaxWidth().height(44.dp)
             .background(Colors.Search, RoundedCornerShape(12.dp))
-            .border(1.dp, Colors.SearchBorder, RoundedCornerShape(12.dp)),
-        singleLine = true,
-        textStyle = LocalTextStyle.current.copy(color = Colors.Text, fontSize = 13.sp),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-        decorationBox = { innerTextField ->
-            Row(
-                Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Image(
-                    painterResource(R.drawable.search_full),
-                    null,
-                    Modifier.size(19.dp),
-                    colorFilter = ColorFilter.tint(Colors.MintInk)
-                )
-                Box(Modifier.weight(1f)) {
-                    if (query.isEmpty()) Text("상품을 검색해보세요", color = Colors.Muted, fontSize = 13.sp)
-                    innerTextField()
-                }
-            }
-        }
-    )
+            .border(1.dp, Colors.SearchBorder, RoundedCornerShape(12.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Image(painterResource(R.drawable.search_full), null, Modifier.size(19.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
+        Text("상품을 검색해보세요", color = Colors.Muted, fontSize = 13.sp)
+    }
 }
 
 @Composable
@@ -349,36 +326,6 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SearchResults(
-    auctions: List<HomeAuction>,
-    favoriteIds: List<String>,
-    onFavorite: (String, Boolean) -> Unit,
-    onProductClick: (String) -> Unit
-) {
-    AuctionGridSection(
-        title = "검색 결과 ${auctions.size}개",
-        action = "",
-        auctions = auctions,
-        imageHeight = 100,
-        favoriteIds = favoriteIds,
-        onFavorite = onFavorite,
-        onProductClick = onProductClick
-    )
-}
-
-@Composable
-private fun EmptySearchResult(onReset: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("조건에 맞는 경매가 없어요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        TextButton(onClick = onReset) { Text("검색 초기화", color = Colors.Navy) }
     }
 }
 
