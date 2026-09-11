@@ -9,12 +9,15 @@ import com.ssafy.dib.data.local.auth.DeviceIdentityStore
 import com.ssafy.dib.data.local.auth.SecureAuthSessionStore
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
+import com.ssafy.dib.data.remote.order.OrderRemoteDataSource
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.DibWebSocketClient
 import com.ssafy.dib.data.repository.AuctionRepositoryImpl
 import com.ssafy.dib.data.repository.AuthRepositoryImpl
+import com.ssafy.dib.data.repository.OrderRepositoryImpl
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auth.AuthRepository
+import com.ssafy.dib.domain.order.OrderRepository
 import java.util.UUID
 
 class AuthDependencies(context: Context) {
@@ -27,6 +30,7 @@ class AuthDependencies(context: Context) {
     val deviceId: String = deviceStore.getOrCreate()
     val repository: AuthRepository
     val auctionRepository: AuctionRepository
+    val orderRepository: OrderRepository
 
     init {
         val client = DibHttpClient(
@@ -36,6 +40,7 @@ class AuthDependencies(context: Context) {
         )
         repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
+        orderRepository = OrderRepositoryImpl(OrderRemoteDataSource(client))
     }
 
     private fun guestSessionId(): String {
