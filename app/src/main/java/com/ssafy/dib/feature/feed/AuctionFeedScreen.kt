@@ -56,6 +56,10 @@ private val feedAuctions = listOf(
 fun AuctionFeedScreen(
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    paidBidProductId: String,
+    paidBidAmount: Int,
+    onPaymentConsumed: () -> Unit,
+    onDepositPayment: (String, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val feedPagerState = rememberPagerState(pageCount = feedAuctions::size)
@@ -83,6 +87,22 @@ fun AuctionFeedScreen(
             remainingSeconds.indices.forEach { index ->
                 if (remainingSeconds[index] > 0) remainingSeconds[index]--
             }
+        }
+    }
+
+    LaunchedEffect(paidBidProductId, paidBidAmount) {
+        if (paidBidProductId.isNotBlank() && paidBidAmount > 0) {
+            val page = feedAuctions.indexOfFirst { it.id == paidBidProductId }
+            if (page >= 0) {
+                val shouldExtend = remainingSeconds[page] in 1..30
+                currentPrices[page] = paidBidAmount
+                bidCounts[page]++
+                if (shouldExtend) remainingSeconds[page] = 30
+                lastBidAmount = paidBidAmount
+                if (shouldExtend) extendedPage = page else bidSuccessPage = page
+                feedPagerState.scrollToPage(page)
+            }
+            onPaymentConsumed()
         }
     }
 
@@ -156,14 +176,8 @@ fun AuctionFeedScreen(
             currentPrice = currentPrices[selectedBidPage],
             onDismiss = { selectedBidPage = -1 },
             onConfirm = { amount ->
-                val page = selectedBidPage
-                val shouldExtend = remainingSeconds[page] in 1..30
-                currentPrices[page] = amount
-                bidCounts[page]++
-                if (shouldExtend) remainingSeconds[page] = 30
-                lastBidAmount = amount
-                if (shouldExtend) extendedPage = page else bidSuccessPage = page
                 selectedBidPage = -1
+                onDepositPayment(auction.id, amount)
             }
         )
     }
@@ -465,8 +479,8 @@ private fun FeedBidSheet(
                 Modifier.fillMaxWidth().background(Color(0xFFEDEDED), RoundedCornerShape(10.dp)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("첫 입찰 보증금 2,000원", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("시작가 20,000원의 10% · 경매 종료 후 패찰 시 자동 반환", color = Color(0xFF6B6B6B), fontSize = 10.sp)
+                Text("첫 입찰 보증금 1,000원", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("상품별 고정 보증금 · 경매 종료 후 패찰 시 자동 반환", color = Color(0xFF6B6B6B), fontSize = 10.sp)
             }
             Text(
                 if (valid) "입찰 후에는 취소할 수 없어요" else "최소 금액 이상, 500원 단위로 입력해주세요",
