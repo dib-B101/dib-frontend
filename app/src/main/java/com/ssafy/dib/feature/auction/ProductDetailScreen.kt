@@ -34,7 +34,7 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class DetailAuctionState { Active, HighestBidder, Ended, Won }
+private enum class DetailAuctionState { Active, HighestBidder, Lost, Won }
 
 /** Figma 01_Wireframe / 03_Product_Detail states with a functional bid sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +45,7 @@ fun ProductDetailScreen(
     onImageClick: (Int) -> Unit,
     onSellerClick: () -> Unit,
     onReportClick: () -> Unit,
+    onTransactionClick: () -> Unit,
     paidBidAmount: Int,
     onPaymentConsumed: () -> Unit,
     onDepositPayment: (Int) -> Unit,
@@ -56,14 +57,16 @@ fun ProductDetailScreen(
     val snackbar = remember { SnackbarHostState() }
     var favorite by rememberSaveable(productId) { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
-    var remainingSeconds by rememberSaveable(productId) { mutableIntStateOf(product.remainingSeconds) }
+    var remainingSeconds by rememberSaveable(productId) { mutableIntStateOf(if (productId == "lost" || productId == "won") 0 else product.remainingSeconds) }
     var currentPrice by rememberSaveable(productId) { mutableIntStateOf(product.price) }
-    var isHighestBidder by rememberSaveable(productId) { mutableStateOf(false) }
+    var isHighestBidder by rememberSaveable(productId) { mutableStateOf(productId == "won") }
+    var bidError by rememberSaveable { mutableStateOf("") }
+    var priceUpdateScheduled by rememberSaveable { mutableStateOf(false) }
     val auctionState = when {
         remainingSeconds > 0 && isHighestBidder -> DetailAuctionState.HighestBidder
         remainingSeconds > 0 -> DetailAuctionState.Active
         isHighestBidder -> DetailAuctionState.Won
-        else -> DetailAuctionState.Ended
+        else -> DetailAuctionState.Lost
     }
 
     LaunchedEffect(productId) {
@@ -113,9 +116,7 @@ fun ProductDetailScreen(
                     }
                 },
                 onBid = { if (auctionState == DetailAuctionState.Active) showBidSheet = true },
-                onTransaction = {
-                    scope.launch { snackbar.showSnackbar("낙찰 거래 화면은 다음 단계에서 연결해요") }
-                }
+                onTransaction = onTransactionClick
             )
         },
         snackbarHost = { SnackbarHost(snackbar) }
@@ -139,13 +140,30 @@ fun ProductDetailScreen(
     }
 
     if (showBidSheet) {
+        LaunchedEffect(priceUpdateScheduled) {
+            if (!priceUpdateScheduled) {
+                priceUpdateScheduled = true
+                delay(2_500)
+                if (showBidSheet) {
+                    currentPrice += 500
+                    bidError = "다른 입찰이 먼저 반영됐어요\n최신 입찰가를 확인하고 다시 입찰해 주세요."
+                    snackbar.showSnackbar("새 입찰로 500원 올랐어요")
+                }
+            }
+        }
         BidSheet(
             productName = product.name,
             currentPrice = currentPrice,
-            onDismiss = { showBidSheet = false },
+            submissionError = bidError,
+            onDismiss = { showBidSheet = false; bidError = "" },
             onContinue = { amount ->
-                showBidSheet = false
-                onDepositPayment(amount)
+                if (amount < currentPrice + 500) {
+                    bidError = "다른 입찰이 먼저 반영됐어요\n최신 입찰가를 확인하고 다시 입찰해 주세요."
+                } else {
+                    showBidSheet = false
+                    bidError = ""
+                    onDepositPayment(amount)
+                }
             }
         )
     }
@@ -224,7 +242,7 @@ private fun ProductSummary(
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when (state) {
-                DetailAuctionState.Ended -> Badge("경매 종료")
+                DetailAuctionState.Lost -> Badge("경매 종료")
                 DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
                 else -> Badge("마감 임박", urgent = true)
             }
@@ -235,12 +253,12 @@ private fun ProductSummary(
             Metric(if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) "현재가" else "낙찰가", "%,d원".format(price), Colors.Navy, 24)
             Metric(
                 when (state) {
-                    DetailAuctionState.Ended -> "총 입찰"
+                    DetailAuctionState.Lost -> "총 입찰"
                     DetailAuctionState.Won -> "거래까지"
                     else -> "남은 시간"
                 },
                 when (state) {
-                    DetailAuctionState.Ended -> "${bidCount}명"
+                    DetailAuctionState.Lost -> "${bidCount}명"
                     DetailAuctionState.Won -> "23시간 42분"
                     else -> formatClock(remainingSeconds)
                 },
@@ -257,6 +275,15 @@ private fun ProductSummary(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Image(painterResource(R.drawable.trending_up), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
                 Text("%,d원부터 입찰할 수 있어요".format(price + 500), color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        if (state == DetailAuctionState.Lost) {
+            Text("아쉽게 낙찰되지 않았어요", Modifier.fillMaxWidth().background(Color(0xFFF5F5F5), RoundedCornerShape(10.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        if (state == DetailAuctionState.Won) {
+            Column(Modifier.fillMaxWidth().background(Color(0xFFFFF4ED), RoundedCornerShape(10.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("거래까지 42분 남았어요", color = Color(0xFFD1381F), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("기한이 지나면 낙찰이 취소될 수 있어요", color = Color(0xFFA3381F), fontSize = 11.sp)
             }
         }
     }
@@ -356,7 +383,7 @@ private fun StickyBidAction(
     onTransaction: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().height(76.dp).background(Colors.Background).padding(horizontal = 20.dp, vertical = 12.dp)) {
-        if (state == DetailAuctionState.Ended) {
+        if (state == DetailAuctionState.Lost) {
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                 Text("경매가 종료된 상품이에요", color = Colors.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
@@ -396,7 +423,7 @@ private fun StickyBidAction(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BidSheet(productName: String, currentPrice: Int, onDismiss: () -> Unit, onContinue: (Int) -> Unit) {
+private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (Int) -> Unit) {
     val minimum = currentPrice + 500
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
     val amount = amountText.toIntOrNull() ?: 0
@@ -416,6 +443,9 @@ private fun BidSheet(productName: String, currentPrice: Int, onDismiss: () -> Un
                 }
             }
             Text("$productName · 현재가 ${"%,d".format(currentPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            if (submissionError.isNotBlank()) {
+                Text(submissionError, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Color(0xFFD1381F), fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("입찰 금액", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text("최소 ${"%,d".format(minimum)}원 · 500원 단위", color = Colors.Muted, fontSize = 12.sp)

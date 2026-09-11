@@ -12,7 +12,9 @@ sealed class Screen(val route: String) {
     data object Register : Screen("register")
     data object Trades : Screen("trades")
     data object My : Screen("my")
-    data object Transaction : Screen("transaction")
+    data object Transaction : Screen("transaction/{role}") {
+        fun createRoute(role: String) = "transaction/$role"
+    }
     data object Addresses : Screen("my/addresses")
     data object SettlementAccounts : Screen("my/accounts")
     data object NotificationSettings : Screen("my/notification-settings")
@@ -21,6 +23,7 @@ sealed class Screen(val route: String) {
     data object RegisteredProducts : Screen("my/registered-products")
     data object Inquiries : Screen("my/inquiries")
     data object ReportHistory : Screen("my/reports")
+    data object Withdrawal : Screen("my/withdrawal")
     data object ProductDetail : Screen("product/{productId}") {
         fun createRoute(productId: String) = "product/$productId"
     }

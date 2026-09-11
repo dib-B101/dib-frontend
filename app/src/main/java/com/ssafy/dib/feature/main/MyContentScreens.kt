@@ -93,16 +93,26 @@ fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit,
     MyListScaffold("찜한 상품", onBack, onTabSelected, modifier) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Text("찜한 경매 ${favorites.size}개", Modifier.padding(vertical = 16.dp), color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                items(favorites, key = { it }) { title ->
-                    Column(Modifier.clickable { onProductClick(if (title.contains("카메라")) "camera" else "favorite") }) {
-                        Box(Modifier.fillMaxWidth().height(122.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
-                            Text("LIVE", Modifier.padding(8.dp).background(Color(0x6B000000), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 5.dp), color = Color.White, fontSize = 9.sp)
-                            Text("♥", Modifier.align(Alignment.TopEnd).clickable { favorites.remove(title) }.padding(10.dp), color = Color(0xFFF5636E), fontSize = 22.sp)
+            if (favorites.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("♡", color = Color(0xFFB8C0CC), fontSize = 36.sp)
+                        Text("찜한 경매가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("관심 있는 상품의 하트를 눌러 저장해보세요", color = Colors.Muted, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    items(favorites, key = { it }) { title ->
+                        Column(Modifier.clickable { onProductClick(if (title.contains("카메라")) "camera" else "favorite") }) {
+                            Box(Modifier.fillMaxWidth().height(122.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
+                                Text("LIVE", Modifier.padding(8.dp).background(Color(0x6B000000), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 5.dp), color = Color.White, fontSize = 9.sp)
+                                Text("♥", Modifier.align(Alignment.TopEnd).clickable { favorites.remove(title) }.padding(10.dp), color = Color(0xFFF5636E), fontSize = 22.sp)
+                            }
+                            Text(title, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("현재가 52,000원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("입찰 7명", color = Colors.Muted, fontSize = 9.sp)
                         }
-                        Text(title, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("현재가 52,000원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text("입찰 7명", color = Colors.Muted, fontSize = 9.sp)
                     }
                 }
             }

@@ -41,6 +41,7 @@ import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
 import com.ssafy.dib.feature.main.TransactionScreen
+import com.ssafy.dib.feature.main.WithdrawalScreen
 
 @Composable
 fun AppNavHost() {
@@ -176,6 +177,7 @@ fun AppNavHost() {
                         )
                     )
                 },
+                onTransactionClick = { navController.navigate(Screen.Transaction.createRoute("buyer")) },
                 paidBidAmount = paidBidAmount,
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onDepositPayment = { amount ->
@@ -200,11 +202,14 @@ fun AppNavHost() {
             MyTradesScreen(
                 onTabSelected = ::navigateMain,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTransactionClick = { navController.navigate(Screen.Transaction.route) }
+                onTransactionClick = { role -> navController.navigate(Screen.Transaction.createRoute(role)) }
             )
         }
-        composable(Screen.Transaction.route) {
-            TransactionScreen(onBack = navController::navigateUp)
+        composable(
+            route = Screen.Transaction.route,
+            arguments = listOf(navArgument("role") { type = NavType.StringType })
+        ) { backStackEntry ->
+            TransactionScreen(role = backStackEntry.arguments?.getString("role").orEmpty(), onBack = navController::navigateUp)
         }
         composable(Screen.My.route) {
             MyPageScreen(
@@ -218,6 +223,7 @@ fun AppNavHost() {
                 onAccountsClick = { navController.navigate(Screen.SettlementAccounts.route) },
                 onNotificationSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
                 onReportsClick = { navController.navigate(Screen.ReportHistory.route) },
+                onWithdrawalClick = { navController.navigate(Screen.Withdrawal.route) },
                 onLogout = {
                     signedIn = false
                     session.edit().putBoolean("signed_in", false).apply()
@@ -256,6 +262,17 @@ fun AppNavHost() {
         }
         composable(Screen.ReportHistory.route) {
             ReportHistoryScreen(onBack = navController::navigateUp)
+        }
+        composable(Screen.Withdrawal.route) {
+            WithdrawalScreen(
+                onBack = navController::navigateUp,
+                onOpenTrades = { navigateMain(DibMainTab.Trades) },
+                onComplete = {
+                    signedIn = false
+                    session.edit().clear().apply()
+                    navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
+                }
+            )
         }
         composable(
             route = Screen.ProductImages.route,

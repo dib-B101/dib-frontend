@@ -21,7 +21,7 @@ import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
-private enum class DepositPaymentState { Form, Processing, Success }
+private enum class DepositPaymentState { Form, Processing, Success, Failed }
 
 /** Figma 01_Wireframe / 04A~04E Bid Deposit Payment states. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,7 +34,7 @@ fun BidDepositPaymentScreen(
     modifier: Modifier = Modifier
 ) {
     val product = allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
-    var paymentMethodSelected by rememberSaveable { mutableStateOf(false) }
+    var selectedPaymentMethod by rememberSaveable { mutableStateOf("") }
     var agreed by rememberSaveable { mutableStateOf(false) }
     var showMethodSheet by rememberSaveable { mutableStateOf(false) }
     var state by rememberSaveable { mutableStateOf(DepositPaymentState.Form) }
@@ -42,12 +42,16 @@ fun BidDepositPaymentScreen(
     LaunchedEffect(state) {
         if (state == DepositPaymentState.Processing) {
             delay(1_000)
-            state = DepositPaymentState.Success
+            state = if (selectedPaymentMethod.contains("0000")) DepositPaymentState.Failed else DepositPaymentState.Success
         }
     }
 
     BackHandler(enabled = state != DepositPaymentState.Form) {
-        if (state == DepositPaymentState.Success) onReturnToAuction()
+        when (state) {
+            DepositPaymentState.Success -> onReturnToAuction()
+            DepositPaymentState.Failed -> state = DepositPaymentState.Form
+            else -> Unit
+        }
     }
 
     Scaffold(
@@ -60,6 +64,7 @@ fun BidDepositPaymentScreen(
                     DepositPaymentState.Form -> onBack()
                     DepositPaymentState.Processing -> Unit
                     DepositPaymentState.Success -> onReturnToAuction()
+                    DepositPaymentState.Failed -> state = DepositPaymentState.Form
                 }
             }
         },
@@ -68,13 +73,13 @@ fun BidDepositPaymentScreen(
                 Column(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Button(
                         onClick = { state = DepositPaymentState.Processing },
-                        enabled = paymentMethodSelected && agreed,
+                        enabled = selectedPaymentMethod.isNotBlank() && agreed,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                     ) {
                         Text(
-                            if (!paymentMethodSelected) "결제수단 선택 후 1,000원 결제" else "1,000원 결제하고 입찰하기",
+                            if (selectedPaymentMethod.isBlank()) "결제수단 선택 후 1,000원 결제" else "1,000원 결제하고 입찰하기",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -89,7 +94,7 @@ fun BidDepositPaymentScreen(
                 productName = product.name,
                 bidAmount = bidAmount,
                 remainingSeconds = product.remainingSeconds,
-                paymentMethodSelected = paymentMethodSelected,
+                paymentMethod = selectedPaymentMethod,
                 agreed = agreed,
                 onMethodClick = { showMethodSheet = true },
                 onAgreementChange = { agreed = it },
@@ -108,6 +113,12 @@ fun BidDepositPaymentScreen(
                 onReturn = onReturnToAuction,
                 modifier = Modifier.padding(padding)
             )
+            DepositPaymentState.Failed -> DepositPaymentFailure(
+                method = selectedPaymentMethod,
+                onRetry = { state = DepositPaymentState.Form },
+                onChangeMethod = { state = DepositPaymentState.Form; showMethodSheet = true },
+                modifier = Modifier.padding(padding)
+            )
         }
     }
 
@@ -115,18 +126,17 @@ fun BidDepositPaymentScreen(
         ModalBottomSheet(onDismissRequest = { showMethodSheet = false }, containerColor = Colors.Background) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("결제수단 선택", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Row(
-                    Modifier.fillMaxWidth().height(64.dp).border(1.dp, Colors.Border, RoundedCornerShape(12.dp))
-                        .clickable {
-                            paymentMethodSelected = true
-                            showMethodSheet = false
-                        }.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("▣", color = Colors.Navy, fontSize = 22.sp)
-                    Column(Modifier.padding(start = 14.dp)) {
-                        Text("등록된 카드 ·••• 1234", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("기본 결제수단", color = Colors.Muted, fontSize = 11.sp)
+                listOf("등록된 카드 ·••• 1234" to "기본 결제수단", "등록된 카드 ·••• 0000" to "승인 상태 확인 필요").forEach { (method, description) ->
+                    Row(
+                        Modifier.fillMaxWidth().height(64.dp).border(1.dp, Colors.Border, RoundedCornerShape(12.dp))
+                            .clickable { selectedPaymentMethod = method; showMethodSheet = false }.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (selectedPaymentMethod == method) "●" else "○", color = Colors.Navy, fontSize = 18.sp)
+                        Column(Modifier.padding(start = 14.dp)) {
+                            Text(method, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(description, color = Colors.Muted, fontSize = 11.sp)
+                        }
                     }
                 }
             }
@@ -139,7 +149,7 @@ private fun DepositPaymentForm(
     productName: String,
     bidAmount: Int,
     remainingSeconds: Int,
-    paymentMethodSelected: Boolean,
+    paymentMethod: String,
     agreed: Boolean,
     onMethodClick: () -> Unit,
     onAgreementChange: (Boolean) -> Unit,
@@ -165,10 +175,10 @@ private fun DepositPaymentForm(
                 .clickable(onClick = onMethodClick).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("▣", color = if (paymentMethodSelected) Colors.Navy else Colors.Muted, fontSize = 22.sp)
+            Text("▣", color = if (paymentMethod.isNotBlank()) Colors.Navy else Colors.Muted, fontSize = 22.sp)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(if (paymentMethodSelected) "등록된 카드 ·••• 1234" else "결제수단을 선택해주세요", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(if (paymentMethodSelected) "결제수단 변경 가능" else "카드 · 간편결제", color = Colors.Muted, fontSize = 10.sp)
+                Text(paymentMethod.ifBlank { "결제수단을 선택해주세요" }, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(if (paymentMethod.isNotBlank()) "결제수단 변경 가능" else "카드 · 간편결제", color = Colors.Muted, fontSize = 10.sp)
             }
             Text("›", color = Colors.Muted, fontSize = 24.sp)
         }
@@ -180,6 +190,26 @@ private fun DepositPaymentForm(
             Checkbox(checked = agreed, onCheckedChange = onAgreementChange, colors = CheckboxDefaults.colors(checkedColor = Colors.MintInk))
             Text("보증금 결제·반환 정책에 동의해요", fontSize = 12.sp)
         }
+    }
+}
+
+@Composable
+private fun DepositPaymentFailure(method: String, onRetry: () -> Unit, onChangeMethod: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.height(104.dp))
+        Box(Modifier.size(88.dp).background(Color(0xFFFFE9E9), CircleShape), contentAlignment = Alignment.Center) {
+            Text("!", color = Color(0xFFF5636E), fontSize = 44.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("결제를 완료하지 못했어요", Modifier.padding(top = 28.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("카드 승인에 실패했습니다.\n결제수단을 확인한 뒤 다시 시도해주세요.", Modifier.padding(top = 14.dp), color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
+        Column(Modifier.fillMaxWidth().padding(top = 36.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("실패 사유", color = Colors.Muted, fontSize = 11.sp)
+            Text("카드 승인 실패", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("결제수단 · $method", color = Colors.Muted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.weight(1f))
+        Button(onRetry, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("다시 결제하기", fontWeight = FontWeight.Bold) }
+        TextButton(onChangeMethod) { Text("다른 결제수단 선택", color = Colors.Navy) }
     }
 }
 
