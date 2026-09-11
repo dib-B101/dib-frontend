@@ -104,13 +104,25 @@ fun SellerListingsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, m
 
 /** Figma 01_Wireframe / 03L2_Seller_Report. */
 @Composable
-fun SellerReportScreen(onBack: () -> Unit, onSubmitted: () -> Unit, modifier: Modifier = Modifier) {
+fun SellerReportScreen(
+    onBack: () -> Unit,
+    submitted: Boolean,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onSubmit: (String) -> Unit,
+    onSubmitted: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     ReportFormScreen(
         title = "판매자 신고",
         heading = "판매자를 신고하는 이유를 선택해주세요",
         subtitle = "판매자의 거래 및 이용 행동과 관련된 사유를 선택해주세요.",
         reasons = listOf("비매너·욕설 등 부적절한 언행", "거래 약속 불이행", "사기 또는 외부 거래 유도", "반복적인 허위·부적절 판매", "기타"),
         onBack = onBack,
+        submitted = submitted,
+        isSubmitting = isSubmitting,
+        errorMessage = errorMessage,
+        onSubmit = onSubmit,
         onSubmitted = onSubmitted,
         modifier = modifier
     )

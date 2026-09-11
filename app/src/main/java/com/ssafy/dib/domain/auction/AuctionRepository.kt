@@ -4,6 +4,7 @@ import com.ssafy.dib.core.network.ApiResult
 
 data class AuctionSummary(
     val auctionId: String,
+    val sellerMemberId: String,
     val productId: String,
     val title: String,
     val categoryName: String,

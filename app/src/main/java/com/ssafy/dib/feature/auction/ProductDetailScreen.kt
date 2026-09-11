@@ -66,7 +66,7 @@ fun ProductDetailScreen(
     isAuthenticated: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
-    onSellerClick: () -> Unit,
+    onSellerClick: (String) -> Unit,
     onReportClick: () -> Unit,
     onTransactionClick: () -> Unit,
     onLoginRequired: () -> Unit,
@@ -230,7 +230,7 @@ fun ProductDetailScreen(
             }
             item { ProductSummary(product.name, currentPrice, product.bidCount, remainingSeconds, auctionState) }
             item {
-                SellerSummary(onClick = onSellerClick)
+                SellerSummary(onClick = { onSellerClick(product.sellerMemberId) })
             }
             item {
                 ProductInformation(

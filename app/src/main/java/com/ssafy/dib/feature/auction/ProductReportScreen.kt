@@ -19,13 +19,25 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 /** Figma 01_Wireframe / 03L1_Product_Report and selected/success states. */
 @Composable
-fun ProductReportScreen(onBack: () -> Unit, onSubmitted: () -> Unit, modifier: Modifier = Modifier) {
+fun ProductReportScreen(
+    onBack: () -> Unit,
+    submitted: Boolean,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onSubmit: (String) -> Unit,
+    onSubmitted: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     ReportFormScreen(
         title = "상품 신고",
         heading = "상품을 신고하는 이유를 선택해주세요",
         subtitle = "상품과 관련된 신고 사유를 선택해주세요.",
         reasons = listOf("허위·과장된 상품 정보", "판매 금지·제한 상품", "부적절한 이미지·내용", "사기 또는 거래 유도 의심", "기타"),
         onBack = onBack,
+        submitted = submitted,
+        isSubmitting = isSubmitting,
+        errorMessage = errorMessage,
+        onSubmit = onSubmit,
         onSubmitted = onSubmitted,
         modifier = modifier
     )
@@ -38,12 +50,15 @@ internal fun ReportFormScreen(
     subtitle: String,
     reasons: List<String>,
     onBack: () -> Unit,
+    submitted: Boolean,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onSubmit: (String) -> Unit,
     onSubmitted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableIntStateOf(-1) }
     var detail by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
@@ -88,14 +103,21 @@ internal fun ReportFormScreen(
                     )
                 }
                 item { Text("허위 신고 또는 반복적인 악의적 신고는 서비스 이용에 제한이 있을 수 있어요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(vertical = 8.dp)) }
+                errorMessage?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 item {
                     Button(
-                        onClick = { submitted = true },
-                        enabled = selected >= 0,
+                        onClick = {
+                            val reason = reasons[selected]
+                            onSubmit(if (detail.isBlank()) reason else "$reason\n${detail.trim()}")
+                        },
+                        enabled = selected >= 0 && !isSubmitting,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
-                    ) { Text("신고하기", fontWeight = FontWeight.Bold) }
+                    ) {
+                        if (isSubmitting) CircularProgressIndicator(Modifier.size(22.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
+                        else Text("신고하기", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
