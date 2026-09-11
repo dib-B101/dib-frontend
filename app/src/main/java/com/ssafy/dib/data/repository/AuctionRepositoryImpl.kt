@@ -1,0 +1,52 @@
+package com.ssafy.dib.data.repository
+
+import com.ssafy.dib.core.network.ApiResult
+import com.ssafy.dib.data.remote.auction.AuctionDto
+import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
+import com.ssafy.dib.domain.auction.AuctionRepository
+import com.ssafy.dib.domain.auction.AuctionSummary
+import java.time.Duration
+import java.time.Instant
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+
+class AuctionRepositoryImpl(
+    private val remote: AuctionRemoteDataSource,
+    private val now: () -> Instant = Instant::now
+) : AuctionRepository {
+    override fun getActiveGeneralAuctions(size: Int): ApiResult<List<AuctionSummary>> =
+        when (val result = remote.getActiveGeneralAuctions(size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getAuction(auctionId: String): ApiResult<AuctionSummary> =
+        when (val result = remote.getAuction(auctionId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(now()), result.status)
+            is ApiResult.Failure -> result
+        }
+}
+
+internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
+    val referenceTime = serverTime.toInstantOrNull() ?: now
+    val endTime = scheduledEndAt.toInstantOrNull() ?: endedAt.toInstantOrNull()
+    val remaining = endTime?.let { Duration.between(referenceTime, it).seconds.coerceAtLeast(0) }
+        ?: auctionTime.coerceAtLeast(0)
+    return AuctionSummary(
+        auctionId = auctionId.idValue(),
+        productId = productId?.idValue() ?: product?.productId?.idValue().orEmpty(),
+        title = title ?: productName ?: product?.title ?: product?.name ?: "경매 상품",
+        categoryName = categoryName ?: product?.categoryName ?: "기타",
+        currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        startPrice = startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        bidCount = bidCount.coerceAtLeast(0),
+        remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        status = status,
+        bookmarked = bookmarked
+    )
+}
+
+private fun kotlinx.serialization.json.JsonElement.idValue(): String =
+    (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
+
+private fun String?.toInstantOrNull(): Instant? = this?.let { runCatching { Instant.parse(it) }.getOrNull() }

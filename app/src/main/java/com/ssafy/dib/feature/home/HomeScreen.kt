@@ -37,6 +37,10 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(
     isAuthenticated: Boolean,
+    remoteAuctions: List<HomeAuction>?,
+    remoteLoading: Boolean,
+    remoteError: String?,
+    onRetry: () -> Unit,
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -50,8 +54,12 @@ fun HomeScreen(
     var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
+    val displayedAuctions = remoteAuctions ?: allAuctions
+    val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4) ?: recommended
+    val highlightedDeadline = closingAuctions.firstOrNull() ?: deadlineAuction
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(highlightedDeadline.id) {
+        deadlineSeconds = highlightedDeadline.remainingSeconds
         while (deadlineSeconds > 0) {
             delay(1_000)
             deadlineSeconds--
@@ -93,20 +101,33 @@ fun HomeScreen(
             item {
                 HomeAuctionSwitcher(closingSoon, { closingSoon = false }, { closingSoon = true }, onCategoryClick)
             }
+            if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
+            remoteError?.let { message ->
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(12.dp)).padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                        Text("다시 시도", Modifier.clickable(onClick = onRetry).padding(6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             if (closingSoon) {
                 item {
                     DeadlineSection(
+                        auction = highlightedDeadline,
                         deadlineSeconds = deadlineSeconds,
-                        favorite = "camera" in favoriteIds,
-                        onFavorite = { updateFavorite("camera", it) },
-                        onProductClick = { onProductClick("camera") },
+                        favorite = highlightedDeadline.id in favoriteIds,
+                        onFavorite = { updateFavorite(highlightedDeadline.id, it) },
+                        onProductClick = { onProductClick(highlightedDeadline.id) },
                         onFeedClick = onLiveClick
                     )
                 }
-                item { AuctionGridSection("곧 마감되는 경매", recommended, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+                item { AuctionGridSection("곧 마감되는 경매", closingAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             } else {
                 item { HomeLiveSection(onLiveClick) }
-                item { AuctionGridSection("전체 경매", allAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+                item { AuctionGridSection("전체 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             }
         }
     }
@@ -309,6 +330,7 @@ private fun AuctionCard(
 
 @Composable
 private fun DeadlineSection(
+    auction: HomeAuction,
     deadlineSeconds: Int,
     favorite: Boolean,
     onFavorite: (Boolean) -> Unit,
@@ -323,7 +345,7 @@ private fun DeadlineSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(Modifier.width(132.dp).fillMaxHeight().background(Colors.Image, RoundedCornerShape(10.dp))) {
-                DibWishlistButton(favorite, onFavorite, "빈티지 필름 카메라", Modifier.align(Alignment.TopEnd))
+                DibWishlistButton(favorite, onFavorite, auction.name, Modifier.align(Alignment.TopEnd))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Surface(
@@ -340,9 +362,9 @@ private fun DeadlineSection(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Text("빈티지 필름 카메라", fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
-                Text("현재가 34,500원", fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-                Text("입찰 5명 · 다음 입찰 35,000원", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
+                Text(auction.name, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
+                Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+                Text("입찰 ${auction.bidCount}명", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
                     modifier = Modifier.fillMaxWidth().height(30.dp),

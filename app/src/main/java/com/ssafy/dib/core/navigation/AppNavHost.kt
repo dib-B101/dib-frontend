@@ -28,6 +28,8 @@ import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
 import com.ssafy.dib.feature.home.HomeScreen
+import com.ssafy.dib.feature.home.HomeAuction
+import com.ssafy.dib.feature.home.toHomeAuction
 import com.ssafy.dib.feature.home.AuctionSearchScreen
 import com.ssafy.dib.feature.home.NotificationCenterScreen
 import com.ssafy.dib.feature.home.CategoryScreen
@@ -63,6 +65,10 @@ fun AppNavHost() {
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
+    var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+    var auctionsLoading by remember { mutableStateOf(false) }
+    var auctionsError by remember { mutableStateOf<String?>(null) }
+    var auctionsRevision by remember { mutableStateOf(0) }
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
@@ -103,6 +109,20 @@ fun AppNavHost() {
                 }
             }
         }
+    }
+
+    LaunchedEffect(auctionsRevision, signedIn) {
+        if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        auctionsLoading = true
+        auctionsError = null
+        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getActiveGeneralAuctions() }) {
+            is ApiResult.Success -> remoteAuctions = result.value.map { it.toHomeAuction() }
+            is ApiResult.Failure -> {
+                auctionsError = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
+                if (result.error.requiresLogin) signedIn = false
+            }
+        }
+        auctionsLoading = false
     }
 
     NavHost(
@@ -173,6 +193,10 @@ fun AppNavHost() {
         composable(Screen.Home.route) {
             HomeScreen(
                 isAuthenticated = signedIn == true,
+                remoteAuctions = remoteAuctions,
+                remoteLoading = auctionsLoading,
+                remoteError = auctionsError,
+                onRetry = { auctionsRevision++ },
                 onProductClick = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
@@ -242,8 +266,31 @@ fun AppNavHost() {
             val paidBidAmount by backStackEntry.savedStateHandle
                 .getStateFlow("paidBidAmount", 0).collectAsState()
             val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            var remoteDetail by remember(productId) {
+                mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
+            }
+            var detailLoading by remember(productId) { mutableStateOf(false) }
+            var detailError by remember(productId) { mutableStateOf<String?>(null) }
+            var detailRevision by remember(productId) { mutableStateOf(0) }
+            LaunchedEffect(productId, detailRevision, signedIn) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                detailLoading = true
+                detailError = null
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(productId) }) {
+                    is ApiResult.Success -> remoteDetail = result.value.toHomeAuction()
+                    is ApiResult.Failure -> {
+                        detailError = result.error.message.ifBlank { "경매 상세를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                detailLoading = false
+            }
             ProductDetailScreen(
                 productId = productId,
+                remoteAuction = remoteDetail,
+                remoteLoading = detailLoading,
+                remoteError = detailError,
+                onRetry = { detailRevision++ },
                 isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
