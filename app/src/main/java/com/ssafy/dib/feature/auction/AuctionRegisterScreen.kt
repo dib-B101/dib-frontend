@@ -23,16 +23,22 @@ fun AuctionRegisterScreen(
     productId: String,
     result: AuctionCommandResult?,
     started: Boolean,
+    cancelled: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     onCreate: (Long, Long) -> Unit,
+    onUpdate: (Long, Long) -> Unit,
+    onCancel: () -> Unit,
     onStart: () -> Unit,
     onOpenAuction: () -> Unit,
+    onFinish: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var startPriceText by rememberSaveable { mutableStateOf("") }
     var auctionTime by rememberSaveable { mutableLongStateOf(3_600L) }
+    var editingCreatedAuction by rememberSaveable { mutableStateOf(false) }
+    var showCancelConfirmation by rememberSaveable { mutableStateOf(false) }
     val startPrice = startPriceText.toLongOrNull() ?: 0L
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
@@ -45,16 +51,32 @@ fun AuctionRegisterScreen(
             }
         }
     ) { padding ->
-        if (result != null) {
+        if (cancelled) {
+            Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text("✓", color = Colors.MintInk, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                Text("경매를 취소했어요", Modifier.padding(top = 16.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("상품은 다시 경매에 등록할 수 있어요.", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+                Button(onFinish, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("내 등록 상품으로 돌아가기", fontWeight = FontWeight.Bold) }
+            }
+        } else if (result != null) {
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text(if (started) "✓" else "▣", color = Colors.MintInk, fontSize = 48.sp, fontWeight = FontWeight.Bold)
                 Text(if (started) "경매를 시작했어요" else "경매 등록을 완료했어요", Modifier.padding(top = 16.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("경매 번호 ${result.auctionId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
                 if (!started) {
                     Text("등록 직후에는 예정 상태이며 판매자가 직접 시작할 수 있어요.", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
+                    if (editingCreatedAuction) {
+                        OutlinedTextField(startPriceText, { startPriceText = it.filter(Char::isDigit).take(10) }, Modifier.fillMaxWidth().padding(top = 18.dp), label = { Text("시작가") }, suffix = { Text("원") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1L to "1시간", 3L to "3시간", 6L to "6시간").forEach { (hours, label) -> FilterChip(selected = auctionTime == hours * 3_600, onClick = { auctionTime = hours * 3_600 }, label = { Text(label) }) }
+                        }
+                        Button({ onUpdate(startPrice, auctionTime); editingCreatedAuction = false }, Modifier.fillMaxWidth().padding(top = 10.dp).height(48.dp), enabled = startPrice > 0 && !isLoading, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("변경사항 저장", fontWeight = FontWeight.Bold) }
+                    }
                     Button(onStart, Modifier.fillMaxWidth().padding(top = 24.dp).height(52.dp), enabled = !isLoading, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) {
                         if (isLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("지금 경매 시작", fontWeight = FontWeight.Bold)
                     }
+                    OutlinedButton({ editingCreatedAuction = !editingCreatedAuction }, Modifier.fillMaxWidth().padding(top = 10.dp).height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp)) { Text(if (editingCreatedAuction) "수정 닫기" else "경매 조건 수정", color = Colors.Navy, fontWeight = FontWeight.Bold) }
+                    TextButton({ showCancelConfirmation = true }, Modifier.fillMaxWidth(), enabled = !isLoading) { Text("경매 취소", color = Colors.Urgent) }
                 } else {
                     Button(onOpenAuction, Modifier.fillMaxWidth().padding(top = 24.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("경매 상세 보기", fontWeight = FontWeight.Bold) }
                 }
@@ -80,5 +102,14 @@ fun AuctionRegisterScreen(
                 }
             }
         }
+    }
+    if (showCancelConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmation = false },
+            title = { Text("예정 경매를 취소할까요?") },
+            text = { Text("취소 후 상품은 다른 경매에 다시 등록할 수 있어요.") },
+            confirmButton = { TextButton({ showCancelConfirmation = false; onCancel() }) { Text("경매 취소", color = Colors.Urgent) } },
+            dismissButton = { TextButton({ showCancelConfirmation = false }) { Text("유지") } }
+        )
     }
 }

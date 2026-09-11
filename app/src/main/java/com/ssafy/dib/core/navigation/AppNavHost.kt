@@ -980,15 +980,18 @@ fun AppNavHost() {
             val productId = backStackEntry.arguments?.getString("productId").orEmpty()
             var createResult by remember(productId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionCommandResult?>(null) }
             var auctionStarted by remember(productId) { mutableStateOf(false) }
+            var auctionCancelled by remember(productId) { mutableStateOf(false) }
             var commandLoading by remember(productId) { mutableStateOf(false) }
             var commandError by remember(productId) { mutableStateOf<String?>(null) }
             val createKey = remember(productId) { java.util.UUID.randomUUID().toString() }
             val startKey = remember(productId) { java.util.UUID.randomUUID().toString() }
+            val cancelKey = remember(productId) { java.util.UUID.randomUUID().toString() }
 
             AuctionRegisterScreen(
                 productId = productId,
                 result = createResult,
                 started = auctionStarted,
+                cancelled = auctionCancelled,
                 isLoading = commandLoading,
                 errorMessage = commandError,
                 onCreate = { startPrice, auctionTime ->
@@ -1001,6 +1004,30 @@ fun AppNavHost() {
                                 commandError = auctionCommandError(result.error)
                                 if (result.error.requiresLogin) signedIn = false
                             }
+                        }
+                        commandLoading = false
+                    }
+                },
+                onUpdate = { startPrice, auctionTime ->
+                    val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    commandLoading = true
+                    commandError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.updateAuction(auctionId, startPrice, auctionTime) }) {
+                            is ApiResult.Success -> createResult = result.value
+                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
+                        }
+                        commandLoading = false
+                    }
+                },
+                onCancel = {
+                    val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    commandLoading = true
+                    commandError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.cancelAuction(auctionId, cancelKey) }) {
+                            is ApiResult.Success -> { auctionCancelled = true; auctionsRevision++ }
+                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
                         }
                         commandLoading = false
                     }
@@ -1018,6 +1045,7 @@ fun AppNavHost() {
                     }
                 },
                 onOpenAuction = { createResult?.auctionId?.let { navController.navigate(Screen.ProductDetail.createRoute(it)) } },
+                onFinish = navController::navigateUp,
                 onBack = navController::navigateUp
             )
         }
