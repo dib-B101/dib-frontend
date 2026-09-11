@@ -8,7 +8,10 @@ import com.ssafy.dib.core.network.NetworkConfig
 import com.ssafy.dib.data.local.auth.DeviceIdentityStore
 import com.ssafy.dib.data.local.auth.SecureAuthSessionStore
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
+import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
+import com.ssafy.dib.data.repository.AuctionRepositoryImpl
 import com.ssafy.dib.data.repository.AuthRepositoryImpl
+import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auth.AuthRepository
 import java.util.UUID
 
@@ -21,6 +24,7 @@ class AuthDependencies(context: Context) {
     val networkConfig: NetworkConfig = NetworkConfig.fromBuildConfig()
     val deviceId: String = deviceStore.getOrCreate()
     val repository: AuthRepository
+    val auctionRepository: AuctionRepository
 
     init {
         val client = DibHttpClient(
@@ -29,6 +33,7 @@ class AuthDependencies(context: Context) {
             guestSessionProvider = GuestSessionProvider { guestSessionId() }
         )
         repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
+        auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
     }
 
     private fun guestSessionId(): String {

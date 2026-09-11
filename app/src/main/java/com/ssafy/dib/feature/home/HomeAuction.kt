@@ -1,9 +1,11 @@
 package com.ssafy.dib.feature.home
 
-/** Wireframe-only display data; these values do not represent live auctions. */
-internal enum class ProductPhoto { Camera, Headphones, Placeholder }
+import com.ssafy.dib.domain.auction.AuctionSummary
 
-internal data class HomeAuction(
+/** Wireframe-only display data; these values do not represent live auctions. */
+enum class ProductPhoto { Camera, Headphones, Placeholder }
+
+data class HomeAuction(
     val id: String,
     val name: String,
     val price: Int,
@@ -39,6 +41,17 @@ internal val allAuctions = listOf(
 )
 
 internal val allHomeAuctions = recommended + deadlineAuction + popularAuctions + allAuctions
+
+internal fun AuctionSummary.toHomeAuction() = HomeAuction(
+    id = auctionId,
+    name = title,
+    price = currentPrice.takeIf { it > 0 } ?: startPrice,
+    bidCount = bidCount,
+    remainingSeconds = remainingSeconds,
+    category = categoryName,
+    photo = ProductPhoto.Placeholder,
+    pricePrefix = if (currentPrice > 0) "현재가" else "시작가"
+)
 
 internal fun remainingTimeLabel(seconds: Int): String = when {
     seconds <= 0 -> "마감"

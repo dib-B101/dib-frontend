@@ -32,6 +32,7 @@ import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.feature.home.allHomeAuctions
+import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,6 +44,10 @@ private enum class DetailAuctionState { Active, HighestBidder, Lost, Won }
 @Composable
 fun ProductDetailScreen(
     productId: String,
+    remoteAuction: HomeAuction?,
+    remoteLoading: Boolean,
+    remoteError: String?,
+    onRetry: () -> Unit,
     isAuthenticated: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
@@ -56,7 +61,7 @@ fun ProductDetailScreen(
     onDepositPayment: (BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val product = allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
+    val product = remoteAuction ?: allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -134,6 +139,18 @@ fun ProductDetailScreen(
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
+            remoteError?.let { message ->
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().background(Colors.UrgentBackground).padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                        Text("다시 시도", Modifier.clickable(onClick = onRetry).padding(6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             item {
                 ProductGallery(product.photo, onImageClick)
             }
