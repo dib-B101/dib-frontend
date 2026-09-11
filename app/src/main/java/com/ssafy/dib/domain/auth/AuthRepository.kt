@@ -14,6 +14,28 @@ data class AuthSession(
         accessExpiresAtEpochMillis <= nowEpochMillis + bufferMillis
 }
 
+data class PhoneVerificationChallenge(
+    val verificationId: String,
+    val expiresAt: String,
+    val retryAfterSeconds: Long
+)
+
+data class PhoneVerificationConfirmation(
+    val verificationToken: String,
+    val expiresAt: String
+)
+
+data class SignUpCommand(
+    val email: String,
+    val password: String,
+    val name: String,
+    val nickname: String,
+    val gender: String,
+    val birthDate: String,
+    val phoneNumber: String,
+    val phoneVerificationToken: String
+)
+
 interface AuthSessionStore {
     fun read(): AuthSession?
     fun save(session: AuthSession)
@@ -22,6 +44,13 @@ interface AuthSessionStore {
 
 interface AuthRepository {
     fun currentSession(): AuthSession?
+    fun requestSignUpPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
+    fun confirmPhoneVerification(
+        verificationId: String,
+        code: String
+    ): ApiResult<PhoneVerificationConfirmation>
+    fun checkEmailAvailability(email: String): ApiResult<Boolean>
+    fun signUp(command: SignUpCommand): ApiResult<AuthSession>
     fun login(email: String, password: String, deviceId: String): ApiResult<AuthSession>
     fun refresh(deviceId: String): ApiResult<AuthSession>
     fun logout(deviceId: String): ApiResult<Unit>
