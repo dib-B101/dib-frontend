@@ -25,13 +25,17 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,8 +48,9 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 private data class Address(val label: String, val recipient: String, val address: String, val isDefault: Boolean = false)
-private data class BankAccount(val bank: String, val number: String)
+private data class BankAccount(val bank: String, val number: String, val isDefault: Boolean = false)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
     val addresses = remember { mutableStateListOf(
@@ -54,13 +59,18 @@ fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> U
     ) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var editingIndex by rememberSaveable { mutableStateOf(-1) }
+    var actionIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var deleteIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var message by rememberSaveable { mutableStateOf("") }
+    if (message.isNotBlank()) LaunchedEffect(message) { kotlinx.coroutines.delay(1_800); message = "" }
     SettingsScaffold("배송지 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (message.isNotBlank()) item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             items(addresses.size) { index ->
                 val address = addresses[index]
                 Column(
                     Modifier.fillMaxWidth().height(130.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp))
-                        .clickable { editingIndex = index; showEditor = true }.padding(15.dp),
+                        .clickable { actionIndex = index }.padding(15.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(Modifier.fillMaxWidth()) {
@@ -82,6 +92,25 @@ fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> U
             onDelete = if (editingIndex >= 0 && !addresses[editingIndex].isDefault) ({ addresses.removeAt(editingIndex); showEditor = false }) else null
         )
     }
+    if (actionIndex >= 0) {
+        val selected = addresses[actionIndex]
+        ModalBottomSheet(onDismissRequest = { actionIndex = -1 }, containerColor = Color.White) {
+            Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("배송지 관리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("${selected.label} 배송지에 적용할 작업을 선택해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                SettingsAction("수정") { editingIndex = actionIndex; actionIndex = -1; showEditor = true }
+                if (!selected.isDefault) SettingsAction("기본 배송지로 설정") {
+                    addresses.indices.forEach { i -> addresses[i] = addresses[i].copy(isDefault = i == actionIndex) }
+                    message = "기본 배송지가 ‘${selected.label}’로 변경됐어요"
+                    actionIndex = -1
+                }
+                if (!selected.isDefault) SettingsAction("삭제", Color(0xFFEF596B)) { deleteIndex = actionIndex; actionIndex = -1 }
+            }
+        }
+    }
+    if (deleteIndex >= 0) {
+        AlertDialog(onDismissRequest = { deleteIndex = -1 }, title = { Text("배송지를 삭제할까요?") }, text = { Text("‘${addresses[deleteIndex].label}’ 배송지를 삭제하면 주문 시 선택할 수 없습니다.") }, confirmButton = { TextButton({ addresses.removeAt(deleteIndex); deleteIndex = -1 }) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deleteIndex = -1 }) { Text("취소") } })
+    }
 }
 
 @Composable private fun AddressEditor(initial: Address?, onDismiss: () -> Unit, onSave: (Address) -> Unit, onDelete: (() -> Unit)?) {
@@ -102,34 +131,73 @@ fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> U
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettlementAccountsScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val accounts = remember { mutableStateListOf(BankAccount("우리은행", "1002-***-123456"), BankAccount("카카오뱅크", "3333-**-7890123")) }
+    val accounts = remember { mutableStateListOf(BankAccount("우리은행", "1002-***-123456", true), BankAccount("카카오뱅크", "3333-**-7890123")) }
     var addOpen by rememberSaveable { mutableStateOf(false) }
+    var editingIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var actionIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var deleteIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var message by rememberSaveable { mutableStateOf("") }
+    if (message.isNotBlank()) LaunchedEffect(message) { kotlinx.coroutines.delay(1_800); message = "" }
     SettingsScaffold("정산 계좌 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (message.isNotBlank()) item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             items(accounts.size) { index ->
                 val account = accounts[index]
-                Column(Modifier.fillMaxWidth().height(120.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp)).padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("▣  ${account.bank}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.fillMaxWidth().height(120.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp)).clickable { actionIndex = index }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("▣  ${account.bank}${if (account.isDefault) "  · 기본" else ""}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(account.number, color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth()) { Text("예금주 김띱 · 확인 완료", Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp); Text("삭제", Modifier.clickable { accounts.removeAt(index) }, color = Color(0xFFEF596B), fontSize = 11.sp) }
+                    Text("예금주 김띱 · 확인 완료", color = Colors.Muted, fontSize = 12.sp)
                 }
             }
             item { Text("✓  계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Color(0xFFE0F7F0), RoundedCornerShape(12.dp)).padding(16.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            item { Button({ addOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("계좌 추가", fontWeight = FontWeight.Bold) } }
+            item { Button({ editingIndex = -1; addOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("계좌 추가", fontWeight = FontWeight.Bold) } }
         }
     }
     if (addOpen) {
-        var bank by rememberSaveable { mutableStateOf("") }
-        var number by rememberSaveable { mutableStateOf("") }
+        val editingAccount = accounts.getOrNull(editingIndex)
+        var bank by rememberSaveable(editingIndex) { mutableStateOf(editingAccount?.bank.orEmpty()) }
+        var number by rememberSaveable(editingIndex) { mutableStateOf(editingAccount?.number?.filter(Char::isDigit).orEmpty()) }
+        var duplicate by rememberSaveable(editingIndex) { mutableStateOf(false) }
         AlertDialog(
-            onDismissRequest = { addOpen = false }, title = { Text("정산 계좌 추가") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(bank, { bank = it }, label = { Text("은행") }); OutlinedTextField(number, { number = it.filter(Char::isDigit) }, label = { Text("계좌번호") }) } },
-            confirmButton = { TextButton({ accounts.add(BankAccount(bank, maskAccount(number))); addOpen = false }, enabled = bank.isNotBlank() && number.length >= 8) { Text("본인 확인 후 추가") } },
+            onDismissRequest = { addOpen = false }, title = { Text(if (editingAccount == null) "정산 계좌 추가" else "정산 계좌 수정") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(bank, { bank = it }, label = { Text("은행") }); OutlinedTextField(number, { number = it.filter(Char::isDigit); duplicate = false }, label = { Text("계좌번호") }); if (duplicate) Text("이미 등록된 계좌예요", color = Color(0xFFEF596B), fontSize = 12.sp, fontWeight = FontWeight.Bold) } },
+            confirmButton = { TextButton({
+                val duplicateAccount = accounts.withIndex().any { (index, account) -> index != editingIndex && account.number.filter(Char::isDigit).takeLast(6) == number.takeLast(6) }
+                if (duplicateAccount) duplicate = true else {
+                    val updated = BankAccount(bank, maskAccount(number), editingAccount?.isDefault ?: accounts.isEmpty())
+                    if (editingIndex >= 0) accounts[editingIndex] = updated else accounts.add(updated)
+                    addOpen = false
+                }
+            }, enabled = bank.isNotBlank() && number.length >= 8) { Text(if (editingAccount == null) "본인 확인 후 추가" else "본인 확인 후 저장") } },
             dismissButton = { TextButton({ addOpen = false }) { Text("취소") } }
         )
     }
+    if (actionIndex >= 0) {
+        val selected = accounts[actionIndex]
+        ModalBottomSheet(onDismissRequest = { actionIndex = -1 }, containerColor = Color.White) {
+            Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("정산 계좌 관리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("${selected.bank} 계좌에 적용할 작업을 선택해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                SettingsAction("수정 후 예금주 확인") { editingIndex = actionIndex; actionIndex = -1; addOpen = true }
+                if (!selected.isDefault) SettingsAction("기본 정산 계좌로 설정") {
+                    accounts.indices.forEach { i -> accounts[i] = accounts[i].copy(isDefault = i == actionIndex) }
+                    message = "기본 정산 계좌가 변경됐어요"
+                    actionIndex = -1
+                }
+                if (!selected.isDefault) SettingsAction("삭제", Color(0xFFEF596B)) { deleteIndex = actionIndex; actionIndex = -1 }
+            }
+        }
+    }
+    if (deleteIndex >= 0) {
+        AlertDialog(onDismissRequest = { deleteIndex = -1 }, title = { Text("정산 계좌를 삭제할까요?") }, text = { Text("진행 중인 정산이 있으면 해당 계좌는 삭제할 수 없습니다.") }, confirmButton = { TextButton({ accounts.removeAt(deleteIndex); deleteIndex = -1 }) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deleteIndex = -1 }) { Text("취소") } })
+    }
+}
+
+@Composable private fun SettingsAction(label: String, color: Color = Colors.Navy, onClick: () -> Unit) {
+    Text(label, Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 14.dp), color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
 }
 
 private fun maskAccount(number: String): String = when {

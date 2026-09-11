@@ -30,7 +30,7 @@ private data class TradeItem(val status: String, val title: String, val meta: St
 fun MyTradesScreen(
     onTabSelected: (DibMainTab) -> Unit,
     onProductClick: (String) -> Unit,
-    onTransactionClick: () -> Unit,
+    onTransactionClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
@@ -74,8 +74,11 @@ fun MyTradesScreen(
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${selected.label} 현황", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("${items.size}건", color = Colors.Muted, fontSize = 11.sp) } }
             items(items.size) { index ->
                 TradeCard(items[index]) {
-                    if (selected == TradeTab.Bid) onProductClick(if (items[index].title.contains("카메라")) "camera" else "sneakers")
-                    else onTransactionClick()
+                    if (selected == TradeTab.Bid) {
+                        onProductClick(if (items[index].status == "경매 종료") "lost" else if (items[index].title.contains("카메라")) "camera" else "sneakers")
+                    } else {
+                        onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer")
+                    }
                 }
             }
         }
@@ -108,6 +111,7 @@ fun MyPageScreen(
     onAccountsClick: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
     onReportsClick: () -> Unit,
+    onWithdrawalClick: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -144,7 +148,7 @@ fun MyPageScreen(
                     MenuRow("정산 계좌 관리", onClick = onAccountsClick)
                     MenuRow("알림 설정", onClick = onNotificationSettingsClick)
                     MenuRow("신고 내역", onClick = onReportsClick)
-                    MenuRow("회원 탈퇴") { confirmation = "회원 탈퇴" }
+                    MenuRow("회원 탈퇴", onClick = onWithdrawalClick)
                     MenuRow("로그아웃", Color(0xFFEF596B)) { confirmation = "로그아웃" }
                 }
             }
@@ -154,8 +158,8 @@ fun MyPageScreen(
         AlertDialog(
             onDismissRequest = { confirmation = null },
             title = { Text("$action 할까요?") },
-            text = { Text(if (action == "로그아웃") "현재 계정에서 로그아웃하고 시작 화면으로 이동해요." else "진행 중인 거래가 있으면 탈퇴할 수 없어요. 현재는 계정 상태를 먼저 확인합니다.") },
-            confirmButton = { TextButton({ confirmation = null; if (action == "로그아웃") onLogout() }) { Text(if (action == "로그아웃") "로그아웃" else "확인") } },
+            text = { Text("현재 계정에서 로그아웃하고 시작 화면으로 이동해요.") },
+            confirmButton = { TextButton({ confirmation = null; onLogout() }) { Text("로그아웃") } },
             dismissButton = { TextButton({ confirmation = null }) { Text("취소") } }
         )
     }
