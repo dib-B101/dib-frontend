@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -17,6 +18,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val apiBaseUrl = providers.gradleProperty("DIB_API_BASE_URL").orElse("").get()
+        val webSocketUrl = providers.gradleProperty("DIB_WS_URL").orElse("").get()
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "WEB_SOCKET_URL", "\"${webSocketUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     buildTypes {
@@ -32,6 +38,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -52,4 +59,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 }
