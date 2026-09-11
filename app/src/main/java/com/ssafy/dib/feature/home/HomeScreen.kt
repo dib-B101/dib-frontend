@@ -26,7 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
@@ -45,6 +47,7 @@ fun HomeScreen(
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
     var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
+    var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
 
     LaunchedEffect(Unit) {
         while (deadlineSeconds > 0) {
@@ -94,10 +97,10 @@ fun HomeScreen(
                         onFeedClick = onLiveClick
                     )
                 }
-                item { AuctionGridSection("곧 마감되는 경매", "", recommended, 100, favoriteIds, ::updateFavorite, onProductClick) }
+                item { AuctionGridSection("곧 마감되는 경매", recommended, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             } else {
                 item { HomeLiveSection(onLiveClick) }
-                item { AuctionGridSection("전체 경매", "둘러보기", allAuctions, 100, favoriteIds, ::updateFavorite, onProductClick) }
+                item { AuctionGridSection("전체 경매", allAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             }
         }
     }
@@ -133,8 +136,13 @@ private fun HomeLiveSection(onLiveClick: () -> Unit) {
             ).forEach { (title, product, live) ->
                 Column(Modifier.weight(1f).height(176.dp).clickable(onClick = onLiveClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.fillMaxWidth().height(100.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
-                        Surface(Modifier.padding(8.dp), color = if(live) Color(0xFFEF596B) else Colors.Navy, shape = RoundedCornerShape(14.dp)) { Text(if(live) "●  LIVE" else "예정", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                        Text("♡", Modifier.align(Alignment.TopEnd).padding(10.dp), color = Color.White, fontSize = 24.sp)
+                        Surface(Modifier.padding(8.dp), color = if(live) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
+                            Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                if (!live) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
+                                Text(if(live) "● LIVE" else "예정", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Image(painterResource(R.drawable.favorite_outline), "라이브 찜하기", Modifier.align(Alignment.TopEnd).padding(10.dp).size(22.dp))
                     }
                     Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Text(product, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -197,30 +205,70 @@ private fun SectionHeader(title: String, action: String, onClick: () -> Unit = {
 @Composable
 private fun AuctionGridSection(
     title: String,
-    action: String,
     auctions: List<HomeAuction>,
     imageHeight: Int,
     favoriteIds: List<String>,
+    viewMode: DibContentView,
+    onViewModeChange: (DibContentView) -> Unit,
     onFavorite: (String, Boolean) -> Unit,
     onProductClick: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title, action)
-        auctions.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { auction ->
-                    AuctionCard(
-                        auction = auction,
-                        imageHeight = imageHeight,
-                        favorite = auction.id in favoriteIds,
-                        onFavorite = { onFavorite(auction.id, it) },
-                        onClick = { onProductClick(auction.id) },
-                        modifier = Modifier.weight(1f)
-                    )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            DibViewModeToggle(viewMode, onViewModeChange)
+        }
+        if (viewMode == DibContentView.Grid) {
+            auctions.chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { auction ->
+                        AuctionCard(
+                            auction = auction,
+                            imageHeight = imageHeight,
+                            favorite = auction.id in favoriteIds,
+                            onFavorite = { onFavorite(auction.id, it) },
+                            onClick = { onProductClick(auction.id) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        } else {
+            auctions.forEach { auction ->
+                AuctionListCard(
+                    auction = auction,
+                    favorite = auction.id in favoriteIds,
+                    onFavorite = { onFavorite(auction.id, it) },
+                    onClick = { onProductClick(auction.id) }
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun AuctionListCard(
+    auction: HomeAuction,
+    favorite: Boolean,
+    onFavorite: (Boolean) -> Unit,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().height(112.dp)
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick).padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(92.dp).background(Colors.Image, RoundedCornerShape(10.dp)))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(auction.meta, color = Colors.Muted, fontSize = 10.sp)
+        }
+        DibWishlistButton(favorite, onFavorite, auction.name)
     }
 }
 

@@ -39,6 +39,7 @@ import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.auction.sampleBidAddresses
 import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
+import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -269,7 +270,7 @@ private fun FeedPage(
                 painter = painterResource(R.drawable.favorite_selected),
                 contentDescription = null,
                 modifier = Modifier.size(76.dp),
-                colorFilter = ColorFilter.tint(Color(0xFFFF5277))
+                colorFilter = ColorFilter.tint(Colors.Favorite)
             )
         }
 
@@ -362,7 +363,7 @@ private fun FeedPage(
         ) {
             Surface(color = Color(0xFFFFEEE8), shape = RoundedCornerShape(18.dp)) {
                 Text(
-                    "◷ 새 입찰로 마감 30초 재설정",
+                    "◷ 새 입찰로 마감 15초 연장",
                     Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                     color = Color(0xFFB83813),
                     fontSize = 11.sp,
@@ -381,10 +382,10 @@ private fun FeedPage(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(if (favorite) R.drawable.favorite_selected else R.drawable.favorite_full),
+                painter = painterResource(if (favorite) R.drawable.favorite_selected else R.drawable.favorite_outline),
                 contentDescription = if (favorite) "찜 해제" else "찜하기",
                 modifier = Modifier.size(28.dp),
-                colorFilter = ColorFilter.tint(if (favorite) Color(0xFFFF5277) else Color.White)
+                colorFilter = ColorFilter.tint(if (favorite) Colors.Favorite else Color.White)
             )
             Text("찜", color = Color.White, fontSize = 10.sp)
         }

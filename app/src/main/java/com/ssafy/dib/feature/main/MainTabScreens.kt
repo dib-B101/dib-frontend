@@ -19,7 +19,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 private enum class TradeTab(val label: String) { Bid("입찰"), Purchase("구매"), Sale("판매") }
@@ -34,9 +36,10 @@ fun MyTradesScreen(
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
+    var contentView by rememberSaveable { mutableStateOf(DibContentView.List) }
     val items = when (selected) {
         TradeTab.Bid -> listOf(
-            TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "500원 높여 입찰하기 →", TradeTone.Urgent),
+            TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "현재가보다 높게 입찰하기 →", TradeTone.Urgent),
             TradeItem("최고 입찰자", "빈티지 스니커즈", "내 입찰가 58,000원 · 마감 12분", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("경매 종료", "레더 숄더백", "최종가 72,000원 · 미낙찰", "결과 확인하기 →", TradeTone.Neutral)
         )
@@ -52,7 +55,7 @@ fun MyTradesScreen(
         )
     }
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F8FA), contentWindowInsets = WindowInsets(0,0,0,0),
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
             Column(Modifier.background(Color.White)) {
                 Text("내 거래", Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp, vertical = 13.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -71,13 +74,24 @@ fun MyTradesScreen(
         bottomBar = { DibBottomNavigation(DibMainTab.Trades, onTabSelected) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${selected.label} 현황", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("${items.size}건", color = Colors.Muted, fontSize = 11.sp) } }
-            items(items.size) { index ->
-                TradeCard(items[index]) {
-                    if (selected == TradeTab.Bid) {
-                        onProductClick(if (items[index].status == "경매 종료") "lost" else if (items[index].title.contains("카메라")) "camera" else "sneakers")
-                    } else {
-                        onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer")
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column { Text("${selected.label} 현황", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("${items.size}건", color = Colors.Muted, fontSize = 11.sp) }
+                    DibViewModeToggle(contentView, { contentView = it })
+                }
+            }
+            if (contentView == DibContentView.List) {
+                items(items.size) { index ->
+                    TradeCard(items[index]) { openTradeItem(selected, items[index], onProductClick, onTransactionClick) }
+                }
+            } else {
+                items(items.chunked(2).size) { rowIndex ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val row = items.chunked(2)[rowIndex]
+                        row.forEach { item ->
+                            TradeGridCard(item, Modifier.weight(1f)) { openTradeItem(selected, item, onProductClick, onTransactionClick) }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
@@ -85,10 +99,23 @@ fun MyTradesScreen(
     }
 }
 
+private fun openTradeItem(
+    selected: TradeTab,
+    item: TradeItem,
+    onProductClick: (String) -> Unit,
+    onTransactionClick: (String) -> Unit
+) {
+    if (selected == TradeTab.Bid) {
+        onProductClick(if (item.status == "경매 종료") "lost" else if (item.title.contains("카메라")) "camera" else "sneakers")
+    } else {
+        onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer")
+    }
+}
+
 @Composable private fun TradeCard(item: TradeItem, onClick: () -> Unit) {
     val chip = when(item.tone){ TradeTone.Urgent -> Color(0xFFFFF0EA); TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Color(0xFFE56F49); TradeTone.Positive -> Color(0xFF27806E); TradeTone.Neutral -> Color(0xFF6B7280) }
-    Row(Modifier.fillMaxWidth().height(120.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE1E5EA), RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().height(136.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(88.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text("상품 이미지", color = Color(0xFF858B94), fontSize = 10.sp) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
@@ -96,6 +123,25 @@ fun MyTradesScreen(
             Text(item.meta, color = Color(0xFF6B7280), fontSize = 11.sp)
             Text(item.action, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+@Composable
+private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val chip = when(item.tone){ TradeTone.Urgent -> Colors.UrgentBackground; TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
+    val ink = when(item.tone){ TradeTone.Urgent -> Colors.Urgent; TradeTone.Positive -> Colors.MintInk; TradeTone.Neutral -> Colors.Muted }
+    Column(
+        modifier.height(232.dp).background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.Image, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+            Text("상품 이미지", color = Colors.Muted, fontSize = 10.sp)
+        }
+        Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(item.meta, maxLines = 2, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
+        Text(item.action, maxLines = 1, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 

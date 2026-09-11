@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +38,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -96,7 +101,7 @@ fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit,
             if (favorites.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("♡", color = Color(0xFFB8C0CC), fontSize = 36.sp)
+                        Image(painterResource(R.drawable.favorite_outline), null, Modifier.size(36.dp), colorFilter = ColorFilter.tint(Color(0xFFB8C0CC)))
                         Text("찜한 경매가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text("관심 있는 상품의 하트를 눌러 저장해보세요", color = Colors.Muted, fontSize = 12.sp)
                     }
@@ -107,7 +112,7 @@ fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit,
                         Column(Modifier.clickable { onProductClick(if (title.contains("카메라")) "camera" else "favorite") }) {
                             Box(Modifier.fillMaxWidth().height(122.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
                                 Text("LIVE", Modifier.padding(8.dp).background(Color(0x6B000000), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 5.dp), color = Color.White, fontSize = 9.sp)
-                                Text("♥", Modifier.align(Alignment.TopEnd).clickable { favorites.remove(title) }.padding(10.dp), color = Color(0xFFF5636E), fontSize = 22.sp)
+                                DibWishlistButton(true, { if (!it) favorites.remove(title) }, title, Modifier.align(Alignment.TopEnd))
                             }
                             Text(title, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text("현재가 52,000원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
