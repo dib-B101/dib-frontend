@@ -15,6 +15,8 @@
 - 경매 목록·상세는 로딩, 재시도와 공통 오류 메시지를 표시하며 숫자·문자열 ID와 서버 기준 종료 시각을 화면 모델로 변환한다.
 - 일반 경매 상세는 WebSocket 경매 채널을 구독하고 스냅샷·최고가 갱신·마감 연장·종료 이벤트를 화면 가격과 타이머에 반영한다.
 - 소켓이 끊기면 1~30초 지수 backoff로 재연결하며 마지막 `occurredAt`을 재구독 요청에 포함해 최신 스냅샷을 복구한다.
+- 보증금 결제 흐름이 끝나면 명세의 `PLACE_BID {commandId,auctionId,amount,sentAt}`를 전송하고 ACK가 유실되면 같은 `commandId`로 재전송한다.
+- `BID_ACCEPTED` 전에는 중복 제출을 막고, `BID_REJECTED`의 현재가·최소 입찰가·오류 코드를 입찰 바텀시트에 반영한다. `DEPOSIT_REQUIRED`이면 로컬 결제 완료 표시를 무효화한다.
 - WebSocket은 명세의 `{eventType,eventId|commandId,occurredAt,payload}` envelope를 사용한다. 연결 후 서버가 안내한 주기로 PING하고 eventId 중복을 제거한다.
 - 경매 구독·동기화·입찰, 주문 구독·채팅, Live 구독·채팅 Command 생성기를 제공한다.
 
@@ -43,6 +45,6 @@ Kafka는 WebSocket Gateway와 백엔드 도메인 서비스 사이의 내부 계
 
 1. 개발 API와 WebSocket 호스트, 테스트 계정을 전달받아 인증 API smoke test를 수행한다.
 2. 개발 서버 응답으로 경매 목록·상세 DTO 필드와 페이지네이션을 smoke test한다.
-3. 개발 WebSocket으로 구독·재연결·이벤트 순서를 smoke test하고 `PLACE_BID`의 참여 정보 계약을 확정한다.
-4. 입찰 Command와 `BID_ACCEPTED`·`BID_REJECTED` 결과를 보증금 결제 흐름에 연결한다.
+3. 개발 WebSocket으로 구독·재연결·입찰 ACK 순서를 smoke test하고 결제수단·배송지의 사전 참여 정보 저장 계약을 확정한다.
+4. 보증금 prepare·confirm API가 준비되면 로컬 결제 상태를 실제 결제 결과로 교체한다.
 5. 서버의 `구현=FALSE` 항목이 완료되는 순서대로 결제, 거래, 마이 화면의 샘플 상태를 교체한다.

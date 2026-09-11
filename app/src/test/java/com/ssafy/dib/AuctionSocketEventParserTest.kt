@@ -55,4 +55,28 @@ class AuctionSocketEventParserTest {
         assertEquals("ENDED", update.status)
         assertEquals("경매가 낙찰됐어요.", update.message)
     }
+
+    @Test
+    fun rejectedBidKeepsCommandAndRetryGuidance() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.BID_REJECTED,
+                commandId = "command-7",
+                payload = buildJsonObject {
+                    put("commandId", "command-7")
+                    put("auctionId", "auction-1")
+                    put("code", "INVALID_AMOUNT")
+                    put("message", "현재가보다 높은 금액을 입력해주세요.")
+                    put("currentPrice", 52_000)
+                    put("minAllowedAmount", 52_001)
+                    put("endedAt", "2026-09-11T06:10:00Z")
+                }
+            )
+        )!!
+
+        assertEquals("command-7", update.commandId)
+        assertEquals("INVALID_AMOUNT", update.errorCode)
+        assertEquals(52_001, update.minAllowedAmount)
+        assertEquals(52_000, update.currentPrice)
+    }
 }
