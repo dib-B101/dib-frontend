@@ -10,14 +10,17 @@ import com.ssafy.dib.data.local.auth.SecureAuthSessionStore
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.data.remote.order.OrderRemoteDataSource
+import com.ssafy.dib.data.remote.support.InquiryRemoteDataSource
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.DibWebSocketClient
 import com.ssafy.dib.data.repository.AuctionRepositoryImpl
 import com.ssafy.dib.data.repository.AuthRepositoryImpl
 import com.ssafy.dib.data.repository.OrderRepositoryImpl
+import com.ssafy.dib.data.repository.InquiryRepositoryImpl
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auth.AuthRepository
 import com.ssafy.dib.domain.order.OrderRepository
+import com.ssafy.dib.domain.support.InquiryRepository
 import java.util.UUID
 
 class AuthDependencies(context: Context) {
@@ -31,6 +34,7 @@ class AuthDependencies(context: Context) {
     val repository: AuthRepository
     val auctionRepository: AuctionRepository
     val orderRepository: OrderRepository
+    val inquiryRepository: InquiryRepository
 
     init {
         val client = DibHttpClient(
@@ -41,6 +45,7 @@ class AuthDependencies(context: Context) {
         repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
         orderRepository = OrderRepositoryImpl(OrderRemoteDataSource(client))
+        inquiryRepository = InquiryRepositoryImpl(InquiryRemoteDataSource(client))
     }
 
     private fun guestSessionId(): String {

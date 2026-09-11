@@ -24,11 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +50,8 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.domain.support.InquiryDetail
+import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -125,22 +130,65 @@ fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit,
     }
 }
 
-private data class Inquiry(val status: String, val title: String, val date: String)
+private data class Inquiry(val status: String, val title: String, val date: String, val questionId: String? = null)
 
 @Composable
-fun InquiryHistoryScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val inquiries = remember { mutableStateListOf(Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"), Inquiry("답변 대기", "자동 결제 실패 문의", "2026.09.09")) }
+fun InquiryHistoryScreen(
+    onBack: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    remoteInquiries: List<InquirySummary>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    selectedInquiry: InquiryDetail?,
+    detailLoading: Boolean,
+    detailError: String?,
+    submitLoading: Boolean,
+    submitError: String?,
+    submissionRevision: Int,
+    onRetry: () -> Unit,
+    onInquiryClick: (String) -> Unit,
+    onDetailDismiss: () -> Unit,
+    onSubmit: (title: String, content: String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val inquiries = remoteInquiries?.map {
+        Inquiry(if (it.answeredAt != null) "답변 완료" else "답변 대기", it.title, it.createdAt.take(10), it.questionId)
+    } ?: listOf(
+        Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"),
+        Inquiry("답변 대기", "자동 결제 실패 문의", "2026.09.09")
+    )
     var formOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(submissionRevision) { if (submissionRevision > 0) formOpen = false }
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("문의 답변은 등록한 이메일로도 알려드려요", color = Colors.Muted, fontSize = 12.sp) }
-            items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(104.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Color(0xFF61D1B2) else Color(0xFFF26B47), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
+            if (isLoading) item { Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
+            else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
+            else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }
+            else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(104.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Color(0xFF61D1B2) else Color(0xFFF26B47), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
             item { Button({ formOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("문의하기", fontWeight = FontWeight.Bold) } }
         }
     }
     if (formOpen) {
         var title by rememberSaveable { mutableStateOf("") }; var body by rememberSaveable { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { formOpen = false }, title = { Text("문의하기") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(title, { title = it }, label = { Text("제목") }); OutlinedTextField(body, { body = it }, label = { Text("문의 내용") }) } }, confirmButton = { TextButton({ inquiries.add(0, Inquiry("답변 대기", title, "2026.09.11")); formOpen = false }, enabled = title.isNotBlank() && body.isNotBlank()) { Text("등록") } }, dismissButton = { TextButton({ formOpen = false }) { Text("취소") } })
+        AlertDialog(onDismissRequest = { if (!submitLoading) formOpen = false }, title = { Text("문의하기") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(title, { title = it }, label = { Text("제목") }); OutlinedTextField(body, { body = it }, label = { Text("문의 내용") }); submitError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) } } }, confirmButton = { TextButton({ onSubmit(title.trim(), body.trim()) }, enabled = title.isNotBlank() && body.isNotBlank() && !submitLoading) { if (submitLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("등록") } }, dismissButton = { TextButton({ formOpen = false }, enabled = !submitLoading) { Text("취소") } })
+    }
+    if (detailLoading || detailError != null || selectedInquiry != null) {
+        AlertDialog(
+            onDismissRequest = onDetailDismiss,
+            title = { Text(selectedInquiry?.title ?: "문의 상세") },
+            text = {
+                when {
+                    detailLoading -> CircularProgressIndicator(color = Colors.Navy)
+                    detailError != null -> Text(detailError, color = Colors.Urgent)
+                    selectedInquiry != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(selectedInquiry.content, color = Colors.Navy)
+                        Text(selectedInquiry.answer ?: "아직 답변을 기다리고 있어요.", Modifier.fillMaxWidth().background(Color(0xFFF1F5FA), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Muted)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = onDetailDismiss) { Text("닫기") } }
+        )
     }
 }
 
