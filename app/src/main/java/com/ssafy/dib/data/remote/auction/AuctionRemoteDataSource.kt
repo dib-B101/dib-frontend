@@ -5,6 +5,8 @@ import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
+import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.RequestBody
 
 class AuctionRemoteDataSource(private val client: DibHttpClient) {
     fun getGeneralAuctions(
@@ -33,6 +35,28 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
     fun getAuction(auctionId: String): ApiResult<AuctionDto> = configured {
         val path = "${ApiRoutes.AUCTIONS}/$auctionId"
         client.execute(client.requestBuilder(path).get().build(), AuctionDto.serializer())
+    }
+
+    fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResponse> = configured {
+        val id = productId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(productId)
+        val body = CreateAuctionRequest(id, startPrice, auctionTime)
+        client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).header("Idempotency-Key", idempotencyKey).post(client.jsonBody(body, CreateAuctionRequest.serializer())).build(), AuctionCommandResponse.serializer())
+    }
+
+    fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId"
+        val body = UpdateAuctionRequest(startPrice, auctionTime)
+        client.execute(client.requestBuilder(path).patch(client.jsonBody(body, UpdateAuctionRequest.serializer())).build(), AuctionCommandResponse.serializer())
+    }
+
+    fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId"
+        client.executeUnit(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).delete().build())
+    }
+
+    fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<StartAuctionResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/start"
+        client.execute(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).patch(RequestBody.EMPTY).build(), StartAuctionResponse.serializer())
     }
 
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =

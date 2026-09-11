@@ -19,6 +19,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
+import com.ssafy.dib.feature.auction.AuctionRegisterScreen
 import com.ssafy.dib.feature.auction.ProductImageViewerScreen
 import com.ssafy.dib.feature.auction.ProductReportScreen
 import com.ssafy.dib.feature.auction.SellerProfileScreen
@@ -968,7 +969,56 @@ fun AppNavHost() {
                 remoteProducts = registeredProducts,
                 isLoading = registeredProductsLoading,
                 errorMessage = registeredProductsError,
-                onRetry = { registeredProductsRevision++ }
+                onRetry = { registeredProductsRevision++ },
+                onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) }
+            )
+        }
+        composable(
+            route = Screen.AuctionRegister.route,
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            var createResult by remember(productId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionCommandResult?>(null) }
+            var auctionStarted by remember(productId) { mutableStateOf(false) }
+            var commandLoading by remember(productId) { mutableStateOf(false) }
+            var commandError by remember(productId) { mutableStateOf<String?>(null) }
+            val createKey = remember(productId) { java.util.UUID.randomUUID().toString() }
+            val startKey = remember(productId) { java.util.UUID.randomUUID().toString() }
+
+            AuctionRegisterScreen(
+                productId = productId,
+                result = createResult,
+                started = auctionStarted,
+                isLoading = commandLoading,
+                errorMessage = commandError,
+                onCreate = { startPrice, auctionTime ->
+                    commandLoading = true
+                    commandError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.createAuction(productId, startPrice, auctionTime, createKey) }) {
+                            is ApiResult.Success -> createResult = result.value
+                            is ApiResult.Failure -> {
+                                commandError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        commandLoading = false
+                    }
+                },
+                onStart = {
+                    val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    commandLoading = true
+                    commandError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, startKey) }) {
+                            is ApiResult.Success -> { auctionStarted = true; auctionsRevision++ }
+                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
+                        }
+                        commandLoading = false
+                    }
+                },
+                onOpenAuction = { createResult?.auctionId?.let { navController.navigate(Screen.ProductDetail.createRoute(it)) } },
+                onBack = navController::navigateUp
             )
         }
         composable(Screen.Inquiries.route) {
@@ -1281,6 +1331,16 @@ private fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "INVALID_PASSWORD" -> "비밀번호 조건을 확인해주세요."
     "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
     else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
+}
+
+private fun auctionCommandError(error: ApiFailure): String = when (error.code) {
+    "NOT_MY_PRODUCT" -> "본인이 등록한 상품만 경매에 올릴 수 있어요."
+    "PRODUCT_PENDING" -> "상품 검수가 끝난 뒤 경매를 등록할 수 있어요."
+    "PRODUCT_ON_AUCTION" -> "이미 경매에 등록된 상품이에요."
+    "PRODUCT_ALREADY_SOLD" -> "판매가 완료된 상품이에요."
+    "PRODUCT_ALREADY_DELETED" -> "삭제된 상품이에요."
+    "AUCTION_NOT_EDITABLE" -> "예정 상태의 경매만 변경하거나 시작할 수 있어요."
+    else -> error.message.ifBlank { "경매 요청을 처리하지 못했어요." }
 }
 
 private fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {

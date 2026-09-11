@@ -3,11 +3,14 @@ package com.ssafy.dib
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auction.AuctionListResponse
 import com.ssafy.dib.data.remote.auction.BidDepositResponse
+import com.ssafy.dib.data.remote.auction.AuctionCommandResponse
+import com.ssafy.dib.data.remote.auction.CreateAuctionRequest
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.serialization.json.JsonPrimitive
 
 class AuctionContractTest {
     @Test
@@ -66,5 +69,16 @@ class AuctionContractTest {
         assertEquals(5_200L, deposit.amount)
         assertEquals("PENDING", deposit.status)
         assertEquals("https://pay.example/checkout/41", deposit.paymentUrl)
+    }
+
+    @Test
+    fun auctionCreateContractKeepsNumericProductId() {
+        val request = CreateAuctionRequest(JsonPrimitive(12), 10_000, 3_600)
+        val encoded = DibJson.instance.encodeToString(CreateAuctionRequest.serializer(), request)
+        val response = DibJson.instance.decodeFromString(AuctionCommandResponse.serializer(), """{"auctionId":3,"message":"경매 생성 성공"}""")
+
+        assertTrue(encoded.contains("\"productId\":12"))
+        assertEquals("3", response.auctionId.toString())
+        assertEquals("경매 생성 성공", response.message)
     }
 }

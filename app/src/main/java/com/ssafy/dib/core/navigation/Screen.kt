@@ -22,6 +22,9 @@ sealed class Screen(val route: String) {
     data object ProfileEdit : Screen("my/profile-edit")
     data object FavoriteAuctions : Screen("my/favorites")
     data object RegisteredProducts : Screen("my/registered-products")
+    data object AuctionRegister : Screen("auction/register/{productId}") {
+        fun createRoute(productId: String) = "auction/register/$productId"
+    }
     data object Inquiries : Screen("my/inquiries")
     data object ReportHistory : Screen("my/reports")
     data object Withdrawal : Screen("my/withdrawal")

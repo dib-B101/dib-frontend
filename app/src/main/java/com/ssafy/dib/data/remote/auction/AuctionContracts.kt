@@ -47,3 +47,8 @@ data class AuctionProductDto(
     val thumbnailUrl: String? = null,
     val images: List<JsonElement> = emptyList()
 )
+
+@Serializable data class CreateAuctionRequest(val productId: JsonElement, val startPrice: Long, val auctionTime: Long)
+@Serializable data class UpdateAuctionRequest(val startPrice: Long, val auctionTime: Long, val liveBroadcastId: JsonElement? = null)
+@Serializable data class AuctionCommandResponse(val auctionId: JsonElement? = null, val message: String = "")
+@Serializable data class StartAuctionResponse(val message: String = "")

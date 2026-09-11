@@ -19,6 +19,8 @@ data class AuctionSummary(
     val imageUrls: List<String> = emptyList()
 )
 
+data class AuctionCommandResult(val auctionId: String, val message: String)
+
 interface AuctionRepository {
     fun getGeneralAuctions(
         size: Int = 20,
@@ -33,4 +35,8 @@ interface AuctionRepository {
         getGeneralAuctions(size = size, categoryId = categoryId)
 
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
+    fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
+    fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>
+    fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit>
+    fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String>
 }
