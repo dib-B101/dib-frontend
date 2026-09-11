@@ -26,7 +26,26 @@ data class ProductRegistrationResult(
     val createdAt: String
 )
 
+data class ProductDetail(
+    val productId: String,
+    val memberId: String,
+    val categoryId: String,
+    val title: String,
+    val description: String,
+    val condition: String,
+    val modelName: String?,
+    val releaseYear: Int?,
+    val marketPrice: Long?,
+    val thumbnailUrl: String?,
+    val status: String,
+    val imageUrls: List<String>,
+    val sellerNickname: String?,
+    val sellerRating: Double?,
+    val sellerTradeCount: Int?
+)
+
 interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
+    fun getProduct(productId: String): ApiResult<ProductDetail>
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
 }

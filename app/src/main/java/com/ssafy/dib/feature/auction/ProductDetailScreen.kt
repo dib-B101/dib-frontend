@@ -33,6 +33,7 @@ import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.feature.home.allHomeAuctions
 import com.ssafy.dib.feature.home.HomeAuction
+import com.ssafy.dib.domain.product.ProductDetail
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -54,6 +55,7 @@ data class RealtimeBidFeedback(
 fun ProductDetailScreen(
     productId: String,
     remoteAuction: HomeAuction?,
+    productDetail: ProductDetail?,
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
@@ -77,6 +79,8 @@ fun ProductDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val product = remoteAuction ?: allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
+    val productName = productDetail?.title ?: product.name
+    val productImages = productDetail?.imageUrls?.takeIf { it.isNotEmpty() } ?: product.imageUrls
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -171,7 +175,7 @@ fun ProductDetailScreen(
             DetailAppBar(onBack = onBack, onShare = {
                 val share = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "dib 경매 · ${product.name} · ${product.priceLabel}")
+                    putExtra(Intent.EXTRA_TEXT, "dib 경매 · $productName · ${product.priceLabel}")
                 }
                 context.startActivity(Intent.createChooser(share, "상품 공유"))
             })
@@ -226,16 +230,17 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                ProductGallery(product.photo, product.imageUrls, onImageClick)
+                ProductGallery(product.photo, productImages, onImageClick)
             }
-            item { ProductSummary(product.name, currentPrice, product.bidCount, remainingSeconds, auctionState) }
+            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition) }
             item {
-                SellerSummary(onClick = { onSellerClick(product.sellerMemberId) })
+                SellerSummary(productDetail, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
             }
             item {
                 ProductInformation(
-                    productName = product.name,
+                    productName = productName,
                     category = product.category,
+                    detail = productDetail,
                     onReport = onReportClick
                 )
             }
@@ -255,7 +260,7 @@ fun ProductDetailScreen(
             }
         }
         BidSheet(
-            productName = product.name,
+            productName = productName,
             currentPrice = currentPrice,
             submissionError = bidError,
             depositPaid = depositPaid,
@@ -341,9 +346,11 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImage
 private fun ProductSummary(
     name: String,
     price: Int,
+    startPrice: Int,
     bidCount: Int,
     remainingSeconds: Int,
-    state: DetailAuctionState
+    state: DetailAuctionState,
+    condition: String?
 ) {
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -352,7 +359,7 @@ private fun ProductSummary(
                 DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
                 else -> Badge("마감 임박", urgent = true)
             }
-            Badge("상품 상태 · 중")
+            Badge("상품 상태 · ${conditionLabel(condition)}")
         }
         Text(name, fontSize = 20.sp, lineHeight = 30.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -373,7 +380,7 @@ private fun ProductSummary(
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("시작가 20,000원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Text("${bidCount}명 입찰 중", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (state == DetailAuctionState.Active) {
@@ -418,15 +425,16 @@ private fun Metric(label: String, value: String, color: androidx.compose.ui.grap
 }
 
 @Composable
-private fun SellerSummary(onClick: () -> Unit) {
+private fun SellerSummary(detail: ProductDetail?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(20.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(40.dp).background(Colors.Surface, CircleShape), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.seller), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Muted))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("seller01", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("★ 4.8  ·  거래 32회", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(detail?.sellerNickname ?: "판매자", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            val sellerMeta = listOfNotNull(detail?.sellerRating?.let { "★ $it" }, detail?.sellerTradeCount?.let { "거래 ${it}회" }).joinToString("  ·  ")
+            Text(sellerMeta.ifBlank { "판매자 정보를 확인해보세요" }, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
@@ -434,7 +442,7 @@ private fun SellerSummary(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProductInformation(productName: String, category: String, onReport: () -> Unit) {
+private fun ProductInformation(productName: String, category: String, detail: ProductDetail?, onReport: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
@@ -443,13 +451,16 @@ private fun ProductInformation(productName: String, category: String, onReport: 
                 Badge("배송비 포함")
             }
         }
-        InfoBlock("상품 설명", "$productName 상품입니다. 사용감은 있지만 기본 기능은 정상 작동합니다. 구성품과 외관 상태는 사진을 확인해주세요.")
+        InfoBlock("상품 설명", detail?.description?.takeIf(String::isNotBlank) ?: "$productName 상품입니다. 자세한 상태는 사진을 확인해주세요.")
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("상품 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Colors.Border)) {
-                InfoRow("상품 상태", "중고 · 사용감 있음")
+                InfoRow("상품 상태", conditionLabel(detail?.condition))
                 HorizontalDivider(color = Colors.Border)
                 InfoRow("카테고리", category)
+                detail?.modelName?.takeIf(String::isNotBlank)?.let { model -> HorizontalDivider(color = Colors.Border); InfoRow("모델명", model) }
+                detail?.releaseYear?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("출시연도", "${year}년") }
+                detail?.marketPrice?.let { marketPrice -> HorizontalDivider(color = Colors.Border); InfoRow("시세", "${"%,d".format(marketPrice)}원") }
             }
         }
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
@@ -461,6 +472,13 @@ private fun ProductInformation(productName: String, category: String, onReport: 
         Text("이 상품 신고하기", Modifier.clickable(onClick = onReport).padding(vertical = 4.dp),
             color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
     }
+}
+
+private fun conditionLabel(condition: String?): String = when (condition?.uppercase()) {
+    "GOOD" -> "좋음"
+    "NORMAL" -> "보통"
+    "BAD" -> "사용감 있음"
+    else -> "정보 없음"
 }
 
 @Composable

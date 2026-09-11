@@ -525,6 +525,7 @@ fun AppNavHost() {
             var remoteDetail by remember(productId) {
                 mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
             }
+            var remoteProduct by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
             var detailLoading by remember(productId) { mutableStateOf(false) }
             var detailError by remember(productId) { mutableStateOf<String?>(null) }
             var detailRevision by remember(productId) { mutableStateOf(0) }
@@ -538,7 +539,15 @@ fun AppNavHost() {
                 detailLoading = true
                 detailError = null
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(productId) }) {
-                    is ApiResult.Success -> remoteDetail = result.value.toHomeAuction()
+                    is ApiResult.Success -> {
+                        remoteDetail = result.value.toHomeAuction()
+                        if (signedIn == true && result.value.productId.isNotBlank()) {
+                            when (val productResult = withContext(Dispatchers.IO) { auth.productRepository.getProduct(result.value.productId) }) {
+                                is ApiResult.Success -> remoteProduct = productResult.value
+                                is ApiResult.Failure -> if (productResult.error.requiresLogin) signedIn = false
+                            }
+                        }
+                    }
                     is ApiResult.Failure -> {
                         detailError = result.error.message.ifBlank { "경매 상세를 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -613,6 +622,7 @@ fun AppNavHost() {
             ProductDetailScreen(
                 productId = productId,
                 remoteAuction = remoteDetail,
+                productDetail = remoteProduct,
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
@@ -639,7 +649,7 @@ fun AppNavHost() {
                 isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
-                    backStackEntry.savedStateHandle["productImageUrls"] = ArrayList(remoteDetail?.imageUrls.orEmpty())
+                    backStackEntry.savedStateHandle["productImageUrls"] = ArrayList(remoteProduct?.imageUrls?.takeIf { it.isNotEmpty() } ?: remoteDetail?.imageUrls.orEmpty())
                     navController.navigate(
                         Screen.ProductImages.createRoute(
                             backStackEntry.arguments?.getString("productId").orEmpty(),

@@ -26,6 +26,11 @@ class ProductRemoteDataSource(
         )
     }
 
+    fun getProduct(productId: String): ApiResult<ProductDetailResponse> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/$productId"
+        client.execute(client.requestBuilder(path).get().build(), ProductDetailResponse.serializer())
+    }
+
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductCreateResponse> = configured {
         val categoryId = registration.categoryId.toLongOrNull()?.let(::JsonPrimitive)
             ?: JsonPrimitive(registration.categoryId)
