@@ -9,6 +9,7 @@ object ApiRoutes {
     const val LOGOUT = "/api/v1/auth/logout"
     const val CATEGORIES = "/api/v1/categories"
     const val PRODUCTS = "/api/v1/products"
+    const val MEMBERS_ME = "/api/v1/members/me"
     const val AUCTIONS = "/api/v1/auctions"
     const val BID_DEPOSITS = "/api/v1/bid-deposits"
     const val ORDERS = "/api/v1/orders"

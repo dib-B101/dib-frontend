@@ -51,3 +51,15 @@ data class ProductSellerSummaryDto(
     val tradeCount: Int? = null,
     val completedTradeCount: Int? = null
 )
+
+@Serializable data class ProductListResponse(val items: List<ProductCardDto> = emptyList(), val nextCursor: String? = null, val hasNext: Boolean = false)
+
+@Serializable
+data class ProductCardDto(
+    val productId: JsonElement,
+    val title: String? = null,
+    val name: String? = null,
+    val condition: String = "",
+    val status: String = "",
+    val thumbnailUrl: String? = null
+)
