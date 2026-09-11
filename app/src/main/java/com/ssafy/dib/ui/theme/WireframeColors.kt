@@ -16,6 +16,8 @@ object WireframeColors {
     val SearchBorder = Color(0xFFD3F2E9)
     val Mint = Color(0xFFBDEEDF)
     val MintInk = Color(0xFF216551)
+    val Live = Color(0xFFEF596B)
+    val Favorite = Color(0xFFFF5277)
     val UrgentBackground = Color(0xFFFFF0E6)
     val Urgent = Color(0xFFB34821)
 }
