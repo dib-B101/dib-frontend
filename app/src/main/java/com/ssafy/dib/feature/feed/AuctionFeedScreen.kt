@@ -475,7 +475,7 @@ private fun FeedBidSheet(
                 onAddressSelected = { addressId = it }
             )
             Text(
-                if (valid) "보증금 없이 입찰하며 입찰 후에는 취소할 수 없어요" else "현재가보다 큰 금액을 입력해주세요",
+                if (valid) "첫 입찰에는 상품별 보증금 1,000원이 필요해요" else "현재가보다 큰 금액을 입력해주세요",
                 color = if (valid) Color(0xFF6B6B6B) else Color(0xFFB34821),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium

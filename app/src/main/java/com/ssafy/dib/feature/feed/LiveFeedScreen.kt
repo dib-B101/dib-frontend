@@ -52,8 +52,12 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveFeedScreen(
+    paidBidAmount: Int,
+    depositPaid: Boolean,
+    onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var following by rememberSaveable { mutableStateOf(true) }
@@ -75,6 +79,14 @@ fun LiveFeedScreen(
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
+    LaunchedEffect(paidBidAmount) {
+        if (paidBidAmount > 0) {
+            currentPrice = paidBidAmount
+            if (remaining in 1..15) remaining = 15
+            showBidFeedback = true
+            onPaymentConsumed()
+        }
+    }
     LaunchedEffect(showBidFeedback) {
         if (showBidFeedback) {
             delay(1_500)
@@ -162,11 +174,9 @@ fun LiveFeedScreen(
             }
         }
     }
-    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { submission ->
+    if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
-        currentPrice = submission.amount
-        if (remaining in 1..15) remaining = 15
-        showBidFeedback = true
+        onDepositPayment("camera", submission)
     }
 }
 
@@ -190,7 +200,7 @@ private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
+@Composable private fun LiveBidSheet(currentPrice: Int, depositPaid: Boolean, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
     val minimum = currentPrice + 1
     var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
     var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
@@ -208,8 +218,14 @@ private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
                 selectedAddressId = addressId,
                 onAddressSelected = { addressId = it }
             )
-            Text("보증금 없이 입찰하며 종료 15초 이내 입찰 시 남은 시간이 15초로 갱신돼요.", color = Color(0xFF596373), fontSize = 11.sp)
-            Button({ onConfirm(BidSubmission(parsed, paymentMethodId, addressId)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13284B))) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
+            Text(
+                if (depositPaid) "보증금 결제 완료 · 추가 결제 없이 재입찰할 수 있어요." else "첫 입찰에는 상품별 보증금 1,000원 결제가 필요해요.",
+                color = Colors.MintInk,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text("종료 15초 이내 입찰 시 남은 시간이 15초로 갱신돼요.", color = Colors.Muted, fontSize = 11.sp)
+            Button({ onConfirm(BidSubmission(parsed, paymentMethodId, addressId)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (depositPaid) "${"%,d".format(parsed)}원 입찰하기" else "보증금 결제로 계속", fontWeight = FontWeight.Bold) }
         }
     }
 }
