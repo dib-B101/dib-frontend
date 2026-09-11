@@ -124,7 +124,7 @@ private data class Inquiry(val status: String, val title: String, val date: Stri
 
 @Composable
 fun InquiryHistoryScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val inquiries = remember { mutableStateListOf(Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"), Inquiry("답변 대기", "보증금 환불 문의", "2026.09.09")) }
+    val inquiries = remember { mutableStateListOf(Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"), Inquiry("답변 대기", "자동 결제 실패 문의", "2026.09.09")) }
     var formOpen by rememberSaveable { mutableStateOf(false) }
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

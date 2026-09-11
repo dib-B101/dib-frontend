@@ -22,7 +22,10 @@ DIB_WS_URL=wss://assigned-api-host/ws/v1
 ## 연동을 보류한 이유
 
 - API와 WebSocket의 실행 호스트가 명세에 없다.
-- REST 표에서 배송지, 북마크, 입찰·보증금, 배송 조회, 정산 계좌 등 화면에 필요한 일부 API가 아직 `구현=FALSE`다.
+- REST 표에서 배송지, 결제수단, 북마크, 입찰 참여 정보, 배송 조회, 정산 계좌 등 화면에 필요한 일부 API가 아직 `구현=FALSE`다.
+- 최신 요구사항은 보증금 없는 입찰과 등록 결제수단 자동 결제를 요구한다. 기존 REST의 보증금 API와 WebSocket의 `DEPOSIT_REQUIRED` 계약은 최신 요구사항과 충돌하므로 백엔드 계약을 개정하기 전 Android에서 연결하지 않는다.
+- 입찰 Command에는 선택한 `paymentMethodId`와 `addressId`를 직접 보내거나 사전 참여 정보 ID를 보내야 하지만 현재 WebSocket 명세에는 해당 필드가 없다.
+- 판매자 본인 경매 입찰 금지는 인증 회원 ID와 경매 판매자 ID를 서버에서 최종 검증하고, Android도 조회 응답의 소유자 정보를 기준으로 입찰 버튼을 비활성화해야 한다.
 - 공통 오류 응답은 목표 계약과 현재 서버 구현이 다르므로 서버가 전환되기 전까지 선택 필드로 처리해야 한다.
 - Access/Refresh Token의 영구 저장 방식과 기기 식별자 생성 정책이 확정되지 않았다.
 - 샘플 UI를 실제 서버 데이터로 교체하려면 화면별 ViewModel과 Repository가 추가로 필요하다.

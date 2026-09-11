@@ -72,13 +72,13 @@ fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Mod
         ) {
             when (step) {
                 TransactionStep.PaymentRequired -> {
-                    item { StateHeader("결제 필요", 1) }
-                    item { StatusHero("▣", "낙찰 상품을 결제해주세요", "오늘 23:59까지 결제해야 거래가 유지돼요.", Color(0xFFFFEEE8)) }
+                    item { StateHeader("재결제 필요", 1) }
+                    item { StatusHero("!", "자동 결제를 완료하지 못했어요", "등록 결제수단을 변경하거나 기한 내 다시 결제해주세요.", Color(0xFFFFEEE8)) }
                     item { ProductSummary(amount) }
                     item {
-                        InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "보증금" to "1,000원 결제"))
+                        InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "자동 결제" to "승인 실패"))
                     }
-                    item { PrimaryButton("${"%,d".format(amount)}원 결제하기") { step = TransactionStep.Paying } }
+                    item { PrimaryButton("결제수단 변경·재결제") { step = TransactionStep.Paying } }
                 }
                 TransactionStep.Paying -> {
                     item { Text("낙찰을 축하해요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
@@ -87,7 +87,7 @@ fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Mod
                     item {
                         Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(14.dp)) {
                             Text("결제 수단", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            listOf("카드 결제", "계좌이체", "간편결제").forEachIndexed { index, label ->
+                            listOf("신한카드 ···· 1234", "우리카드 ···· 5678", "새 결제수단 등록").forEachIndexed { index, label ->
                                 Row(
                                     Modifier.fillMaxWidth().height(44.dp).clickable { paymentMethod = index },
                                     verticalAlignment = Alignment.CenterVertically
@@ -99,7 +99,7 @@ fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Mod
                             }
                         }
                     }
-                    item { PrimaryButton("${"%,d".format(amount)}원 결제하기") { step = if (paymentMethod == 2 && !tossRetried) TransactionStep.PaymentFailed else TransactionStep.PaymentSuccess } }
+                    item { PrimaryButton("${"%,d".format(amount)}원 재결제하기") { step = if (paymentMethod == 2 && !tossRetried) TransactionStep.PaymentFailed else TransactionStep.PaymentSuccess } }
                 }
                 TransactionStep.PaymentFailed -> {
                     item { StatusHero("!", "결제를 완료하지 못했어요", "결제 승인 중 문제가 발생했어요. 결제 수단을 확인한 뒤 다시 시도해주세요.", Color(0xFFFFE9E9)) }
@@ -116,7 +116,7 @@ fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Mod
                     item { StateHeader("발송 준비 중", 1) }
                     item { StatusHero("▣", "판매자가 상품을 준비 중이에요", "발송되면 운송장과 배송 현황을 알려드릴게요.", Color(0xFFF1F5FA)) }
                     item { ProductSummary(amount) }
-                    item { InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "보증금" to "1,000원 결제")) }
+                    item { InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "결제" to "58,000원 승인")) }
                     item { PrimaryButton("발송 알림 확인") { step = TransactionStep.Shipping } }
                 }
                 TransactionStep.Shipping -> {
@@ -141,7 +141,7 @@ fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Mod
                     item { StatusHero("✓", "거래가 완료됐어요", "상품 후기를 남기면 다른 사용자에게 도움이 돼요.", Color(0xFFE8FAF5)) }
                     item { ProductSummary(amount) }
                     item { ProgressCard(3) }
-                    item { InfoCard(listOf("결제 금액" to "58,000원", "보증금 환불" to "1,000원", "거래 상태" to "구매 확정"), "거래 정보") }
+                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to "등록 결제수단 자동 결제", "거래 상태" to "구매 확정"), "거래 정보") }
                     item { PrimaryButton("내 거래로 돌아가기", onBack) }
                 }
             }

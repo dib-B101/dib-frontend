@@ -6,11 +6,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,17 +28,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
+import com.ssafy.dib.feature.auction.BidParticipationFields
+import com.ssafy.dib.feature.auction.BidSubmission
+import com.ssafy.dib.feature.auction.sampleBidAddresses
+import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveFeedScreen(
-    paidBidAmount: Int,
-    onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
-    onDepositPayment: (String, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var following by rememberSaveable { mutableStateOf(true) }
@@ -50,12 +53,8 @@ fun LiveFeedScreen(
     var showBidFeedback by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
-    LaunchedEffect(paidBidAmount) {
-        if (paidBidAmount > 0) {
-            currentPrice = paidBidAmount
-            remaining = maxOf(remaining, 30)
-            showBidFeedback = true
-            onPaymentConsumed()
+    LaunchedEffect(showBidFeedback) {
+        if (showBidFeedback) {
             delay(1_500)
             showBidFeedback = false
         }
@@ -122,24 +121,37 @@ fun LiveFeedScreen(
             }
         }
     }
-    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { amount -> showBidSheet = false; onDepositPayment("camera", amount) }
+    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { submission ->
+        showBidSheet = false
+        currentPrice = submission.amount
+        if (remaining in 1..15) remaining = 15
+        showBidFeedback = true
+    }
 }
 
 @Composable private fun LiveAction(text: String, color: Color, onClick: () -> Unit) { Box(Modifier.size(44.dp).background(Color.Black.copy(.42f), CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Text(text, color = color, fontSize = 25.sp, fontWeight = FontWeight.Bold) } }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
-    val minimum = currentPrice + 500
+@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
+    val minimum = currentPrice + 1
     var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
+    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
+    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val parsed = amount.toIntOrNull() ?: 0
-    val valid = parsed >= minimum && parsed % 500 == 0
+    val valid = parsed >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("현재가 ${"%,d".format(currentPrice)}원 · 최소 ${"%,d".format(minimum)}원", color = Color.Gray, fontSize = 12.sp)
+            Text("현재가 ${"%,d".format(currentPrice)}원 · ${"%,d".format(minimum)}원 이상", color = Color.Gray, fontSize = 12.sp)
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-            Text("첫 입찰에는 상품별 고정 보증금 1,000원이 필요해요", color = Color(0xFF596373), fontSize = 11.sp)
-            Button({ onConfirm(parsed) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13284B))) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
+            BidParticipationFields(
+                selectedPaymentMethodId = paymentMethodId,
+                onPaymentMethodSelected = { paymentMethodId = it },
+                selectedAddressId = addressId,
+                onAddressSelected = { addressId = it }
+            )
+            Text("보증금 없이 입찰하며 종료 15초 이내 입찰 시 남은 시간이 15초로 갱신돼요.", color = Color(0xFF596373), fontSize = 11.sp)
+            Button({ onConfirm(BidSubmission(parsed, paymentMethodId, addressId)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13284B))) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
     }
 }

@@ -9,12 +9,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -32,6 +34,10 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.feature.auction.BidParticipationFields
+import com.ssafy.dib.feature.auction.BidSubmission
+import com.ssafy.dib.feature.auction.sampleBidAddresses
+import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -56,10 +62,6 @@ private val feedAuctions = listOf(
 fun AuctionFeedScreen(
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
-    paidBidProductId: String,
-    paidBidAmount: Int,
-    onPaymentConsumed: () -> Unit,
-    onDepositPayment: (String, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val feedPagerState = rememberPagerState(pageCount = feedAuctions::size)
@@ -87,22 +89,6 @@ fun AuctionFeedScreen(
             remainingSeconds.indices.forEach { index ->
                 if (remainingSeconds[index] > 0) remainingSeconds[index]--
             }
-        }
-    }
-
-    LaunchedEffect(paidBidProductId, paidBidAmount) {
-        if (paidBidProductId.isNotBlank() && paidBidAmount > 0) {
-            val page = feedAuctions.indexOfFirst { it.id == paidBidProductId }
-            if (page >= 0) {
-                val shouldExtend = remainingSeconds[page] in 1..30
-                currentPrices[page] = paidBidAmount
-                bidCounts[page]++
-                if (shouldExtend) remainingSeconds[page] = 30
-                lastBidAmount = paidBidAmount
-                if (shouldExtend) extendedPage = page else bidSuccessPage = page
-                feedPagerState.scrollToPage(page)
-            }
-            onPaymentConsumed()
         }
     }
 
@@ -171,13 +157,18 @@ fun AuctionFeedScreen(
     }
 
     if (selectedBidPage >= 0) {
-        val auction = feedAuctions[selectedBidPage]
         FeedBidSheet(
             currentPrice = currentPrices[selectedBidPage],
             onDismiss = { selectedBidPage = -1 },
-            onConfirm = { amount ->
+            onConfirm = { submission ->
+                val page = selectedBidPage
                 selectedBidPage = -1
-                onDepositPayment(auction.id, amount)
+                val shouldExtend = remainingSeconds[page] in 1..30
+                currentPrices[page] = submission.amount
+                bidCounts[page]++
+                if (shouldExtend) remainingSeconds[page] += 15
+                lastBidAmount = submission.amount
+                if (shouldExtend) extendedPage = page else bidSuccessPage = page
             }
         )
     }
@@ -434,12 +425,14 @@ private val ColorsMint = Color(0xFFD3F2E9)
 private fun FeedBidSheet(
     currentPrice: Int,
     onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit
+    onConfirm: (BidSubmission) -> Unit
 ) {
-    val minimum = currentPrice + 500
+    val minimum = currentPrice + 1
     var amountText by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
+    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
+    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val amount = amountText.toIntOrNull() ?: 0
-    val valid = amount >= minimum && amount % 500 == 0
+    val valid = amount >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -448,7 +441,7 @@ private fun FeedBidSheet(
         dragHandle = { BottomSheetDefaults.DragHandle(width = 40.dp, height = 4.dp, color = Color(0xFFB8B8B8)) }
     ) {
         Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -460,7 +453,7 @@ private fun FeedBidSheet(
                     Text("현재가", color = Color(0xFF6B6B6B), fontSize = 11.sp)
                     Text("%,d원".format(currentPrice), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("${"%,d".format(minimum)}원부터 입찰 가능", color = Color(0xFF858585), fontSize = 11.sp)
+                Text("${"%,d".format(minimum)}원 이상 입찰 가능", color = Color(0xFF858585), fontSize = 11.sp)
             }
             Text("입찰 금액", fontSize = 12.sp)
             OutlinedTextField(
@@ -468,28 +461,26 @@ private fun FeedBidSheet(
                 onValueChange = { amountText = it.filter(Char::isDigit).take(9) },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 suffix = { Text("원", fontWeight = FontWeight.Bold) },
-                trailingIcon = { Text("최소 단위 500원", color = Color(0xFF858585), fontSize = 11.sp) },
                 isError = amountText.isNotEmpty() && !valid,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 shape = RoundedCornerShape(12.dp)
             )
-            Column(
-                Modifier.fillMaxWidth().background(Color(0xFFEDEDED), RoundedCornerShape(10.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("첫 입찰 보증금 1,000원", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("상품별 고정 보증금 · 경매 종료 후 패찰 시 자동 반환", color = Color(0xFF6B6B6B), fontSize = 10.sp)
-            }
+            BidParticipationFields(
+                selectedPaymentMethodId = paymentMethodId,
+                onPaymentMethodSelected = { paymentMethodId = it },
+                selectedAddressId = addressId,
+                onAddressSelected = { addressId = it }
+            )
             Text(
-                if (valid) "입찰 후에는 취소할 수 없어요" else "최소 금액 이상, 500원 단위로 입력해주세요",
+                if (valid) "보증금 없이 입찰하며 입찰 후에는 취소할 수 없어요" else "현재가보다 큰 금액을 입력해주세요",
                 color = if (valid) Color(0xFF6B6B6B) else Color(0xFFB34821),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
             Button(
-                onClick = { onConfirm(amount) },
+                onClick = { onConfirm(BidSubmission(amount, paymentMethodId, addressId)) },
                 enabled = valid,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
