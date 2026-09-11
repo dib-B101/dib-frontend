@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,19 +40,20 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.R
+import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
-private data class CategoryItem(val icon: String, val name: String, val tint: Color, val surface: Color)
+private data class CategoryItem(val id: String, val icon: String, val name: String, val tint: Color, val surface: Color)
 
 private val categories = listOf(
-    CategoryItem("▣", "디지털기기", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
-    CategoryItem("▤", "생활가전", Color(0xFFF47E58), Color(0xFFFAF0EB)),
-    CategoryItem("▰", "가구·인테리어", Colors.Navy, Color(0xFFF0F2FA)),
-    CategoryItem("◉", "스포츠·레저", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
-    CategoryItem("♧", "패션·잡화", Color(0xFFF47E58), Color(0xFFFAF0EB)),
-    CategoryItem("◕", "뷰티", Colors.Navy, Color(0xFFF0F2FA)),
-    CategoryItem("⌁", "취미·게임", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
-    CategoryItem("◌", "예술·창작", Color(0xFFF47E58), Color(0xFFFAF0EB))
+    CategoryItem("1", "▣", "디지털기기", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
+    CategoryItem("2", "▤", "생활가전", Color(0xFFF47E58), Color(0xFFFAF0EB)),
+    CategoryItem("3", "▰", "가구·인테리어", Colors.Navy, Color(0xFFF0F2FA)),
+    CategoryItem("4", "◉", "스포츠·레저", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
+    CategoryItem("5", "♧", "패션·잡화", Color(0xFFF47E58), Color(0xFFFAF0EB)),
+    CategoryItem("6", "◕", "뷰티", Colors.Navy, Color(0xFFF0F2FA)),
+    CategoryItem("7", "⌁", "취미·게임", Color(0xFF45CDAA), Color(0xFFE8F7F2)),
+    CategoryItem("8", "◌", "예술·창작", Color(0xFFF47E58), Color(0xFFFAF0EB))
 )
 
 @Composable
@@ -60,9 +63,20 @@ fun CategoryScreen(
     onNotificationsClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    remoteCategories: List<ProductCategory>?,
+    remoteAuctions: List<HomeAuction>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onCategorySelected: (String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
+    val visibleCategories = remoteCategories?.mapIndexed { index, category ->
+        val style = categories[index % categories.size]
+        CategoryItem(category.categoryId, style.icon, category.name, style.tint, style.surface)
+    } ?: categories
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color.White,
@@ -72,9 +86,9 @@ fun CategoryScreen(
                 Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (selected != null) {
-                    Text("←", Modifier.size(40.dp).clickable { selected = null }.padding(top = 6.dp), fontSize = 24.sp)
-                    Text(selected.orEmpty(), Modifier.weight(1f), color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (selectedId != null) {
+                    Text("←", Modifier.size(40.dp).clickable { selectedId = null; selectedName = null }.padding(top = 6.dp), fontSize = 24.sp)
+                    Text(selectedName.orEmpty(), Modifier.weight(1f), color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 } else {
                     Image(painterResource(R.drawable.dib_primary_logo), contentDescription = "dib", modifier = Modifier.size(42.dp, 27.dp))
                     Spacer(Modifier.weight(1f))
@@ -95,9 +109,9 @@ fun CategoryScreen(
                 Text("상품을 검색해보세요", Modifier.padding(start = 10.dp), color = Colors.Muted, fontSize = 13.sp)
             }
             Spacer(Modifier.height(20.dp))
-            Text(selected ?: "카테고리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(selectedName ?: "카테고리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(14.dp))
-            if (selected == null) {
+            if (selectedId == null) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
                     modifier = Modifier.fillMaxSize(),
@@ -105,9 +119,9 @@ fun CategoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    items(categories) { category ->
+                    items(visibleCategories) { category ->
                         Column(
-                            Modifier.height(88.dp).clickable { selected = category.name },
+                            Modifier.height(88.dp).clickable { selectedId = category.id; selectedName = category.name; onCategorySelected(category.id) },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -119,8 +133,21 @@ fun CategoryScreen(
                     }
                 }
             } else {
-                Text("총 6개의 경매", color = Colors.Muted, fontSize = 11.sp)
+                if (isLoading) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
+                    return@Column
+                }
+                if (errorMessage != null) {
+                    Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } }
+                    return@Column
+                }
+                val visibleAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter { it.category.contains(selectedName.orEmpty().take(2)) }.ifEmpty { allHomeAuctions.distinctBy(HomeAuction::id).take(6) }
+                Text("총 ${visibleAuctions.size}개의 경매", color = Colors.Muted, fontSize = 11.sp)
                 Spacer(Modifier.height(10.dp))
+                if (visibleAuctions.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("진행 중인 경매가 없어요.", color = Colors.Muted, fontSize = 13.sp) }
+                    return@Column
+                }
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
@@ -128,17 +155,14 @@ fun CategoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(6) { index ->
+                    items(visibleAuctions) { auction ->
                         Column(
-                            Modifier.clickable { onProductClick(if (index == 0) "camera" else "category-$index") },
+                            Modifier.clickable { onProductClick(auction.id) },
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Box(
-                                Modifier.fillMaxWidth().height(132.dp).background(Color(0xFFECEEF1), RoundedCornerShape(12.dp)),
-                                contentAlignment = Alignment.Center
-                            ) { Text("상품 이미지", color = Colors.Muted, fontSize = 10.sp) }
-                            Text(if (index == 0) "빈티지 필름 카메라" else "${selected} 추천 상품 ${index + 1}", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("${35_000 + index * 5_000}원 · ${12 + index}분 남음", color = Colors.Navy, fontSize = 11.sp)
+                            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().height(132.dp))
+                            Text(auction.name, color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음", color = Colors.Navy, fontSize = 11.sp)
                         }
                     }
                 }
