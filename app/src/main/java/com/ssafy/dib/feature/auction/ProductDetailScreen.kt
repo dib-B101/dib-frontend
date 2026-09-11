@@ -226,7 +226,7 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                ProductGallery(product.photo, onImageClick)
+                ProductGallery(product.photo, product.imageUrls, onImageClick)
             }
             item { ProductSummary(product.name, currentPrice, product.bidCount, remainingSeconds, auctionState) }
             item {
@@ -289,8 +289,8 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProductGallery(photo: ProductPhoto, onImageClick: (Int) -> Unit) {
-    val pageCount = 5
+private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImageClick: (Int) -> Unit) {
+    val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
     val pagerState = rememberPagerState(pageCount = { pageCount })
     Box(Modifier.fillMaxWidth().height(236.dp).background(Colors.Image)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
@@ -298,8 +298,10 @@ private fun ProductGallery(photo: ProductPhoto, onImageClick: (Int) -> Unit) {
                 Modifier.fillMaxSize().clickable { onImageClick(page) },
                 contentAlignment = Alignment.Center
             ) {
-                if (page == 0) {
-                    ProductPhoto(photo, Modifier.fillMaxSize())
+                if (imageUrls.isNotEmpty()) {
+                    ProductPhoto(photo, imageUrls[page], Modifier.fillMaxSize())
+                } else if (page == 0) {
+                    ProductPhoto(photo, modifier = Modifier.fillMaxSize())
                 } else {
                     Box(Modifier.fillMaxSize().background(Colors.Image), contentAlignment = Alignment.Center) {
                         Text("상품 이미지 ${page + 1}", color = Colors.Muted, fontSize = 12.sp)

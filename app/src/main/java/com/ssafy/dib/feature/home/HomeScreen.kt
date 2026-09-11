@@ -30,6 +30,7 @@ import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
@@ -300,7 +301,7 @@ private fun AuctionListCard(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(92.dp).background(Colors.Image, RoundedCornerShape(10.dp)))
+        ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(92.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -324,6 +325,7 @@ private fun AuctionCard(
             Modifier.fillMaxWidth().height(imageHeight.dp)
                 .background(Colors.Image, RoundedCornerShape(10.dp))
         ) {
+            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
             DibWishlistButton(
                 selected = favorite,
                 onSelectedChange = onFavorite,
@@ -356,6 +358,7 @@ private fun DeadlineSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(Modifier.width(132.dp).fillMaxHeight().background(Colors.Image, RoundedCornerShape(10.dp))) {
+                ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
                 DibWishlistButton(favorite, onFavorite, auction.name, Modifier.align(Alignment.TopEnd))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -405,7 +408,7 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
                         Text("${index + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Box(Modifier.size(54.dp).background(Colors.Image, RoundedCornerShape(9.dp)))
+                ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(54.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(auction.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
                     Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
@@ -417,8 +420,12 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
 }
 
 @Composable
-internal fun ProductPhoto(photo: ProductPhoto, modifier: Modifier = Modifier) {
+internal fun ProductPhoto(photo: ProductPhoto, imageUrl: String? = null, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.clip(RoundedCornerShape(10.dp))) {
+        if (!imageUrl.isNullOrBlank()) {
+            DibNetworkImage(imageUrl, null, Modifier.matchParentSize())
+            return@BoxWithConstraints
+        }
         if (photo == ProductPhoto.Placeholder) {
             Box(Modifier.matchParentSize().background(Colors.Image), contentAlignment = Alignment.Center) {
                 Text("상품 이미지", color = Colors.Muted, fontSize = 12.sp)

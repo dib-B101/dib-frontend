@@ -536,6 +536,7 @@ fun AppNavHost() {
                 isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
+                    backStackEntry.savedStateHandle["productImageUrls"] = ArrayList(remoteDetail?.imageUrls.orEmpty())
                     navController.navigate(
                         Screen.ProductImages.createRoute(
                             backStackEntry.arguments?.getString("productId").orEmpty(),
@@ -914,9 +915,12 @@ fun AppNavHost() {
                 navArgument("initialPage") { type = NavType.IntType }
             )
         ) { backStackEntry ->
+            val imageUrls = navController.previousBackStackEntry?.savedStateHandle
+                ?.get<ArrayList<String>>("productImageUrls").orEmpty()
             ProductImageViewerScreen(
                 productId = backStackEntry.arguments?.getString("productId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
+                imageUrls = imageUrls,
                 onClose = navController::navigateUp
             )
         }

@@ -43,5 +43,7 @@ data class AuctionProductDto(
     val productId: JsonElement? = null,
     val name: String? = null,
     val title: String? = null,
-    val categoryName: String? = null
+    val categoryName: String? = null,
+    val thumbnailUrl: String? = null,
+    val images: List<JsonElement> = emptyList()
 )
