@@ -20,6 +20,6 @@ data class AuctionSummary(
 )
 
 interface AuctionRepository {
-    fun getActiveGeneralAuctions(size: Int = 20): ApiResult<List<AuctionSummary>>
+    fun getActiveGeneralAuctions(size: Int = 20, categoryId: String? = null): ApiResult<List<AuctionSummary>>
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
 }

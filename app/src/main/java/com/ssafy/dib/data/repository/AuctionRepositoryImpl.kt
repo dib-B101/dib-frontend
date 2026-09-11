@@ -15,8 +15,8 @@ class AuctionRepositoryImpl(
     private val remote: AuctionRemoteDataSource,
     private val now: () -> Instant = Instant::now
 ) : AuctionRepository {
-    override fun getActiveGeneralAuctions(size: Int): ApiResult<List<AuctionSummary>> =
-        when (val result = remote.getActiveGeneralAuctions(size)) {
+    override fun getActiveGeneralAuctions(size: Int, categoryId: String?): ApiResult<List<AuctionSummary>> =
+        when (val result = remote.getActiveGeneralAuctions(size, categoryId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
             is ApiResult.Failure -> result
         }

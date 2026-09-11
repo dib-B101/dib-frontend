@@ -380,6 +380,39 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Categories.route) {
+            var categoryList by remember { mutableStateOf<List<ProductCategory>?>(null) }
+            var categoryAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+            var categoryLoading by remember { mutableStateOf(false) }
+            var categoryError by remember { mutableStateOf<String?>(null) }
+            var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+
+            fun loadCategory(categoryId: String) {
+                selectedCategoryId = categoryId
+                if (!auth.networkConfig.isRestConfigured) {
+                    categoryAuctions = null
+                    categoryError = null
+                    return
+                }
+                categoryLoading = true
+                categoryError = null
+                coroutineScope.launch {
+                    when (val result = withContext(Dispatchers.IO) {
+                        auth.auctionRepository.getActiveGeneralAuctions(categoryId = categoryId)
+                    }) {
+                        is ApiResult.Success -> categoryAuctions = result.value.map { it.toHomeAuction() }
+                        is ApiResult.Failure -> categoryError = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
+                    }
+                    categoryLoading = false
+                }
+            }
+
+            LaunchedEffect(signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+                    is ApiResult.Success -> categoryList = result.value
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+            }
             CategoryScreen(
                 onBack = navController::navigateUp,
                 onSearchClick = { navController.navigate(Screen.Search.route) },
@@ -388,7 +421,13 @@ fun AppNavHost() {
                     else navController.navigate(Screen.Login.route)
                 },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTabSelected = ::navigateMain
+                onTabSelected = ::navigateMain,
+                remoteCategories = categoryList,
+                remoteAuctions = categoryAuctions,
+                isLoading = categoryLoading,
+                errorMessage = categoryError,
+                onCategorySelected = ::loadCategory,
+                onRetry = { selectedCategoryId?.let(::loadCategory) }
             )
         }
         composable(Screen.Search.route) {
