@@ -13,8 +13,8 @@ sealed class Screen(val route: String) {
     data object Register : Screen("register")
     data object Trades : Screen("trades")
     data object My : Screen("my")
-    data object Transaction : Screen("transaction/{role}") {
-        fun createRoute(role: String) = "transaction/$role"
+    data object Transaction : Screen("transaction/{role}/{orderId}") {
+        fun createRoute(role: String, orderId: String = "sample") = "transaction/$role/$orderId"
     }
     data object Addresses : Screen("my/addresses")
     data object SettlementAccounts : Screen("my/accounts")

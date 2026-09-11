@@ -49,3 +49,9 @@ data class OrderProductDto(
     val title: String? = null,
     val name: String? = null
 )
+
+@Serializable
+data class OrderConfirmationResponse(
+    val orderId: JsonElement,
+    val status: String
+)

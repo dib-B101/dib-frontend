@@ -15,6 +15,18 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Success -> ApiResult.Success(result.value.items.map(OrderSummaryDto::toDomain), result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun getOrder(orderId: String): ApiResult<OrderSummary> =
+        when (val result = remote.getOrder(orderId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun confirmPurchase(orderId: String): ApiResult<String> =
+        when (val result = remote.confirmPurchase(orderId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+            is ApiResult.Failure -> result
+        }
 }
 
 internal fun OrderSummaryDto.toDomain(): OrderSummary {
