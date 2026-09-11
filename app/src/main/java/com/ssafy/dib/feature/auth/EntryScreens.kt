@@ -62,6 +62,7 @@ fun WelcomeScreen(
     onKakaoStart: () -> Unit,
     onEmailSignup: () -> Unit,
     onLogin: () -> Unit,
+    onBrowse: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier.fillMaxSize().safeDrawingPadding().background(Color(0xFFFCFBF7))) {
@@ -94,13 +95,20 @@ fun WelcomeScreen(
                 Text("이메일로 회원가입", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Text("이미 계정이 있나요?  로그인", Modifier.clickable(onClick = onLogin).padding(6.dp), color = Color(0xFF6EDCC1), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("로그인 없이 둘러보기", Modifier.clickable(onClick = onBrowse).padding(6.dp), color = Color.White, fontSize = 13.sp)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(onBack: () -> Unit, onLogin: () -> Unit, modifier: Modifier = Modifier) {
+fun LoginScreen(
+    onBack: () -> Unit,
+    onLogin: (email: String, password: String) -> Unit,
+    isLoading: Boolean,
+    errorMessage: String?,
+    modifier: Modifier = Modifier
+) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
@@ -133,22 +141,31 @@ fun LoginScreen(onBack: () -> Unit, onLogin: () -> Unit, modifier: Modifier = Mo
                 Text("회원가입", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             if (attempted && !valid) Text("이메일과 4자 이상의 비밀번호를 확인해주세요", Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
+            errorMessage?.let {
+                Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
+            }
             Button(
-                onClick = { attempted = true; if (valid) onLogin() },
+                onClick = { attempted = true; if (valid) onLogin(email.trim(), password) },
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp).height(56.dp),
-                enabled = valid,
+                enabled = valid && !isLoading,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
-            ) { Text("로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Text("로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             Row(Modifier.fillMaxWidth().padding(vertical = 28.dp), verticalAlignment = Alignment.CenterVertically) {
                 HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
                 Text("또는", Modifier.padding(horizontal = 20.dp), color = Colors.Muted, fontSize = 12.sp)
                 HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
             }
-            Button(onClick = onLogin, Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F))) {
+            Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
                 Text("▢  카카오로 로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Text("SNS 로그인은 카카오 계정만 지원해요", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
+            Text("카카오 로그인은 서버 연동 후 사용할 수 있어요", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
         }
     }
 }

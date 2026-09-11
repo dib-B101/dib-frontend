@@ -43,11 +43,13 @@ private enum class DetailAuctionState { Active, HighestBidder, Lost, Won }
 @Composable
 fun ProductDetailScreen(
     productId: String,
+    isAuthenticated: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
     onSellerClick: () -> Unit,
     onReportClick: () -> Unit,
     onTransactionClick: () -> Unit,
+    onLoginRequired: () -> Unit,
     paidBidAmount: Int,
     depositPaid: Boolean,
     onPaymentConsumed: () -> Unit,
@@ -113,12 +115,19 @@ fun ProductDetailScreen(
                 favorite = favorite,
                 state = auctionState,
                 onFavorite = { selected ->
-                    favorite = selected
-                    scope.launch {
-                        snackbar.showSnackbar(if (selected) "찜 목록에 저장했어요" else "찜에서 삭제했어요")
+                    if (isAuthenticated) {
+                        favorite = selected
+                        scope.launch {
+                            snackbar.showSnackbar(if (selected) "찜 목록에 저장했어요" else "찜에서 삭제했어요")
+                        }
+                    } else {
+                        onLoginRequired()
                     }
                 },
-                onBid = { if (auctionState == DetailAuctionState.Active) showBidSheet = true },
+                onBid = {
+                    if (!isAuthenticated) onLoginRequired()
+                    else if (auctionState == DetailAuctionState.Active) showBidSheet = true
+                },
                 onTransaction = onTransactionClick
             )
         },

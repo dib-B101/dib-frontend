@@ -52,11 +52,13 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveFeedScreen(
+    isAuthenticated: Boolean,
     paidBidAmount: Int,
     depositPaid: Boolean,
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onLoginRequired: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -112,7 +114,7 @@ fun LiveFeedScreen(
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
                 Text("하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Surface(onClick = { following = !following }, color = if (following) Color.White else Color(0xFF102342), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)) {
+                Surface(onClick = { if (isAuthenticated) following = !following else onLoginRequired() }, color = if (following) Color.White else Color(0xFF102342), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)) {
                     Text(if (following) "팔로잉" else "팔로우", Modifier.padding(horizontal = 17.dp, vertical = 8.dp), color = if (following) Color(0xFF102342) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -128,7 +130,7 @@ fun LiveFeedScreen(
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 218.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LiveFavoriteAction(favorite) { favorite = !favorite }
+                LiveFavoriteAction(favorite) { if (isAuthenticated) favorite = !favorite else onLoginRequired() }
                 LiveAction("···", Color.White) { showProducts = true }
             }
         }
@@ -143,13 +145,13 @@ fun LiveFeedScreen(
                             Text("현재가 ${"%,d".format(currentPrice)}원", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text("⚡ ${formatClock(remaining)} 남음", color = if (remaining <= 15) Colors.Live else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-                        Button(onClick = { showBidSheet = true }, enabled = remaining > 0, modifier = Modifier.size(68.dp, 58.dp), shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy), contentPadding = PaddingValues(0.dp)) { Text("입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        Button(onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() }, enabled = remaining > 0, modifier = Modifier.size(68.dp, 58.dp), shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy), contentPadding = PaddingValues(0.dp)) { Text("입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().height(44.dp).background(Color.Black.copy(.42f), RoundedCornerShape(22.dp)).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(value = comment, onValueChange = { comment = it.take(40) }, Modifier.weight(1f), singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text("댓글을 입력하세요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
-                Text("↑", Modifier.size(32.dp).background(Color.White, CircleShape).clickable { if (comment.isNotBlank()) { comments = comments + "dib러버  ${comment.trim()}"; comment = "" } }.wrapContentSize(), color = Colors.Navy, fontWeight = FontWeight.Bold)
+                BasicTextField(value = comment, onValueChange = { comment = it.take(40) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
+                Text("↑", Modifier.size(32.dp).background(Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank()) { comments = comments + "dib러버  ${comment.trim()}"; comment = "" } }.wrapContentSize(), color = Colors.Navy, fontWeight = FontWeight.Bold)
             }
         }
         AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center), enter = fadeIn() + scaleIn(initialScale = .7f), exit = fadeOut() + scaleOut(targetScale = .82f)) {
