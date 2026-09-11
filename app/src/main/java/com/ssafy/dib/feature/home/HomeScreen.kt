@@ -36,11 +36,13 @@ import kotlinx.coroutines.delay
 /** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
 @Composable
 fun HomeScreen(
+    isAuthenticated: Boolean,
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onCategoryClick: () -> Unit,
+    onLoginRequired: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -57,7 +59,11 @@ fun HomeScreen(
     }
 
     fun updateFavorite(id: String, selected: Boolean) {
-        favoriteIds = if (selected) (favoriteIds + id).distinct() else favoriteIds - id
+        if (isAuthenticated) {
+            favoriteIds = if (selected) (favoriteIds + id).distinct() else favoriteIds - id
+        } else {
+            onLoginRequired()
+        }
     }
 
     Scaffold(

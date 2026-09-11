@@ -1,10 +1,12 @@
 package com.ssafy.dib.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
@@ -42,24 +44,34 @@ import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
 import com.ssafy.dib.feature.main.TransactionScreen
 import com.ssafy.dib.feature.main.WithdrawalScreen
+import com.ssafy.dib.core.network.ApiErrorCodes
+import com.ssafy.dib.core.network.ApiResult
+import com.ssafy.dib.data.AuthDependencies
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val auth = remember(context) { AuthDependencies(context) }
+    val coroutineScope = rememberCoroutineScope()
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
-    var signedIn by remember { mutableStateOf(session.getBoolean("signed_in", false)) }
+    var signedIn by remember { mutableStateOf<Boolean?>(null) }
+    var loginLoading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
 
-    fun completeLogin() {
-        signedIn = true
-        session.edit().putBoolean("signed_in", true).apply()
-        navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
-    }
-
     fun navigateMain(tab: DibMainTab) {
+        if (signedIn != true && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
+            navController.navigate(Screen.Login.route)
+            return
+        }
         val route = when (tab) {
             DibMainTab.Home -> Screen.Home.route
             DibMainTab.Feed -> Screen.Feed.route
@@ -74,39 +86,104 @@ fun AppNavHost() {
         }
     }
 
+    LaunchedEffect(signedIn) {
+        while (signedIn == true) {
+            val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
+            val waitMillis = max(5_000L, current.accessExpiresAtEpochMillis - System.currentTimeMillis() - 60_000L)
+            delay(waitMillis)
+            when (val refreshed = withContext(Dispatchers.IO) { auth.repository.refresh(auth.deviceId) }) {
+                is ApiResult.Success -> Unit
+                is ApiResult.Failure -> if (refreshed.error.requiresLogin) {
+                    signedIn = false
+                    navController.navigate(Screen.Welcome.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                } else {
+                    delay(30_000L)
+                }
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
     ) {
         composable(Screen.Splash.route) {
             SplashScreen(onFinished = {
-                navController.navigate(if (signedIn) Screen.Home.route else Screen.Welcome.route) {
-                    popUpTo(Screen.Splash.route) { inclusive = true }
+                coroutineScope.launch {
+                    val restored = withContext(Dispatchers.IO) {
+                        val current = auth.repository.currentSession()
+                        when {
+                            current == null -> false
+                            !current.needsRefresh(System.currentTimeMillis()) -> true
+                            else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
+                        }
+                    }
+                    signedIn = restored
+                    navController.navigate(if (restored) Screen.Home.route else Screen.Welcome.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
                 }
             })
         }
         composable(Screen.Welcome.route) {
             WelcomeScreen(
-                onKakaoStart = ::completeLogin,
+                onKakaoStart = { navController.navigate(Screen.Login.route) },
                 onEmailSignup = { navController.navigate(Screen.Login.route) },
-                onLogin = { navController.navigate(Screen.Login.route) }
+                onLogin = { navController.navigate(Screen.Login.route) },
+                onBrowse = {
+                    signedIn = false
+                    navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
+                }
             )
         }
         composable(Screen.Login.route) {
             LoginScreen(
                 onBack = navController::navigateUp,
-                onLogin = ::completeLogin
+                isLoading = loginLoading,
+                errorMessage = loginError,
+                onLogin = { email, password ->
+                    loginLoading = true
+                    loginError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.login(email, password, auth.deviceId)
+                        }) {
+                            is ApiResult.Success -> {
+                                signedIn = true
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            }
+                            is ApiResult.Failure -> {
+                                loginError = when (result.error.code) {
+                                    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 이전 화면에서 둘러보기를 이용해주세요."
+                                    "INVALID_CREDENTIALS" -> "이메일 또는 비밀번호가 올바르지 않아요."
+                                    "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
+                                    else -> result.error.message.ifBlank { "로그인하지 못했습니다. 잠시 후 다시 시도해주세요." }
+                                }
+                            }
+                        }
+                        loginLoading = false
+                    }
+                }
             )
         }
         composable(Screen.Home.route) {
             HomeScreen(
+                isAuthenticated = signedIn == true,
                 onProductClick = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
                 onLiveClick = { navController.navigate(Screen.Feed.route) },
                 onSearchClick = { navController.navigate(Screen.Search.route) },
-                onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
+                onNotificationsClick = {
+                    if (signedIn == true) navController.navigate(Screen.Notifications.route)
+                    else navController.navigate(Screen.Login.route)
+                },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
+                onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onTabSelected = ::navigateMain
             )
         }
@@ -114,7 +191,10 @@ fun AppNavHost() {
             CategoryScreen(
                 onBack = navController::navigateUp,
                 onSearchClick = { navController.navigate(Screen.Search.route) },
-                onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
+                onNotificationsClick = {
+                    if (signedIn == true) navController.navigate(Screen.Notifications.route)
+                    else navController.navigate(Screen.Login.route)
+                },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain
             )
@@ -133,12 +213,18 @@ fun AppNavHost() {
             val paidBidAmount by backStackEntry.savedStateHandle
                 .getStateFlow("paidBidAmount", 0).collectAsState()
             LiveFeedScreen(
+                isAuthenticated = signedIn == true,
                 paidBidAmount = paidBidAmount,
                 depositPaid = "camera" in depositPaidProductIds,
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
+                onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onDepositPayment = { productId, submission ->
+                    if (signedIn != true) {
+                        navController.navigate(Screen.Login.route)
+                        return@LiveFeedScreen
+                    }
                     backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
                     backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
                     if (productId in depositPaidProductIds) {
@@ -158,6 +244,7 @@ fun AppNavHost() {
             val productId = backStackEntry.arguments?.getString("productId").orEmpty()
             ProductDetailScreen(
                 productId = productId,
+                isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
                     navController.navigate(
@@ -169,17 +256,27 @@ fun AppNavHost() {
                 },
                 onSellerClick = { navController.navigate(Screen.SellerProfile.route) },
                 onReportClick = {
-                    navController.navigate(
-                        Screen.ProductReport.createRoute(
-                            backStackEntry.arguments?.getString("productId").orEmpty()
+                    if (signedIn == true) {
+                        navController.navigate(
+                            Screen.ProductReport.createRoute(
+                                backStackEntry.arguments?.getString("productId").orEmpty()
+                            )
                         )
-                    )
+                    } else navController.navigate(Screen.Login.route)
                 },
-                onTransactionClick = { navController.navigate(Screen.Transaction.createRoute("buyer")) },
+                onTransactionClick = {
+                    if (signedIn == true) navController.navigate(Screen.Transaction.createRoute("buyer"))
+                    else navController.navigate(Screen.Login.route)
+                },
+                onLoginRequired = { navController.navigate(Screen.Login.route) },
                 paidBidAmount = paidBidAmount,
                 depositPaid = productId in depositPaidProductIds,
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onDepositPayment = { submission ->
+                    if (signedIn != true) {
+                        navController.navigate(Screen.Login.route)
+                        return@ProductDetailScreen
+                    }
                     backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
                     backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
                     if (productId in depositPaidProductIds) {
@@ -221,7 +318,7 @@ fun AppNavHost() {
                 onWithdrawalClick = { navController.navigate(Screen.Withdrawal.route) },
                 onLogout = {
                     signedIn = false
-                    session.edit().putBoolean("signed_in", false).apply()
+                    coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
                 }
             )
@@ -264,6 +361,7 @@ fun AppNavHost() {
                 onOpenTrades = { navigateMain(DibMainTab.Trades) },
                 onComplete = {
                     signedIn = false
+                    coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     session.edit().clear().apply()
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
                 }
