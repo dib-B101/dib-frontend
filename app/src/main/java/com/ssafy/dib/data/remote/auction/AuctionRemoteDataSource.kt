@@ -7,12 +7,22 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
 
 class AuctionRemoteDataSource(private val client: DibHttpClient) {
-    fun getActiveGeneralAuctions(size: Int, categoryId: String? = null): ApiResult<AuctionListResponse> = configured {
+    fun getGeneralAuctions(
+        size: Int,
+        categoryId: String? = null,
+        status: String = "ACTIVE",
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        sort: String? = null
+    ): ApiResult<AuctionListResponse> = configured {
         val urlBuilder = client.urlBuilder(ApiRoutes.AUCTIONS)
             .addQueryParameter("scope", "GENERAL")
-            .addQueryParameter("status", "ACTIVE")
+            .addQueryParameter("status", status)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
         categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
+        minPrice?.let { urlBuilder.addQueryParameter("minPrice", it.coerceAtLeast(0).toString()) }
+        maxPrice?.let { urlBuilder.addQueryParameter("maxPrice", it.coerceAtLeast(0).toString()) }
+        sort?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("sort", it) }
         val url = urlBuilder.build()
         client.execute(
             client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(),

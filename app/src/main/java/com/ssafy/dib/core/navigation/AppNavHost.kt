@@ -35,6 +35,7 @@ import com.ssafy.dib.feature.home.HomeScreen
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.toHomeAuction
 import com.ssafy.dib.feature.home.AuctionSearchScreen
+import com.ssafy.dib.feature.home.AuctionSearchFilters
 import com.ssafy.dib.feature.home.NotificationCenterScreen
 import com.ssafy.dib.feature.home.CategoryScreen
 import com.ssafy.dib.feature.main.AddressManagementScreen
@@ -431,10 +432,58 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Search.route) {
+            var searchCategories by remember { mutableStateOf<List<ProductCategory>?>(null) }
+            var searchAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+            var searchLoading by remember { mutableStateOf(false) }
+            var searchError by remember { mutableStateOf<String?>(null) }
+            var lastSearchFilters by remember { mutableStateOf<AuctionSearchFilters?>(null) }
+
+            fun search(filters: AuctionSearchFilters) {
+                lastSearchFilters = filters
+                if (!auth.networkConfig.isRestConfigured) {
+                    searchAuctions = null
+                    searchError = null
+                    return
+                }
+                searchLoading = true
+                searchError = null
+                coroutineScope.launch {
+                    when (val result = withContext(Dispatchers.IO) {
+                        auth.auctionRepository.getGeneralAuctions(
+                            size = 100,
+                            categoryId = filters.categoryId,
+                            status = filters.status,
+                            minPrice = filters.minPrice,
+                            maxPrice = filters.maxPrice
+                        )
+                    }) {
+                        is ApiResult.Success -> searchAuctions = result.value.map { it.toHomeAuction() }
+                        is ApiResult.Failure -> {
+                            searchError = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
+                    }
+                    searchLoading = false
+                }
+            }
+
+            LaunchedEffect(signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+                    is ApiResult.Success -> searchCategories = result.value
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+            }
             AuctionSearchScreen(
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTabSelected = ::navigateMain
+                onTabSelected = ::navigateMain,
+                remoteCategories = searchCategories,
+                remoteAuctions = searchAuctions,
+                isLoading = searchLoading,
+                errorMessage = searchError,
+                onSearch = ::search,
+                onRetry = { lastSearchFilters?.let(::search) }
             )
         }
         composable(Screen.Notifications.route) {
