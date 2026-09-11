@@ -1,10 +1,17 @@
 package com.ssafy.dib.feature.main
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,6 +21,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -23,7 +33,11 @@ import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class TradeTab(val label: String) { Bid("입찰"), Purchase("구매"), Sale("판매") }
 private enum class TradeTone { Urgent, Positive, Neutral }
@@ -286,47 +300,115 @@ fun MyPageScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductRegisterScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ProductRegisterScreen(
+    categories: List<ProductCategory>,
+    categoriesLoading: Boolean,
+    categoriesError: String?,
+    submitLoading: Boolean,
+    submitError: String?,
+    result: ProductRegistrationResult?,
+    onRetryCategories: () -> Unit,
+    onSubmit: (ProductRegistrationForm) -> Unit,
+    onComplete: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var step by rememberSaveable { mutableIntStateOf(1) }
-    var photoAdded by rememberSaveable { mutableStateOf(false) }
+    val photoUris = remember { mutableStateListOf<Uri>() }
     var name by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("") }
+    var categoryId by rememberSaveable { mutableStateOf("") }
     var condition by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
-    var startPrice by rememberSaveable { mutableStateOf("") }
-    val firstValid = photoAdded && name.isNotBlank() && category.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
-    val canNext = when(step){ 1 -> firstValid; 2 -> (startPrice.toIntOrNull() ?: 0) >= 1_000; else -> true }
+    var categoryDialog by rememberSaveable { mutableStateOf(false) }
+    val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
+    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
+        photoUris.clear()
+        photoUris.addAll(uris.take(10))
+    }
+
+    if (result != null) {
+        Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface) { padding ->
+            Column(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("✓", color = Colors.MintInk, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                Text("상품 검수를 요청했어요", Modifier.padding(top = 16.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("승인되면 경매를 등록할 수 있어요.\n상품 번호 ${result.productId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+                Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }
+            }
+        }
+        return
+    }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.size(48.dp).clickable { if(step > 1) step-- else onBack() }.wrapContentSize(), fontSize = 24.sp); Text("상품 등록", fontSize = 16.sp, fontWeight = FontWeight.Bold) } }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(when(step){1->"상품 정보";2->"경매 설정";else->"등록 확인"}, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("$step / 3", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 3f }, Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp), color = Colors.Navy, trackColor = Colors.Border) }
+            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(if(step == 1) "상품 정보" else "등록 확인", fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("$step / 2", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 2f }, Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp), color = Colors.Navy, trackColor = Colors.Border) }
             when(step) {
                 1 -> {
                     item { Text("상품 사진 *  1~10장 · 첫 사진이 대표", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    item { Box(Modifier.fillMaxWidth().height(112.dp).background(Colors.Surface, RoundedCornerShape(12.dp)).border(1.dp, Colors.Border, RoundedCornerShape(12.dp)).clickable { photoAdded = !photoAdded }, contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(if(photoAdded) "✓" else "+", color = Colors.Navy, fontSize = 30.sp); Text(if(photoAdded) "대표 사진 1장 추가됨" else "사진 추가", fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if(photoAdded) "눌러서 제거" else "첫 사진이 대표 이미지 · 최대 10장", color = Colors.Muted, fontSize = 11.sp) } } }
+                    item { Box(Modifier.fillMaxWidth().height(88.dp).background(Colors.Surface, RoundedCornerShape(12.dp)).border(1.dp, Colors.Border, RoundedCornerShape(12.dp)).clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("+", color = Colors.Navy, fontSize = 26.sp); Text(if (photoUris.isEmpty()) "사진 선택" else "사진 다시 선택 (${photoUris.size}/10)", fontSize = 14.sp, fontWeight = FontWeight.Bold) } } }
+                    if (photoUris.isNotEmpty()) item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(photoUris.size) { index -> ProductImageThumbnail(photoUris[index], index == 0) }
+                        }
+                    }
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요") }
-                    item { RegisterSelect("카테고리 *", category.ifBlank { "선택해주세요" }) { category = if(category == "디지털") "라이프" else "디지털" } }
-                    item { RegisterSelect("상품 상태 *", condition.ifBlank { "상 · 중 · 하" }) { condition = when(condition){"상"->"중";"중"->"하";else->"상"} } }
+                    item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요") { categoryDialog = true } }
+                    if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
+                    categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
+                    item { RegisterSelect("상품 상태 *", conditionLabel(condition)) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
                     item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp) }
-                }
-                2 -> {
-                    item { Text("일반 경매 설정", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-                    item { RegisterTextField("시작가 *", startPrice, { startPrice = it.filter(Char::isDigit) }, "1,000원 이상", keyboardType = KeyboardType.Number) }
-                    item { RegisterSelect("경매 시간 *", "2시간") {} }
-                    item { RegisterSelect("배송 방식 *", "안전배송 · 배송비 포함") {} }
-                    item { Text("경매가 시작되면 조건을 수정하거나 취소할 수 없어요.", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFF27806E), fontSize = 12.sp) }
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("$category · 상태 $condition", color = Colors.Muted); Text("시작가 ${"%,d".format(startPrice.toIntOrNull() ?: 0)}원", color = Colors.Navy, fontWeight = FontWeight.Bold); Text(description, color = Colors.Muted, fontSize = 12.sp) } }
+                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · 첫 사진이 대표", color = Colors.Navy, fontWeight = FontWeight.Bold); Text(description, color = Colors.Muted, fontSize = 12.sp) } }
                     item { Text("AI 상품 검수 요청 후 승인되면 경매를 시작할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
+                    submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
-            item { Button(onClick = { if(step < 3) step++ else onBack() }, enabled = canNext, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if(step < 3) "다음" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
+            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, photoUris.toList())) }, enabled = formValid && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
         }
     }
+    if (categoryDialog) AlertDialog(
+        onDismissRequest = { categoryDialog = false },
+        title = { Text("카테고리 선택") },
+        text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
+        confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
+    )
+}
+
+data class ProductRegistrationForm(
+    val title: String,
+    val description: String,
+    val categoryId: String,
+    val condition: String,
+    val imageUris: List<Uri>
+)
+
+@Composable
+private fun ProductImageThumbnail(uri: Uri, representative: Boolean) {
+    val context = LocalContext.current
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)?.asImageBitmap()
+        }
+    }
+    Box(Modifier.size(86.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
+        bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        if (representative) Surface(Modifier.align(Alignment.TopStart).padding(5.dp), color = Colors.Navy, shape = RoundedCornerShape(8.dp)) { Text("대표", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), color = Color.White, fontSize = 9.sp) }
+    }
+}
+
+private fun conditionLabel(condition: String) = when (condition) {
+    "GOOD" -> "상 · 사용감 적음"
+    "NORMAL" -> "중 · 일반 사용감"
+    "BAD" -> "하 · 하자 있음"
+    else -> "상 · 중 · 하"
 }
 
 @Composable private fun RegisterTextField(label:String,value:String,onChange:(String)->Unit,placeholder:String,height: androidx.compose.ui.unit.Dp = 72.dp,keyboardType: KeyboardType = KeyboardType.Text){ Column(Modifier.fillMaxWidth().height(height), verticalArrangement=Arrangement.spacedBy(6.dp)){Text(label,fontSize=12.sp,fontWeight=FontWeight.Bold); OutlinedTextField(value,onChange,Modifier.fillMaxWidth().weight(1f),placeholder={Text(placeholder,color=Color(0xFF8A9099),fontSize=13.sp)},singleLine=height<90.dp,keyboardOptions=KeyboardOptions(keyboardType=keyboardType),shape=RoundedCornerShape(12.dp),colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Colors.Navy,unfocusedBorderColor=Color(0xFFDDE1E7)))} }
