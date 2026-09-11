@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,8 +42,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.payment.PaymentPreparation
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
 private enum class SellerStep { ShippingRequired, TrackingInput, Shipping, Settlement }
@@ -55,6 +58,12 @@ fun TransactionScreen(
     errorMessage: String?,
     confirmationLoading: Boolean,
     confirmationError: String?,
+    paymentPreparation: PaymentPreparation?,
+    paymentLoading: Boolean,
+    paymentError: String?,
+    onPreparePayment: () -> Unit,
+    onCheckPayment: () -> Unit,
+    onResetPayment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
     onBack: () -> Unit,
@@ -68,6 +77,12 @@ fun TransactionScreen(
             errorMessage = errorMessage,
             confirmationLoading = confirmationLoading,
             confirmationError = confirmationError,
+            paymentPreparation = paymentPreparation,
+            paymentLoading = paymentLoading,
+            paymentError = paymentError,
+            onPreparePayment = onPreparePayment,
+            onCheckPayment = onCheckPayment,
+            onResetPayment = onResetPayment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
             onBack = onBack,
@@ -86,12 +101,22 @@ private fun RemoteTransactionScreen(
     errorMessage: String?,
     confirmationLoading: Boolean,
     confirmationError: String?,
+    paymentPreparation: PaymentPreparation?,
+    paymentLoading: Boolean,
+    paymentError: String?,
+    onPreparePayment: () -> Unit,
+    onCheckPayment: () -> Unit,
+    onResetPayment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(paymentPreparation?.orderId, paymentPreparation?.paymentUrl) {
+        paymentPreparation?.paymentUrl?.let { url -> runCatching { uriHandler.openUri(url) } }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color(0xFFFAFBFC),
@@ -141,6 +166,40 @@ private fun RemoteTransactionScreen(
                     }
                     confirmationError?.let { message ->
                         item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
+                    }
+                    if (role != "seller" && order.status.uppercase() == "PENDING") {
+                        paymentError?.let { message ->
+                            item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
+                        }
+                        if (paymentPreparation == null) {
+                            item {
+                                Button(
+                                    onClick = onPreparePayment,
+                                    enabled = !paymentLoading,
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) {
+                                    if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                    else Text("${"%,d".format(order.finalPrice)}원 결제하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else {
+                            item {
+                                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("결제 승인을 기다리고 있어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("결제 금액 ${"%,d".format(paymentPreparation.amount)}원", color = Colors.Muted, fontSize = 12.sp)
+                                    Text(if (paymentPreparation.paymentUrl != null) "열린 결제 페이지에서 결제를 마쳐주세요." else "결제 페이지 주소가 없어 PG 설정 확인이 필요해요.", color = Colors.Muted, fontSize = 12.sp)
+                                }
+                            }
+                            item {
+                                Button(onClick = onCheckPayment, enabled = !paymentLoading, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
+                                    if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                    else Text("결제 상태 확인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            item { TextButton(onClick = onResetPayment, modifier = Modifier.fillMaxWidth()) { Text("결제수단 다시 선택", color = Colors.Navy) } }
+                        }
                     }
                     if (role != "seller" && order.status.uppercase() in setOf("DELIEVERED", "DELIVERED")) {
                         item {
