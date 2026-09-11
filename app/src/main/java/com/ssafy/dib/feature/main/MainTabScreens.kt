@@ -27,13 +27,20 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 private enum class TradeTab(val label: String) { Bid("입찰"), Purchase("구매"), Sale("판매") }
 private enum class TradeTone { Urgent, Positive, Neutral }
-private data class TradeItem(val status: String, val title: String, val meta: String, val action: String, val tone: TradeTone)
+private data class TradeItem(
+    val status: String,
+    val title: String,
+    val meta: String,
+    val action: String,
+    val tone: TradeTone,
+    val orderId: String = "sample"
+)
 
 @Composable
 fun MyTradesScreen(
     onTabSelected: (DibMainTab) -> Unit,
     onProductClick: (String) -> Unit,
-    onTransactionClick: (String) -> Unit,
+    onTransactionClick: (role: String, orderId: String) -> Unit,
     remotePurchaseOrders: List<OrderSummary>?,
     remoteSaleOrders: List<OrderSummary>?,
     remoteLoading: Boolean,
@@ -158,7 +165,8 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
         title = title,
         meta = listOfNotNull(price, updatedAt?.take(10)).joinToString(" · "),
         action = "거래 상세 보기 →",
-        tone = tone
+        tone = tone,
+        orderId = orderId
     )
 }
 
@@ -166,12 +174,12 @@ private fun openTradeItem(
     selected: TradeTab,
     item: TradeItem,
     onProductClick: (String) -> Unit,
-    onTransactionClick: (String) -> Unit
+    onTransactionClick: (role: String, orderId: String) -> Unit
 ) {
     if (selected == TradeTab.Bid) {
         onProductClick(if (item.status == "경매 종료") "lost" else if (item.title.contains("카메라")) "camera" else "sneakers")
     } else {
-        onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer")
+        onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer", item.orderId)
     }
 }
 

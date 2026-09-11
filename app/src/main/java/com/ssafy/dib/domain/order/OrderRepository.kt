@@ -16,4 +16,6 @@ data class OrderSummary(
 
 interface OrderRepository {
     fun getOrders(role: OrderRole, size: Int = 30): ApiResult<List<OrderSummary>>
+    fun getOrder(orderId: String): ApiResult<OrderSummary>
+    fun confirmPurchase(orderId: String): ApiResult<String>
 }

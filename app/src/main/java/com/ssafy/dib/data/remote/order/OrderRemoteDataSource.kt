@@ -19,6 +19,19 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun getOrder(orderId: String): ApiResult<OrderSummaryDto> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId"
+        client.execute(client.requestBuilder(path).get().build(), OrderSummaryDto.serializer())
+    }
+
+    fun confirmPurchase(orderId: String): ApiResult<OrderConfirmationResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/confirm"
+        client.execute(
+            client.requestBuilder(path).post(okhttp3.RequestBody.EMPTY).build(),
+            OrderConfirmationResponse.serializer()
+        )
+    }
+
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =
         try {
             block()

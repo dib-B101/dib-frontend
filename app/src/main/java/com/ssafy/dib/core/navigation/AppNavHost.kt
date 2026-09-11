@@ -575,7 +575,9 @@ fun AppNavHost() {
             MyTradesScreen(
                 onTabSelected = ::navigateMain,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTransactionClick = { role -> navController.navigate(Screen.Transaction.createRoute(role)) },
+                onTransactionClick = { role, orderId ->
+                    navController.navigate(Screen.Transaction.createRoute(role, orderId))
+                },
                 remotePurchaseOrders = purchaseOrders,
                 remoteSaleOrders = saleOrders,
                 remoteLoading = ordersLoading,
@@ -585,9 +587,72 @@ fun AppNavHost() {
         }
         composable(
             route = Screen.Transaction.route,
-            arguments = listOf(navArgument("role") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("role") { type = NavType.StringType },
+                navArgument("orderId") { type = NavType.StringType }
+            )
         ) { backStackEntry ->
-            TransactionScreen(role = backStackEntry.arguments?.getString("role").orEmpty(), onBack = navController::navigateUp)
+            val role = backStackEntry.arguments?.getString("role").orEmpty()
+            val orderId = backStackEntry.arguments?.getString("orderId").orEmpty()
+            var remoteOrder by remember(orderId) { mutableStateOf<OrderSummary?>(null) }
+            var orderDetailLoading by remember(orderId) { mutableStateOf(orderId != "sample") }
+            var orderDetailError by remember(orderId) { mutableStateOf<String?>(null) }
+            var orderDetailRevision by remember(orderId) { mutableStateOf(0) }
+            var confirmationLoading by remember(orderId) { mutableStateOf(false) }
+            var confirmationError by remember(orderId) { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(orderId, orderDetailRevision) {
+                if (orderId == "sample") return@LaunchedEffect
+                if (!auth.networkConfig.isRestConfigured) {
+                    orderDetailLoading = false
+                    orderDetailError = "개발 서버 주소가 설정되지 않았어요."
+                    return@LaunchedEffect
+                }
+                orderDetailLoading = true
+                orderDetailError = null
+                when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }) {
+                    is ApiResult.Success -> remoteOrder = result.value
+                    is ApiResult.Failure -> {
+                        orderDetailError = result.error.message.ifBlank { "주문 상세를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                orderDetailLoading = false
+            }
+
+            TransactionScreen(
+                role = role,
+                remoteOrder = remoteOrder,
+                isLoading = orderDetailLoading,
+                errorMessage = orderDetailError,
+                confirmationLoading = confirmationLoading,
+                confirmationError = confirmationError,
+                onRetry = { orderDetailRevision++ },
+                onConfirmPurchase = {
+                    confirmationLoading = true
+                    confirmationError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.orderRepository.confirmPurchase(orderId)
+                        }) {
+                            is ApiResult.Success -> {
+                                remoteOrder = remoteOrder?.copy(status = result.value)
+                                ordersRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                confirmationError = when (result.error.code) {
+                                    "DELIVERY_NOT_COMPLETED" -> "배송 완료 후 구매를 확정할 수 있어요."
+                                    "ALREADY_CONFIRMED" -> "이미 구매 확정된 주문이에요."
+                                    else -> result.error.message.ifBlank { "구매를 확정하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        confirmationLoading = false
+                    }
+                },
+                onBack = navController::navigateUp
+            )
         }
         composable(Screen.My.route) {
             MyPageScreen(

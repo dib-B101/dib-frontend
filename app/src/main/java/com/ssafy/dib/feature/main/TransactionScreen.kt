@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
@@ -39,12 +42,158 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import com.ssafy.dib.domain.order.OrderSummary
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
 private enum class SellerStep { ShippingRequired, TrackingInput, Shipping, Settlement }
 
 @Composable
-fun TransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun TransactionScreen(
+    role: String,
+    remoteOrder: OrderSummary?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    confirmationLoading: Boolean,
+    confirmationError: String?,
+    onRetry: () -> Unit,
+    onConfirmPurchase: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (isLoading || errorMessage != null || remoteOrder != null) {
+        RemoteTransactionScreen(
+            role = role,
+            order = remoteOrder,
+            isLoading = isLoading,
+            errorMessage = errorMessage,
+            confirmationLoading = confirmationLoading,
+            confirmationError = confirmationError,
+            onRetry = onRetry,
+            onConfirmPurchase = onConfirmPurchase,
+            onBack = onBack,
+            modifier = modifier
+        )
+    } else {
+        SampleTransactionScreen(role, onBack, modifier)
+    }
+}
+
+@Composable
+private fun RemoteTransactionScreen(
+    role: String,
+    order: OrderSummary?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    confirmationLoading: Boolean,
+    confirmationError: String?,
+    onRetry: () -> Unit,
+    onConfirmPurchase: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier
+) {
+    var showConfirm by rememberSaveable { mutableStateOf(false) }
+    Scaffold(
+        modifier = modifier.fillMaxSize().safeDrawingPadding(),
+        containerColor = Color(0xFFFAFBFC),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
+                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(start = 14.dp, top = 8.dp), fontSize = 22.sp)
+                Text(if (role == "seller") "판매 거래 상세" else "구매 거래 상세", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    ) { padding ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            when {
+                isLoading -> item {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 80.dp), horizontalArrangement = Arrangement.Center) {
+                        CircularProgressIndicator(color = Colors.Navy)
+                    }
+                }
+                errorMessage != null -> item {
+                    Column(
+                        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+                            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(errorMessage, color = Colors.Muted, fontSize = 13.sp)
+                        OutlinedButton(onClick = onRetry) { Text("다시 불러오기") }
+                    }
+                }
+                order != null -> {
+                    val presentation = orderPresentation(order.status, role == "seller")
+                    item { StatusHero(presentation.icon, presentation.title, presentation.description, presentation.background) }
+                    item { ProductSummary(order.finalPrice, order.title, order.orderId) }
+                    item {
+                        InfoCard(
+                            listOf(
+                                "주문 번호" to order.orderId,
+                                "거래 상태" to presentation.statusLabel,
+                                "낙찰 금액" to "${"%,d".format(order.finalPrice)}원"
+                            ),
+                            "거래 정보"
+                        )
+                    }
+                    confirmationError?.let { message ->
+                        item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
+                    }
+                    if (role != "seller" && order.status.uppercase() in setOf("DELIEVERED", "DELIVERED")) {
+                        item {
+                            Button(
+                                onClick = { showConfirm = true },
+                                enabled = !confirmationLoading,
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                            ) {
+                                if (confirmationLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                else Text("구매 확정", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("구매를 확정할까요?") },
+            text = { Text("확정 후 판매자 정산이 시작되며 단순 변심으로 취소할 수 없습니다.") },
+            confirmButton = {
+                TextButton(onClick = { showConfirm = false; onConfirmPurchase() }) { Text("구매 확정") }
+            },
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("취소") } }
+        )
+    }
+}
+
+private data class OrderPresentation(
+    val statusLabel: String,
+    val icon: String,
+    val title: String,
+    val description: String,
+    val background: Color
+)
+
+private fun orderPresentation(status: String, seller: Boolean): OrderPresentation = when (status.uppercase()) {
+    "PENDING" -> OrderPresentation("결제 대기", "!", if (seller) "구매자의 결제를 기다리고 있어요" else "결제가 필요해요", "결제가 완료되면 거래가 시작돼요.", Color(0xFFFFEEE8))
+    "PAID", "PREPARING" -> OrderPresentation("발송 준비 중", "▣", if (seller) "상품을 발송해주세요" else "판매자가 상품을 준비 중이에요", "배송 정보가 등록되면 바로 알려드릴게요.", Color(0xFFF1F5FA))
+    "SHIPPED" -> OrderPresentation("배송 중", "✓", "상품이 배송되고 있어요", "배송 완료 후 상품 상태를 확인해주세요.", Color(0xFFF1FAF7))
+    "DELIEVERED", "DELIVERED" -> OrderPresentation("배송 완료", "▣", if (seller) "구매 확정을 기다리고 있어요" else "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7))
+    "CONFIRMED" -> OrderPresentation(if (seller) "판매 완료" else "구매 완료", "✓", "거래가 완료됐어요", "안전하게 거래가 마무리됐어요.", Color(0xFFE8FAF5))
+    "CANCELLED" -> OrderPresentation("거래 취소", "!", "거래가 취소됐어요", "상세 사유는 고객센터에서 확인할 수 있어요.", Color(0xFFF1F3F5))
+    "REFUNDED" -> OrderPresentation("환불 완료", "✓", "환불이 완료됐어요", "결제수단의 환불 내역을 확인해주세요.", Color(0xFFF1F3F5))
+    else -> OrderPresentation(status, "▣", "거래가 진행 중이에요", "최신 거래 상태를 확인해주세요.", Color(0xFFF1F5FA))
+}
+
+@Composable
+private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (role == "seller") {
         SellerTransactionScreen(onBack, modifier)
         return
@@ -224,15 +373,19 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
     }
 }
 
-@Composable private fun ProductSummary(amount: Int) {
+@Composable private fun ProductSummary(
+    amount: Int,
+    title: String = "빈티지 필름 카메라",
+    orderId: String = "2026-0903"
+) {
     Row(
         Modifier.fillMaxWidth().height(92.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE6E9EE), RoundedCornerShape(14.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(68.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text("상품 이미지", color = Colors.Muted, fontSize = 9.sp) }
         Column(Modifier.padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("빈티지 필름 카메라", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("낙찰가 ${"%,d".format(amount)}원 · 주문 2026-0903", color = Colors.Muted, fontSize = 11.sp)
+            Text(title, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("낙찰가 ${"%,d".format(amount)}원 · 주문 $orderId", color = Colors.Muted, fontSize = 11.sp)
         }
     }
 }
