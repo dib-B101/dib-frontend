@@ -208,6 +208,7 @@ private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
     var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
     var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val parsed = amount.toIntOrNull() ?: 0
+    val depositAmount = maxOf(1_000, parsed / 10)
     val valid = parsed >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -221,7 +222,7 @@ private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
                 onAddressSelected = { addressId = it }
             )
             Text(
-                if (depositPaid) "보증금 결제 완료 · 추가 결제 없이 재입찰할 수 있어요." else "첫 입찰에는 상품별 보증금 1,000원 결제가 필요해요.",
+                if (depositPaid) "보증금 결제 완료 · 추가 결제 없이 재입찰할 수 있어요." else "첫 입찰 보증금은 ${"%,d".format(depositAmount)}원이에요(입찰가의 10%).",
                 color = Colors.MintInk,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

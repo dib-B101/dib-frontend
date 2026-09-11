@@ -455,7 +455,7 @@ private fun ProductInformation(productName: String, category: String, onReport: 
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("입찰 전, 확인해주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 첫 입찰 전에 상품별 보증금 1,000원을 결제해요\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
+            Text("• 첫 입찰 전에 입찰가의 10%를 보증금으로 결제해요(최소 1,000원)\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         Text("이 상품 신고하기", Modifier.clickable(onClick = onReport).padding(vertical = 4.dp),
@@ -540,6 +540,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
     var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
     var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val amount = amountText.toIntOrNull() ?: 0
+    val depositAmount = maxOf(1_000, amount / 10)
     val valid = amount >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -593,7 +594,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
             )
             Surface(color = Colors.Search, shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(if (depositPaid) "보증금 결제 완료" else "첫 입찰 보증금 1,000원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(if (depositPaid) "보증금 결제 완료" else "첫 입찰 보증금 ${"%,d".format(depositAmount)}원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text(if (depositPaid) "이 경매에서는 추가 결제 없이 재입찰할 수 있어요." else "입찰 금액과 별도로 한 번만 결제하며 패찰 시 자동 반환돼요.", color = Colors.MintInk, fontSize = 11.sp, lineHeight = 17.sp)
                 }
             }

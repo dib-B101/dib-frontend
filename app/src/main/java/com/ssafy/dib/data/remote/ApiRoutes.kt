@@ -10,6 +10,7 @@ object ApiRoutes {
     const val CATEGORIES = "/api/v1/categories"
     const val PRODUCTS = "/api/v1/products"
     const val AUCTIONS = "/api/v1/auctions"
+    const val BID_DEPOSITS = "/api/v1/bid-deposits"
     const val ORDERS = "/api/v1/orders"
     const val QUESTIONS = "/api/v1/questions"
     const val REPORTS = "/api/v1/reports"
