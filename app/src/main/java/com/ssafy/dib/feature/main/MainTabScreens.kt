@@ -199,7 +199,7 @@ fun ProductRegisterScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     item { RegisterTextField("시작가 *", startPrice, { startPrice = it.filter(Char::isDigit) }, "1,000원 이상", keyboardType = KeyboardType.Number) }
                     item { RegisterSelect("경매 시간 *", "2시간") {} }
                     item { RegisterSelect("배송 방식 *", "안전배송 · 배송비 포함") {} }
-                    item { Text("판매자 보증금은 등록 완료 전에 안내돼요.", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFF27806E), fontSize = 12.sp) }
+                    item { Text("경매가 시작되면 조건을 수정하거나 취소할 수 없어요.", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFF27806E), fontSize = 12.sp) }
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }

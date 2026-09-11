@@ -37,7 +37,4 @@ sealed class Screen(val route: String) {
     data object ProductReport : Screen("product/{productId}/report") {
         fun createRoute(productId: String) = "product/$productId/report"
     }
-    data object BidDepositPayment : Screen("deposit/{productId}/{bidAmount}") {
-        fun createRoute(productId: String, bidAmount: Int) = "deposit/$productId/$bidAmount"
-    }
 }

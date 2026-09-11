@@ -5,12 +5,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,9 +48,6 @@ fun ProductDetailScreen(
     onSellerClick: () -> Unit,
     onReportClick: () -> Unit,
     onTransactionClick: () -> Unit,
-    paidBidAmount: Int,
-    onPaymentConsumed: () -> Unit,
-    onDepositPayment: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val product = allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
@@ -76,20 +75,6 @@ fun ProductDetailScreen(
         }
     }
 
-    LaunchedEffect(paidBidAmount) {
-        if (paidBidAmount > 0) {
-            val wasExtended = remainingSeconds in 1..30
-            currentPrice = paidBidAmount
-            isHighestBidder = true
-            if (wasExtended) remainingSeconds = 30
-            onPaymentConsumed()
-            snackbar.showSnackbar(
-                if (wasExtended) "입찰 완료 · 경매 시간이 30초로 연장됐어요"
-                else "${"%,d".format(paidBidAmount)}원으로 입찰했어요"
-            )
-        }
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Background,
@@ -106,7 +91,7 @@ fun ProductDetailScreen(
         },
         bottomBar = {
             StickyBidAction(
-                price = currentPrice + 500,
+                price = currentPrice + 1,
                 favorite = favorite,
                 state = auctionState,
                 onFavorite = { selected ->
@@ -140,7 +125,7 @@ fun ProductDetailScreen(
     }
 
     if (showBidSheet) {
-        LaunchedEffect(priceUpdateScheduled) {
+        LaunchedEffect(Unit) {
             if (!priceUpdateScheduled) {
                 priceUpdateScheduled = true
                 delay(2_500)
@@ -156,13 +141,22 @@ fun ProductDetailScreen(
             currentPrice = currentPrice,
             submissionError = bidError,
             onDismiss = { showBidSheet = false; bidError = "" },
-            onContinue = { amount ->
-                if (amount < currentPrice + 500) {
+            onContinue = { submission ->
+                if (submission.amount <= currentPrice) {
                     bidError = "다른 입찰이 먼저 반영됐어요\n최신 입찰가를 확인하고 다시 입찰해 주세요."
                 } else {
                     showBidSheet = false
                     bidError = ""
-                    onDepositPayment(amount)
+                    val wasExtended = remainingSeconds in 1..30
+                    currentPrice = submission.amount
+                    isHighestBidder = true
+                    if (wasExtended) remainingSeconds += 15
+                    scope.launch {
+                        snackbar.showSnackbar(
+                            if (wasExtended) "입찰 완료 · 경매 시간이 15초 연장됐어요"
+                            else "${"%,d".format(submission.amount)}원으로 입찰했어요"
+                        )
+                    }
                 }
             }
         )
@@ -274,7 +268,7 @@ private fun ProductSummary(
             Row(Modifier.fillMaxWidth().background(Colors.Mint, RoundedCornerShape(12.dp)).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Image(painterResource(R.drawable.trending_up), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
-                Text("%,d원부터 입찰할 수 있어요".format(price + 500), color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("현재가보다 큰 금액을 자유롭게 입력할 수 있어요", color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
         if (state == DetailAuctionState.Lost) {
@@ -349,7 +343,7 @@ private fun ProductInformation(productName: String, category: String, onReport: 
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("입찰 전, 확인해주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 최소 입찰 단위 500원\n• 첫 입찰 보증금 1,000원\n• 종료 30초 이내 새 입찰 시\n  남은 시간이 30초로 갱신돼요\n• 입찰 후에는 취소할 수 없어요",
+            Text("• 보증금 없이 입찰해요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 등록 결제수단과 배송지를 선택해야 해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 입찰 후에는 취소할 수 없어요",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         Text("이 상품 신고하기", Modifier.clickable(onClick = onReport).padding(vertical = 4.dp),
@@ -423,18 +417,20 @@ private fun StickyBidAction(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (Int) -> Unit) {
-    val minimum = currentPrice + 500
+private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
+    val minimum = currentPrice + 1
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
+    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
+    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val amount = amountText.toIntOrNull() ?: 0
-    val valid = amount >= minimum && amount % 500 == 0
+    val valid = amount >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Colors.Background,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Colors.Border) }
     ) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("내 가격으로 입찰하기", fontSize = 20.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
@@ -448,7 +444,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("입찰 금액", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("최소 ${"%,d".format(minimum)}원 · 500원 단위", color = Colors.Muted, fontSize = 12.sp)
+                Text("${"%,d".format(minimum)}원 이상", color = Colors.Muted, fontSize = 12.sp)
             }
             OutlinedTextField(
                 value = amountText,
@@ -456,14 +452,14 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                 modifier = Modifier.fillMaxWidth(),
                 suffix = { Text("원", fontWeight = FontWeight.Bold) },
                 isError = amountText.isNotEmpty() && !valid,
-                supportingText = if (amountText.isNotEmpty() && !valid) {{ Text("최소 금액 이상, 500원 단위로 입력해주세요") }} else null,
+                supportingText = if (amountText.isNotEmpty() && amount < minimum) {{ Text("현재가보다 큰 금액을 입력해주세요") }} else null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = LocalTextStyle.current.copy(color = Colors.Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Colors.Navy, unfocusedBorderColor = Colors.Navy)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(500, 1_000, 5_000).forEach { increment ->
+                listOf(1_000, 5_000, 10_000).forEach { increment ->
                     Button(onClick = { amountText = ((amountText.toIntOrNull() ?: minimum) + increment).toString() },
                         modifier = Modifier.weight(1f).height(40.dp), shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
@@ -472,15 +468,16 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth().background(Colors.Mint, RoundedCornerShape(12.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("첫 입찰 보증금 1,000원", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("입찰 금액과 별도로 한 번만 결제해요.\n패찰 시 경매 종료 후 자동 반환돼요.", color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
-            }
-            Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 30초로 갱신돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            Button(onClick = { onContinue(amount) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
+            BidParticipationFields(
+                selectedPaymentMethodId = paymentMethodId,
+                onPaymentMethodSelected = { paymentMethodId = it },
+                selectedAddressId = addressId,
+                onAddressSelected = { addressId = it }
+            )
+            Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Button(onClick = { onContinue(BidSubmission(amount, paymentMethodId, addressId)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
-                Text("보증금 결제로 계속", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("${"%,d".format(amount)}원 입찰하기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
