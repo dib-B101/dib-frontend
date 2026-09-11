@@ -1,6 +1,7 @@
 package com.ssafy.dib.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +50,7 @@ import com.ssafy.dib.feature.main.WithdrawalScreen
 import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.AuthDependencies
+import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -272,6 +274,8 @@ fun AppNavHost() {
             var detailLoading by remember(productId) { mutableStateOf(false) }
             var detailError by remember(productId) { mutableStateOf<String?>(null) }
             var detailRevision by remember(productId) { mutableStateOf(0) }
+            var realtimeState by remember(productId) { mutableStateOf<RealtimeConnectionState?>(null) }
+            var realtimeNotice by remember(productId) { mutableStateOf<String?>(null) }
             LaunchedEffect(productId, detailRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 detailLoading = true
@@ -285,12 +289,47 @@ fun AppNavHost() {
                 }
                 detailLoading = false
             }
+            DisposableEffect(productId, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (auth.networkConfig.isWebSocketConfigured) {
+                    auth.createAuctionRealtimeConnection().also { realtime ->
+                        realtime.start(
+                            auctionId = productId,
+                            onUpdate = { update ->
+                                coroutineScope.launch {
+                                    val base = remoteDetail ?: remoteAuctions?.firstOrNull { it.id == productId }
+                                    if (base != null) {
+                                        remoteDetail = base.copy(
+                                            price = update.currentPrice ?: base.price,
+                                            bidCount = update.bidCount ?: base.bidCount,
+                                            remainingSeconds = update.remainingSeconds ?: base.remainingSeconds,
+                                            status = update.status ?: base.status,
+                                            isHighestBidder = update.isHighestBidder ?: base.isHighestBidder
+                                        )
+                                    }
+                                    update.message?.let { message ->
+                                        realtimeNotice = "$message|${update.occurredAt.orEmpty()}"
+                                    }
+                                }
+                            },
+                            onState = { state -> coroutineScope.launch { realtimeState = state } }
+                        )
+                    }
+                } else null
+                onDispose { connection?.close() }
+            }
             ProductDetailScreen(
                 productId = productId,
                 remoteAuction = remoteDetail,
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
+                realtimeStatus = when (realtimeState) {
+                    RealtimeConnectionState.Connecting -> "실시간 연결 중"
+                    RealtimeConnectionState.Connected -> "실시간 연결됨"
+                    RealtimeConnectionState.Reconnecting -> "실시간 재연결 중"
+                    RealtimeConnectionState.Disconnected, null -> null
+                },
+                realtimeNotice = realtimeNotice,
                 isAuthenticated = signedIn == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->

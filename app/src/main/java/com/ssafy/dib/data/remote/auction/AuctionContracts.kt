@@ -27,8 +27,12 @@ data class AuctionDto(
     val serverTime: String? = null,
     val status: String = "",
     val bookmarked: Boolean = false,
+    val myBid: MyBidDto? = null,
     val product: AuctionProductDto? = null
 )
+
+@Serializable
+data class MyBidDto(val isHighestBidder: Boolean = false)
 
 @Serializable
 data class AuctionProductDto(

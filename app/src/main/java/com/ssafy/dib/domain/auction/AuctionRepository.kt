@@ -12,7 +12,8 @@ data class AuctionSummary(
     val bidCount: Int,
     val remainingSeconds: Int,
     val status: String,
-    val bookmarked: Boolean
+    val bookmarked: Boolean,
+    val isHighestBidder: Boolean? = null
 )
 
 interface AuctionRepository {
