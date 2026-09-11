@@ -546,6 +546,21 @@ fun AppNavHost() {
                 }
                 detailLoading = false
             }
+            LaunchedEffect(productId, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(productId) }) {
+                    is ApiResult.Success -> {
+                        val updated = if (result.value.status == "PAID") {
+                            depositPaidProductIds + productId
+                        } else {
+                            depositPaidProductIds - productId
+                        }
+                        depositPaidProductIds = updated
+                        session.edit().putStringSet("paid_deposits", updated).apply()
+                    }
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+            }
             DisposableEffect(productId, auth.networkConfig.isWebSocketConfigured) {
                 val connection = if (auth.networkConfig.isWebSocketConfigured) {
                     auth.createAuctionRealtimeConnection().also { realtime ->
@@ -1103,18 +1118,67 @@ fun AppNavHost() {
         composable(
             route = Screen.BidDepositPayment.route,
             arguments = listOf(
-                navArgument("productId") { type = NavType.StringType },
+                navArgument("auctionId") { type = NavType.StringType },
                 navArgument("bidAmount") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            val auctionId = backStackEntry.arguments?.getString("auctionId").orEmpty()
             val bidAmount = backStackEntry.arguments?.getInt("bidAmount") ?: 0
+            var preparedDeposit by remember { mutableStateOf<com.ssafy.dib.domain.auction.BidDeposit?>(null) }
+            var depositProcessing by remember { mutableStateOf(false) }
+            var depositError by remember { mutableStateOf<String?>(null) }
+            var prepareKey by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+
+            fun prepareDeposit(paymentMethod: String) {
+                depositProcessing = true
+                depositError = null
+                coroutineScope.launch {
+                    when (val result = withContext(Dispatchers.IO) {
+                        auth.bidDepositRepository.prepare(
+                            auctionId = auctionId,
+                            firstBidAmount = bidAmount.toLong(),
+                            paymentMethod = paymentMethod,
+                            idempotencyKey = prepareKey
+                        )
+                    }) {
+                        is ApiResult.Success -> preparedDeposit = result.value
+                        is ApiResult.Failure -> {
+                            depositError = result.error.message.ifBlank { "보증금 결제를 준비하지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
+                    }
+                    depositProcessing = false
+                }
+            }
+
+            fun checkDepositStatus() {
+                depositProcessing = true
+                depositError = null
+                coroutineScope.launch {
+                    when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(auctionId) }) {
+                        is ApiResult.Success -> preparedDeposit = result.value
+                        is ApiResult.Failure -> depositError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                    }
+                    depositProcessing = false
+                }
+            }
+
             BidDepositPaymentScreen(
-                productId = productId,
+                auctionId = auctionId,
                 bidAmount = bidAmount,
+                preparedDeposit = preparedDeposit,
+                isProcessing = depositProcessing,
+                errorMessage = depositError,
+                onPrepare = ::prepareDeposit,
+                onCheckStatus = ::checkDepositStatus,
+                onReset = {
+                    preparedDeposit = null
+                    depositError = null
+                    prepareKey = java.util.UUID.randomUUID().toString()
+                },
                 onBack = navController::navigateUp,
                 onReturnToAuction = {
-                    val updatedPaidProducts = depositPaidProductIds + productId
+                    val updatedPaidProducts = depositPaidProductIds + auctionId
                     depositPaidProductIds = updatedPaidProducts
                     session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
                     navController.previousBackStackEntry?.savedStateHandle?.apply {

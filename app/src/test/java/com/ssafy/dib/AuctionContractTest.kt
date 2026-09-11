@@ -2,6 +2,7 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auction.AuctionListResponse
+import com.ssafy.dib.data.remote.auction.BidDepositResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -49,5 +50,21 @@ class AuctionContractTest {
             ),
             auction.imageUrls
         )
+    }
+
+    @Test
+    fun depositPreparationMapsNestedPaymentUrlAndCalculatedAmount() {
+        val response = DibJson.instance.decodeFromString(
+            BidDepositResponse.serializer(),
+            """{"bidDepositId":41,"auctionId":3,"amount":5200,"status":"PENDING","paymentRequest":{"checkoutUrl":"https://pay.example/checkout/41"}}"""
+        )
+
+        val deposit = response.toDomain()
+
+        assertEquals("41", deposit.bidDepositId)
+        assertEquals("3", deposit.auctionId)
+        assertEquals(5_200L, deposit.amount)
+        assertEquals("PENDING", deposit.status)
+        assertEquals("https://pay.example/checkout/41", deposit.paymentUrl)
     }
 }
