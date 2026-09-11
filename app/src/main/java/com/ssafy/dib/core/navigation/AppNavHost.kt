@@ -1,6 +1,7 @@
 package com.ssafy.dib.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -13,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.feature.auction.ProductDetailScreen
+import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
 import com.ssafy.dib.feature.auction.ProductImageViewerScreen
 import com.ssafy.dib.feature.auction.ProductReportScreen
 import com.ssafy.dib.feature.auction.SellerProfileScreen
@@ -47,6 +49,9 @@ fun AppNavHost() {
     val context = LocalContext.current
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
     var signedIn by remember { mutableStateOf(session.getBoolean("signed_in", false)) }
+    var depositPaidProductIds by remember {
+        mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
+    }
 
     fun completeLogin() {
         signedIn = true
@@ -124,18 +129,35 @@ fun AppNavHost() {
         composable(Screen.Notifications.route) {
             NotificationCenterScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
         }
-        composable(Screen.Feed.route) {
+        composable(Screen.Feed.route) { backStackEntry ->
+            val paidBidAmount by backStackEntry.savedStateHandle
+                .getStateFlow("paidBidAmount", 0).collectAsState()
             LiveFeedScreen(
+                paidBidAmount = paidBidAmount,
+                depositPaid = "camera" in depositPaidProductIds,
+                onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
-                onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) }
+                onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
+                onDepositPayment = { productId, submission ->
+                    backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
+                    backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
+                    if (productId in depositPaidProductIds) {
+                        backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
+                    } else {
+                        navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
+                    }
+                }
             )
         }
         composable(
             route = Screen.ProductDetail.route,
             arguments = listOf(navArgument("productId") { type = NavType.StringType })
         ) { backStackEntry ->
+            val paidBidAmount by backStackEntry.savedStateHandle
+                .getStateFlow("paidBidAmount", 0).collectAsState()
+            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
             ProductDetailScreen(
-                productId = backStackEntry.arguments?.getString("productId").orEmpty(),
+                productId = productId,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
                     navController.navigate(
@@ -153,7 +175,19 @@ fun AppNavHost() {
                         )
                     )
                 },
-                onTransactionClick = { navController.navigate(Screen.Transaction.createRoute("buyer")) }
+                onTransactionClick = { navController.navigate(Screen.Transaction.createRoute("buyer")) },
+                paidBidAmount = paidBidAmount,
+                depositPaid = productId in depositPaidProductIds,
+                onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
+                onDepositPayment = { submission ->
+                    backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
+                    backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
+                    if (productId in depositPaidProductIds) {
+                        backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
+                    } else {
+                        navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
+                    }
+                }
             )
         }
         composable(Screen.Register.route) {
@@ -278,6 +312,30 @@ fun AppNavHost() {
             ProductReportScreen(
                 onBack = navController::navigateUp,
                 onSubmitted = { navController.navigateUp() }
+            )
+        }
+        composable(
+            route = Screen.BidDepositPayment.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType },
+                navArgument("bidAmount") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            val bidAmount = backStackEntry.arguments?.getInt("bidAmount") ?: 0
+            BidDepositPaymentScreen(
+                productId = productId,
+                bidAmount = bidAmount,
+                onBack = navController::navigateUp,
+                onReturnToAuction = {
+                    val updatedPaidProducts = depositPaidProductIds + productId
+                    depositPaidProductIds = updatedPaidProducts
+                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("paidBidAmount", bidAmount)
+                    }
+                    navController.popBackStack()
+                }
             )
         }
     }
