@@ -55,7 +55,8 @@ data class SignUpResponse(
     val status: String,
     val role: String,
     val accessToken: String,
-    val refreshToken: String
+    val refreshToken: String,
+    val accessExpiresIn: Long = 1_800L
 )
 
 @Serializable

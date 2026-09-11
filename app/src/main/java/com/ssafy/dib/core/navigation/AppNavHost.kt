@@ -26,6 +26,8 @@ import com.ssafy.dib.feature.auction.SellerListingsScreen
 import com.ssafy.dib.feature.auction.SellerReportScreen
 import com.ssafy.dib.feature.auction.SellerReviewsScreen
 import com.ssafy.dib.feature.auth.LoginScreen
+import com.ssafy.dib.feature.auth.SignupScreen
+import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
@@ -50,7 +52,9 @@ import com.ssafy.dib.feature.main.TransactionScreen
 import com.ssafy.dib.feature.main.WithdrawalScreen
 import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
+import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.data.AuthDependencies
+import com.ssafy.dib.domain.auth.SignUpCommand
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
@@ -70,6 +74,8 @@ fun AppNavHost() {
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
+    var signupState by remember { mutableStateOf(SignupUiState()) }
+    var phoneVerificationToken by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
     var auctionsLoading by remember { mutableStateOf(false) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
@@ -155,7 +161,7 @@ fun AppNavHost() {
         composable(Screen.Welcome.route) {
             WelcomeScreen(
                 onKakaoStart = { navController.navigate(Screen.Login.route) },
-                onEmailSignup = { navController.navigate(Screen.Login.route) },
+                onEmailSignup = { navController.navigate(Screen.SignUp.route) },
                 onLogin = { navController.navigate(Screen.Login.route) },
                 onBrowse = {
                     signedIn = false
@@ -166,6 +172,7 @@ fun AppNavHost() {
         composable(Screen.Login.route) {
             LoginScreen(
                 onBack = navController::navigateUp,
+                onSignUp = { navController.navigate(Screen.SignUp.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
                 onLogin = { email, password ->
@@ -191,6 +198,122 @@ fun AppNavHost() {
                             }
                         }
                         loginLoading = false
+                    }
+                }
+            )
+        }
+        composable(Screen.SignUp.route) {
+            SignupScreen(
+                state = signupState,
+                onBack = navController::navigateUp,
+                onRequestPhoneVerification = { phoneNumber ->
+                    signupState = signupState.copy(
+                        phoneRequestLoading = true,
+                        phoneError = null,
+                        phoneVerified = false,
+                        requestedPhone = null,
+                        verificationRequestKey = null
+                    )
+                    phoneVerificationToken = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.requestSignUpPhoneVerification(phoneNumber)
+                        }) {
+                            is ApiResult.Success -> signupState = signupState.copy(
+                                phoneRequestLoading = false,
+                                verificationRequestKey = result.value.verificationId,
+                                requestedPhone = phoneNumber,
+                                retryAfterSeconds = result.value.retryAfterSeconds,
+                                phoneError = null
+                            )
+                            is ApiResult.Failure -> signupState = signupState.copy(
+                                phoneRequestLoading = false,
+                                phoneError = signupErrorMessage(result.error)
+                            )
+                        }
+                    }
+                },
+                onConfirmPhoneVerification = { code ->
+                    val verificationId = signupState.verificationRequestKey ?: return@SignupScreen
+                    signupState = signupState.copy(phoneConfirmationLoading = true, phoneError = null)
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.confirmPhoneVerification(verificationId, code)
+                        }) {
+                            is ApiResult.Success -> {
+                                phoneVerificationToken = result.value.verificationToken
+                                signupState = signupState.copy(
+                                    phoneConfirmationLoading = false,
+                                    phoneVerified = true,
+                                    phoneError = null
+                                )
+                            }
+                            is ApiResult.Failure -> signupState = signupState.copy(
+                                phoneConfirmationLoading = false,
+                                phoneVerified = false,
+                                phoneError = signupErrorMessage(result.error)
+                            )
+                        }
+                    }
+                },
+                onCheckEmail = { email ->
+                    signupState = signupState.copy(
+                        emailCheckLoading = true,
+                        checkedEmail = null,
+                        emailAvailable = null,
+                        emailError = null
+                    )
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.checkEmailAvailability(email)
+                        }) {
+                            is ApiResult.Success -> signupState = signupState.copy(
+                                emailCheckLoading = false,
+                                checkedEmail = email,
+                                emailAvailable = result.value,
+                                emailError = null
+                            )
+                            is ApiResult.Failure -> signupState = signupState.copy(
+                                emailCheckLoading = false,
+                                checkedEmail = email,
+                                emailAvailable = false,
+                                emailError = signupErrorMessage(result.error)
+                            )
+                        }
+                    }
+                },
+                onSignUp = { form ->
+                    val token = phoneVerificationToken ?: return@SignupScreen
+                    if (signupState.requestedPhone != form.phoneNumber) return@SignupScreen
+                    signupState = signupState.copy(signupLoading = true, signupError = null)
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.signUp(
+                                SignUpCommand(
+                                    email = form.email,
+                                    password = form.password,
+                                    name = form.name,
+                                    nickname = form.nickname,
+                                    gender = form.gender,
+                                    birthDate = form.birthDate,
+                                    phoneNumber = form.phoneNumber,
+                                    phoneVerificationToken = token
+                                )
+                            )
+                        }) {
+                            is ApiResult.Success -> {
+                                signupState = SignupUiState()
+                                phoneVerificationToken = null
+                                signedIn = true
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            }
+                            is ApiResult.Failure -> signupState = signupState.copy(
+                                signupLoading = false,
+                                signupError = signupErrorMessage(result.error)
+                            )
+                        }
                     }
                 }
             )
@@ -563,4 +686,19 @@ fun AppNavHost() {
             )
         }
     }
+}
+
+private fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 연결 설정을 확인해주세요."
+    "INVALID_PHONE" -> "휴대폰 번호 형식을 확인해주세요."
+    "RATE_LIMITED" -> "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
+    "INVALID_CODE" -> "인증번호가 올바르지 않아요."
+    "VERIFICATION_EXPIRED" -> "인증 시간이 만료됐어요. 인증번호를 다시 요청해주세요."
+    "ATTEMPTS_EXCEEDED" -> "인증 시도 횟수를 초과했어요. 인증번호를 다시 요청해주세요."
+    "INVALID_EMAIL" -> "이메일 형식을 확인해주세요."
+    "EMAIL_DUPLICATED" -> "이미 가입된 이메일이에요."
+    "PHONE_DUPLICATED" -> "이미 가입된 휴대폰 번호예요."
+    "INVALID_PASSWORD" -> "비밀번호 조건을 확인해주세요."
+    "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
+    else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
 }

@@ -104,6 +104,7 @@ fun WelcomeScreen(
 @Composable
 fun LoginScreen(
     onBack: () -> Unit,
+    onSignUp: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
@@ -138,7 +139,13 @@ fun LoginScreen(
             }
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("비밀번호 찾기", color = Colors.Muted, fontSize = 12.sp)
-                Text("회원가입", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "회원가입",
+                    Modifier.clickable(onClick = onSignUp).padding(4.dp),
+                    color = Colors.Navy,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
             if (attempted && !valid) Text("이메일과 4자 이상의 비밀번호를 확인해주세요", Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
             errorMessage?.let {

@@ -3,6 +3,7 @@ package com.ssafy.dib.core.navigation
 sealed class Screen(val route: String) {
     data object Splash : Screen("splash")
     data object Welcome : Screen("welcome")
+    data object SignUp : Screen("signup")
     data object Login : Screen("login")
     data object Home : Screen("home")
     data object Feed : Screen("feed")
