@@ -69,3 +69,14 @@ data class ShipmentResponse(
     val isStale: Boolean = false,
     val updatedAt: String? = null
 )
+
+@Serializable
+data class OrderMessageListResponse(val items: List<OrderMessageDto> = emptyList(), val hasMore: Boolean = false)
+
+@Serializable
+data class OrderMessageDto(
+    val chattingId: JsonElement,
+    val memberId: JsonElement,
+    val content: String,
+    val time: String
+)

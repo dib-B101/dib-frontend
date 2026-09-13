@@ -72,6 +72,7 @@ fun TransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenChat: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -96,6 +97,7 @@ fun TransactionScreen(
             onRefreshShipment = onRefreshShipment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
+            onOpenChat = onOpenChat,
             onBack = onBack,
             modifier = modifier
         )
@@ -125,6 +127,7 @@ private fun RemoteTransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenChat: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier
 ) {
@@ -180,6 +183,9 @@ private fun RemoteTransactionScreen(
                             ),
                             "거래 정보"
                         )
+                    }
+                    if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "REFUNDED")) {
+                        item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
                     }
                     confirmationError?.let { message ->
                         item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }

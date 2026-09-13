@@ -4,6 +4,7 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.order.OrderListResponse
 import com.ssafy.dib.data.remote.order.ShipmentRegistrationRequest
 import com.ssafy.dib.data.remote.order.ShipmentResponse
+import com.ssafy.dib.data.remote.order.OrderMessageListResponse
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -68,5 +69,17 @@ class OrderContractTest {
         assertEquals("123456789012", shipment.trackingNumber)
         assertEquals("IN_TRANSIT", shipment.carrierStatus)
         assertEquals(true, shipment.isStale)
+    }
+
+    @Test
+    fun orderMessageHistoryAcceptsChatContract() {
+        val response = DibJson.instance.decodeFromString(
+            OrderMessageListResponse.serializer(),
+            """{"items":[{"chattingId":"chat-2","memberId":17,"content":"내일 발송할게요","time":"2026-09-13T08:00:00Z"}],"hasMore":false}"""
+        )
+
+        assertEquals("chat-2", response.items.single().chattingId.toString().trim('"'))
+        assertEquals("17", response.items.single().memberId.toString())
+        assertEquals("내일 발송할게요", response.items.single().content)
     }
 }
