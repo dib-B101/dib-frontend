@@ -2,10 +2,19 @@ package com.ssafy.dib.data.remote.auction
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import com.ssafy.dib.data.remote.live.LiveBroadcastDto
 
 @Serializable
 data class AuctionListResponse(
     val items: List<AuctionDto> = emptyList(),
+    val nextCursor: String? = null,
+    val hasNext: Boolean = false
+)
+
+@Serializable
+data class AuctionRecommendationResponse(
+    val liveItems: List<LiveBroadcastDto> = emptyList(),
+    val generalItems: List<AuctionDto> = emptyList(),
     val nextCursor: String? = null,
     val hasNext: Boolean = false
 )

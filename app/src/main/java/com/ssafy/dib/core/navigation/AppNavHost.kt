@@ -97,6 +97,7 @@ fun AppNavHost() {
     var signupState by remember { mutableStateOf(SignupUiState()) }
     var phoneVerificationToken by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+    var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
     var auctionsLoading by remember { mutableStateOf(false) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
@@ -179,8 +180,11 @@ fun AppNavHost() {
         if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
         auctionsLoading = true
         auctionsError = null
-        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getActiveGeneralAuctions() }) {
-            is ApiResult.Success -> remoteAuctions = result.value.map { it.toHomeAuction() }
+        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations() }) {
+            is ApiResult.Success -> {
+                remoteAuctions = result.value.generalItems.map { it.toHomeAuction() }
+                remoteHomeLives = result.value.liveItems
+            }
             is ApiResult.Failure -> {
                 auctionsError = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
                 if (result.error.requiresLogin) signedIn = false
@@ -505,6 +509,7 @@ fun AppNavHost() {
             HomeScreen(
                 isAuthenticated = signedIn == true,
                 remoteAuctions = remoteAuctions,
+                remoteLives = remoteHomeLives,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
                 onRetry = { auctionsRevision++ },
