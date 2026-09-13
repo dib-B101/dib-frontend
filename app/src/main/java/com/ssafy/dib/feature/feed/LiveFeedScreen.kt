@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.feature.auction.BidParticipationFields
 import com.ssafy.dib.feature.auction.BidSubmission
+import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.sampleBidAddresses
 import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
@@ -69,7 +70,9 @@ fun LiveFeedScreen(
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
-    depositPaid: Boolean,
+    depositPaidAuctionIds: Set<String>,
+    realtimeBidFeedback: RealtimeBidFeedback?,
+    onRealtimeBid: (String, Int) -> Boolean,
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
@@ -103,7 +106,9 @@ fun LiveFeedScreen(
                     onSendComment = onSendComment,
                     isAuthenticated = isAuthenticated,
                     paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
-                    depositPaid = depositPaid,
+                    depositPaidAuctionIds = depositPaidAuctionIds,
+                    realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
+                    onRealtimeBid = onRealtimeBid,
                     onPaymentConsumed = onPaymentConsumed,
                     onClose = onClose,
                     onProductClick = onProductClick,
@@ -125,7 +130,9 @@ private fun LiveFeedPage(
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
-    depositPaid: Boolean,
+    depositPaidAuctionIds: Set<String>,
+    realtimeBidFeedback: RealtimeBidFeedback?,
+    onRealtimeBid: (String, Int) -> Boolean,
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
@@ -134,6 +141,8 @@ private fun LiveFeedPage(
     modifier: Modifier = Modifier
 ) {
     val activeAuction = liveItem?.currentAuction
+    val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
+    val depositPaid = auctionKey in depositPaidAuctionIds
     var following by rememberSaveable { mutableStateOf(true) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
@@ -142,6 +151,8 @@ private fun LiveFeedPage(
     var remaining by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.remainingSeconds ?: 42) }
     var comment by rememberSaveable { mutableStateOf("") }
     var showBidFeedback by remember { mutableStateOf(false) }
+    var bidFeedbackAccepted by remember { mutableStateOf(true) }
+    var bidFeedbackMessage by remember { mutableStateOf("") }
     val livePulse = rememberInfiniteTransition(label = "livePulse")
     val liveDotAlpha by livePulse.animateFloat(
         initialValue = .4f,
@@ -154,11 +165,34 @@ private fun LiveFeedPage(
     LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
     LaunchedEffect(paidBidAmount) {
         if (paidBidAmount > 0) {
-            currentPrice = paidBidAmount
-            if (remaining in 1..15) remaining = 15
-            showBidFeedback = true
+            if (liveItem == null) {
+                currentPrice = paidBidAmount
+                if (remaining in 1..15) remaining = 15
+                bidFeedbackAccepted = true
+                bidFeedbackMessage = "입찰이 접수됐어요."
+                showBidFeedback = true
+            } else if (auctionKey == null || !onRealtimeBid(auctionKey, paidBidAmount)) {
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "실시간 연결을 확인한 뒤 다시 입찰해주세요."
+                showBidFeedback = true
+            }
             onPaymentConsumed()
         }
+    }
+    LaunchedEffect(realtimeBidFeedback?.eventKey) {
+        realtimeBidFeedback ?: return@LaunchedEffect
+        bidFeedbackAccepted = realtimeBidFeedback.accepted
+        bidFeedbackMessage = realtimeBidFeedback.message.ifBlank {
+            if (realtimeBidFeedback.accepted) "입찰이 접수됐어요." else "입찰이 반영되지 않았어요."
+        }
+        if (realtimeBidFeedback.accepted) {
+            realtimeBidFeedback.currentPrice?.let { currentPrice = it }
+        }
+        showBidFeedback = true
+    }
+    LaunchedEffect(activeAuction?.currentPrice, activeAuction?.remainingSeconds) {
+        activeAuction?.currentPrice?.let { currentPrice = it }
+        activeAuction?.remainingSeconds?.let { remaining = it }
     }
     LaunchedEffect(showBidFeedback) {
         if (showBidFeedback) {
@@ -230,9 +264,9 @@ private fun LiveFeedPage(
         AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center), enter = fadeIn() + scaleIn(initialScale = .7f), exit = fadeOut() + scaleOut(targetScale = .82f)) {
             Surface(color = Colors.Mint, shape = RoundedCornerShape(20.dp), shadowElevation = 8.dp) {
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("⚡", fontSize = 30.sp)
-                    Text("입찰이 접수됐어요", color = Colors.MintInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("현재 최고가 ${"%,d".format(currentPrice)}원", color = Colors.MintInk, fontSize = 11.sp)
+                    Text(if (bidFeedbackAccepted) "⚡" else "!", fontSize = 30.sp)
+                    Text(bidFeedbackMessage, color = Colors.MintInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    if (bidFeedbackAccepted) Text("현재 최고가 ${"%,d".format(currentPrice)}원", color = Colors.MintInk, fontSize = 11.sp)
                 }
             }
         }
@@ -243,7 +277,10 @@ private fun LiveFeedPage(
             val count = if (activeAuction == null) 5 else 1
             item { Text("라이브 상품 ${count}개", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
             items(count) { index ->
-                Row(Modifier.fillMaxWidth().height(72.dp).clickable { showProducts = false; onProductClick(activeAuction?.auctionId ?: if (index == 1) "camera" else "headphones") }, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().height(72.dp).clickable {
+                    showProducts = false
+                    if (isAuthenticated) onProductClick(activeAuction?.auctionId ?: if (index == 1) "camera" else "headphones") else onLoginRequired()
+                }, verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(64.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)))
                     Column(Modifier.padding(start = 12.dp)) { Text(activeAuction?.title ?: listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold); Text(if (activeAuction != null || index == 1) "● 현재 경매 중" else "대기", color = if (activeAuction != null || index == 1) Colors.Live else Colors.Muted, fontSize = 11.sp) }
                 }
@@ -252,7 +289,7 @@ private fun LiveFeedPage(
     }
     if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
-        onDepositPayment(activeAuction?.auctionId ?: "camera", submission)
+        onDepositPayment(auctionKey ?: "camera", submission)
     }
 }
 
