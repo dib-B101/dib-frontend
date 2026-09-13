@@ -1710,7 +1710,87 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Addresses.route) {
-            AddressManagementScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
+            var addresses by remember { mutableStateOf<List<com.ssafy.dib.domain.member.MemberAddress>?>(null) }
+            var addressesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var addressesError by remember { mutableStateOf<String?>(null) }
+            var addressesRevision by remember { mutableStateOf(0) }
+            var addressActionLoading by remember { mutableStateOf(false) }
+            var addressActionError by remember { mutableStateOf<String?>(null) }
+            var addressActionMessage by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(addressesRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                addressesLoading = true
+                addressesError = null
+                when (val result = withContext(Dispatchers.IO) { auth.addressRepository.getAddresses() }) {
+                    is ApiResult.Success -> addresses = result.value
+                    is ApiResult.Failure -> {
+                        addressesError = result.error.message.ifBlank { "배송지를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                addressesLoading = false
+            }
+            LaunchedEffect(addressActionMessage) {
+                if (addressActionMessage != null) {
+                    delay(1_800L)
+                    addressActionMessage = null
+                }
+            }
+
+            AddressManagementScreen(
+                addresses = addresses,
+                isLoading = addressesLoading,
+                errorMessage = addressesError,
+                actionLoading = addressActionLoading,
+                actionError = addressActionError,
+                actionMessage = addressActionMessage,
+                onRetry = { addressesRevision++ },
+                onUpdate = { address ->
+                    addressActionLoading = true
+                    addressActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.addressRepository.updateAddress(address) }) {
+                            is ApiResult.Success -> {
+                                addresses = addresses?.map { if (it.addressId == result.value.addressId) result.value else it }
+                                addressActionMessage = "배송지를 수정했어요."
+                            }
+                            is ApiResult.Failure -> {
+                                addressActionError = when (result.error.code) {
+                                    "ADDRESS_NOT_FOUND" -> "배송지를 찾을 수 없어요."
+                                    "FORBIDDEN" -> "이 배송지를 수정할 권한이 없어요."
+                                    else -> result.error.message.ifBlank { "배송지를 수정하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        addressActionLoading = false
+                    }
+                },
+                onDelete = { addressId ->
+                    addressActionLoading = true
+                    addressActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.addressRepository.deleteAddress(addressId) }) {
+                            is ApiResult.Success -> {
+                                addresses = addresses?.filterNot { it.addressId == addressId }
+                                addressActionMessage = "배송지를 삭제했어요."
+                            }
+                            is ApiResult.Failure -> {
+                                addressActionError = when (result.error.code) {
+                                    "ADDRESS_IN_USE" -> "진행 중인 입찰이나 주문에서 사용하는 배송지는 삭제할 수 없어요."
+                                    "ADDRESS_NOT_FOUND" -> "이미 삭제됐거나 찾을 수 없는 배송지예요."
+                                    else -> result.error.message.ifBlank { "배송지를 삭제하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        addressActionLoading = false
+                    }
+                },
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain
+            )
         }
         composable(Screen.SettlementAccounts.route) {
             var settlementAccount by remember { mutableStateOf<com.ssafy.dib.domain.settlement.SettlementAccount?>(null) }

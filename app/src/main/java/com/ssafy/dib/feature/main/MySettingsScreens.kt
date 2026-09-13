@@ -29,13 +29,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -51,87 +48,83 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.settlement.SettlementAccount
-
-private data class Address(val label: String, val recipient: String, val address: String, val isDefault: Boolean = false)
+import com.ssafy.dib.domain.member.MemberAddress
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val addresses = remember { mutableStateListOf(
-        Address("집", "김띱", "부산광역시 동래구 중앙대로 000\n101동 1001호", true),
-        Address("회사", "김띱", "부산광역시 부산진구 중앙대로 000\n8층")
-    ) }
-    var showEditor by rememberSaveable { mutableStateOf(false) }
-    var editingIndex by rememberSaveable { mutableStateOf(-1) }
-    var actionIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var deleteIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var message by rememberSaveable { mutableStateOf("") }
-    if (message.isNotBlank()) LaunchedEffect(message) { kotlinx.coroutines.delay(1_800); message = "" }
+fun AddressManagementScreen(
+    addresses: List<MemberAddress>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    actionLoading: Boolean,
+    actionError: String?,
+    actionMessage: String?,
+    onRetry: () -> Unit,
+    onUpdate: (MemberAddress) -> Unit,
+    onDelete: (String) -> Unit,
+    onBack: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var editingAddress by remember { mutableStateOf<MemberAddress?>(null) }
+    var deletingAddress by remember { mutableStateOf<MemberAddress?>(null) }
     SettingsScaffold("배송지 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (message.isNotBlank()) item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            items(addresses.size) { index ->
-                val address = addresses[index]
+            actionMessage?.let { message -> item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFEEF0), RoundedCornerShape(12.dp)).padding(14.dp), color = Colors.Urgent, fontSize = 12.sp) } }
+            when {
+                isLoading && addresses == null -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
+                errorMessage != null && addresses == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
+                addresses.isNullOrEmpty() -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 배송지가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("주소 검색 연동 후 새 배송지를 등록할 수 있어요.", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
+            }
+            items(addresses?.size ?: 0) { index ->
+                val address = addresses.orEmpty()[index]
                 Column(
-                    Modifier.fillMaxWidth().height(130.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp))
-                        .clickable { actionIndex = index }.padding(15.dp),
+                    Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp))
+                        .clickable(enabled = !actionLoading) { editingAddress = address }.padding(15.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(Modifier.fillMaxWidth()) {
-                        Text(if (address.isDefault) "기본 배송지" else "배송지", Modifier.weight(1f), color = if (address.isDefault) Color(0xFF61D1B2) else Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("배송지", Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text("수정", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text("${address.label} · ${address.recipient}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(address.name, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    if (address.postalCode.isNotBlank()) Text("우편번호 ${address.postalCode}", color = Colors.Muted, fontSize = 11.sp)
                     Text(address.address, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
             }
-            item { Button({ editingIndex = -1; showEditor = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("새 배송지 추가", fontWeight = FontWeight.Bold) } }
+            item { OutlinedButton({}, Modifier.fillMaxWidth().height(48.dp), enabled = false, shape = RoundedCornerShape(12.dp)) { Text("주소 검색 API 연결 후 새 배송지 추가", fontWeight = FontWeight.Bold) } }
         }
     }
-    if (showEditor) {
+    editingAddress?.let { selected ->
         AddressEditor(
-            initial = addresses.getOrNull(editingIndex),
-            onDismiss = { showEditor = false },
-            onSave = { value -> if (editingIndex >= 0) addresses[editingIndex] = value else addresses.add(value); showEditor = false },
-            onDelete = if (editingIndex >= 0 && !addresses[editingIndex].isDefault) ({ addresses.removeAt(editingIndex); showEditor = false }) else null
+            initial = selected,
+            actionLoading = actionLoading,
+            onDismiss = { if (!actionLoading) editingAddress = null },
+            onSave = { value -> onUpdate(value); editingAddress = null },
+            onDelete = { editingAddress = null; deletingAddress = selected }
         )
     }
-    if (actionIndex >= 0) {
-        val selected = addresses[actionIndex]
-        ModalBottomSheet(onDismissRequest = { actionIndex = -1 }, containerColor = Color.White) {
-            Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("배송지 관리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("${selected.label} 배송지에 적용할 작업을 선택해주세요.", color = Colors.Muted, fontSize = 12.sp)
-                SettingsAction("수정") { editingIndex = actionIndex; actionIndex = -1; showEditor = true }
-                if (!selected.isDefault) SettingsAction("기본 배송지로 설정") {
-                    addresses.indices.forEach { i -> addresses[i] = addresses[i].copy(isDefault = i == actionIndex) }
-                    message = "기본 배송지가 ‘${selected.label}’로 변경됐어요"
-                    actionIndex = -1
-                }
-                if (!selected.isDefault) SettingsAction("삭제", Color(0xFFEF596B)) { deleteIndex = actionIndex; actionIndex = -1 }
-            }
-        }
-    }
-    if (deleteIndex >= 0) {
-        AlertDialog(onDismissRequest = { deleteIndex = -1 }, title = { Text("배송지를 삭제할까요?") }, text = { Text("‘${addresses[deleteIndex].label}’ 배송지를 삭제하면 주문 시 선택할 수 없습니다.") }, confirmButton = { TextButton({ addresses.removeAt(deleteIndex); deleteIndex = -1 }) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deleteIndex = -1 }) { Text("취소") } })
+    deletingAddress?.let { selected ->
+        AlertDialog(onDismissRequest = { if (!actionLoading) deletingAddress = null }, title = { Text("배송지를 삭제할까요?") }, text = { Text("‘${selected.name}’ 배송지를 삭제하면 주문 시 선택할 수 없습니다.") }, confirmButton = { TextButton({ deletingAddress = null; onDelete(selected.addressId) }, enabled = !actionLoading) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deletingAddress = null }, enabled = !actionLoading) { Text("취소") } })
     }
 }
 
-@Composable private fun AddressEditor(initial: Address?, onDismiss: () -> Unit, onSave: (Address) -> Unit, onDelete: (() -> Unit)?) {
-    var label by rememberSaveable { mutableStateOf(initial?.label.orEmpty()) }
-    var recipient by rememberSaveable { mutableStateOf(initial?.recipient.orEmpty()) }
-    var address by rememberSaveable { mutableStateOf(initial?.address.orEmpty()) }
+@Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit, onDelete: () -> Unit) {
+    var label by rememberSaveable(initial.addressId) { mutableStateOf(initial.name) }
+    var postalCode by rememberSaveable(initial.addressId) { mutableStateOf(initial.postalCode) }
+    var address by rememberSaveable(initial.addressId) { mutableStateOf(initial.address) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "새 배송지" else "배송지 수정") },
+        title = { Text("배송지 수정") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(label, { label = it }, label = { Text("배송지 이름") }, singleLine = true)
-            OutlinedTextField(recipient, { recipient = it }, label = { Text("받는 사람") }, singleLine = true)
+            OutlinedTextField(postalCode, { postalCode = it.filter(Char::isDigit).take(10) }, label = { Text("우편번호") }, singleLine = true)
             OutlinedTextField(address, { address = it }, label = { Text("주소") })
-            if (onDelete != null) Text("배송지 삭제", Modifier.clickable(onClick = onDelete).padding(vertical = 8.dp), color = Color(0xFFEF596B), fontWeight = FontWeight.Bold)
+            Text("배송지 삭제", Modifier.clickable(enabled = !actionLoading, onClick = onDelete).padding(vertical = 8.dp), color = Color(0xFFEF596B), fontWeight = FontWeight.Bold)
         } },
-        confirmButton = { TextButton({ onSave(Address(label, recipient, address, initial?.isDefault == true)) }, enabled = label.isNotBlank() && recipient.isNotBlank() && address.isNotBlank()) { Text("저장") } },
-        dismissButton = { TextButton(onDismiss) { Text("취소") } }
+        confirmButton = { TextButton({ onSave(initial.copy(name = label.trim(), postalCode = postalCode, address = address.trim())) }, enabled = label.isNotBlank() && address.isNotBlank() && !actionLoading) { Text("저장") } },
+        dismissButton = { TextButton(onDismiss, enabled = !actionLoading) { Text("취소") } }
     )
 }
 
@@ -202,10 +195,6 @@ fun SettlementAccountsScreen(
             dismissButton = { TextButton({ editorOpen = false }, enabled = !actionLoading) { Text("취소") } }
         )
     }
-}
-
-@Composable private fun SettingsAction(label: String, color: Color = Colors.Navy, onClick: () -> Unit) {
-    Text(label, Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 14.dp), color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
 }
 
 @Composable
