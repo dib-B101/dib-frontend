@@ -541,6 +541,11 @@ fun AppNavHost() {
             var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var liveFeedError by remember { mutableStateOf<String?>(null) }
             var liveFeedRevision by remember { mutableStateOf(0) }
+            var activeLiveBroadcastId by remember { mutableStateOf<String?>(null) }
+            var liveComments by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
+            var liveChatError by remember { mutableStateOf<String?>(null) }
+            var liveChatState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
+            var liveChatConnection by remember { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
             LaunchedEffect(liveFeedRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveFeedLoading = true
@@ -554,11 +559,58 @@ fun AppNavHost() {
                 }
                 liveFeedLoading = false
             }
+            LaunchedEffect(activeLiveBroadcastId, signedIn) {
+                val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) {
+                    liveComments = emptyList()
+                    return@LaunchedEffect
+                }
+                liveChatError = null
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
+                    is ApiResult.Success -> liveComments = result.value
+                    is ApiResult.Failure -> {
+                        liveChatError = result.error.message.ifBlank { "Live 댓글을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+            }
+            DisposableEffect(activeLiveBroadcastId, signedIn, auth.networkConfig.isWebSocketConfigured) {
+                val liveId = activeLiveBroadcastId
+                val connection = if (liveId != null && signedIn == true && auth.networkConfig.isWebSocketConfigured) {
+                    auth.createLiveChatConnection().also { created ->
+                        liveChatConnection = created
+                        created.start(
+                            liveBroadcastId = liveId,
+                            onMessage = { message -> coroutineScope.launch {
+                                liveComments = (liveComments + message).distinctBy { it.liveChattingId }
+                            } },
+                            onError = { message -> coroutineScope.launch { liveChatError = message } },
+                            onState = { state -> coroutineScope.launch { liveChatState = state } }
+                        )
+                    }
+                } else null
+                onDispose {
+                    liveChatConnection = null
+                    connection?.close()
+                }
+            }
             LiveFeedScreen(
                 remoteItems = liveFeedItems,
                 isLoading = liveFeedLoading,
                 errorMessage = liveFeedError,
                 onRetry = { liveFeedRevision++ },
+                activeLiveBroadcastId = activeLiveBroadcastId,
+                liveComments = liveComments,
+                chatError = liveChatError,
+                chatConnectionState = liveChatState,
+                onLiveVisible = { liveId ->
+                    if (activeLiveBroadcastId != liveId) {
+                        activeLiveBroadcastId = liveId
+                        liveComments = emptyList()
+                        liveChatError = null
+                    }
+                },
+                onSendComment = { content -> liveChatConnection?.send(content) == true },
                 isAuthenticated = signedIn == true,
                 paidBidAmount = paidBidAmount,
                 depositPaid = "camera" in depositPaidProductIds,

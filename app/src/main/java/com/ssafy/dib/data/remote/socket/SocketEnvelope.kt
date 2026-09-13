@@ -34,6 +34,7 @@ object SocketEventTypes {
     const val SUBSCRIBE_LIVE = "SUBSCRIBE_LIVE"
     const val UNSUBSCRIBE_LIVE = "UNSUBSCRIBE_LIVE"
     const val SEND_LIVE_CHAT = "SEND_LIVE_CHAT"
+    const val LIVE_CHAT_MESSAGE_CREATED = "LIVE_CHAT_MESSAGE_CREATED"
     const val DOMAIN_NOTIFICATION = "DOMAIN_NOTIFICATION"
     const val ERROR = "ERROR"
     const val SERVER_DRAINING = "SERVER_DRAINING"
@@ -88,4 +89,14 @@ data class SocketErrorPayload(
     val code: String,
     val message: String,
     val retryable: Boolean = false
+)
+
+@Serializable
+data class LiveChatMessageCreatedPayload(
+    val liveChattingId: JsonElement,
+    val liveBroadcastId: JsonElement,
+    val memberId: JsonElement,
+    val nickname: String? = null,
+    val content: String,
+    val time: String
 )

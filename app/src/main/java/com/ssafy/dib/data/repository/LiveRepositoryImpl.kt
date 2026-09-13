@@ -4,6 +4,7 @@ import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveRepository
+import com.ssafy.dib.domain.live.LiveChatMessage
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -27,6 +28,20 @@ class LiveRepositoryImpl(
         }, result.status)
         is ApiResult.Failure -> result
     }
+
+    override fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String?, size: Int): ApiResult<List<LiveChatMessage>> =
+        when (val result = remote.getMessages(liveBroadcastId, beforeLiveChattingId, size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map { message ->
+                LiveChatMessage(
+                    liveChattingId = message.liveChattingId.idValue(),
+                    memberId = message.memberId.idValue(),
+                    nickname = message.nickname,
+                    content = message.content,
+                    time = message.time
+                )
+            }, result.status)
+            is ApiResult.Failure -> result
+        }
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

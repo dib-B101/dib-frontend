@@ -30,3 +30,18 @@ data class LiveBroadcastDto(
     val streamUrl: String? = null,
     val viewCount: Int = 0
 )
+
+@Serializable
+data class LiveChatMessageListResponse(
+    val items: List<LiveChatMessageDto> = emptyList(),
+    val hasMore: Boolean = false
+)
+
+@Serializable
+data class LiveChatMessageDto(
+    val liveChattingId: JsonElement,
+    val memberId: JsonElement,
+    val nickname: String? = null,
+    val content: String,
+    val time: String
+)
