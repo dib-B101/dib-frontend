@@ -7,6 +7,7 @@ import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.domain.live.LiveBroadcastDetail
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
+import com.ssafy.dib.domain.live.LiveStreamSession
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -83,11 +84,37 @@ class LiveRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun update(liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String> =
+        when (val result = remote.update(liveBroadcastId, title, description, scheduledAt, streamUrl)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.liveBroadcastId.idValue(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
         when (val result = remote.setItems(liveBroadcastId, auctionIds)) {
             is ApiResult.Success -> ApiResult.Success(result.value.auctions.map { it.toDomain(now()) }, result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun prepareStream(liveBroadcastId: String): ApiResult<LiveStreamSession> = when (val result = remote.prepareStream(liveBroadcastId)) {
+        is ApiResult.Success -> ApiResult.Success(LiveStreamSession(result.value.streamUrl, result.value.expiresAt, result.value.provider), result.status)
+        is ApiResult.Failure -> result
+    }
+
+    override fun start(liveBroadcastId: String): ApiResult<String> = when (val result = remote.start(liveBroadcastId)) {
+        is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+        is ApiResult.Failure -> result
+    }
+
+    override fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<String> = when (val result = remote.startAuction(liveBroadcastId, auctionId)) {
+        is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+        is ApiResult.Failure -> result
+    }
+
+    override fun end(liveBroadcastId: String): ApiResult<String> = when (val result = remote.end(liveBroadcastId)) {
+        is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+        is ApiResult.Failure -> result
+    }
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

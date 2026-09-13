@@ -35,18 +35,26 @@ fun LiveManagementScreen(
     errorMessage: String?,
     actionLoading: Boolean,
     actionError: String?,
+    actionMessage: String?,
     actionRevision: Int,
     onRetry: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
+    onUpdate: (liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
+    onPrepareStream: (liveBroadcastId: String) -> Unit,
+    onStartLive: (liveBroadcastId: String) -> Unit,
+    onStartAuction: (liveBroadcastId: String, auctionId: String) -> Unit,
+    onEndLive: (liveBroadcastId: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showCreate by rememberSaveable { mutableStateOf(false) }
+    var editingBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingLiveId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(actionRevision) {
         if (actionRevision > 0) {
             showCreate = false
+            editingBroadcastId = null
             editingLiveId = null
         }
     }
@@ -77,30 +85,61 @@ fun LiveManagementScreen(
                 if (items.isEmpty()) item { EmptyLiveCard() }
                 items(items, key = LiveBroadcastSummary::liveBroadcastId) { live ->
                     val auctions = assignedAuctions[live.liveBroadcastId].orEmpty()
+                    val activeAuction = auctions.firstOrNull { it.status == "ACTIVE" }
                     Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusBadge(live.status)
                             Spacer(Modifier.weight(1f))
+                            if (live.status == "SCHEDULED") Text("수정", Modifier.clickable { editingBroadcastId = live.liveBroadcastId }.padding(horizontal = 10.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text(live.scheduledAt?.replace('T', ' ')?.take(16) ?: "일정 확인 필요", color = Colors.Muted, fontSize = 11.sp)
                         }
                         Text(live.title, color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         live.description?.let { Text(it, color = Colors.Muted, fontSize = 12.sp, maxLines = 2) }
                         Text("편성 상품 ${auctions.size}개", color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        if (live.status == "SCHEDULED") OutlinedButton(
-                            onClick = { editingLiveId = live.liveBroadcastId },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !actionLoading
-                        ) { Text("상품 편성") }
+                        when (live.status) {
+                            "SCHEDULED" -> {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { editingLiveId = live.liveBroadcastId }, Modifier.weight(1f), enabled = !actionLoading) { Text("상품 편성") }
+                                    OutlinedButton(onClick = { onPrepareStream(live.liveBroadcastId) }, Modifier.weight(1f), enabled = !actionLoading) { Text(if (live.streamUrl.isNullOrBlank()) "송출 준비" else "송출 갱신") }
+                                }
+                                Button(
+                                    onClick = { onStartLive(live.liveBroadcastId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = auctions.isNotEmpty() && !live.streamUrl.isNullOrBlank() && !actionLoading,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) { Text("Live 시작", fontWeight = FontWeight.Bold) }
+                                if (auctions.isEmpty() || live.streamUrl.isNullOrBlank()) Text("상품 편성과 송출 준비를 완료하면 시작할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                            }
+                            "LIVE" -> {
+                                if (activeAuction != null) Text("현재 경매 중 · ${activeAuction.title}", color = Colors.Live, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                else auctions.filter { it.status == "SCHEDULED" }.forEach { auction ->
+                                    OutlinedButton(onClick = { onStartAuction(live.liveBroadcastId, auction.auctionId) }, Modifier.fillMaxWidth(), enabled = !actionLoading) { Text("${auction.title} 경매 시작") }
+                                }
+                                Button(
+                                    onClick = { onEndLive(live.liveBroadcastId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = activeAuction == null && !actionLoading,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Live)
+                                ) { Text("Live 종료", fontWeight = FontWeight.Bold) }
+                                if (activeAuction != null) Text("진행 중인 경매가 끝난 뒤 방송을 종료할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                            }
+                        }
                     }
                 }
+                actionMessage?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFDDF8F0), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.MintInk, fontSize = 12.sp) } }
                 actionError?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             }
         }
     }
 
-    if (showCreate) CreateLiveDialog(actionLoading, actionError, { showCreate = false }) { title, description, scheduledAt, streamUrl ->
+    if (showCreate) LiveFormDialog(null, actionLoading, actionError, { showCreate = false }) { title, description, scheduledAt, streamUrl ->
         onCreate(title, description, scheduledAt, streamUrl)
     }
+    editingBroadcastId?.let { liveId -> broadcasts?.firstOrNull { it.liveBroadcastId == liveId }?.let { live ->
+        LiveFormDialog(live, actionLoading, actionError, { editingBroadcastId = null }) { title, description, scheduledAt, streamUrl ->
+            onUpdate(liveId, title, description, scheduledAt, streamUrl)
+        }
+    } }
     editingLiveId?.let { liveId ->
         LiveItemDialog(
             current = assignedAuctions[liveId].orEmpty(),
@@ -118,18 +157,21 @@ fun LiveManagementScreen(
 @Composable private fun StatusBadge(status: String) { val label = when(status) { "SCHEDULED" -> "예정"; "LIVE" -> "방송 중"; "ENDED" -> "종료"; else -> status }; Surface(color = if(status == "LIVE") Colors.Live else Colors.Navy, shape = RoundedCornerShape(10.dp)) { Text(label, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
-private fun CreateLiveDialog(loading: Boolean, error: String?, onDismiss: () -> Unit, onCreate: (String, String?, String, String?) -> Unit) {
-    val tomorrow = remember { LocalDateTime.now().plusDays(1).withSecond(0).withNano(0) }
-    var title by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var date by rememberSaveable { mutableStateOf(tomorrow.toLocalDate().toString()) }
-    var time by rememberSaveable { mutableStateOf(tomorrow.toLocalTime().toString().take(5)) }
-    var streamUrl by rememberSaveable { mutableStateOf("") }
+private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, error: String?, onDismiss: () -> Unit, onSubmit: (String, String?, String, String?) -> Unit) {
+    val initialDateTime = remember(initial?.liveBroadcastId, initial?.scheduledAt) {
+        initial?.scheduledAt?.let { runCatching { LocalDateTime.ofInstant(Instant.parse(it), ZoneId.systemDefault()) }.getOrNull() }
+            ?: LocalDateTime.now().plusDays(1).withSecond(0).withNano(0)
+    }
+    var title by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.title.orEmpty()) }
+    var description by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.description.orEmpty()) }
+    var date by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalDate().toString()) }
+    var time by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalTime().toString().take(5)) }
+    var streamUrl by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.streamUrl.orEmpty()) }
     val scheduledInstant = runCatching { LocalDateTime.parse("${date}T${time}").atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
     val scheduledAt = scheduledInstant?.takeIf { it.isAfter(Instant.now()) }?.toString()
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text("새 Live 예약") },
+        title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정") },
         text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(title, { title = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("방송 제목") }, singleLine = true)
             OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 2)
@@ -141,7 +183,7 @@ private fun CreateLiveDialog(loading: Boolean, error: String?, onDismiss: () -> 
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { TextButton({ scheduledAt?.let { onCreate(title.trim(), description.trim().ifBlank { null }, it, streamUrl.trim().ifBlank { null }) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("예약") } },
+        confirmButton = { TextButton({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, streamUrl.trim().ifBlank { null }) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
         dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
     )
 }
