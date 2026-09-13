@@ -16,8 +16,10 @@ data class MemberProfile(
 )
 
 data class MemberProfileUpdate(val memberId: String, val nickname: String, val updatedAt: String)
+data class MemberWithdrawal(val requestedAt: String, val scheduledAt: String, val status: String)
 
 interface MemberRepository {
     fun getMe(): ApiResult<MemberProfile>
     fun updateNickname(nickname: String): ApiResult<MemberProfileUpdate>
+    fun requestWithdrawal(reason: String? = null): ApiResult<MemberWithdrawal>
 }

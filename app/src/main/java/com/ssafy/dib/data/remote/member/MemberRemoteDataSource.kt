@@ -25,6 +25,17 @@ class MemberRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun requestWithdrawal(reason: String?): ApiResult<MemberWithdrawalResponse> = configured {
+        val path = "${ApiRoutes.MEMBERS_ME}/withdrawal"
+        val request = MemberWithdrawalRequest(reason?.takeIf(String::isNotBlank))
+        client.execute(
+            client.requestBuilder(path)
+                .post(client.jsonBody(request, MemberWithdrawalRequest.serializer()))
+                .build(),
+            MemberWithdrawalResponse.serializer()
+        )
+    }
+
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =
         try {
             block()

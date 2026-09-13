@@ -19,10 +19,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,10 +40,21 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 private enum class WithdrawalState { Check, Blocked, Success }
 
 @Composable
-fun WithdrawalScreen(onBack: () -> Unit, onOpenTrades: () -> Unit, onComplete: () -> Unit, modifier: Modifier = Modifier) {
+fun WithdrawalScreen(
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    blockingMessage: String?,
+    completed: Boolean,
+    onSubmit: () -> Unit,
+    onBack: () -> Unit,
+    onOpenTrades: () -> Unit,
+    onComplete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var agreed by rememberSaveable { mutableStateOf(false) }
-    var hasBlockingTrades by rememberSaveable { mutableStateOf(true) }
     var state by rememberSaveable { mutableStateOf(WithdrawalState.Check) }
+    LaunchedEffect(completed) { if (completed) state = WithdrawalState.Success }
+    LaunchedEffect(blockingMessage) { if (blockingMessage != null) state = WithdrawalState.Blocked }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F9FB),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
@@ -53,16 +66,20 @@ fun WithdrawalScreen(onBack: () -> Unit, onOpenTrades: () -> Unit, onComplete: (
                     WarningHero("탈퇴 전에 확인해주세요", "진행 중인 입찰·판매·주문이 있으면\n탈퇴할 수 없습니다.")
                     SectionCard("탈퇴 시 삭제되는 정보", listOf("프로필 및 계정 정보", "찜·최근 본 상품 기록", "문의 및 알림 정보"))
                     Row(Modifier.fillMaxWidth().height(56.dp).clickable { agreed = !agreed }, verticalAlignment = Alignment.CenterVertically) { Checkbox(agreed, { agreed = it }, colors = CheckboxDefaults.colors(checkedColor = Colors.Navy)); Text("안내 내용을 확인했습니다", fontSize = 13.sp) }
+                    errorMessage?.let { Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, fontSize = 12.sp) }
                     Spacer(Modifier.weight(1f))
-                    Button({ state = if (hasBlockingTrades) WithdrawalState.Blocked else WithdrawalState.Success }, Modifier.fillMaxWidth().height(52.dp), enabled = agreed, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF596B))) { Text("탈퇴 신청", fontWeight = FontWeight.Bold) }
+                    Button(onSubmit, Modifier.fillMaxWidth().height(52.dp), enabled = agreed && !isSubmitting, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF596B))) {
+                        if (isSubmitting) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text("탈퇴 신청", fontWeight = FontWeight.Bold)
+                    }
                 }
                 WithdrawalState.Blocked -> {
-                    WarningHero("현재는 탈퇴할 수 없어요", "진행 중인 입찰·판매·주문을 모두 완료한 뒤\n다시 시도해주세요.")
+                    WarningHero("현재는 탈퇴할 수 없어요", blockingMessage ?: "진행 중인 거래를 모두 완료한 뒤\n다시 시도해주세요.")
                     SectionCard("완료가 필요한 항목", listOf("진행 중인 입찰 1건", "판매 중인 상품 1건", "미완료 주문·정산 없음"))
                     Text("내 거래에서 진행 상태를 확인할 수 있어요", Modifier.fillMaxWidth().background(Color(0xFFF1F5FA), RoundedCornerShape(12.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp)
                     Spacer(Modifier.weight(1f))
                     Button(onOpenTrades, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("내 거래 확인하기", fontWeight = FontWeight.Bold) }
-                    TextButton({ hasBlockingTrades = false; agreed = true; state = WithdrawalState.Check }) { Text("거래 완료 후 다시 확인", color = Colors.Navy) }
+                    TextButton({ agreed = true; state = WithdrawalState.Check }) { Text("거래 완료 후 다시 확인", color = Colors.Navy) }
                 }
                 WithdrawalState.Success -> {
                     Spacer(Modifier.height(80.dp))

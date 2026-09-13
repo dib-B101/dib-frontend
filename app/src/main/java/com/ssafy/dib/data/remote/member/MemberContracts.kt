@@ -25,3 +25,12 @@ data class MemberProfileUpdateResponse(
     val nickname: String,
     val updatedAt: String
 )
+
+@Serializable data class MemberWithdrawalRequest(val reason: String? = null)
+
+@Serializable
+data class MemberWithdrawalResponse(
+    val requestedAt: String,
+    val scheduledAt: String,
+    val status: String
+)
