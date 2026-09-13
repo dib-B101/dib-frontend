@@ -7,6 +7,7 @@ import com.ssafy.dib.data.remote.auth.LogoutRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationConfirmRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
 import com.ssafy.dib.data.remote.auth.PhoneVerificationRequest
+import com.ssafy.dib.data.remote.auth.PasswordResetLinkRequest
 import com.ssafy.dib.data.remote.auth.RefreshTokenRequest
 import com.ssafy.dib.data.remote.auth.SignUpRequest
 import com.ssafy.dib.domain.auth.AuthRepository
@@ -31,6 +32,9 @@ class AuthRepositoryImpl(
 
     override fun requestFindEmailPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
         requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.FIND_EMAIL)
+
+    override fun requestPasswordResetPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
+        requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.RESET_PASSWORD)
 
     private fun requestPhoneVerification(phoneNumber: String, purpose: PhoneVerificationPurpose): ApiResult<PhoneVerificationChallenge> =
         when (val result = remote.requestPhoneVerification(
@@ -76,6 +80,9 @@ class AuthRepositoryImpl(
             is ApiResult.Success -> ApiResult.Success(result.value.maskedEmail, result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun requestPasswordResetLink(email: String, phoneVerificationToken: String): ApiResult<Unit> =
+        remote.requestPasswordResetLink(PasswordResetLinkRequest(email, phoneVerificationToken))
 
     override fun signUp(command: SignUpCommand): ApiResult<AuthSession> =
         when (val result = remote.signUp(

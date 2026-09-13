@@ -106,6 +106,7 @@ fun LoginScreen(
     onBack: () -> Unit,
     onSignUp: () -> Unit,
     onFindEmail: () -> Unit,
+    onPasswordReset: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
@@ -138,8 +139,11 @@ fun LoginScreen(
             LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible) {
                 passwordVisible = !passwordVisible
             }
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("이메일 찾기", Modifier.clickable(onClick = onFindEmail).padding(4.dp), color = Colors.Muted, fontSize = 12.sp)
+                Text("·", color = Colors.Muted, fontSize = 12.sp)
+                Text("비밀번호 찾기", Modifier.clickable(onClick = onPasswordReset).padding(4.dp), color = Colors.Muted, fontSize = 12.sp)
+                Spacer(Modifier.weight(1f))
                 Text(
                     "회원가입",
                     Modifier.clickable(onClick = onSignUp).padding(4.dp),

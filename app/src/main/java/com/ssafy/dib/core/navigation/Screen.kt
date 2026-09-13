@@ -6,6 +6,7 @@ sealed class Screen(val route: String) {
     data object SignUp : Screen("signup")
     data object Login : Screen("login")
     data object FindEmail : Screen("find-email")
+    data object PasswordResetLink : Screen("password-reset-link")
     data object Home : Screen("home")
     data object Feed : Screen("feed")
     data object Search : Screen("search")
