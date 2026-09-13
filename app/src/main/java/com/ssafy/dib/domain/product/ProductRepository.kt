@@ -33,7 +33,8 @@ data class ProductUpdate(
     val condition: String,
     val modelName: String?,
     val releaseYear: Int?,
-    val marketPrice: Long?
+    val marketPrice: Long?,
+    val replacementImages: List<ProductImageUpload>? = null
 )
 
 data class ProductUpdateResult(val productId: String, val status: String, val thumbnailUrl: String?, val updatedAt: String)
