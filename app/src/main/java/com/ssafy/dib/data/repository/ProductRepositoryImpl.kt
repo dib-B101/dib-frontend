@@ -36,6 +36,12 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
+    override fun searchProducts(query: String, categoryId: String?, size: Int): ApiResult<List<RegisteredProduct>> =
+        when (val result = remote.searchProducts(query, categoryId, size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map(ProductCardDto::toDomain), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult> =
         when (val result = remote.registerProduct(registration)) {
             is ApiResult.Success -> ApiResult.Success(

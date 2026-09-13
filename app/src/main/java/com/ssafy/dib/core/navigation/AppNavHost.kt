@@ -596,7 +596,7 @@ fun AppNavHost() {
                 searchLoading = true
                 searchError = null
                 coroutineScope.launch {
-                    when (val result = withContext(Dispatchers.IO) {
+                    val result = withContext(Dispatchers.IO) {
                         auth.auctionRepository.getGeneralAuctions(
                             size = 100,
                             categoryId = filters.categoryId,
@@ -604,8 +604,29 @@ fun AppNavHost() {
                             minPrice = filters.minPrice,
                             maxPrice = filters.maxPrice
                         )
-                    }) {
-                        is ApiResult.Success -> searchAuctions = result.value.map { it.toHomeAuction() }
+                    }
+                    when (result) {
+                        is ApiResult.Success -> {
+                            val filtered = if (filters.query.isBlank()) {
+                                result.value
+                            } else if (signedIn == true) {
+                                when (val products = withContext(Dispatchers.IO) {
+                                    auth.productRepository.searchProducts(filters.query, filters.categoryId)
+                                }) {
+                                    is ApiResult.Success -> {
+                                        val matchingProductIds = products.value.map { it.productId }.toSet()
+                                        result.value.filter { it.productId in matchingProductIds }
+                                    }
+                                    is ApiResult.Failure -> {
+                                        if (products.error.requiresLogin) signedIn = false
+                                        result.value.filter { it.title.contains(filters.query, ignoreCase = true) }
+                                    }
+                                }
+                            } else {
+                                result.value.filter { it.title.contains(filters.query, ignoreCase = true) }
+                            }
+                            searchAuctions = filtered.map { it.toHomeAuction() }
+                        }
                         is ApiResult.Failure -> {
                             searchError = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
                             if (result.error.requiresLogin) signedIn = false
