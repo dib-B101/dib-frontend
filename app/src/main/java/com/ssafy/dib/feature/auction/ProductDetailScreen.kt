@@ -59,6 +59,9 @@ fun ProductDetailScreen(
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
+    bookmarkLoading: Boolean,
+    bookmarkError: String?,
+    onBookmarkChange: (Boolean) -> Unit,
     realtimeStatus: String?,
     realtimeNotice: String?,
     realtimeBiddingEnabled: Boolean,
@@ -84,7 +87,7 @@ fun ProductDetailScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    var favorite by rememberSaveable(productId) { mutableStateOf(false) }
+    var favorite by rememberSaveable(productId) { mutableStateOf(remoteAuction?.bookmarked == true) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
     var remainingSeconds by rememberSaveable(productId) { mutableIntStateOf(if (productId == "lost" || productId == "won") 0 else product.remainingSeconds) }
     var currentPrice by rememberSaveable(productId) { mutableIntStateOf(product.price) }
@@ -117,6 +120,14 @@ fun ProductDetailScreen(
                 if (isHighestBidder && updated.price > ownBid) isHighestBidder = false
             }
         }
+    }
+
+    LaunchedEffect(remoteAuction?.bookmarked) {
+        remoteAuction?.let { favorite = it.bookmarked }
+    }
+
+    LaunchedEffect(bookmarkError) {
+        bookmarkError?.let { snackbar.showSnackbar(it) }
     }
 
     LaunchedEffect(realtimeNotice) {
@@ -187,8 +198,9 @@ fun ProductDetailScreen(
                 state = auctionState,
                 submitting = bidSubmitting,
                 onFavorite = { selected ->
-                    if (isAuthenticated) {
+                    if (isAuthenticated && !bookmarkLoading) {
                         favorite = selected
+                        onBookmarkChange(selected)
                         scope.launch {
                             snackbar.showSnackbar(if (selected) "찜 목록에 저장했어요" else "찜에서 삭제했어요")
                         }
