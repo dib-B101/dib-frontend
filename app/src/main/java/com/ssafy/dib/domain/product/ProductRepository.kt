@@ -26,6 +26,18 @@ data class ProductRegistrationResult(
     val createdAt: String
 )
 
+data class ProductUpdate(
+    val title: String,
+    val description: String,
+    val categoryId: String,
+    val condition: String,
+    val modelName: String?,
+    val releaseYear: Int?,
+    val marketPrice: Long?
+)
+
+data class ProductUpdateResult(val productId: String, val status: String, val thumbnailUrl: String?, val updatedAt: String)
+
 data class ProductDetail(
     val productId: String,
     val memberId: String,
@@ -57,5 +69,6 @@ interface ProductRepository {
     fun getMyProducts(status: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
+    fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult>
     fun deleteProduct(productId: String): ApiResult<Unit>
 }

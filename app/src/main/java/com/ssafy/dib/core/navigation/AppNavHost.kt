@@ -47,6 +47,7 @@ import com.ssafy.dib.feature.main.MyTradesScreen
 import com.ssafy.dib.feature.main.NotificationSettingsScreen
 import com.ssafy.dib.feature.main.ProfileEditScreen
 import com.ssafy.dib.feature.main.ProductRegisterScreen
+import com.ssafy.dib.feature.main.ProductEditScreen
 import com.ssafy.dib.feature.main.ProductRegistrationForm
 import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
@@ -943,7 +944,8 @@ fun AppNavHost() {
                 onTabSelected = ::navigateMain
             )
         }
-        composable(Screen.RegisteredProducts.route) {
+        composable(Screen.RegisteredProducts.route) { backStackEntry ->
+            val productsRefresh by backStackEntry.savedStateHandle.getStateFlow("refreshProducts", 0L).collectAsState()
             var registeredProducts by remember { mutableStateOf<List<com.ssafy.dib.domain.product.RegisteredProduct>?>(null) }
             var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var registeredProductsError by remember { mutableStateOf<String?>(null) }
@@ -951,7 +953,7 @@ fun AppNavHost() {
             var deletingProductId by remember { mutableStateOf<String?>(null) }
             var productDeleteError by remember { mutableStateOf<String?>(null) }
 
-            LaunchedEffect(registeredProductsRevision) {
+            LaunchedEffect(registeredProductsRevision, productsRefresh) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 registeredProductsLoading = true
                 registeredProductsError = null
@@ -975,6 +977,7 @@ fun AppNavHost() {
                 deletingProductId = deletingProductId,
                 onRetry = { registeredProductsRevision++ },
                 onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) },
+                onEditProduct = { productId -> navController.navigate(Screen.ProductEdit.createRoute(productId)) },
                 onDeleteProduct = { productId ->
                     deletingProductId = productId
                     productDeleteError = null
@@ -994,6 +997,69 @@ fun AppNavHost() {
                         deletingProductId = null
                     }
                 }
+            )
+        }
+        composable(
+            route = Screen.ProductEdit.route,
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            var editDetail by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
+            var editCategories by remember(productId) { mutableStateOf<List<ProductCategory>>(emptyList()) }
+            var editLoading by remember(productId) { mutableStateOf(true) }
+            var editError by remember(productId) { mutableStateOf<String?>(null) }
+            var editRevision by remember(productId) { mutableStateOf(0) }
+            var editSubmitLoading by remember(productId) { mutableStateOf(false) }
+            var editSubmitError by remember(productId) { mutableStateOf<String?>(null) }
+            var editResult by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductUpdateResult?>(null) }
+
+            LaunchedEffect(productId, editRevision) {
+                editLoading = true
+                editError = null
+                val detailResult = withContext(Dispatchers.IO) { auth.productRepository.getProduct(productId) }
+                val categoriesResult = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }
+                if (detailResult is ApiResult.Success && categoriesResult is ApiResult.Success) {
+                    editDetail = detailResult.value
+                    editCategories = categoriesResult.value
+                } else {
+                    val failure = (detailResult as? ApiResult.Failure) ?: (categoriesResult as? ApiResult.Failure)
+                    editError = failure?.error?.message?.ifBlank { "상품 정보를 불러오지 못했어요." }
+                }
+                editLoading = false
+            }
+
+            ProductEditScreen(
+                detail = editDetail,
+                categories = editCategories,
+                isLoading = editLoading,
+                errorMessage = editError,
+                submitLoading = editSubmitLoading,
+                submitError = editSubmitError,
+                result = editResult,
+                onRetry = { editRevision++ },
+                onSubmit = { update ->
+                    editSubmitLoading = true
+                    editSubmitError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.productRepository.updateProduct(productId, update) }) {
+                            is ApiResult.Success -> editResult = result.value
+                            is ApiResult.Failure -> {
+                                editSubmitError = when (result.error.code) {
+                                    "PRODUCT_NOT_EDITABLE" -> "진행 중인 경매나 거래가 있어 수정할 수 없어요."
+                                    "PRODUCT_NOT_FOUND" -> "상품을 찾을 수 없어요."
+                                    "FORBIDDEN" -> "본인이 등록한 상품만 수정할 수 있어요."
+                                    else -> result.error.message.ifBlank { "상품을 수정하지 못했어요." }
+                                }
+                            }
+                        }
+                        editSubmitLoading = false
+                    }
+                },
+                onComplete = {
+                    navController.previousBackStackEntry?.savedStateHandle?.set("refreshProducts", System.currentTimeMillis())
+                    navController.popBackStack()
+                },
+                onBack = navController::navigateUp
             )
         }
         composable(

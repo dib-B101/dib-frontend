@@ -87,6 +87,7 @@ fun RegisteredProductsScreen(
     deletingProductId: String?,
     onRetry: () -> Unit,
     onAuctionRegister: (String) -> Unit,
+    onEditProduct: (String) -> Unit,
     onDeleteProduct: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -115,7 +116,10 @@ fun RegisteredProductsScreen(
                     Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
+                        if (canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
+                            Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
+                        }
                     }
                 }
             }

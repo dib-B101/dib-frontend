@@ -9,6 +9,8 @@ import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.domain.product.ProductDetail
+import com.ssafy.dib.domain.product.ProductUpdate
+import com.ssafy.dib.domain.product.ProductUpdateResult
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.product.ProductRepository
 import kotlinx.serialization.json.JsonPrimitive
@@ -49,6 +51,12 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
         }
 
     override fun deleteProduct(productId: String): ApiResult<Unit> = remote.deleteProduct(productId)
+
+    override fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult> =
+        when (val result = remote.updateProduct(productId, update)) {
+            is ApiResult.Success -> ApiResult.Success(ProductUpdateResult(result.value.productId.idValue(), result.value.status, result.value.thumbnailUrl, result.value.updatedAt), result.status)
+            is ApiResult.Failure -> result
+        }
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
