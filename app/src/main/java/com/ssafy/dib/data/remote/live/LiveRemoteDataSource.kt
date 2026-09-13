@@ -13,6 +13,11 @@ class LiveRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).url(url).get().build(), LiveFeedResponse.serializer())
     }
 
+    fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetailResponse> = configured {
+        val path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId"
+        client.execute(client.requestBuilder(path).get().build(), LiveBroadcastDetailResponse.serializer())
+    }
+
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String?, size: Int): ApiResult<LiveChatMessageListResponse> = configured {
         val path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/messages"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())

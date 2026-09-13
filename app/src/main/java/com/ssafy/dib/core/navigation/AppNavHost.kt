@@ -542,6 +542,9 @@ fun AppNavHost() {
             var liveFeedError by remember { mutableStateOf<String?>(null) }
             var liveFeedRevision by remember { mutableStateOf(0) }
             var activeLiveBroadcastId by remember { mutableStateOf<String?>(null) }
+            var liveAuctionLists by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
+            var liveDetailLoading by remember { mutableStateOf(false) }
+            var liveDetailError by remember { mutableStateOf<String?>(null) }
             var liveComments by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
             var liveChatError by remember { mutableStateOf<String?>(null) }
             var liveChatState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
@@ -575,6 +578,32 @@ fun AppNavHost() {
                         if (result.error.requiresLogin) signedIn = false
                     }
                 }
+            }
+            LaunchedEffect(activeLiveBroadcastId, liveFeedRevision) {
+                val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                liveDetailLoading = true
+                liveDetailError = null
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
+                    is ApiResult.Success -> {
+                        val detail = result.value
+                        liveAuctionLists = liveAuctionLists + (liveId to detail.auctions)
+                        liveFeedItems = liveFeedItems?.map { item ->
+                            if (item.liveBroadcastId == liveId) item.copy(
+                                title = detail.title,
+                                description = detail.description,
+                                streamUrl = detail.streamUrl,
+                                viewCount = detail.viewCount,
+                                currentAuction = detail.currentAuction
+                            ) else item
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        liveDetailError = result.error.message.ifBlank { "Live 상품 목록을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                liveDetailLoading = false
             }
             DisposableEffect(activeLiveBroadcastId, signedIn, auth.networkConfig.isWebSocketConfigured) {
                 val liveId = activeLiveBroadcastId
@@ -621,6 +650,18 @@ fun AppNavHost() {
                                         currentAuction = updatedAuction
                                     )
                                 }
+                                update.auctionId?.let { auctionId ->
+                                    liveAuctionLists[targetLiveId]?.let { auctions ->
+                                        liveAuctionLists = liveAuctionLists + (targetLiveId to auctions.map { auction ->
+                                            if (auction.auctionId == auctionId) auction.copy(
+                                                currentPrice = update.currentPrice ?: auction.currentPrice,
+                                                bidCount = update.bidCount ?: auction.bidCount,
+                                                remainingSeconds = update.remainingSeconds ?: auction.remainingSeconds,
+                                                status = update.status ?: auction.status
+                                            ) else auction
+                                        })
+                                    }
+                                }
                                 if (update.bidAccepted != null && update.commandId == pendingLiveBidCommandId) {
                                     liveBidFeedback = RealtimeBidFeedback(
                                         accepted = update.bidAccepted,
@@ -652,6 +693,9 @@ fun AppNavHost() {
                 onRetry = { liveFeedRevision++ },
                 activeLiveBroadcastId = activeLiveBroadcastId,
                 liveComments = liveComments,
+                liveAuctionsByBroadcast = liveAuctionLists,
+                productListLoading = liveDetailLoading,
+                productListError = liveDetailError,
                 chatError = liveChatError,
                 chatConnectionState = liveChatState,
                 onLiveVisible = { liveId ->

@@ -3,6 +3,7 @@ package com.ssafy.dib
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.live.LiveFeedResponse
 import com.ssafy.dib.data.remote.live.LiveChatMessageListResponse
+import com.ssafy.dib.data.remote.live.LiveBroadcastDetailResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -32,5 +33,17 @@ class LiveContractTest {
         assertEquals("81", response.items.single().liveChattingId.toString())
         assertEquals("17", response.items.single().memberId.toString())
         assertEquals("다음 상품 궁금해요", response.items.single().content)
+    }
+
+    @Test
+    fun decodesLiveDetailWithScheduledAndCurrentAuctions() {
+        val response = DibJson.instance.decodeFromString(
+            LiveBroadcastDetailResponse.serializer(),
+            """{"liveBroadcastId":5,"memberId":17,"title":"도자기 경매","status":"LIVE","streamUrl":"https://stream.example/live.m3u8","viewCount":248,"auctions":[{"auctionId":31,"productId":8,"startPrice":10000,"currentPrice":12500,"status":"ACTIVE","product":{"title":"달빛 유약 머그컵","thumbnailUrl":"https://cdn.example/mug.jpg"}},{"auctionId":32,"productId":9,"startPrice":20000,"status":"SCHEDULED","product":{"title":"수제 화병"}}],"currentAuction":{"auctionId":31,"productId":8,"startPrice":10000,"currentPrice":12500,"status":"ACTIVE"}}"""
+        )
+
+        assertEquals(2, response.auctions.size)
+        assertEquals("달빛 유약 머그컵", response.auctions.first().product?.title)
+        assertEquals("31", response.currentAuction?.auctionId.toString())
     }
 }

@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.live.LiveChatMessage
+import com.ssafy.dib.domain.live.LiveBroadcastDetail
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -42,6 +43,23 @@ class LiveRepositoryImpl(
             }, result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetail> = when (val result = remote.getDetail(liveBroadcastId)) {
+        is ApiResult.Success -> ApiResult.Success(result.value.let { live ->
+            LiveBroadcastDetail(
+                liveBroadcastId = live.liveBroadcastId.idValue(),
+                memberId = live.memberId?.idValue().orEmpty(),
+                title = live.title,
+                description = live.description,
+                status = live.status,
+                streamUrl = live.streamUrl,
+                viewCount = live.viewCount.coerceAtLeast(0),
+                auctions = live.auctions.map { it.toDomain(now()) },
+                currentAuction = live.currentAuction?.toDomain(now())
+            )
+        }, result.status)
+        is ApiResult.Failure -> result
+    }
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

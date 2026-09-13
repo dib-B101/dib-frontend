@@ -32,6 +32,22 @@ data class LiveBroadcastDto(
 )
 
 @Serializable
+data class LiveBroadcastDetailResponse(
+    val liveBroadcastId: JsonElement,
+    val memberId: JsonElement? = null,
+    val title: String = "Live",
+    val description: String? = null,
+    val status: String = "",
+    val streamUrl: String? = null,
+    val scheduledAt: String? = null,
+    val startedAt: String? = null,
+    val endedAt: String? = null,
+    val viewCount: Int = 0,
+    val auctions: List<AuctionDto> = emptyList(),
+    val currentAuction: AuctionDto? = null
+)
+
+@Serializable
 data class LiveChatMessageListResponse(
     val items: List<LiveChatMessageDto> = emptyList(),
     val hasMore: Boolean = false

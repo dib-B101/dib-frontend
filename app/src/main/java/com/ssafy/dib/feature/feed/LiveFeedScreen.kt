@@ -53,6 +53,8 @@ import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
+import com.ssafy.dib.domain.auction.AuctionSummary
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -75,6 +77,9 @@ fun LiveFeedScreen(
     onRetry: () -> Unit,
     activeLiveBroadcastId: String?,
     liveComments: List<LiveChatMessage>,
+    liveAuctionsByBroadcast: Map<String, List<AuctionSummary>>,
+    productListLoading: Boolean,
+    productListError: String?,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onLiveVisible: (String) -> Unit,
@@ -113,6 +118,9 @@ fun LiveFeedScreen(
                     liveItem = items[page],
                     isActivePage = page == pagerState.currentPage,
                     liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
+                    liveAuctions = items[page]?.liveBroadcastId?.let(liveAuctionsByBroadcast::get),
+                    productListLoading = productListLoading && items[page]?.liveBroadcastId == activeLiveBroadcastId,
+                    productListError = productListError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
                     chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
                     chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
                     onSendComment = onSendComment,
@@ -138,6 +146,9 @@ private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
     isActivePage: Boolean,
     liveComments: List<LiveChatMessage>,
+    liveAuctions: List<AuctionSummary>?,
+    productListLoading: Boolean,
+    productListError: String?,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onSendComment: (String) -> Boolean,
@@ -154,6 +165,7 @@ private fun LiveFeedPage(
     modifier: Modifier = Modifier
 ) {
     val activeAuction = liveItem?.currentAuction
+    val productAuctions = liveAuctions ?: listOfNotNull(activeAuction)
     val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
     val depositPaid = auctionKey in depositPaidAuctionIds
     var following by rememberSaveable { mutableStateOf(true) }
@@ -256,7 +268,13 @@ private fun LiveFeedPage(
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Surface(color = Color.White, shape = RoundedCornerShape(16.dp), shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth().height(116.dp).animateContentSize()) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
-                    Text(if (activeAuction != null) "현재 경매 상품 · 상세  ↑" else "상품 2 / 5 · 전체 목록  ↑", Modifier.clickable { showProducts = true }, color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (activeAuction != null) "현재 경매 상품 · 전체 ${productAuctions.size.coerceAtLeast(1)}개  ↑" else "전체 상품 ${productAuctions.size}개  ↑",
+                        Modifier.clickable { showProducts = true },
+                        color = Colors.Muted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(52.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(8.dp)))
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
@@ -287,15 +305,27 @@ private fun LiveFeedPage(
 
     if (showProducts) ModalBottomSheet(onDismissRequest = { showProducts = false }, containerColor = Color.White) {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp).navigationBarsPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val count = if (activeAuction == null) 5 else 1
-            item { Text("라이브 상품 ${count}개", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            items(count) { index ->
+            val displayedAuctions = if (liveItem == null && productAuctions.isEmpty()) emptyList() else productAuctions
+            item { Text("라이브 상품 ${if (liveItem == null) 5 else displayedAuctions.size}개", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            if (productListLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
+            productListError?.let { message -> item { Text(message, color = Colors.Live, fontSize = 12.sp) } }
+            if (liveItem != null && !productListLoading && displayedAuctions.isEmpty()) item { Text("편성된 상품이 없어요.", color = Colors.Muted, fontSize = 13.sp) }
+            items(if (liveItem == null) 5 else displayedAuctions.size) { index ->
+                val auction = displayedAuctions.getOrNull(index)
                 Row(Modifier.fillMaxWidth().height(72.dp).clickable {
                     showProducts = false
-                    if (isAuthenticated) onProductClick(activeAuction?.auctionId ?: if (index == 1) "camera" else "headphones") else onLoginRequired()
+                    if (isAuthenticated) onProductClick(auction?.auctionId ?: if (index == 1) "camera" else "headphones") else onLoginRequired()
                 }, verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(64.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)))
-                    Column(Modifier.padding(start = 12.dp)) { Text(activeAuction?.title ?: listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold); Text(if (activeAuction != null || index == 1) "● 현재 경매 중" else "대기", color = if (activeAuction != null || index == 1) Colors.Live else Colors.Muted, fontSize = 11.sp) }
+                    if (auction != null) {
+                        DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)))
+                    } else {
+                        Box(Modifier.size(64.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)))
+                    }
+                    val isCurrent = auction?.auctionId == activeAuction?.auctionId || (auction == null && index == 1)
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(auction?.title ?: listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold)
+                        Text(if (isCurrent) "● 현재 경매 중" else if (auction?.status == "ENDED") "종료" else "대기", color = if (isCurrent) Colors.Live else Colors.Muted, fontSize = 11.sp)
+                    }
                 }
             }
         }

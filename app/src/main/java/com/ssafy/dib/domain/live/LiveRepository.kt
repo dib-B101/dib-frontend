@@ -21,7 +21,20 @@ data class LiveChatMessage(
     val time: String
 )
 
+data class LiveBroadcastDetail(
+    val liveBroadcastId: String,
+    val memberId: String,
+    val title: String,
+    val description: String?,
+    val status: String,
+    val streamUrl: String?,
+    val viewCount: Int,
+    val auctions: List<AuctionSummary>,
+    val currentAuction: AuctionSummary?
+)
+
 interface LiveRepository {
     fun getFeed(size: Int = 20): ApiResult<List<LiveFeedItem>>
+    fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetail>
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<List<LiveChatMessage>>
 }
