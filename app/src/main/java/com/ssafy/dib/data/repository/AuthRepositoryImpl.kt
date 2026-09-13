@@ -24,8 +24,14 @@ class AuthRepositoryImpl(
     override fun currentSession(): AuthSession? = sessionStore.read()
 
     override fun requestSignUpPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
+        requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.SIGN_UP)
+
+    override fun requestSensitivePhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
+        requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.CHANGE_SENSITIVE)
+
+    private fun requestPhoneVerification(phoneNumber: String, purpose: PhoneVerificationPurpose): ApiResult<PhoneVerificationChallenge> =
         when (val result = remote.requestPhoneVerification(
-            PhoneVerificationRequest(phoneNumber, PhoneVerificationPurpose.SIGN_UP)
+            PhoneVerificationRequest(phoneNumber, purpose)
         )) {
             is ApiResult.Success -> ApiResult.Success(
                 PhoneVerificationChallenge(

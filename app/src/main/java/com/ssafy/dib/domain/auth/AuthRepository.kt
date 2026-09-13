@@ -45,6 +45,7 @@ interface AuthSessionStore {
 interface AuthRepository {
     fun currentSession(): AuthSession?
     fun requestSignUpPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
+    fun requestSensitivePhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
     fun confirmPhoneVerification(
         verificationId: String,
         code: String
