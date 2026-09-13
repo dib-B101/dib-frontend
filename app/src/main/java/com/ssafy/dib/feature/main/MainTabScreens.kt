@@ -33,6 +33,7 @@ import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -47,7 +48,8 @@ private data class TradeItem(
     val meta: String,
     val action: String,
     val tone: TradeTone,
-    val orderId: String = "sample"
+    val orderId: String = "sample",
+    val auctionId: String = "sample"
 )
 
 @Composable
@@ -57,15 +59,20 @@ fun MyTradesScreen(
     onTransactionClick: (role: String, orderId: String) -> Unit,
     remotePurchaseOrders: List<OrderSummary>?,
     remoteSaleOrders: List<OrderSummary>?,
+    remoteBids: List<BidHistoryItem>?,
     remoteLoading: Boolean,
     remoteError: String?,
+    bidsLoading: Boolean,
+    bidsError: String?,
     onRetry: () -> Unit,
+    onBidsRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.List) }
     val items = when (selected) {
-        TradeTab.Bid -> listOf(
+        TradeTab.Bid -> remoteBids?.map(BidHistoryItem::toTradeItem)
+            ?: if (bidsLoading || bidsError != null) emptyList() else listOf(
             TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "현재가보다 높게 입찰하기 →", TradeTone.Urgent),
             TradeItem("최고 입찰자", "빈티지 스니커즈", "내 입찰가 58,000원 · 마감 12분", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("경매 종료", "레더 숄더백", "최종가 72,000원 · 미낙찰", "결과 확인하기 →", TradeTone.Neutral)
@@ -83,6 +90,8 @@ fun MyTradesScreen(
             TradeItem("판매 완료", "원목 라운지 체어", "구매 확정 · 정산 예정", "거래 내역 보기 →", TradeTone.Neutral)
         )
     }
+    val selectedLoading = if (selected == TradeTab.Bid) bidsLoading else remoteLoading
+    val selectedError = if (selected == TradeTab.Bid) bidsError else remoteError
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
@@ -109,13 +118,13 @@ fun MyTradesScreen(
                     DibViewModeToggle(contentView, { contentView = it })
                 }
             }
-            if (selected != TradeTab.Bid && remoteLoading) {
+            if (selectedLoading) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(vertical = 28.dp), horizontalArrangement = Arrangement.Center) {
                         CircularProgressIndicator(color = Colors.Navy)
                     }
                 }
-            } else if (selected != TradeTab.Bid && remoteError != null) {
+            } else if (selectedError != null) {
                 item {
                     Column(
                         Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
@@ -123,8 +132,8 @@ fun MyTradesScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(remoteError, color = Colors.Muted, fontSize = 12.sp)
-                        OutlinedButton(onClick = onRetry) { Text("다시 불러오기") }
+                        Text(selectedError, color = Colors.Muted, fontSize = 12.sp)
+                        OutlinedButton(onClick = if (selected == TradeTab.Bid) onBidsRetry else onRetry) { Text("다시 불러오기") }
                     }
                 }
             } else if (items.isEmpty()) {
@@ -137,11 +146,11 @@ fun MyTradesScreen(
                     )
                 }
             }
-            if (!remoteLoading && remoteError == null && contentView == DibContentView.List) {
+            if (!selectedLoading && selectedError == null && contentView == DibContentView.List) {
                 items(items.size) { index ->
                     TradeCard(items[index]) { openTradeItem(selected, items[index], onProductClick, onTransactionClick) }
                 }
-            } else if (!remoteLoading && remoteError == null) {
+            } else if (!selectedLoading && selectedError == null) {
                 items(items.chunked(2).size) { rowIndex ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         val row = items.chunked(2)[rowIndex]
@@ -155,6 +164,15 @@ fun MyTradesScreen(
         }
     }
 }
+
+private fun BidHistoryItem.toTradeItem() = TradeItem(
+    status = "입찰 참여",
+    title = "경매 #$auctionId",
+    meta = "내 입찰가 ${"%,d".format(amount)}원 · ${createdAt.take(16).replace('T', ' ')}",
+    action = "경매 상태 보기 →",
+    tone = TradeTone.Positive,
+    auctionId = auctionId
+)
 
 private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
     val normalized = status.uppercase()
@@ -191,7 +209,7 @@ private fun openTradeItem(
     onTransactionClick: (role: String, orderId: String) -> Unit
 ) {
     if (selected == TradeTab.Bid) {
-        onProductClick(if (item.status == "경매 종료") "lost" else if (item.title.contains("카메라")) "camera" else "sneakers")
+        onProductClick(item.auctionId.takeIf { it != "sample" } ?: if (item.status == "경매 종료") "lost" else if (item.title.contains("카메라")) "camera" else "sneakers")
     } else {
         onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer", item.orderId)
     }

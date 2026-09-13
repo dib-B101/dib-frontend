@@ -6,6 +6,7 @@ import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.auction.AuctionCommandResult
+import com.ssafy.dib.domain.auction.BidHistoryItem
 import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
@@ -38,6 +39,22 @@ class AuctionRepositoryImpl(
     override fun getBookmarks(size: Int): ApiResult<List<AuctionSummary>> =
         when (val result = remote.getBookmarks(size)) {
             is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getMyBids(size: Int): ApiResult<List<BidHistoryItem>> =
+        when (val result = remote.getMyBids(size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                result.value.items.map { bid ->
+                    BidHistoryItem(
+                        bidId = bid.bidId.idValue(),
+                        auctionId = bid.auctionId.idValue(),
+                        amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        createdAt = bid.createdAt
+                    )
+                },
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

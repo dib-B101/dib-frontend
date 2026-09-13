@@ -98,6 +98,10 @@ fun AppNavHost() {
     var ordersLoading by remember { mutableStateOf(false) }
     var ordersError by remember { mutableStateOf<String?>(null) }
     var ordersRevision by remember { mutableStateOf(0) }
+    var bidHistory by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.BidHistoryItem>?>(null) }
+    var bidHistoryLoading by remember { mutableStateOf(false) }
+    var bidHistoryError by remember { mutableStateOf<String?>(null) }
+    var bidHistoryRevision by remember { mutableStateOf(0) }
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
@@ -200,6 +204,20 @@ fun AppNavHost() {
             (sellerResult is ApiResult.Failure && sellerResult.error.requiresLogin)
         ) signedIn = false
         ordersLoading = false
+    }
+
+    LaunchedEffect(bidHistoryRevision, signedIn) {
+        if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        bidHistoryLoading = true
+        bidHistoryError = null
+        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getMyBids() }) {
+            is ApiResult.Success -> bidHistory = result.value
+            is ApiResult.Failure -> {
+                bidHistoryError = result.error.message.ifBlank { "입찰 내역을 불러오지 못했어요." }
+                if (result.error.requiresLogin) signedIn = false
+            }
+        }
+        bidHistoryLoading = false
     }
 
     NavHost(
@@ -837,9 +855,13 @@ fun AppNavHost() {
                 },
                 remotePurchaseOrders = purchaseOrders,
                 remoteSaleOrders = saleOrders,
+                remoteBids = bidHistory,
                 remoteLoading = ordersLoading,
                 remoteError = ordersError,
-                onRetry = { ordersRevision++ }
+                bidsLoading = bidHistoryLoading,
+                bidsError = bidHistoryError,
+                onRetry = { ordersRevision++ },
+                onBidsRetry = { bidHistoryRevision++ }
             )
         }
         composable(
