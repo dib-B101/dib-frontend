@@ -34,6 +34,7 @@ import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.feature.home.allHomeAuctions
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.domain.product.ProductDetail
+import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,6 +60,12 @@ fun ProductDetailScreen(
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
+    bidHistory: List<AuctionBidHistoryItem>?,
+    bidHistoryLoading: Boolean,
+    bidHistoryError: String?,
+    bidHistoryHasNext: Boolean,
+    onBidHistoryRetry: () -> Unit,
+    onBidHistoryLoadMore: () -> Unit,
     bookmarkLoading: Boolean,
     bookmarkError: String?,
     onBookmarkChange: (Boolean) -> Unit,
@@ -246,6 +253,16 @@ fun ProductDetailScreen(
             }
             item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition) }
             item {
+                AuctionBidHistorySection(
+                    items = bidHistory,
+                    isLoading = bidHistoryLoading,
+                    errorMessage = bidHistoryError,
+                    hasNext = bidHistoryHasNext,
+                    onRetry = onBidHistoryRetry,
+                    onLoadMore = onBidHistoryLoadMore
+                )
+            }
+            item {
                 SellerSummary(productDetail, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
             }
             item {
@@ -289,6 +306,54 @@ fun ProductDetailScreen(
         )
     }
 }
+
+@Composable
+private fun AuctionBidHistorySection(
+    items: List<AuctionBidHistoryItem>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    hasNext: Boolean,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("입찰 이력", Modifier.weight(1f), fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+            Text("입찰자 정보는 안전하게 가려져요", color = Colors.Muted, fontSize = 10.sp)
+        }
+        errorMessage?.let { message ->
+            Row(Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                TextButton(onRetry) { Text("재시도", fontSize = 11.sp) }
+            }
+        }
+        if (items.isNullOrEmpty() && isLoading) {
+            Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), color = Colors.Mint, strokeWidth = 2.dp) }
+        } else if (items.isNullOrEmpty() && errorMessage == null) {
+            Text("아직 입찰 내역이 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(10.dp)).padding(16.dp), color = Colors.Muted, fontSize = 12.sp)
+        } else {
+            val historyItems = items.orEmpty()
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Colors.Border)) {
+                historyItems.forEachIndexed { index, bid ->
+                    Row(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(bid.maskedBidderId, color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(formatBidCreatedAt(bid.createdAt), color = Colors.Muted, fontSize = 10.sp)
+                        }
+                        Text("${"%,d".format(bid.amount)}원", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    if (index < historyItems.lastIndex) HorizontalDivider(color = Colors.Border)
+                }
+            }
+            if (hasNext) OutlinedButton(onLoadMore, Modifier.fillMaxWidth().height(44.dp), enabled = !isLoading, shape = RoundedCornerShape(10.dp)) {
+                if (isLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Colors.Navy, strokeWidth = 2.dp) else Text("입찰 이력 더 보기", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    HorizontalDivider(color = Colors.Border)
+}
+
+private fun formatBidCreatedAt(value: String): String = value.take(16).replace('T', ' ')
 
 @Composable
 private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit) {

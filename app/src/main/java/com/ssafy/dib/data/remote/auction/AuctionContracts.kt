@@ -68,3 +68,18 @@ data class BidHistoryDto(
     val amount: Long,
     val createdAt: String
 )
+
+@Serializable
+data class AuctionBidHistoryListResponse(
+    val items: List<MaskedBidHistoryDto> = emptyList(),
+    val nextCursor: String? = null,
+    val hasNext: Boolean = false
+)
+
+@Serializable
+data class MaskedBidHistoryDto(
+    val bidId: JsonElement,
+    val maskedBidderId: String,
+    val amount: Long,
+    val createdAt: String
+)
