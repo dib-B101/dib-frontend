@@ -1037,21 +1037,42 @@ fun AppNavHost() {
                 submitError = editSubmitError,
                 result = editResult,
                 onRetry = { editRevision++ },
-                onSubmit = { update ->
+                onSubmit = { update, imageUris ->
                     editSubmitLoading = true
                     editSubmitError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.productRepository.updateProduct(productId, update) }) {
-                            is ApiResult.Success -> editResult = result.value
-                            is ApiResult.Failure -> {
-                                editSubmitError = when (result.error.code) {
-                                    "PRODUCT_NOT_EDITABLE" -> "진행 중인 경매나 거래가 있어 수정할 수 없어요."
-                                    "PRODUCT_NOT_FOUND" -> "상품을 찾을 수 없어요."
-                                    "FORBIDDEN" -> "본인이 등록한 상품만 수정할 수 있어요."
-                                    else -> result.error.message.ifBlank { "상품을 수정하지 못했어요." }
+                        val replacementImages = withContext(Dispatchers.IO) {
+                            runCatching {
+                                imageUris?.mapIndexed { index, uri ->
+                                    val secondaryTypes = listOf("LEFT", "RIGHT", "TOP", "BOTTOM", "BACK")
+                                    ProductImageUpload(
+                                        fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-update-$index.jpg",
+                                        mediaType = context.contentResolver.getType(uri) ?: "image/jpeg",
+                                        bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("선택한 사진을 읽을 수 없습니다."),
+                                        type = if (index == 0) "FRONT" else secondaryTypes[(index - 1) % secondaryTypes.size]
+                                    )
                                 }
                             }
                         }
+                        replacementImages.fold(
+                            onSuccess = { images ->
+                                when (val result = withContext(Dispatchers.IO) { auth.productRepository.updateProduct(productId, update.copy(replacementImages = images)) }) {
+                                    is ApiResult.Success -> editResult = result.value
+                                    is ApiResult.Failure -> {
+                                        editSubmitError = when (result.error.code) {
+                                            "PRODUCT_NOT_EDITABLE" -> "진행 중인 경매나 거래가 있어 수정할 수 없어요."
+                                            "PRODUCT_NOT_FOUND" -> "상품을 찾을 수 없어요."
+                                            "FORBIDDEN" -> "본인이 등록한 상품만 수정할 수 있어요."
+                                            "IMAGE_REQUIRED" -> "상품 이미지를 한 장 이상 선택해주세요."
+                                            "FILE_TOO_LARGE" -> "이미지 용량이 너무 커요."
+                                            "FILE_COUNT_EXCEEDED" -> "상품 이미지는 최대 10장까지 등록할 수 있어요."
+                                            else -> result.error.message.ifBlank { "상품을 수정하지 못했어요." }
+                                        }
+                                    }
+                                }
+                            },
+                            onFailure = { editSubmitError = it.message ?: "선택한 사진을 읽지 못했어요." }
+                        )
                         editSubmitLoading = false
                     }
                 },

@@ -84,14 +84,18 @@ class ProductRemoteDataSource(
 
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResponse> = configured {
         val categoryId = update.categoryId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(update.categoryId)
-        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice)
-        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+        val imageItems = update.replacementImages?.mapIndexed { index, image -> ProductUpdateImageItem(newFileIndex = index, type = image.type) }
+        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice, imageItems)
+        val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart(
                 "product",
                 null,
                 DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload).toRequestBody("application/json".toMediaType())
             )
-            .build()
+        update.replacementImages?.forEach { image ->
+            multipartBuilder.addFormDataPart("newImages", image.fileName, image.bytes.toRequestBody(image.mediaType.toMediaTypeOrNull()))
+        }
+        val multipart = multipartBuilder.build()
         val path = "${ApiRoutes.PRODUCTS}/$productId"
         client.execute(client.requestBuilder(path).patch(multipart).build(), ProductUpdateResponse.serializer())
     }

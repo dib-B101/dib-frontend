@@ -33,7 +33,15 @@ data class ProductUpdatePayload(
     val condition: String? = null,
     val modelName: String? = null,
     val releaseYear: Int? = null,
-    val marketPrice: Long? = null
+    val marketPrice: Long? = null,
+    val imageItems: List<ProductUpdateImageItem>? = null
+)
+
+@Serializable
+data class ProductUpdateImageItem(
+    val productImageId: JsonElement? = null,
+    val newFileIndex: Int? = null,
+    val type: String
 )
 
 @Serializable

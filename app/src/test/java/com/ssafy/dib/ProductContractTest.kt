@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.product.CategoryListResponse
 import com.ssafy.dib.data.remote.product.ProductCreatePayload
 import com.ssafy.dib.data.remote.product.ProductDetailResponse
 import com.ssafy.dib.data.remote.product.ProductListResponse
+import com.ssafy.dib.data.remote.product.ProductUpdateImageItem
 import com.ssafy.dib.data.remote.product.ProductUpdatePayload
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
@@ -90,5 +91,23 @@ class ProductContractTest {
         assertTrue(encoded.contains("\"categoryId\":3"))
         assertTrue(encoded.contains("\"releaseYear\":1982"))
         assertTrue(!encoded.contains("modelName"))
+    }
+
+    @Test
+    fun productUpdatePayloadMapsReplacementImagesByMultipartIndex() {
+        val payload = ProductUpdatePayload(
+            imageItems = listOf(
+                ProductUpdateImageItem(newFileIndex = 0, type = "FRONT"),
+                ProductUpdateImageItem(newFileIndex = 1, type = "LEFT")
+            )
+        )
+
+        val encoded = DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload)
+
+        assertTrue(encoded.contains("\"newFileIndex\":0"))
+        assertTrue(encoded.contains("\"type\":\"FRONT\""))
+        assertTrue(encoded.contains("\"newFileIndex\":1"))
+        assertTrue(encoded.contains("\"type\":\"LEFT\""))
+        assertTrue(!encoded.contains("productImageId"))
     }
 }
