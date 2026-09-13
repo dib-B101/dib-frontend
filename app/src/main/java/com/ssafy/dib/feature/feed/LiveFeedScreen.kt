@@ -80,6 +80,9 @@ fun LiveFeedScreen(
     liveAuctionsByBroadcast: Map<String, List<AuctionSummary>>,
     productListLoading: Boolean,
     productListError: String?,
+    reportSubmitting: Boolean,
+    reportError: String?,
+    reportCompleted: Boolean,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onLiveVisible: (String) -> Unit,
@@ -93,6 +96,8 @@ fun LiveFeedScreen(
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
     onLoginRequired: () -> Unit,
+    onReportParticipant: (String, String, String) -> Unit,
+    onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -121,6 +126,9 @@ fun LiveFeedScreen(
                     liveAuctions = items[page]?.liveBroadcastId?.let(liveAuctionsByBroadcast::get),
                     productListLoading = productListLoading && items[page]?.liveBroadcastId == activeLiveBroadcastId,
                     productListError = productListError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
+                    reportSubmitting = reportSubmitting,
+                    reportError = reportError,
+                    reportCompleted = reportCompleted,
                     chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
                     chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
                     onSendComment = onSendComment,
@@ -133,6 +141,8 @@ fun LiveFeedScreen(
                     onClose = onClose,
                     onProductClick = onProductClick,
                     onLoginRequired = onLoginRequired,
+                    onReportParticipant = onReportParticipant,
+                    onDismissReport = onDismissReport,
                     onDepositPayment = onDepositPayment
                 )
             }
@@ -149,6 +159,9 @@ private fun LiveFeedPage(
     liveAuctions: List<AuctionSummary>?,
     productListLoading: Boolean,
     productListError: String?,
+    reportSubmitting: Boolean,
+    reportError: String?,
+    reportCompleted: Boolean,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onSendComment: (String) -> Boolean,
@@ -161,6 +174,8 @@ private fun LiveFeedPage(
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
     onLoginRequired: () -> Unit,
+    onReportParticipant: (String, String, String) -> Unit,
+    onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -178,6 +193,8 @@ private fun LiveFeedPage(
     var showBidFeedback by remember { mutableStateOf(false) }
     var bidFeedbackAccepted by remember { mutableStateOf(true) }
     var bidFeedbackMessage by remember { mutableStateOf("") }
+    var reportTarget by remember { mutableStateOf<LiveChatMessage?>(null) }
+    var reportContent by rememberSaveable { mutableStateOf("") }
     val livePulse = rememberInfiniteTransition(label = "livePulse")
     val liveDotAlpha by livePulse.animateFloat(
         initialValue = .4f,
@@ -251,10 +268,27 @@ private fun LiveFeedPage(
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 76.dp, bottom = 230.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                val displayedComments = if (liveItem == null) listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?") else liveComments.takeLast(3).map { message -> "${message.nickname ?: message.memberId}  ${message.content}" }
-                displayedComments.forEach { message ->
-                    Surface(color = Color.Black.copy(alpha = .18f), shape = RoundedCornerShape(9.dp)) {
-                        Text(message, Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
+                if (liveItem == null) {
+                    listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?").forEach { message ->
+                        Surface(color = Color.Black.copy(alpha = .18f), shape = RoundedCornerShape(9.dp)) {
+                            Text(message, Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
+                        }
+                    }
+                } else {
+                    liveComments.takeLast(3).forEach { message ->
+                        Surface(
+                            color = Color.Black.copy(alpha = .18f),
+                            shape = RoundedCornerShape(9.dp),
+                            modifier = Modifier.clickable {
+                                if (isAuthenticated) {
+                                    reportTarget = message
+                                    reportContent = ""
+                                    onDismissReport()
+                                } else onLoginRequired()
+                            }
+                        ) {
+                            Text("${message.nickname ?: message.memberId}  ${message.content}", Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
+                        }
                     }
                 }
             }
@@ -333,6 +367,48 @@ private fun LiveFeedPage(
     if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
         onDepositPayment(auctionKey ?: "camera", submission)
+    }
+    reportTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!reportSubmitting) {
+                    reportTarget = null
+                    onDismissReport()
+                }
+            },
+            title = { Text("${target.nickname ?: target.memberId} 신고") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (reportCompleted) {
+                        Text("신고가 접수됐어요.", color = Colors.MintInk, fontWeight = FontWeight.Bold)
+                    } else {
+                        Text("신고 사유를 구체적으로 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = reportContent,
+                            onValueChange = { reportContent = it.take(500) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            enabled = !reportSubmitting,
+                            placeholder = { Text("욕설, 사기 유도 등") }
+                        )
+                        reportError?.let { Text(it, color = Colors.Live, fontSize = 11.sp) }
+                    }
+                }
+            },
+            confirmButton = {
+                if (reportCompleted) {
+                    TextButton(onClick = { reportTarget = null; onDismissReport() }) { Text("확인") }
+                } else {
+                    TextButton(
+                        onClick = { liveItem?.liveBroadcastId?.let { onReportParticipant(it, target.memberId, reportContent.trim()) } },
+                        enabled = reportContent.isNotBlank() && !reportSubmitting
+                    ) { Text(if (reportSubmitting) "접수 중" else "신고하기") }
+                }
+            },
+            dismissButton = {
+                if (!reportCompleted) TextButton(onClick = { reportTarget = null; onDismissReport() }, enabled = !reportSubmitting) { Text("취소") }
+            }
+        )
     }
 }
 

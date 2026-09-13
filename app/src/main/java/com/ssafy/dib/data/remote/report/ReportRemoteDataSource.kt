@@ -28,6 +28,9 @@ class ReportRemoteDataSource(
     fun reportMember(memberId: String, content: String): ApiResult<CreateReportResponse> =
         create("/api/v1/members/$memberId/reports", CreateReportRequest(content, "MEMBER"))
 
+    fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<CreateReportResponse> =
+        create("${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/participants/$memberId/reports", CreateReportRequest(content, "MEMBER"))
+
     private fun create(path: String, body: CreateReportRequest): ApiResult<CreateReportResponse> = configured {
         client.execute(
             client.requestBuilder(path)
