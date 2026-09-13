@@ -42,6 +42,7 @@ fun HomeScreen(
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
+    onBookmarkChange: (String, Boolean) -> Unit,
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -59,6 +60,12 @@ fun HomeScreen(
     val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4) ?: recommended
     val highlightedDeadline = closingAuctions.firstOrNull() ?: deadlineAuction
 
+    LaunchedEffect(remoteAuctions) {
+        remoteAuctions?.let { auctions ->
+            favoriteIds = auctions.filter(HomeAuction::bookmarked).map(HomeAuction::id)
+        }
+    }
+
     LaunchedEffect(highlightedDeadline.id) {
         deadlineSeconds = highlightedDeadline.remainingSeconds
         while (deadlineSeconds > 0) {
@@ -70,6 +77,7 @@ fun HomeScreen(
     fun updateFavorite(id: String, selected: Boolean) {
         if (isAuthenticated) {
             favoriteIds = if (selected) (favoriteIds + id).distinct() else favoriteIds - id
+            onBookmarkChange(id, selected)
         } else {
             onLoginRequired()
         }

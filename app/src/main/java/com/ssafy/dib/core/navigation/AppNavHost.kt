@@ -121,6 +121,29 @@ fun AppNavHost() {
         }
     }
 
+    fun updateBookmark(auctionId: String, bookmarked: Boolean) {
+        if (signedIn != true) return
+        remoteAuctions = remoteAuctions?.map { auction ->
+            if (auction.id == auctionId) auction.copy(bookmarked = bookmarked) else auction
+        }
+        coroutineScope.launch {
+            when (val result = withContext(Dispatchers.IO) {
+                auth.auctionRepository.setBookmark(auctionId, bookmarked, java.util.UUID.randomUUID().toString())
+            }) {
+                is ApiResult.Success -> remoteAuctions = remoteAuctions?.map { auction ->
+                    if (auction.id == auctionId) auction.copy(bookmarked = result.value) else auction
+                }
+                is ApiResult.Failure -> {
+                    remoteAuctions = remoteAuctions?.map { auction ->
+                        if (auction.id == auctionId) auction.copy(bookmarked = !bookmarked) else auction
+                    }
+                    auctionsError = result.error.message.ifBlank { "찜 상태를 변경하지 못했어요." }
+                    if (result.error.requiresLogin) signedIn = false
+                }
+            }
+        }
+    }
+
     LaunchedEffect(signedIn) {
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
@@ -368,6 +391,7 @@ fun AppNavHost() {
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
                 onRetry = { auctionsRevision++ },
+                onBookmarkChange = ::updateBookmark,
                 onProductClick = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
@@ -536,6 +560,8 @@ fun AppNavHost() {
             var realtimeConnection by remember(productId) { mutableStateOf<AuctionRealtimeConnection?>(null) }
             var pendingBidCommandId by remember(productId) { mutableStateOf<String?>(null) }
             var realtimeBidFeedback by remember(productId) { mutableStateOf<RealtimeBidFeedback?>(null) }
+            var bookmarkLoading by remember(productId) { mutableStateOf(false) }
+            var bookmarkError by remember(productId) { mutableStateOf<String?>(null) }
             LaunchedEffect(productId, detailRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 detailLoading = true
@@ -628,6 +654,31 @@ fun AppNavHost() {
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
+                bookmarkLoading = bookmarkLoading,
+                bookmarkError = bookmarkError,
+                onBookmarkChange = { selected ->
+                    bookmarkLoading = true
+                    bookmarkError = null
+                    remoteDetail = remoteDetail?.copy(bookmarked = selected)
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.setBookmark(productId, selected, java.util.UUID.randomUUID().toString())
+                        }) {
+                            is ApiResult.Success -> {
+                                remoteDetail = remoteDetail?.copy(bookmarked = result.value)
+                                remoteAuctions = remoteAuctions?.map { auction ->
+                                    if (auction.id == productId) auction.copy(bookmarked = result.value) else auction
+                                }
+                            }
+                            is ApiResult.Failure -> {
+                                remoteDetail = remoteDetail?.copy(bookmarked = !selected)
+                                bookmarkError = result.error.message.ifBlank { "찜 상태를 변경하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        bookmarkLoading = false
+                    }
+                },
                 realtimeStatus = when (realtimeState) {
                     RealtimeConnectionState.Connecting -> "실시간 연결 중"
                     RealtimeConnectionState.Connected -> "실시간 연결됨"
@@ -997,10 +1048,55 @@ fun AppNavHost() {
             ProfileEditScreen(onBack = navController::navigateUp)
         }
         composable(Screen.FavoriteAuctions.route) {
+            var favorites by remember { mutableStateOf<List<HomeAuction>?>(null) }
+            var favoritesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var favoritesError by remember { mutableStateOf<String?>(null) }
+            var favoritesRevision by remember { mutableStateOf(0) }
+            var removingAuctionId by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(favoritesRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                favoritesLoading = true
+                favoritesError = null
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBookmarks() }) {
+                    is ApiResult.Success -> favorites = result.value.map { it.toHomeAuction() }
+                    is ApiResult.Failure -> {
+                        favoritesError = result.error.message.ifBlank { "찜한 경매를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                favoritesLoading = false
+            }
             FavoriteAuctionsScreen(
                 onBack = navController::navigateUp,
-                onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
-                onTabSelected = ::navigateMain
+                onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onTabSelected = ::navigateMain,
+                remoteFavorites = favorites,
+                isLoading = favoritesLoading,
+                errorMessage = favoritesError,
+                removingAuctionId = removingAuctionId,
+                onRetry = { favoritesRevision++ },
+                onRemove = { auctionId ->
+                    removingAuctionId = auctionId
+                    favoritesError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.setBookmark(auctionId, false, java.util.UUID.randomUUID().toString())
+                        }) {
+                            is ApiResult.Success -> {
+                                favorites = favorites?.filterNot { it.id == auctionId }
+                                remoteAuctions = remoteAuctions?.map { auction ->
+                                    if (auction.id == auctionId) auction.copy(bookmarked = false) else auction
+                                }
+                            }
+                            is ApiResult.Failure -> {
+                                favoritesError = result.error.message.ifBlank { "찜을 해제하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        removingAuctionId = null
+                    }
+                }
             )
         }
         composable(Screen.RegisteredProducts.route) { backStackEntry ->

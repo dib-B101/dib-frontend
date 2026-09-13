@@ -52,3 +52,4 @@ data class AuctionProductDto(
 @Serializable data class UpdateAuctionRequest(val startPrice: Long, val auctionTime: Long, val liveBroadcastId: JsonElement? = null)
 @Serializable data class AuctionCommandResponse(val auctionId: JsonElement? = null, val message: String = "")
 @Serializable data class StartAuctionResponse(val message: String = "")
+@Serializable data class BookmarkResponse(val bookmarked: Boolean)

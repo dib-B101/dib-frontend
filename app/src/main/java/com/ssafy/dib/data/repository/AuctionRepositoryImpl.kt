@@ -35,6 +35,18 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun getBookmarks(size: Int): ApiResult<List<AuctionSummary>> =
+        when (val result = remote.getBookmarks(size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean> =
+        when (val result = remote.setBookmark(auctionId, bookmarked, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.bookmarked, result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult> =
         when (val result = remote.createAuction(productId, startPrice, auctionTime, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(AuctionCommandResult(result.value.auctionId?.idValue().orEmpty(), result.value.message), result.status)

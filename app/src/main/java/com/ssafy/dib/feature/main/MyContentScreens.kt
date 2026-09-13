@@ -35,7 +35,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,6 +56,7 @@ import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
+import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -141,12 +141,36 @@ private fun productStatusLabel(status: String) = when (status.uppercase()) { "PE
 private fun productStatusDescription(status: String) = when (status.uppercase()) { "PENDING" -> "AI 검수 중"; "REGISTERED" -> "경매 등록 가능"; "REJECTED" -> "검수 결과 확인 필요"; "SOLD" -> "판매가 완료된 상품"; else -> "상품 상태 확인 필요" }
 
 @Composable
-fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val favorites = remember { mutableStateListOf("무선 헤드폰", "빈티지 필름 카메라", "달빛 유약 머그컵", "레더 숄더백") }
+fun FavoriteAuctionsScreen(
+    onBack: () -> Unit,
+    onProductClick: (String) -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    remoteFavorites: List<HomeAuction>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    removingAuctionId: String?,
+    onRetry: () -> Unit,
+    onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val sampleFavorites = remember {
+        listOf(
+            HomeAuction("headphones", "무선 헤드폰", 52_000, 7, 1_080, "디지털", com.ssafy.dib.feature.home.ProductPhoto.Headphones, bookmarked = true),
+            HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", com.ssafy.dib.feature.home.ProductPhoto.Camera, bookmarked = true)
+        )
+    }
+    val favorites = remoteFavorites ?: sampleFavorites
     MyListScaffold("찜한 상품", onBack, onTabSelected, modifier) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Text("찜한 경매 ${favorites.size}개", Modifier.padding(vertical = 16.dp), color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            if (favorites.isEmpty()) {
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
+            } else if (errorMessage != null) {
+                Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(errorMessage, color = Colors.Muted, fontSize = 12.sp)
+                    OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기") }
+                }
+            } else if (favorites.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Image(painterResource(R.drawable.favorite_outline), null, Modifier.size(36.dp), colorFilter = ColorFilter.tint(Color(0xFFB8C0CC)))
@@ -156,15 +180,20 @@ fun FavoriteAuctionsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit,
                 }
             } else {
                 LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(favorites, key = { it }) { title ->
-                        Column(Modifier.clickable { onProductClick(if (title.contains("카메라")) "camera" else "favorite") }) {
+                    items(favorites, key = HomeAuction::id) { auction ->
+                        Column(Modifier.clickable { onProductClick(auction.id) }) {
                             Box(Modifier.fillMaxWidth().height(122.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
-                                Text("LIVE", Modifier.padding(8.dp).background(Color(0x6B000000), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 5.dp), color = Color.White, fontSize = 9.sp)
-                                DibWishlistButton(true, { if (!it) favorites.remove(title) }, title, Modifier.align(Alignment.TopEnd))
+                                DibNetworkImage(auction.imageUrls.firstOrNull(), auction.name, Modifier.fillMaxSize())
+                                DibWishlistButton(
+                                    selected = true,
+                                    onSelectedChange = { selected -> if (!selected && removingAuctionId == null) onRemove(auction.id) },
+                                    productName = auction.name,
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                )
                             }
-                            Text(title, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("현재가 52,000원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("입찰 7명", color = Colors.Muted, fontSize = 9.sp)
+                            Text(auction.name, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(if (removingAuctionId == auction.id) "찜 해제 중" else auction.meta, color = Colors.Muted, fontSize = 9.sp)
                         }
                     }
                 }

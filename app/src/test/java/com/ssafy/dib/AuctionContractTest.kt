@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.auction.AuctionListResponse
 import com.ssafy.dib.data.remote.auction.BidDepositResponse
 import com.ssafy.dib.data.remote.auction.AuctionCommandResponse
 import com.ssafy.dib.data.remote.auction.CreateAuctionRequest
+import com.ssafy.dib.data.remote.auction.BookmarkResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -80,5 +81,14 @@ class AuctionContractTest {
         assertTrue(encoded.contains("\"productId\":12"))
         assertEquals("3", response.auctionId.toString())
         assertEquals("경매 생성 성공", response.message)
+    }
+
+    @Test
+    fun bookmarkCommandResponseKeepsServerState() {
+        val selected = DibJson.instance.decodeFromString(BookmarkResponse.serializer(), """{"bookmarked":true}""")
+        val removed = DibJson.instance.decodeFromString(BookmarkResponse.serializer(), """{"bookmarked":false}""")
+
+        assertTrue(selected.bookmarked)
+        assertEquals(false, removed.bookmarked)
     }
 }

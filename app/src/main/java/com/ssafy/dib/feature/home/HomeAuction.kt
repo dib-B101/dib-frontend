@@ -17,6 +17,7 @@ data class HomeAuction(
     val status: String = "ACTIVE",
     val isHighestBidder: Boolean? = null,
     val myBidAmount: Int? = null,
+    val bookmarked: Boolean = false,
     val sellerMemberId: String = "seller01",
     val imageUrls: List<String> = emptyList(),
     val startPrice: Int = price
@@ -60,6 +61,7 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     status = status,
     isHighestBidder = isHighestBidder,
     myBidAmount = myBidAmount,
+    bookmarked = bookmarked,
     sellerMemberId = sellerMemberId,
     imageUrls = imageUrls,
     startPrice = startPrice

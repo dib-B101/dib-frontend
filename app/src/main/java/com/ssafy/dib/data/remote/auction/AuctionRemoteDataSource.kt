@@ -37,6 +37,21 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), AuctionDto.serializer())
     }
 
+    fun getBookmarks(size: Int): ApiResult<AuctionListResponse> = configured {
+        val path = "${ApiRoutes.MEMBERS_ME}/bookmarks"
+        val url = client.urlBuilder(path)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
+            .build()
+        client.execute(client.requestBuilder(path).url(url).get().build(), AuctionListResponse.serializer())
+    }
+
+    fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<BookmarkResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/bookmark"
+        val builder = client.requestBuilder(path).header("Idempotency-Key", idempotencyKey)
+        val request = if (bookmarked) builder.put(RequestBody.EMPTY).build() else builder.delete().build()
+        client.execute(request, BookmarkResponse.serializer())
+    }
+
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResponse> = configured {
         val id = productId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(productId)
         val body = CreateAuctionRequest(id, startPrice, auctionTime)
