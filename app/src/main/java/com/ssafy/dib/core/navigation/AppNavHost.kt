@@ -53,6 +53,7 @@ import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
 import com.ssafy.dib.feature.main.TransactionScreen
+import com.ssafy.dib.feature.main.OrderChatScreen
 import com.ssafy.dib.feature.main.WithdrawalScreen
 import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
@@ -1034,6 +1035,75 @@ fun AppNavHost() {
                         confirmationLoading = false
                     }
                 },
+                onOpenChat = { navController.navigate(Screen.OrderChat.createRoute(orderId)) },
+                onBack = navController::navigateUp
+            )
+        }
+        composable(
+            route = Screen.OrderChat.route,
+            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId").orEmpty()
+            var chatMessages by remember(orderId) { mutableStateOf<List<com.ssafy.dib.domain.order.OrderMessage>>(emptyList()) }
+            var chatLoading by remember(orderId) { mutableStateOf(true) }
+            var chatError by remember(orderId) { mutableStateOf<String?>(null) }
+            var chatRevision by remember(orderId) { mutableStateOf(0) }
+            var currentMemberId by remember(orderId) { mutableStateOf("") }
+            var chatConnectionState by remember(orderId) { mutableStateOf<RealtimeConnectionState?>(null) }
+            var chatConnection by remember(orderId) { mutableStateOf<com.ssafy.dib.data.remote.socket.OrderChatConnection?>(null) }
+
+            LaunchedEffect(orderId, chatRevision) {
+                if (!auth.networkConfig.isRestConfigured) {
+                    chatLoading = false
+                    chatError = "개발 서버 주소가 설정되지 않았어요."
+                    return@LaunchedEffect
+                }
+                chatLoading = true
+                chatError = null
+                val messagesResult = withContext(Dispatchers.IO) { auth.orderRepository.getMessages(orderId) }
+                val memberResult = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }
+                when (messagesResult) {
+                    is ApiResult.Success -> chatMessages = messagesResult.value
+                    is ApiResult.Failure -> chatError = messagesResult.error.message.ifBlank { "채팅 내역을 불러오지 못했어요." }
+                }
+                if (memberResult is ApiResult.Success) currentMemberId = memberResult.value.memberId
+                if (
+                    (messagesResult is ApiResult.Failure && messagesResult.error.requiresLogin) ||
+                    (memberResult is ApiResult.Failure && memberResult.error.requiresLogin)
+                ) signedIn = false
+                chatLoading = false
+            }
+
+            DisposableEffect(orderId, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (auth.networkConfig.isWebSocketConfigured) {
+                    auth.createOrderChatConnection().also { created ->
+                        chatConnection = created
+                        created.start(
+                            orderId = orderId,
+                            lastChattingId = chatMessages.lastOrNull()?.chattingId,
+                            onMessage = { message -> coroutineScope.launch {
+                                chatMessages = (chatMessages + message).distinctBy { it.chattingId }
+                            } },
+                            onError = { message -> coroutineScope.launch { chatError = message } },
+                            onState = { state -> coroutineScope.launch { chatConnectionState = state } }
+                        )
+                    }
+                } else null
+                onDispose {
+                    chatConnection = null
+                    connection?.close()
+                }
+            }
+
+            OrderChatScreen(
+                orderId = orderId,
+                currentMemberId = currentMemberId,
+                messages = chatMessages,
+                isLoading = chatLoading,
+                errorMessage = chatError,
+                connectionState = chatConnectionState,
+                onRetry = { chatRevision++ },
+                onSend = { content -> chatConnection?.send(content) == true },
                 onBack = navController::navigateUp
             )
         }

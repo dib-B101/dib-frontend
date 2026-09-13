@@ -108,4 +108,15 @@ class NetworkContractTest {
             SocketCommands.sendLiveChat("live-1", "가".repeat(501))
         }
     }
+
+    @Test
+    fun orderChatCommandIncludesOrderAndClientTimestamp() {
+        val command = SocketCommands.sendChatMessage("order-7", "안녕하세요", "command-1")
+
+        assertEquals(SocketEventTypes.SEND_CHAT_MESSAGE, command.eventType)
+        assertEquals("command-1", command.payload.getValue("commandId").jsonPrimitive.content)
+        assertEquals("order-7", command.payload.getValue("orderId").jsonPrimitive.content)
+        assertEquals("안녕하세요", command.payload.getValue("content").jsonPrimitive.content)
+        assertTrue(command.payload.containsKey("clientSentAt"))
+    }
 }

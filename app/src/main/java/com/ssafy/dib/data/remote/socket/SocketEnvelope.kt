@@ -2,6 +2,7 @@ package com.ssafy.dib.data.remote.socket
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class SocketEnvelope(
@@ -28,6 +29,7 @@ object SocketEventTypes {
     const val AUCTION_ENDED = "AUCTION_ENDED"
     const val SUBSCRIBE_ORDER = "SUBSCRIBE_ORDER"
     const val SEND_CHAT_MESSAGE = "SEND_CHAT_MESSAGE"
+    const val CHAT_MESSAGE_ACCEPTED = "CHAT_MESSAGE_ACCEPTED"
     const val CHAT_MESSAGE_CREATED = "CHAT_MESSAGE_CREATED"
     const val SUBSCRIBE_LIVE = "SUBSCRIBE_LIVE"
     const val UNSUBSCRIBE_LIVE = "UNSUBSCRIBE_LIVE"
@@ -69,4 +71,21 @@ data class BidRejectedPayload(
     val minAllowedAmount: Long,
     val endedAt: String,
     val rejectedAt: String
+)
+
+@Serializable
+data class ChatMessageCreatedPayload(
+    val chattingId: JsonElement,
+    val orderId: JsonElement,
+    val memberId: JsonElement,
+    val content: String,
+    val time: String
+)
+
+@Serializable
+data class SocketErrorPayload(
+    val commandId: String? = null,
+    val code: String,
+    val message: String,
+    val retryable: Boolean = false
 )

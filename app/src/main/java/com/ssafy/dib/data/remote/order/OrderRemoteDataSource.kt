@@ -47,6 +47,13 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun getMessages(orderId: String, beforeChattingId: String?, size: Int): ApiResult<OrderMessageListResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/messages"
+        val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
+        beforeChattingId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("beforeChattingId", it) }
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), OrderMessageListResponse.serializer())
+    }
+
     fun confirmPurchase(orderId: String): ApiResult<OrderConfirmationResponse> = configured {
         val path = "${ApiRoutes.ORDERS}/$orderId/confirm"
         client.execute(

@@ -24,10 +24,13 @@ data class OrderShipment(
     val updatedAt: String?
 )
 
+data class OrderMessage(val chattingId: String, val memberId: String, val content: String, val time: String)
+
 interface OrderRepository {
     fun getOrders(role: OrderRole, size: Int = 30): ApiResult<List<OrderSummary>>
     fun getOrder(orderId: String): ApiResult<OrderSummary>
     fun getShipment(orderId: String): ApiResult<OrderShipment>
     fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
+    fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<List<OrderMessage>>
     fun confirmPurchase(orderId: String): ApiResult<String>
 }
