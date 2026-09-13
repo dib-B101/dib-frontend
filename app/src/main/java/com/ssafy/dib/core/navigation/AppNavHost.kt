@@ -1468,7 +1468,34 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Withdrawal.route) {
+            var withdrawalLoading by remember { mutableStateOf(false) }
+            var withdrawalError by remember { mutableStateOf<String?>(null) }
+            var withdrawalBlockingMessage by remember { mutableStateOf<String?>(null) }
+            var withdrawalCompleted by remember { mutableStateOf(false) }
             WithdrawalScreen(
+                isSubmitting = withdrawalLoading,
+                errorMessage = withdrawalError,
+                blockingMessage = withdrawalBlockingMessage,
+                completed = withdrawalCompleted,
+                onSubmit = {
+                    withdrawalLoading = true
+                    withdrawalError = null
+                    withdrawalBlockingMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.memberRepository.requestWithdrawal() }) {
+                            is ApiResult.Success -> withdrawalCompleted = true
+                            is ApiResult.Failure -> {
+                                when (result.error.code) {
+                                    "ACTIVE_ORDER_EXISTS" -> withdrawalBlockingMessage = "진행 중인 주문을 모두 완료한 뒤 다시 시도해주세요."
+                                    "ACTIVE_AUCTION_EXISTS" -> withdrawalBlockingMessage = "진행 중인 경매를 모두 종료한 뒤 다시 시도해주세요."
+                                    else -> withdrawalError = result.error.message.ifBlank { "탈퇴를 신청하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        withdrawalLoading = false
+                    }
+                },
                 onBack = navController::navigateUp,
                 onOpenTrades = { navigateMain(DibMainTab.Trades) },
                 onComplete = {

@@ -7,6 +7,7 @@ import com.ssafy.dib.data.remote.member.MemberRemoteDataSource
 import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.member.MemberProfileUpdate
 import com.ssafy.dib.domain.member.MemberRepository
+import com.ssafy.dib.domain.member.MemberWithdrawal
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
@@ -18,6 +19,14 @@ class MemberRepositoryImpl(private val remote: MemberRemoteDataSource) : MemberR
 
     override fun updateNickname(nickname: String): ApiResult<MemberProfileUpdate> = when (val result = remote.updateNickname(nickname)) {
         is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+        is ApiResult.Failure -> result
+    }
+
+    override fun requestWithdrawal(reason: String?): ApiResult<MemberWithdrawal> = when (val result = remote.requestWithdrawal(reason)) {
+        is ApiResult.Success -> ApiResult.Success(
+            MemberWithdrawal(result.value.requestedAt, result.value.scheduledAt, result.value.status),
+            result.status
+        )
         is ApiResult.Failure -> result
     }
 }

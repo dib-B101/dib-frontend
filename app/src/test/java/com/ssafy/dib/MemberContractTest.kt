@@ -3,6 +3,8 @@ package com.ssafy.dib
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.member.MemberProfileResponse
 import com.ssafy.dib.data.remote.member.MemberProfileUpdateRequest
+import com.ssafy.dib.data.remote.member.MemberWithdrawalRequest
+import com.ssafy.dib.data.remote.member.MemberWithdrawalResponse
 import com.ssafy.dib.data.repository.toDomain
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -31,5 +33,20 @@ class MemberContractTest {
         )
 
         assertEquals("{\"nickname\":\"새닉네임\"}", encoded)
+    }
+
+    @Test
+    fun withdrawalRequestOmitsEmptyOptionalReason() {
+        val encoded = DibJson.instance.encodeToString(
+            MemberWithdrawalRequest.serializer(),
+            MemberWithdrawalRequest()
+        )
+        val response = DibJson.instance.decodeFromString(
+            MemberWithdrawalResponse.serializer(),
+            """{"requestedAt":"2026-09-13T09:00:00Z","scheduledAt":"2026-09-20T09:00:00Z","status":"WITHDRAWN"}"""
+        )
+
+        assertEquals("{}", encoded)
+        assertEquals("WITHDRAWN", response.status)
     }
 }
