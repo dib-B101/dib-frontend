@@ -35,10 +35,15 @@ fun LiveManagementScreen(
     errorMessage: String?,
     actionLoading: Boolean,
     actionError: String?,
+    actionMessage: String?,
     actionRevision: Int,
     onRetry: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
+    onPrepareStream: (liveBroadcastId: String) -> Unit,
+    onStartLive: (liveBroadcastId: String) -> Unit,
+    onStartAuction: (liveBroadcastId: String, auctionId: String) -> Unit,
+    onEndLive: (liveBroadcastId: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -77,6 +82,7 @@ fun LiveManagementScreen(
                 if (items.isEmpty()) item { EmptyLiveCard() }
                 items(items, key = LiveBroadcastSummary::liveBroadcastId) { live ->
                     val auctions = assignedAuctions[live.liveBroadcastId].orEmpty()
+                    val activeAuction = auctions.firstOrNull { it.status == "ACTIVE" }
                     Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusBadge(live.status)
@@ -86,13 +92,37 @@ fun LiveManagementScreen(
                         Text(live.title, color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         live.description?.let { Text(it, color = Colors.Muted, fontSize = 12.sp, maxLines = 2) }
                         Text("편성 상품 ${auctions.size}개", color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        if (live.status == "SCHEDULED") OutlinedButton(
-                            onClick = { editingLiveId = live.liveBroadcastId },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !actionLoading
-                        ) { Text("상품 편성") }
+                        when (live.status) {
+                            "SCHEDULED" -> {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { editingLiveId = live.liveBroadcastId }, Modifier.weight(1f), enabled = !actionLoading) { Text("상품 편성") }
+                                    OutlinedButton(onClick = { onPrepareStream(live.liveBroadcastId) }, Modifier.weight(1f), enabled = !actionLoading) { Text(if (live.streamUrl.isNullOrBlank()) "송출 준비" else "송출 갱신") }
+                                }
+                                Button(
+                                    onClick = { onStartLive(live.liveBroadcastId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = auctions.isNotEmpty() && !live.streamUrl.isNullOrBlank() && !actionLoading,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) { Text("Live 시작", fontWeight = FontWeight.Bold) }
+                                if (auctions.isEmpty() || live.streamUrl.isNullOrBlank()) Text("상품 편성과 송출 준비를 완료하면 시작할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                            }
+                            "LIVE" -> {
+                                if (activeAuction != null) Text("현재 경매 중 · ${activeAuction.title}", color = Colors.Live, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                else auctions.filter { it.status == "SCHEDULED" }.forEach { auction ->
+                                    OutlinedButton(onClick = { onStartAuction(live.liveBroadcastId, auction.auctionId) }, Modifier.fillMaxWidth(), enabled = !actionLoading) { Text("${auction.title} 경매 시작") }
+                                }
+                                Button(
+                                    onClick = { onEndLive(live.liveBroadcastId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = activeAuction == null && !actionLoading,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Live)
+                                ) { Text("Live 종료", fontWeight = FontWeight.Bold) }
+                                if (activeAuction != null) Text("진행 중인 경매가 끝난 뒤 방송을 종료할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                            }
+                        }
                     }
                 }
+                actionMessage?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFDDF8F0), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.MintInk, fontSize = 12.sp) } }
                 actionError?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             }
         }

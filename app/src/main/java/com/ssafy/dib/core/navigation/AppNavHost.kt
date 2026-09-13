@@ -1366,6 +1366,7 @@ fun AppNavHost() {
             var liveManagementRevision by remember { mutableStateOf(0) }
             var liveActionLoading by remember { mutableStateOf(false) }
             var liveActionError by remember { mutableStateOf<String?>(null) }
+            var liveActionMessage by remember { mutableStateOf<String?>(null) }
             var liveActionRevision by remember { mutableStateOf(0) }
 
             LaunchedEffect(liveManagementRevision, signedIn) {
@@ -1410,11 +1411,13 @@ fun AppNavHost() {
                 errorMessage = liveManagementError,
                 actionLoading = liveActionLoading,
                 actionError = liveActionError,
+                actionMessage = liveActionMessage,
                 actionRevision = liveActionRevision,
                 onRetry = { liveManagementRevision++ },
                 onCreate = { title, description, scheduledAt, streamUrl ->
                     liveActionLoading = true
                     liveActionError = null
+                    liveActionMessage = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.liveRepository.create(title, description, scheduledAt, streamUrl) }) {
                             is ApiResult.Success -> { liveActionRevision++; liveManagementRevision++ }
@@ -1429,6 +1432,7 @@ fun AppNavHost() {
                 onSetItems = { liveId, auctionIds ->
                     liveActionLoading = true
                     liveActionError = null
+                    liveActionMessage = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.liveRepository.setItems(liveId, auctionIds) }) {
                             is ApiResult.Success -> { assignedAuctions = assignedAuctions + (liveId to result.value); liveActionRevision++; liveManagementRevision++ }
@@ -1436,6 +1440,58 @@ fun AppNavHost() {
                                 liveActionError = result.error.message.ifBlank { "Live 상품 편성을 저장하지 못했어요." }
                                 if (result.error.requiresLogin) signedIn = false
                             }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onPrepareStream = { liveId ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    liveActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.prepareStream(liveId) }) {
+                            is ApiResult.Success -> {
+                                broadcasts = broadcasts?.map { live -> if (live.liveBroadcastId == liveId) live.copy(streamUrl = result.value.streamUrl) else live }
+                                liveActionMessage = "송출 연결 정보를 준비했어요."
+                                liveManagementRevision++
+                            }
+                            is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onStartLive = { liveId ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    liveActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.start(liveId) }) {
+                            is ApiResult.Success -> { liveActionMessage = "Live 방송을 시작했어요."; liveManagementRevision++ }
+                            is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onStartAuction = { liveId, auctionId ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    liveActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.startAuction(liveId, auctionId) }) {
+                            is ApiResult.Success -> { liveActionMessage = "Live 상품 경매를 시작했어요."; liveManagementRevision++ }
+                            is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onEndLive = { liveId ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    liveActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.end(liveId) }) {
+                            is ApiResult.Success -> { liveActionMessage = "Live 방송을 종료했어요."; liveManagementRevision++ }
+                            is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
                     }
@@ -2116,6 +2172,16 @@ private fun auctionCommandError(error: ApiFailure): String = when (error.code) {
     "PRODUCT_ALREADY_DELETED" -> "삭제된 상품이에요."
     "AUCTION_NOT_EDITABLE" -> "예정 상태의 경매만 변경하거나 시작할 수 있어요."
     else -> error.message.ifBlank { "경매 요청을 처리하지 못했어요." }
+}
+
+private fun liveControlError(error: ApiFailure): String = when (error.code) {
+    "STREAM_UNAVAILABLE" -> "송출 연결을 준비하지 못했어요. 잠시 후 다시 시도해주세요."
+    "LIVE_ITEMS_EMPTY" -> "상품을 한 개 이상 편성한 뒤 방송을 시작해주세요."
+    "LIVE_END_BLOCKED_BY_AUCTION" -> "진행 중인 경매가 끝난 뒤 방송을 종료할 수 있어요."
+    "LIVE_INVALID_STATUS" -> "현재 방송 상태에서는 이 작업을 할 수 없어요."
+    "AUCTION_NOT_ACTIVE" -> "선택한 경매를 시작할 수 있는 상태가 아니에요."
+    "NOT_BROADCASTER" -> "이 방송을 관리할 권한이 없어요."
+    else -> error.message.ifBlank { "Live 요청을 처리하지 못했어요." }
 }
 
 private fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {

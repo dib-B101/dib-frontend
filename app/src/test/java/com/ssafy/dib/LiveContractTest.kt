@@ -6,6 +6,8 @@ import com.ssafy.dib.data.remote.live.LiveChatMessageListResponse
 import com.ssafy.dib.data.remote.live.LiveBroadcastDetailResponse
 import com.ssafy.dib.data.remote.live.LiveBroadcastListResponse
 import com.ssafy.dib.data.remote.live.SetLiveItemsResponse
+import com.ssafy.dib.data.remote.live.LiveStreamSessionResponse
+import com.ssafy.dib.data.remote.live.StartLiveAuctionResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -62,5 +64,21 @@ class LiveContractTest {
 
         assertEquals("2026-09-20T10:00:00Z", list.items.single().scheduledAt)
         assertEquals("31", items.auctions.single().auctionId.toString())
+    }
+
+    @Test
+    fun decodesStreamSessionAndLiveAuctionStart() {
+        val stream = DibJson.instance.decodeFromString(
+            LiveStreamSessionResponse.serializer(),
+            """{"liveBroadcastId":9,"streamUrl":"https://stream.example/live.m3u8","expiresAt":"2026-09-20T12:00:00Z","provider":"TBD"}"""
+        )
+        val auction = DibJson.instance.decodeFromString(
+            StartLiveAuctionResponse.serializer(),
+            """{"liveBroadcastId":9,"auctionId":31,"status":"ACTIVE","startedAt":"2026-09-20T10:00:00Z","auctionTime":300,"scheduledEndAt":"2026-09-20T10:05:00Z"}"""
+        )
+
+        assertEquals("https://stream.example/live.m3u8", stream.streamUrl)
+        assertEquals("31", auction.auctionId.toString())
+        assertEquals("ACTIVE", auction.status)
     }
 }

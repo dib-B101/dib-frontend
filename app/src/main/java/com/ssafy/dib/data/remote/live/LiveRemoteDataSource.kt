@@ -8,6 +8,7 @@ import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.core.network.IdempotencyKeyProvider
 import com.ssafy.dib.core.network.UuidIdempotencyKeyProvider
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.RequestBody
 
 class LiveRemoteDataSource(
     private val client: DibHttpClient,
@@ -50,6 +51,33 @@ class LiveRemoteDataSource(
         client.execute(
             client.requestBuilder(path).put(client.jsonBody(body, SetLiveItemsRequest.serializer())).build(),
             SetLiveItemsResponse.serializer()
+        )
+    }
+
+    fun prepareStream(liveBroadcastId: String): ApiResult<LiveStreamSessionResponse> = postCommand(
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/stream-session",
+        serializer = LiveStreamSessionResponse.serializer()
+    )
+
+    fun start(liveBroadcastId: String): ApiResult<StartLiveBroadcastResponse> = postCommand(
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/start",
+        serializer = StartLiveBroadcastResponse.serializer()
+    )
+
+    fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<StartLiveAuctionResponse> = postCommand(
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/auctions/$auctionId/start",
+        serializer = StartLiveAuctionResponse.serializer()
+    )
+
+    fun end(liveBroadcastId: String): ApiResult<EndLiveBroadcastResponse> = postCommand(
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/end",
+        serializer = EndLiveBroadcastResponse.serializer()
+    )
+
+    private fun <T> postCommand(path: String, serializer: kotlinx.serialization.DeserializationStrategy<T>): ApiResult<T> = configured {
+        client.execute(
+            client.requestBuilder(path).header("Idempotency-Key", idempotencyKeys.newKey()).post(RequestBody.EMPTY).build(),
+            serializer
         )
     }
 
