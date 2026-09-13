@@ -16,6 +16,7 @@ import com.ssafy.dib.data.remote.report.ReportRemoteDataSource
 import com.ssafy.dib.data.remote.product.ProductRemoteDataSource
 import com.ssafy.dib.data.remote.payment.PaymentRemoteDataSource
 import com.ssafy.dib.data.remote.member.MemberRemoteDataSource
+import com.ssafy.dib.data.remote.member.AddressRemoteDataSource
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.data.remote.settlement.SettlementAccountRemoteDataSource
 import com.ssafy.dib.data.remote.settlement.SettlementRemoteDataSource
@@ -32,6 +33,7 @@ import com.ssafy.dib.data.repository.ReportRepositoryImpl
 import com.ssafy.dib.data.repository.ProductRepositoryImpl
 import com.ssafy.dib.data.repository.PaymentRepositoryImpl
 import com.ssafy.dib.data.repository.MemberRepositoryImpl
+import com.ssafy.dib.data.repository.AddressRepositoryImpl
 import com.ssafy.dib.data.repository.LiveRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementAccountRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementRepositoryImpl
@@ -44,6 +46,7 @@ import com.ssafy.dib.domain.report.ReportRepository
 import com.ssafy.dib.domain.product.ProductRepository
 import com.ssafy.dib.domain.payment.PaymentRepository
 import com.ssafy.dib.domain.member.MemberRepository
+import com.ssafy.dib.domain.member.AddressRepository
 import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.settlement.SettlementAccountRepository
 import com.ssafy.dib.domain.settlement.SettlementRepository
@@ -66,6 +69,7 @@ class AuthDependencies(context: Context) {
     val productRepository: ProductRepository
     val paymentRepository: PaymentRepository
     val memberRepository: MemberRepository
+    val addressRepository: AddressRepository
     val liveRepository: LiveRepository
     val settlementAccountRepository: SettlementAccountRepository
     val settlementRepository: SettlementRepository
@@ -85,6 +89,7 @@ class AuthDependencies(context: Context) {
         productRepository = ProductRepositoryImpl(ProductRemoteDataSource(client))
         paymentRepository = PaymentRepositoryImpl(PaymentRemoteDataSource(client))
         memberRepository = MemberRepositoryImpl(MemberRemoteDataSource(client))
+        addressRepository = AddressRepositoryImpl(AddressRemoteDataSource(client))
         liveRepository = LiveRepositoryImpl(LiveRemoteDataSource(client))
         settlementAccountRepository = SettlementAccountRepositoryImpl(SettlementAccountRemoteDataSource(client))
         settlementRepository = SettlementRepositoryImpl(SettlementRemoteDataSource(client))
