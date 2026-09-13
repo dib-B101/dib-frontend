@@ -21,6 +21,8 @@ data class AuctionSummary(
 
 data class AuctionCommandResult(val auctionId: String, val message: String)
 data class BidHistoryItem(val bidId: String, val auctionId: String, val amount: Int, val createdAt: String)
+data class AuctionBidHistoryItem(val bidId: String, val maskedBidderId: String, val amount: Int, val createdAt: String)
+data class AuctionBidHistoryPage(val items: List<AuctionBidHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
 
 interface AuctionRepository {
     fun getAuctions(
@@ -44,6 +46,7 @@ interface AuctionRepository {
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
     fun getBookmarks(size: Int = 100): ApiResult<List<AuctionSummary>>
     fun getMyBids(size: Int = 100): ApiResult<List<BidHistoryItem>>
+    fun getBidHistory(auctionId: String, cursor: String? = null, size: Int = 20): ApiResult<AuctionBidHistoryPage>
     fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean>
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
     fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>

@@ -7,6 +7,8 @@ import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.domain.auction.BidHistoryItem
+import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
+import com.ssafy.dib.domain.auction.AuctionBidHistoryPage
 import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
@@ -59,6 +61,26 @@ class AuctionRepositoryImpl(
                         createdAt = bid.createdAt
                     )
                 },
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
+    override fun getBidHistory(auctionId: String, cursor: String?, size: Int): ApiResult<AuctionBidHistoryPage> =
+        when (val result = remote.getBidHistory(auctionId, cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionBidHistoryPage(
+                    items = result.value.items.map { bid ->
+                        AuctionBidHistoryItem(
+                            bidId = bid.bidId.idValue(),
+                            maskedBidderId = bid.maskedBidderId,
+                            amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                            createdAt = bid.createdAt
+                        )
+                    },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
                 result.status
             )
             is ApiResult.Failure -> result

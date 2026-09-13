@@ -792,6 +792,12 @@ fun AppNavHost() {
             var realtimeBidFeedback by remember(productId) { mutableStateOf<RealtimeBidFeedback?>(null) }
             var bookmarkLoading by remember(productId) { mutableStateOf(false) }
             var bookmarkError by remember(productId) { mutableStateOf<String?>(null) }
+            var auctionBidHistory by remember(productId) { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionBidHistoryItem>?>(null) }
+            var auctionBidHistoryLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var auctionBidHistoryError by remember(productId) { mutableStateOf<String?>(null) }
+            var auctionBidHistoryCursor by remember(productId) { mutableStateOf<String?>(null) }
+            var auctionBidHistoryHasNext by remember(productId) { mutableStateOf(false) }
+            var auctionBidHistoryRevision by remember(productId) { mutableStateOf(0) }
             LaunchedEffect(productId, detailRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 detailLoading = true
@@ -812,6 +818,20 @@ fun AppNavHost() {
                     }
                 }
                 detailLoading = false
+            }
+            LaunchedEffect(productId, auctionBidHistoryRevision) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                auctionBidHistoryLoading = true
+                auctionBidHistoryError = null
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBidHistory(productId) }) {
+                    is ApiResult.Success -> {
+                        auctionBidHistory = result.value.items
+                        auctionBidHistoryCursor = result.value.nextCursor
+                        auctionBidHistoryHasNext = result.value.hasNext
+                    }
+                    is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 불러오지 못했어요." }
+                }
+                auctionBidHistoryLoading = false
             }
             LaunchedEffect(productId, signedIn) {
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
@@ -850,6 +870,7 @@ fun AppNavHost() {
                                         SocketEventTypes.BID_ACCEPTED,
                                         SocketEventTypes.BID_REJECTED
                                     )
+                                    if (update.eventType == SocketEventTypes.BID_ACCEPTED) auctionBidHistoryRevision++
                                     if (isBidResult && update.commandId == pendingBidCommandId) {
                                         realtimeBidFeedback = RealtimeBidFeedback(
                                             accepted = update.eventType == SocketEventTypes.BID_ACCEPTED,
@@ -884,6 +905,30 @@ fun AppNavHost() {
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
+                bidHistory = auctionBidHistory,
+                bidHistoryLoading = auctionBidHistoryLoading,
+                bidHistoryError = auctionBidHistoryError,
+                bidHistoryHasNext = auctionBidHistoryHasNext,
+                onBidHistoryRetry = { auctionBidHistoryRevision++ },
+                onBidHistoryLoadMore = {
+                    if (!auctionBidHistoryLoading && auctionBidHistoryHasNext) {
+                        auctionBidHistoryLoading = true
+                        auctionBidHistoryError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.auctionRepository.getBidHistory(productId, auctionBidHistoryCursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    auctionBidHistory = (auctionBidHistory.orEmpty() + result.value.items).distinctBy { it.bidId }
+                                    auctionBidHistoryCursor = result.value.nextCursor
+                                    auctionBidHistoryHasNext = result.value.hasNext
+                                }
+                                is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 더 불러오지 못했어요." }
+                            }
+                            auctionBidHistoryLoading = false
+                        }
+                    }
+                },
                 bookmarkLoading = bookmarkLoading,
                 bookmarkError = bookmarkError,
                 onBookmarkChange = { selected ->

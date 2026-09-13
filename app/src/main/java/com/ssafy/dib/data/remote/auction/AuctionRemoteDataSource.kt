@@ -62,6 +62,16 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).url(url).get().build(), BidHistoryListResponse.serializer())
     }
 
+    fun getBidHistory(auctionId: String, cursor: String?, size: Int): ApiResult<AuctionBidHistoryListResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/bids"
+        val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        client.execute(
+            client.requestBuilder(path).url(urlBuilder.build()).get().build(),
+            AuctionBidHistoryListResponse.serializer()
+        )
+    }
+
     fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<BookmarkResponse> = configured {
         val path = "${ApiRoutes.AUCTIONS}/$auctionId/bookmark"
         val builder = client.requestBuilder(path).header("Idempotency-Key", idempotencyKey)

@@ -7,6 +7,7 @@ import com.ssafy.dib.data.remote.auction.AuctionCommandResponse
 import com.ssafy.dib.data.remote.auction.CreateAuctionRequest
 import com.ssafy.dib.data.remote.auction.BookmarkResponse
 import com.ssafy.dib.data.remote.auction.BidHistoryListResponse
+import com.ssafy.dib.data.remote.auction.AuctionBidHistoryListResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -103,5 +104,18 @@ class AuctionContractTest {
         assertEquals("41", response.items.single().bidId.toString())
         assertEquals("\"auction-3\"", response.items.single().auctionId.toString())
         assertEquals(58_000L, response.items.single().amount)
+    }
+
+    @Test
+    fun publicBidHistoryContractUsesMaskedBidderAndCursor() {
+        val response = DibJson.instance.decodeFromString(
+            AuctionBidHistoryListResponse.serializer(),
+            """{"items":[{"bidId":52,"maskedBidderId":"dib***42","amount":61500,"createdAt":"2026-09-13T08:05:00Z"}],"nextCursor":"bid-52","hasNext":true}"""
+        )
+
+        assertEquals("dib***42", response.items.single().maskedBidderId)
+        assertEquals(61_500L, response.items.single().amount)
+        assertEquals("bid-52", response.nextCursor)
+        assertTrue(response.hasNext)
     }
 }
