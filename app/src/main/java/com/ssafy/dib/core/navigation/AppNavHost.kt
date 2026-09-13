@@ -1045,7 +1045,55 @@ fun AppNavHost() {
             NotificationSettingsScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
         }
         composable(Screen.ProfileEdit.route) {
-            ProfileEditScreen(onBack = navController::navigateUp)
+            var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
+            var profileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var profileError by remember { mutableStateOf<String?>(null) }
+            var profileRevision by remember { mutableStateOf(0) }
+            var profileSaveLoading by remember { mutableStateOf(false) }
+            var profileSaveError by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(profileRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                profileLoading = true
+                profileError = null
+                when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
+                    is ApiResult.Success -> memberProfile = result.value
+                    is ApiResult.Failure -> {
+                        profileError = result.error.message.ifBlank { "내 정보를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                profileLoading = false
+            }
+            ProfileEditScreen(
+                profile = memberProfile,
+                isLoading = profileLoading,
+                errorMessage = profileError,
+                saveLoading = profileSaveLoading,
+                saveError = profileSaveError,
+                onRetry = { profileRevision++ },
+                onSave = { nickname ->
+                    profileSaveLoading = true
+                    profileSaveError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.memberRepository.updateNickname(nickname) }) {
+                            is ApiResult.Success -> {
+                                memberProfile = memberProfile?.copy(nickname = result.value.nickname)
+                                navController.navigateUp()
+                            }
+                            is ApiResult.Failure -> {
+                                profileSaveError = when (result.error.code) {
+                                    "NICKNAME_DUPLICATED" -> "이미 사용 중인 닉네임이에요."
+                                    else -> result.error.message.ifBlank { "닉네임을 변경하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        profileSaveLoading = false
+                    }
+                },
+                onBack = navController::navigateUp
+            )
         }
         composable(Screen.FavoriteAuctions.route) {
             var favorites by remember { mutableStateOf<List<HomeAuction>?>(null) }
