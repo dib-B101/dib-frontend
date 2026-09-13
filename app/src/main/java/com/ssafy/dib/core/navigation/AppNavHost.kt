@@ -553,6 +553,9 @@ fun AppNavHost() {
             var liveChatConnection by remember { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
             var pendingLiveBidCommandId by remember { mutableStateOf<String?>(null) }
             var liveBidFeedback by remember { mutableStateOf<RealtimeBidFeedback?>(null) }
+            var liveReportSubmitting by remember { mutableStateOf(false) }
+            var liveReportError by remember { mutableStateOf<String?>(null) }
+            var liveReportCompleted by remember { mutableStateOf(false) }
             LaunchedEffect(liveFeedRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveFeedLoading = true
@@ -698,6 +701,9 @@ fun AppNavHost() {
                 liveAuctionsByBroadcast = liveAuctionLists,
                 productListLoading = liveDetailLoading,
                 productListError = liveDetailError,
+                reportSubmitting = liveReportSubmitting,
+                reportError = liveReportError,
+                reportCompleted = liveReportCompleted,
                 chatError = liveChatError,
                 chatConnectionState = liveChatState,
                 onLiveVisible = { liveId ->
@@ -722,6 +728,31 @@ fun AppNavHost() {
                 onClose = { navController.navigateUp() },
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
+                onReportParticipant = { liveBroadcastId, memberId, content ->
+                    if (signedIn != true) {
+                        navController.navigate(Screen.Login.route)
+                    } else {
+                        liveReportSubmitting = true
+                        liveReportError = null
+                        liveReportCompleted = false
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.reportRepository.reportLiveParticipant(liveBroadcastId, memberId, content)
+                            }) {
+                                is ApiResult.Success -> liveReportCompleted = true
+                                is ApiResult.Failure -> {
+                                    liveReportError = result.error.message.ifBlank { "신고를 접수하지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            liveReportSubmitting = false
+                        }
+                    }
+                },
+                onDismissReport = {
+                    liveReportError = null
+                    liveReportCompleted = false
+                },
                 onDepositPayment = { productId, submission ->
                     if (signedIn != true) {
                         navController.navigate(Screen.Login.route)

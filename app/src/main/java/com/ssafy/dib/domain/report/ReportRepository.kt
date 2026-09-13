@@ -15,4 +15,5 @@ interface ReportRepository {
     fun getMyReports(size: Int = 30): ApiResult<List<ReportSummary>>
     fun reportAuction(auctionId: String, content: String): ApiResult<String>
     fun reportMember(memberId: String, content: String): ApiResult<String>
+    fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<String>
 }

@@ -26,6 +26,12 @@ class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportR
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
             is ApiResult.Failure -> result
         }
+
+    override fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<String> =
+        when (val result = remote.reportLiveParticipant(liveBroadcastId, memberId, content)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
+            is ApiResult.Failure -> result
+        }
 }
 
 internal fun ReportDto.toDomain() = ReportSummary(
