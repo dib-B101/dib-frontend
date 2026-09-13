@@ -6,6 +6,7 @@ import com.ssafy.dib.data.remote.auction.BidDepositResponse
 import com.ssafy.dib.data.remote.auction.AuctionCommandResponse
 import com.ssafy.dib.data.remote.auction.CreateAuctionRequest
 import com.ssafy.dib.data.remote.auction.BookmarkResponse
+import com.ssafy.dib.data.remote.auction.BidHistoryListResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -90,5 +91,17 @@ class AuctionContractTest {
 
         assertTrue(selected.bookmarked)
         assertEquals(false, removed.bookmarked)
+    }
+
+    @Test
+    fun bidHistoryContractAcceptsNumericAndStringIds() {
+        val response = DibJson.instance.decodeFromString(
+            BidHistoryListResponse.serializer(),
+            """{"items":[{"bidId":41,"auctionId":"auction-3","amount":58000,"createdAt":"2026-09-13T08:00:00Z"}],"hasNext":false}"""
+        )
+
+        assertEquals("41", response.items.single().bidId.toString())
+        assertEquals("\"auction-3\"", response.items.single().auctionId.toString())
+        assertEquals(58_000L, response.items.single().amount)
     }
 }
