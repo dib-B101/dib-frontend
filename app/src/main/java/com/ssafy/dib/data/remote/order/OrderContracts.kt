@@ -55,3 +55,17 @@ data class OrderConfirmationResponse(
     val orderId: JsonElement,
     val status: String
 )
+
+@Serializable
+data class ShipmentRegistrationRequest(val trackingNumber: String)
+
+@Serializable
+data class ShipmentResponse(
+    val orderId: JsonElement,
+    val trackingNumber: String,
+    val status: String,
+    val carrierStatus: String? = null,
+    val lastCheckedAt: String? = null,
+    val isStale: Boolean = false,
+    val updatedAt: String? = null
+)

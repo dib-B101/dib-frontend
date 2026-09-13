@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.payment.PaymentPreparation
 
@@ -61,9 +62,14 @@ fun TransactionScreen(
     paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
+    shipment: OrderShipment?,
+    shipmentLoading: Boolean,
+    shipmentError: String?,
     onPreparePayment: () -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
+    onRegisterShipment: (String) -> Unit,
+    onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
     onBack: () -> Unit,
@@ -80,9 +86,14 @@ fun TransactionScreen(
             paymentPreparation = paymentPreparation,
             paymentLoading = paymentLoading,
             paymentError = paymentError,
+            shipment = shipment,
+            shipmentLoading = shipmentLoading,
+            shipmentError = shipmentError,
             onPreparePayment = onPreparePayment,
             onCheckPayment = onCheckPayment,
             onResetPayment = onResetPayment,
+            onRegisterShipment = onRegisterShipment,
+            onRefreshShipment = onRefreshShipment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
             onBack = onBack,
@@ -104,15 +115,21 @@ private fun RemoteTransactionScreen(
     paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
+    shipment: OrderShipment?,
+    shipmentLoading: Boolean,
+    shipmentError: String?,
     onPreparePayment: () -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
+    onRegisterShipment: (String) -> Unit,
+    onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
+    var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(paymentPreparation?.orderId, paymentPreparation?.paymentUrl) {
         paymentPreparation?.paymentUrl?.let { url -> runCatching { uriHandler.openUri(url) } }
@@ -167,6 +184,9 @@ private fun RemoteTransactionScreen(
                     confirmationError?.let { message ->
                         item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
                     }
+                    shipmentError?.let { message ->
+                        item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
+                    }
                     if (role != "seller" && order.status.uppercase() == "PENDING") {
                         paymentError?.let { message ->
                             item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
@@ -215,6 +235,61 @@ private fun RemoteTransactionScreen(
                             }
                         }
                     }
+                    if (role == "seller" && order.status.uppercase() in setOf("PAID", "PREPARING")) {
+                        item {
+                            Column(
+                                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+                                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text("배송 정보 등록", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("실제 발송을 완료한 뒤 송장번호를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                                OutlinedTextField(
+                                    value = trackingNumber,
+                                    onValueChange = { trackingNumber = it.filter(Char::isLetterOrDigit).take(30) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("송장번호") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+                        }
+                        item {
+                            Button(
+                                onClick = { onRegisterShipment(trackingNumber) },
+                                enabled = trackingNumber.length >= 8 && !shipmentLoading,
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                            ) {
+                                if (shipmentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                else Text("배송 정보 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    if (order.status.uppercase() in setOf("SHIPPED", "DELIEVERED", "DELIVERED") && shipment != null) {
+                        item {
+                            InfoCard(
+                                listOf(
+                                    "송장번호" to shipment.trackingNumber,
+                                    "배송 상태" to shipmentStatusLabel(shipment.carrierStatus ?: shipment.status),
+                                    "조회 상태" to if (shipment.isStale) "최근 저장 정보" else "최신 정보"
+                                ),
+                                "배송 정보"
+                            )
+                        }
+                        item {
+                            OutlinedButton(
+                                onClick = onRefreshShipment,
+                                enabled = !shipmentLoading,
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                if (shipmentLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                                else Text("배송 상태 새로고침", color = Colors.Navy, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -230,6 +305,13 @@ private fun RemoteTransactionScreen(
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("취소") } }
         )
     }
+}
+
+private fun shipmentStatusLabel(status: String): String = when (status.uppercase()) {
+    "PREPARING" -> "배송 준비"
+    "SHIPPED" -> "배송 중"
+    "DELIEVERED", "DELIVERED" -> "배송 완료"
+    else -> status
 }
 
 private data class OrderPresentation(
