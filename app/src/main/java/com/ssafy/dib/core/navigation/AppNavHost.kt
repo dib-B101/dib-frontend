@@ -537,7 +537,28 @@ fun AppNavHost() {
         composable(Screen.Feed.route) { backStackEntry ->
             val paidBidAmount by backStackEntry.savedStateHandle
                 .getStateFlow("paidBidAmount", 0).collectAsState()
+            var liveFeedItems by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveFeedItem>?>(null) }
+            var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var liveFeedError by remember { mutableStateOf<String?>(null) }
+            var liveFeedRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(liveFeedRevision, signedIn) {
+                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                liveFeedLoading = true
+                liveFeedError = null
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getFeed() }) {
+                    is ApiResult.Success -> liveFeedItems = result.value
+                    is ApiResult.Failure -> {
+                        liveFeedError = result.error.message.ifBlank { "Live 피드를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                liveFeedLoading = false
+            }
             LiveFeedScreen(
+                remoteItems = liveFeedItems,
+                isLoading = liveFeedLoading,
+                errorMessage = liveFeedError,
+                onRetry = { liveFeedRevision++ },
                 isAuthenticated = signedIn == true,
                 paidBidAmount = paidBidAmount,
                 depositPaid = "camera" in depositPaidProductIds,

@@ -18,6 +18,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -46,12 +48,17 @@ import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.auction.sampleBidAddresses
 import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
+import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveFeedScreen(
+    remoteItems: List<LiveFeedItem>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
     depositPaid: Boolean,
@@ -62,12 +69,58 @@ fun LiveFeedScreen(
     onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    when {
+        isLoading -> Box(modifier.fillMaxSize().background(Color(0xFF17212D)), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Mint) }
+        errorMessage != null -> Column(modifier.fillMaxSize().background(Color(0xFF17212D)), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(errorMessage, color = Color.White)
+            OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기", color = Color.White) }
+            TextButton(onClick = onClose) { Text("닫기", color = Color.White) }
+        }
+        remoteItems?.isEmpty() == true -> Column(modifier.fillMaxSize().background(Color(0xFF17212D)), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text("현재 방송 중인 Live가 없어요.", color = Color.White)
+            TextButton(onClick = onClose) { Text("홈으로", color = Colors.Mint) }
+        }
+        else -> {
+            val items = remoteItems ?: listOf(null)
+            val pagerState = rememberPagerState(pageCount = items::size)
+            VerticalPager(state = pagerState, modifier = modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
+                LiveFeedPage(
+                    liveItem = items[page],
+                    isAuthenticated = isAuthenticated,
+                    paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
+                    depositPaid = depositPaid,
+                    onPaymentConsumed = onPaymentConsumed,
+                    onClose = onClose,
+                    onProductClick = onProductClick,
+                    onLoginRequired = onLoginRequired,
+                    onDepositPayment = onDepositPayment
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LiveFeedPage(
+    liveItem: LiveFeedItem?,
+    isAuthenticated: Boolean,
+    paidBidAmount: Int,
+    depositPaid: Boolean,
+    onPaymentConsumed: () -> Unit,
+    onClose: () -> Unit,
+    onProductClick: (String) -> Unit,
+    onLoginRequired: () -> Unit,
+    onDepositPayment: (String, BidSubmission) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeAuction = liveItem?.currentAuction
     var following by rememberSaveable { mutableStateOf(true) }
-    var favorite by rememberSaveable { mutableStateOf(false) }
+    var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
-    var currentPrice by rememberSaveable { mutableIntStateOf(34_500) }
-    var remaining by rememberSaveable { mutableIntStateOf(42) }
+    var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: 34_500) }
+    var remaining by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.remainingSeconds ?: 42) }
     var comment by rememberSaveable { mutableStateOf("") }
     var comments by rememberSaveable { mutableStateOf(listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?")) }
     var showBidFeedback by remember { mutableStateOf(false) }
@@ -107,13 +160,13 @@ fun LiveFeedScreen(
                         Text("LIVE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("시청 1,248", Modifier.padding(start = 10.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("시청 ${"%,d".format(liveItem?.viewCount ?: 1_248)}", Modifier.padding(start = 10.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Text("×", Modifier.size(44.dp).clickable(onClick = onClose).wrapContentSize(), color = Color.White, fontSize = 27.sp)
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
-                Text("하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Surface(onClick = { if (isAuthenticated) following = !following else onLoginRequired() }, color = if (following) Color.White else Color(0xFF102342), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)) {
                     Text(if (following) "팔로잉" else "팔로우", Modifier.padding(horizontal = 17.dp, vertical = 8.dp), color = if (following) Color(0xFF102342) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
@@ -137,11 +190,11 @@ fun LiveFeedScreen(
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Surface(color = Color.White, shape = RoundedCornerShape(16.dp), shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth().height(116.dp).animateContentSize()) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
-                    Text("상품 2 / 5 · 전체 목록  ↑", Modifier.clickable { showProducts = true }, color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (activeAuction != null) "현재 경매 상품 · 상세  ↑" else "상품 2 / 5 · 전체 목록  ↑", Modifier.clickable { showProducts = true }, color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(52.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(8.dp)))
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text("달빛 유약 머그컵", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(activeAuction?.title ?: "달빛 유약 머그컵", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Text("현재가 ${"%,d".format(currentPrice)}원", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text("⚡ ${formatClock(remaining)} 남음", color = if (remaining <= 15) Colors.Live else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
@@ -167,18 +220,19 @@ fun LiveFeedScreen(
 
     if (showProducts) ModalBottomSheet(onDismissRequest = { showProducts = false }, containerColor = Color.White) {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp).navigationBarsPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text("라이브 상품 5개", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            items(5) { index ->
-                Row(Modifier.fillMaxWidth().height(72.dp).clickable { showProducts = false; onProductClick(if (index == 1) "camera" else "headphones") }, verticalAlignment = Alignment.CenterVertically) {
+            val count = if (activeAuction == null) 5 else 1
+            item { Text("라이브 상품 ${count}개", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            items(count) { index ->
+                Row(Modifier.fillMaxWidth().height(72.dp).clickable { showProducts = false; onProductClick(activeAuction?.auctionId ?: if (index == 1) "camera" else "headphones") }, verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(64.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)))
-                    Column(Modifier.padding(start = 12.dp)) { Text(listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold); Text(if (index == 1) "● 현재 경매 중" else "대기", color = if (index == 1) Colors.Live else Colors.Muted, fontSize = 11.sp) }
+                    Column(Modifier.padding(start = 12.dp)) { Text(activeAuction?.title ?: listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold); Text(if (activeAuction != null || index == 1) "● 현재 경매 중" else "대기", color = if (activeAuction != null || index == 1) Colors.Live else Colors.Muted, fontSize = 11.sp) }
                 }
             }
         }
     }
     if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
-        onDepositPayment("camera", submission)
+        onDepositPayment(activeAuction?.auctionId ?: "camera", submission)
     }
 }
 
