@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -53,6 +54,16 @@ import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,6 +111,7 @@ fun LiveFeedScreen(
             VerticalPager(state = pagerState, modifier = modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
                 LiveFeedPage(
                     liveItem = items[page],
+                    isActivePage = page == pagerState.currentPage,
                     liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
                     chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
                     chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
@@ -124,6 +136,7 @@ fun LiveFeedScreen(
 @Composable
 private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
+    isActivePage: Boolean,
     liveComments: List<LiveChatMessage>,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
@@ -202,7 +215,7 @@ private fun LiveFeedPage(
     }
 
     Box(modifier.fillMaxSize().safeDrawingPadding().background(Color(0xFF17212D))) {
-        Image(painterResource(R.drawable.live_video), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        LiveVideoBackground(liveItem?.streamUrl, isActivePage)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.12f), Color.Transparent, Color(0xFF07101D).copy(.72f)))))
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -290,6 +303,66 @@ private fun LiveFeedPage(
     if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
         onDepositPayment(auctionKey ?: "camera", submission)
+    }
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
+    val context = LocalContext.current
+    var playbackFailed by remember(streamUrl) { mutableStateOf(false) }
+    val activePage by rememberUpdatedState(isActivePage)
+    val player = remember(streamUrl) {
+        streamUrl?.takeIf(String::isNotBlank)?.let { url ->
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(url))
+                repeatMode = Player.REPEAT_MODE_ONE
+                playWhenReady = isActivePage
+                prepare()
+            }
+        }
+    }
+    val lifecycleOwner = context as? LifecycleOwner
+
+    DisposableEffect(player, lifecycleOwner) {
+        if (player == null) return@DisposableEffect onDispose { }
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                playbackFailed = true
+            }
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> if (activePage) player.play()
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> player.pause()
+                else -> Unit
+            }
+        }
+        player.addListener(listener)
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose {
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    LaunchedEffect(player, isActivePage) {
+        if (isActivePage) player?.play() else player?.pause()
+    }
+
+    if (player != null && !playbackFailed) {
+        PlayerSurface(
+            player = player,
+            modifier = Modifier.fillMaxSize(),
+            surfaceType = SURFACE_TYPE_TEXTURE_VIEW
+        )
+    } else {
+        Image(
+            painterResource(R.drawable.live_video),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
     }
 }
 
