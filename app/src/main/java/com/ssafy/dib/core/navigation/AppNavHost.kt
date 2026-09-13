@@ -948,6 +948,8 @@ fun AppNavHost() {
             var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var registeredProductsError by remember { mutableStateOf<String?>(null) }
             var registeredProductsRevision by remember { mutableStateOf(0) }
+            var deletingProductId by remember { mutableStateOf<String?>(null) }
+            var productDeleteError by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(registeredProductsRevision) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
@@ -969,8 +971,29 @@ fun AppNavHost() {
                 remoteProducts = registeredProducts,
                 isLoading = registeredProductsLoading,
                 errorMessage = registeredProductsError,
+                deleteError = productDeleteError,
+                deletingProductId = deletingProductId,
                 onRetry = { registeredProductsRevision++ },
-                onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) }
+                onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) },
+                onDeleteProduct = { productId ->
+                    deletingProductId = productId
+                    productDeleteError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.productRepository.deleteProduct(productId) }) {
+                            is ApiResult.Success -> registeredProducts = registeredProducts?.filterNot { it.productId == productId }
+                            is ApiResult.Failure -> {
+                                productDeleteError = when (result.error.code) {
+                                    "PRODUCT_NOT_DELETABLE" -> "진행 중인 경매나 거래 이력이 있어 삭제할 수 없어요."
+                                    "PRODUCT_NOT_FOUND" -> "이미 삭제됐거나 찾을 수 없는 상품이에요."
+                                    "FORBIDDEN" -> "본인이 등록한 상품만 삭제할 수 있어요."
+                                    else -> result.error.message.ifBlank { "상품을 삭제하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        deletingProductId = null
+                    }
+                }
             )
         }
         composable(
