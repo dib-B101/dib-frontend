@@ -71,6 +71,16 @@ class ProductRemoteDataSource(
         )
     }
 
+    fun deleteProduct(productId: String): ApiResult<Unit> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/$productId"
+        client.executeUnit(
+            client.requestBuilder(path)
+                .header("Idempotency-Key", idempotencyKeys.newKey())
+                .delete()
+                .build()
+        )
+    }
+
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =
         try {
             block()

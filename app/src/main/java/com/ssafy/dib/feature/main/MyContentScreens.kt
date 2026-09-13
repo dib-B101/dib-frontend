@@ -83,10 +83,14 @@ fun RegisteredProductsScreen(
     remoteProducts: List<RegisteredProduct>?,
     isLoading: Boolean,
     errorMessage: String?,
+    deleteError: String?,
+    deletingProductId: String?,
     onRetry: () -> Unit,
     onAuctionRegister: (String) -> Unit,
+    onDeleteProduct: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var deleteCandidate by remember { mutableStateOf<RegisteredProduct?>(null) }
     val products = remoteProducts ?: listOf(
         RegisteredProduct("sample-pending", "빈티지 필름 카메라", "NORMAL", "PENDING", null),
         RegisteredProduct("sample-registered", "달빛 유약 머그컵", "GOOD", "REGISTERED", null),
@@ -98,20 +102,34 @@ fun RegisteredProductsScreen(
             item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 중", "승인", "거부", "판매 완료").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
             if (isLoading) item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             if (errorMessage != null) item { Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry) { Text("다시 불러오기") } } }
+            deleteError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             val filtered = if (isLoading || errorMessage != null) emptyList() else products.filter { filter == "전체" || productStatusLabel(it.status) == filter }
             if (!isLoading && errorMessage == null && filtered.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("등록한 상품이 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("상품을 등록하면 검수 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp) } }
             items(filtered.size) { index ->
                 val product = filtered[index]
                 val canRegisterAuction = remoteProducts != null && product.status == "REGISTERED"
-                Row(Modifier.fillMaxWidth().height(76.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                val canDelete = remoteProducts != null && product.status in setOf("PENDING", "REGISTERED", "REJECTED")
+                Row(Modifier.fillMaxWidth().height(84.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(56.dp))
                     val statusLabel = productStatusLabel(product.status)
                     Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
-                    Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
+                    }
                 }
             }
             item { Button(onRegister, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("새 상품 등록", fontWeight = FontWeight.Bold) } }
         }
+    }
+    deleteCandidate?.let { product ->
+        AlertDialog(
+            onDismissRequest = { deleteCandidate = null },
+            title = { Text("상품을 삭제할까요?") },
+            text = { Text("${product.title}\n진행 중인 경매나 거래 이력이 있으면 삭제할 수 없어요.") },
+            confirmButton = { TextButton({ deleteCandidate = null; onDeleteProduct(product.productId) }) { Text("삭제", color = Colors.Urgent) } },
+            dismissButton = { TextButton({ deleteCandidate = null }) { Text("취소") } }
+        )
     }
 }
 

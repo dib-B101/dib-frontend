@@ -47,6 +47,8 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             )
             is ApiResult.Failure -> result
         }
+
+    override fun deleteProduct(productId: String): ApiResult<Unit> = remote.deleteProduct(productId)
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
