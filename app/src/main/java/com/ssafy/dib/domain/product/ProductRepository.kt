@@ -69,6 +69,7 @@ interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
     fun getMyProducts(status: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
     fun getProduct(productId: String): ApiResult<ProductDetail>
+    fun searchProducts(query: String, categoryId: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult>
     fun deleteProduct(productId: String): ApiResult<Unit>

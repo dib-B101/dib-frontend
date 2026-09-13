@@ -39,6 +39,15 @@ class ProductRemoteDataSource(
         client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
     }
 
+    fun searchProducts(query: String, categoryId: String?, size: Int): ApiResult<ProductListResponse> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/search"
+        val urlBuilder = client.urlBuilder(path)
+            .addQueryParameter("q", query)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
+        categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
+    }
+
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductCreateResponse> = configured {
         val categoryId = registration.categoryId.toLongOrNull()?.let(::JsonPrimitive)
             ?: JsonPrimitive(registration.categoryId)

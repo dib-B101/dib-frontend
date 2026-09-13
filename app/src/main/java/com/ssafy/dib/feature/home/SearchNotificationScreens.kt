@@ -26,6 +26,7 @@ import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 data class AuctionSearchFilters(
+    val query: String,
     val categoryId: String?,
     val minPrice: Long?,
     val maxPrice: Long?,
@@ -59,6 +60,7 @@ fun AuctionSearchScreen(
     val categories = remoteCategories ?: fallbackCategories
     val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
     fun filters() = AuctionSearchFilters(
+        query = query.trim(),
         categoryId = selectedCategoryId,
         minPrice = if (price == "5~10만원") 50_000 else null,
         maxPrice = when (price) { "5만원 이하" -> 50_000; "5~10만원" -> 100_000; else -> null },
