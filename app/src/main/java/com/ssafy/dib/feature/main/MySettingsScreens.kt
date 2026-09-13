@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,11 +15,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -46,9 +50,9 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import com.ssafy.dib.domain.settlement.SettlementAccount
 
 private data class Address(val label: String, val recipient: String, val address: String, val isDefault: Boolean = false)
-private data class BankAccount(val bank: String, val number: String, val isDefault: Boolean = false)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,76 +137,75 @@ fun AddressManagementScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> U
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettlementAccountsScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
-    val accounts = remember { mutableStateListOf(BankAccount("우리은행", "1002-***-123456", true), BankAccount("카카오뱅크", "3333-**-7890123")) }
-    var addOpen by rememberSaveable { mutableStateOf(false) }
-    var editingIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var actionIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var deleteIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var message by rememberSaveable { mutableStateOf("") }
-    if (message.isNotBlank()) LaunchedEffect(message) { kotlinx.coroutines.delay(1_800); message = "" }
+fun SettlementAccountsScreen(
+    account: SettlementAccount?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    verificationRequested: Boolean,
+    verificationConfirmed: Boolean,
+    actionLoading: Boolean,
+    actionError: String?,
+    actionRevision: Int,
+    onRetry: () -> Unit,
+    onRequestVerification: (String) -> Unit,
+    onConfirmVerification: (String) -> Unit,
+    onSave: (bankName: String, accountNumber: String, accountHolder: String) -> Unit,
+    onResetVerification: () -> Unit,
+    onBack: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var editorOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(actionRevision) { if (actionRevision > 0) editorOpen = false }
     SettingsScaffold("정산 계좌 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (message.isNotBlank()) item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            items(accounts.size) { index ->
-                val account = accounts[index]
-                Column(Modifier.fillMaxWidth().height(120.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp)).clickable { actionIndex = index }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("▣  ${account.bank}${if (account.isDefault) "  · 기본" else ""}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(account.number, color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("예금주 김띱 · 확인 완료", color = Colors.Muted, fontSize = 12.sp)
+            when {
+                isLoading -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
+                errorMessage != null && account == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
+                account != null -> item {
+                    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("▣  ${account.bankName}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(account.maskedAccountNumber, color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("예금주 ${account.accountHolder} · 확인 완료", color = Colors.Muted, fontSize = 12.sp)
+                    }
                 }
+                else -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 정산 계좌가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("판매 대금을 받을 본인 계좌를 등록해주세요", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
             }
             item { Text("✓  계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Color(0xFFE0F7F0), RoundedCornerShape(12.dp)).padding(16.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            item { Button({ editingIndex = -1; addOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("계좌 추가", fontWeight = FontWeight.Bold) } }
+            item { Button({ onResetVerification(); editorOpen = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경", fontWeight = FontWeight.Bold) } }
         }
     }
-    if (addOpen) {
-        val editingAccount = accounts.getOrNull(editingIndex)
-        var bank by rememberSaveable(editingIndex) { mutableStateOf(editingAccount?.bank.orEmpty()) }
-        var number by rememberSaveable(editingIndex) { mutableStateOf(editingAccount?.number?.filter(Char::isDigit).orEmpty()) }
-        var duplicate by rememberSaveable(editingIndex) { mutableStateOf(false) }
+    if (editorOpen) {
+        var bank by rememberSaveable { mutableStateOf(account?.bankName.orEmpty()) }
+        var number by remember { mutableStateOf("") }
+        var holder by rememberSaveable { mutableStateOf(account?.accountHolder.orEmpty()) }
+        var phone by remember { mutableStateOf("") }
+        var code by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { addOpen = false }, title = { Text(if (editingAccount == null) "정산 계좌 추가" else "정산 계좌 수정") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(bank, { bank = it }, label = { Text("은행") }); OutlinedTextField(number, { number = it.filter(Char::isDigit); duplicate = false }, label = { Text("계좌번호") }); if (duplicate) Text("이미 등록된 계좌예요", color = Color(0xFFEF596B), fontSize = 12.sp, fontWeight = FontWeight.Bold) } },
-            confirmButton = { TextButton({
-                val duplicateAccount = accounts.withIndex().any { (index, account) -> index != editingIndex && account.number.filter(Char::isDigit).takeLast(6) == number.takeLast(6) }
-                if (duplicateAccount) duplicate = true else {
-                    val updated = BankAccount(bank, maskAccount(number), editingAccount?.isDefault ?: accounts.isEmpty())
-                    if (editingIndex >= 0) accounts[editingIndex] = updated else accounts.add(updated)
-                    addOpen = false
+            onDismissRequest = { if (!actionLoading) editorOpen = false }, title = { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(bank, { bank = it.take(30) }, label = { Text("은행") }, singleLine = true)
+                OutlinedTextField(number, { number = it.filter(Char::isDigit).take(24) }, label = { Text("계좌번호") }, singleLine = true)
+                OutlinedTextField(holder, { holder = it.take(30) }, label = { Text("예금주") }, singleLine = true)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(phone, { phone = it.filter(Char::isDigit).take(11) }, Modifier.weight(1f), label = { Text("휴대전화") }, singleLine = true)
+                    TextButton({ onRequestVerification(phone) }, enabled = phone.length >= 10 && !actionLoading) { Text(if (verificationRequested) "재전송" else "인증요청") }
                 }
-            }, enabled = bank.isNotBlank() && number.length >= 8) { Text(if (editingAccount == null) "본인 확인 후 추가" else "본인 확인 후 저장") } },
-            dismissButton = { TextButton({ addOpen = false }) { Text("취소") } }
+                if (verificationRequested && !verificationConfirmed) Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.weight(1f), label = { Text("인증번호") }, singleLine = true)
+                    TextButton({ onConfirmVerification(code) }, enabled = code.length >= 4 && !actionLoading) { Text("확인") }
+                }
+                if (verificationConfirmed) Text("✓ 휴대전화 본인 인증 완료", color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                actionError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
+            } },
+            confirmButton = { TextButton({ onSave(bank.trim(), number, holder.trim()) }, enabled = verificationConfirmed && bank.isNotBlank() && number.length >= 8 && holder.isNotBlank() && !actionLoading) { if (actionLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },
+            dismissButton = { TextButton({ editorOpen = false }, enabled = !actionLoading) { Text("취소") } }
         )
-    }
-    if (actionIndex >= 0) {
-        val selected = accounts[actionIndex]
-        ModalBottomSheet(onDismissRequest = { actionIndex = -1 }, containerColor = Color.White) {
-            Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("정산 계좌 관리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("${selected.bank} 계좌에 적용할 작업을 선택해주세요.", color = Colors.Muted, fontSize = 12.sp)
-                SettingsAction("수정 후 예금주 확인") { editingIndex = actionIndex; actionIndex = -1; addOpen = true }
-                if (!selected.isDefault) SettingsAction("기본 정산 계좌로 설정") {
-                    accounts.indices.forEach { i -> accounts[i] = accounts[i].copy(isDefault = i == actionIndex) }
-                    message = "기본 정산 계좌가 변경됐어요"
-                    actionIndex = -1
-                }
-                if (!selected.isDefault) SettingsAction("삭제", Color(0xFFEF596B)) { deleteIndex = actionIndex; actionIndex = -1 }
-            }
-        }
-    }
-    if (deleteIndex >= 0) {
-        AlertDialog(onDismissRequest = { deleteIndex = -1 }, title = { Text("정산 계좌를 삭제할까요?") }, text = { Text("진행 중인 정산이 있으면 해당 계좌는 삭제할 수 없습니다.") }, confirmButton = { TextButton({ accounts.removeAt(deleteIndex); deleteIndex = -1 }) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deleteIndex = -1 }) { Text("취소") } })
     }
 }
 
 @Composable private fun SettingsAction(label: String, color: Color = Colors.Navy, onClick: () -> Unit) {
     Text(label, Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 14.dp), color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-}
-
-private fun maskAccount(number: String): String = when {
-    number.length < 7 -> number
-    else -> number.take(4) + "-***-" + number.takeLast(6)
 }
 
 @Composable

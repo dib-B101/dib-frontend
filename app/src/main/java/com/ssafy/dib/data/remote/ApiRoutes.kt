@@ -17,5 +17,6 @@ object ApiRoutes {
     const val QUESTIONS = "/api/v1/questions"
     const val REPORTS = "/api/v1/reports"
     const val LIVE_BROADCASTS = "/api/v1/live-broadcasts"
+    const val SETTLEMENT_ACCOUNT = "/api/v1/members/me/settlement-account"
 
 }
