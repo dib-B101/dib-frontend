@@ -9,6 +9,15 @@ import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.RequestBody
 
 class AuctionRemoteDataSource(private val client: DibHttpClient) {
+    fun getAuctions(scope: String, status: String, size: Int): ApiResult<AuctionListResponse> = configured {
+        val url = client.urlBuilder(ApiRoutes.AUCTIONS)
+            .addQueryParameter("scope", scope)
+            .addQueryParameter("status", status)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
+            .build()
+        client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), AuctionListResponse.serializer())
+    }
+
     fun getGeneralAuctions(
         size: Int,
         categoryId: String? = null,

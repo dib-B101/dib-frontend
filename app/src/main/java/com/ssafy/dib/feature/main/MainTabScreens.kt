@@ -259,6 +259,7 @@ fun MyPageScreen(
     onProfileEditClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onRegisteredProductsClick: () -> Unit,
+    onLiveManagementClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onInquiriesClick: () -> Unit,
     onAddressesClick: () -> Unit,
@@ -313,6 +314,7 @@ fun MyPageScreen(
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE1E5EA), RoundedCornerShape(14.dp))) {
                     MenuRow("배송지 관리", onClick = onAddressesClick)
                     MenuRow("정산 계좌 관리", onClick = onAccountsClick)
+                    MenuRow("Live 방송 관리", onClick = onLiveManagementClick)
                     MenuRow("알림 설정", onClick = onNotificationSettingsClick)
                     MenuRow("신고 내역", onClick = onReportsClick)
                     MenuRow("회원 탈퇴", onClick = onWithdrawalClick)

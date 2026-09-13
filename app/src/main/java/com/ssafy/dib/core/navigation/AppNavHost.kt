@@ -32,6 +32,7 @@ import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
+import com.ssafy.dib.feature.live.LiveManagementScreen
 import com.ssafy.dib.feature.home.HomeScreen
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.toHomeAuction
@@ -1341,6 +1342,7 @@ fun AppNavHost() {
                 onProfileEditClick = { navController.navigate(Screen.ProfileEdit.route) },
                 onFavoritesClick = { navController.navigate(Screen.FavoriteAuctions.route) },
                 onRegisteredProductsClick = { navController.navigate(Screen.RegisteredProducts.route) },
+                onLiveManagementClick = { navController.navigate(Screen.LiveManagement.route) },
                 onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
                 onInquiriesClick = { navController.navigate(Screen.Inquiries.route) },
                 onAddressesClick = { navController.navigate(Screen.Addresses.route) },
@@ -1353,6 +1355,92 @@ fun AppNavHost() {
                     coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
                 }
+            )
+        }
+        composable(Screen.LiveManagement.route) {
+            var broadcasts by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveBroadcastSummary>?>(null) }
+            var assignedAuctions by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
+            var availableLiveAuctions by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionSummary>>(emptyList()) }
+            var liveManagementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var liveManagementError by remember { mutableStateOf<String?>(null) }
+            var liveManagementRevision by remember { mutableStateOf(0) }
+            var liveActionLoading by remember { mutableStateOf(false) }
+            var liveActionError by remember { mutableStateOf<String?>(null) }
+            var liveActionRevision by remember { mutableStateOf(0) }
+
+            LaunchedEffect(liveManagementRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                liveManagementLoading = true
+                liveManagementError = null
+                val profile = memberProfile ?: when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
+                    is ApiResult.Success -> result.value.also { memberProfile = it }
+                    is ApiResult.Failure -> null
+                }
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMine() }) {
+                    is ApiResult.Success -> {
+                        broadcasts = result.value
+                        val loadedAssignments = mutableMapOf<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>()
+                        result.value.filter { it.status == "SCHEDULED" || it.status == "LIVE" }.forEach { live ->
+                            when (val detail = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(live.liveBroadcastId) }) {
+                                is ApiResult.Success -> loadedAssignments[live.liveBroadcastId] = detail.value.auctions
+                                is ApiResult.Failure -> Unit
+                            }
+                        }
+                        assignedAuctions = loadedAssignments
+                    }
+                    is ApiResult.Failure -> {
+                        liveManagementError = result.error.message.ifBlank { "내 Live 방송을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED") }) {
+                    is ApiResult.Success -> availableLiveAuctions = profile?.memberId?.let { memberId ->
+                        result.value.filter { auction -> auction.sellerMemberId == memberId }
+                    }.orEmpty()
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+                liveManagementLoading = false
+            }
+
+            LiveManagementScreen(
+                broadcasts = broadcasts,
+                assignedAuctions = assignedAuctions,
+                availableAuctions = availableLiveAuctions,
+                isLoading = liveManagementLoading,
+                errorMessage = liveManagementError,
+                actionLoading = liveActionLoading,
+                actionError = liveActionError,
+                actionRevision = liveActionRevision,
+                onRetry = { liveManagementRevision++ },
+                onCreate = { title, description, scheduledAt, streamUrl ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.create(title, description, scheduledAt, streamUrl) }) {
+                            is ApiResult.Success -> { liveActionRevision++; liveManagementRevision++ }
+                            is ApiResult.Failure -> {
+                                liveActionError = result.error.message.ifBlank { "Live 방송을 예약하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onSetItems = { liveId, auctionIds ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.setItems(liveId, auctionIds) }) {
+                            is ApiResult.Success -> { assignedAuctions = assignedAuctions + (liveId to result.value); liveActionRevision++; liveManagementRevision++ }
+                            is ApiResult.Failure -> {
+                                liveActionError = result.error.message.ifBlank { "Live 상품 편성을 저장하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        liveActionLoading = false
+                    }
+                },
+                onBack = navController::navigateUp
             )
         }
         composable(Screen.Addresses.route) {

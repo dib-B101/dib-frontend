@@ -4,6 +4,8 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.live.LiveFeedResponse
 import com.ssafy.dib.data.remote.live.LiveChatMessageListResponse
 import com.ssafy.dib.data.remote.live.LiveBroadcastDetailResponse
+import com.ssafy.dib.data.remote.live.LiveBroadcastListResponse
+import com.ssafy.dib.data.remote.live.SetLiveItemsResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -45,5 +47,20 @@ class LiveContractTest {
         assertEquals(2, response.auctions.size)
         assertEquals("달빛 유약 머그컵", response.auctions.first().product?.title)
         assertEquals("31", response.currentAuction?.auctionId.toString())
+    }
+
+    @Test
+    fun decodesMyLiveListAndScheduledItems() {
+        val list = DibJson.instance.decodeFromString(
+            LiveBroadcastListResponse.serializer(),
+            """{"items":[{"liveBroadcastId":9,"memberId":17,"title":"주말 빈티지 경매","status":"SCHEDULED","scheduledAt":"2026-09-20T10:00:00Z"}],"hasNext":false}"""
+        )
+        val items = DibJson.instance.decodeFromString(
+            SetLiveItemsResponse.serializer(),
+            """{"liveBroadcastId":9,"auctions":[{"auctionId":31,"auctionTime":300,"status":"SCHEDULED"}]}"""
+        )
+
+        assertEquals("2026-09-20T10:00:00Z", list.items.single().scheduledAt)
+        assertEquals("31", items.auctions.single().auctionId.toString())
     }
 }
