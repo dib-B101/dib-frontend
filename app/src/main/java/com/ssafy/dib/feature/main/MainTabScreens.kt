@@ -34,6 +34,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.auction.BidHistoryItem
+import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -250,6 +251,10 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
 
 @Composable
 fun MyPageScreen(
+    profile: MemberProfile?,
+    profileLoading: Boolean,
+    profileError: String?,
+    onRetryProfile: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     onProfileEditClick: () -> Unit,
     onFavoritesClick: () -> Unit,
@@ -273,13 +278,26 @@ fun MyPageScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE1E5EA), RoundedCornerShape(14.dp)).padding(16.dp)) {
+                    if (profileLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp), color = Colors.Mint)
+                    profileError?.let { message ->
+                        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                            TextButton(onRetryProfile) { Text("재시도") }
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(56.dp).background(Color(0xFFDDF8F0), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
-                        Column(Modifier.weight(1f).padding(start = 16.dp)) { Text("dib러버", fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("@dib_user", color = Colors.Muted, fontSize = 12.sp); Text("팔로워 128 · 팔로잉 24", color = Color(0xFF27806E), fontSize = 11.sp) }
+                        Box(Modifier.size(56.dp).background(Color(0xFFDDF8F0), CircleShape), contentAlignment = Alignment.Center) {
+                            Text(profile?.nickname?.take(1)?.uppercase() ?: "d", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                            Text(profile?.nickname ?: "dib러버", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(profile?.email ?: "내 계정 정보를 확인해보세요", color = Colors.Muted, fontSize = 12.sp)
+                            profile?.status?.let { status -> Text(memberStatusLabel(status), color = Color(0xFF27806E), fontSize = 11.sp) }
+                        }
                         OutlinedButton(onProfileEditClick, shape = RoundedCornerShape(16.dp), contentPadding = PaddingValues(horizontal = 12.dp)) { Text("프로필 수정", fontSize = 11.sp) }
                     }
                     HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Colors.Border)
-                    Text("★ 4.8  ·  거래 32회  ·  응답 빠름", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("신뢰 점수 ${profile?.score ?: 0}점", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
             item { Text("바로가기", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
@@ -312,6 +330,13 @@ fun MyPageScreen(
             dismissButton = { TextButton({ confirmation = null }) { Text("취소") } }
         )
     }
+}
+
+private fun memberStatusLabel(status: String): String = when (status) {
+    "ACTIVE" -> "정상 이용 중"
+    "SUSPENDED" -> "이용 정지"
+    "WITHDRAWN" -> "탈퇴 처리 중"
+    else -> status
 }
 
 @Composable private fun MenuRow(label: String, color: Color = Colors.Text, onClick: () -> Unit) { Row(Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Text(label, Modifier.weight(1f), color = color, fontSize = 14.sp); Text("›", color = Colors.Muted, fontSize = 20.sp) } }

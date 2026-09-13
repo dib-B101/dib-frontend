@@ -86,6 +86,7 @@ fun AppNavHost() {
     val coroutineScope = rememberCoroutineScope()
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
+    var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var signupState by remember { mutableStateOf(SignupUiState()) }
@@ -150,6 +151,7 @@ fun AppNavHost() {
     }
 
     LaunchedEffect(signedIn) {
+        if (signedIn != true) memberProfile = null
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
             val waitMillis = max(5_000L, current.accessExpiresAtEpochMillis - System.currentTimeMillis() - 60_000L)
@@ -1283,7 +1285,27 @@ fun AppNavHost() {
             )
         }
         composable(Screen.My.route) {
+            var myProfileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var myProfileError by remember { mutableStateOf<String?>(null) }
+            var myProfileRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(myProfileRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                myProfileLoading = true
+                myProfileError = null
+                when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
+                    is ApiResult.Success -> memberProfile = result.value
+                    is ApiResult.Failure -> {
+                        myProfileError = result.error.message.ifBlank { "내 정보를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                myProfileLoading = false
+            }
             MyPageScreen(
+                profile = memberProfile,
+                profileLoading = myProfileLoading,
+                profileError = myProfileError,
+                onRetryProfile = { myProfileRevision++ },
                 onTabSelected = ::navigateMain,
                 onProfileEditClick = { navController.navigate(Screen.ProfileEdit.route) },
                 onFavoritesClick = { navController.navigate(Screen.FavoriteAuctions.route) },
@@ -1312,7 +1334,6 @@ fun AppNavHost() {
             NotificationSettingsScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
         }
         composable(Screen.ProfileEdit.route) {
-            var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
             var profileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var profileError by remember { mutableStateOf<String?>(null) }
             var profileRevision by remember { mutableStateOf(0) }
