@@ -4,8 +4,11 @@ import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
+import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.order.OrderRole
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class OrderRemoteDataSource(private val client: DibHttpClient) {
     fun getOrders(role: OrderRole, size: Int): ApiResult<OrderListResponse> = configured {
@@ -22,6 +25,26 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
     fun getOrder(orderId: String): ApiResult<OrderSummaryDto> = configured {
         val path = "${ApiRoutes.ORDERS}/$orderId"
         client.execute(client.requestBuilder(path).get().build(), OrderSummaryDto.serializer())
+    }
+
+    fun getShipment(orderId: String): ApiResult<ShipmentResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/shipment"
+        client.execute(client.requestBuilder(path).get().build(), ShipmentResponse.serializer())
+    }
+
+    fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<ShipmentResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/shipment"
+        val body = DibJson.instance.encodeToString(
+            ShipmentRegistrationRequest.serializer(),
+            ShipmentRegistrationRequest(trackingNumber)
+        ).toRequestBody("application/json".toMediaType())
+        client.execute(
+            client.requestBuilder(path)
+                .header("Idempotency-Key", idempotencyKey)
+                .post(body)
+                .build(),
+            ShipmentResponse.serializer()
+        )
     }
 
     fun confirmPurchase(orderId: String): ApiResult<OrderConfirmationResponse> = configured {

@@ -2,7 +2,10 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.order.OrderListResponse
+import com.ssafy.dib.data.remote.order.ShipmentRegistrationRequest
+import com.ssafy.dib.data.remote.order.ShipmentResponse
 import com.ssafy.dib.data.repository.toDomain
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -38,5 +41,32 @@ class OrderContractTest {
         assertEquals("9", order.productId)
         assertEquals("빈티지 스니커즈", order.title)
         assertEquals("2026-09-11T00:00:00Z", order.updatedAt)
+    }
+
+    @Test
+    fun shipmentRegistrationPayloadContainsTrackingNumber() {
+        val encoded = DibJson.instance.encodeToString(
+            ShipmentRegistrationRequest.serializer(),
+            ShipmentRegistrationRequest("123456789012")
+        )
+
+        assertEquals("{\"trackingNumber\":\"123456789012\"}", encoded)
+    }
+
+    @Test
+    fun mapsShipmentStatusReturnedByDeliveryLookup() {
+        val shipment = ShipmentResponse(
+            orderId = JsonPrimitive(12),
+            trackingNumber = "123456789012",
+            status = "SHIPPED",
+            carrierStatus = "IN_TRANSIT",
+            lastCheckedAt = "2026-09-13T08:00:00Z",
+            isStale = true
+        ).toDomain()
+
+        assertEquals("12", shipment.orderId)
+        assertEquals("123456789012", shipment.trackingNumber)
+        assertEquals("IN_TRANSIT", shipment.carrierStatus)
+        assertEquals(true, shipment.isStale)
     }
 }

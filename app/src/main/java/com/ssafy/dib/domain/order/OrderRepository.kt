@@ -14,8 +14,20 @@ data class OrderSummary(
     val updatedAt: String?
 )
 
+data class OrderShipment(
+    val orderId: String,
+    val trackingNumber: String,
+    val status: String,
+    val carrierStatus: String?,
+    val lastCheckedAt: String?,
+    val isStale: Boolean,
+    val updatedAt: String?
+)
+
 interface OrderRepository {
     fun getOrders(role: OrderRole, size: Int = 30): ApiResult<List<OrderSummary>>
     fun getOrder(orderId: String): ApiResult<OrderSummary>
+    fun getShipment(orderId: String): ApiResult<OrderShipment>
+    fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
     fun confirmPurchase(orderId: String): ApiResult<String>
 }

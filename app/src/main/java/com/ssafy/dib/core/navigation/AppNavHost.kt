@@ -810,6 +810,10 @@ fun AppNavHost() {
             var paymentLoading by remember(orderId) { mutableStateOf(false) }
             var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
             var paymentPrepareKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+            var shipment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShipment?>(null) }
+            var shipmentLoading by remember(orderId) { mutableStateOf(false) }
+            var shipmentError by remember(orderId) { mutableStateOf<String?>(null) }
+            var shipmentKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
 
             LaunchedEffect(orderId, orderDetailRevision) {
                 if (orderId == "sample") return@LaunchedEffect
@@ -821,7 +825,17 @@ fun AppNavHost() {
                 orderDetailLoading = true
                 orderDetailError = null
                 when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }) {
-                    is ApiResult.Success -> remoteOrder = result.value
+                    is ApiResult.Success -> {
+                        remoteOrder = result.value
+                        if (result.value.status.uppercase() in setOf("SHIPPED", "DELIEVERED", "DELIVERED")) {
+                            shipmentLoading = true
+                            when (val shipmentResult = withContext(Dispatchers.IO) { auth.orderRepository.getShipment(orderId) }) {
+                                is ApiResult.Success -> shipment = shipmentResult.value
+                                is ApiResult.Failure -> shipmentError = shipmentResult.error.message.ifBlank { "배송 정보를 불러오지 못했어요." }
+                            }
+                            shipmentLoading = false
+                        }
+                    }
                     is ApiResult.Failure -> {
                         orderDetailError = result.error.message.ifBlank { "주문 상세를 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -840,6 +854,9 @@ fun AppNavHost() {
                 paymentPreparation = paymentPreparation,
                 paymentLoading = paymentLoading,
                 paymentError = paymentError,
+                shipment = shipment,
+                shipmentLoading = shipmentLoading,
+                shipmentError = shipmentError,
                 onPreparePayment = {
                     paymentLoading = true
                     paymentError = null
@@ -877,6 +894,48 @@ fun AppNavHost() {
                     paymentPreparation = null
                     paymentError = null
                     paymentPrepareKey = java.util.UUID.randomUUID().toString()
+                },
+                onRegisterShipment = { trackingNumber ->
+                    shipmentLoading = true
+                    shipmentError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.orderRepository.registerShipment(orderId, trackingNumber, shipmentKey)
+                        }) {
+                            is ApiResult.Success -> {
+                                shipment = result.value
+                                remoteOrder = remoteOrder?.copy(status = result.value.status)
+                                shipmentKey = java.util.UUID.randomUUID().toString()
+                                ordersRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                shipmentError = when (result.error.code) {
+                                    "PAYMENT_REQUIRED" -> "결제가 완료된 주문만 발송할 수 있어요."
+                                    "INVALID_TRACKING" -> "송장번호를 다시 확인해주세요."
+                                    else -> result.error.message.ifBlank { "배송 정보를 등록하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        shipmentLoading = false
+                    }
+                },
+                onRefreshShipment = {
+                    shipmentLoading = true
+                    shipmentError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getShipment(orderId) }) {
+                            is ApiResult.Success -> {
+                                shipment = result.value
+                                remoteOrder = remoteOrder?.copy(status = result.value.status)
+                            }
+                            is ApiResult.Failure -> {
+                                shipmentError = result.error.message.ifBlank { "배송 상태를 확인하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        shipmentLoading = false
+                    }
                 },
                 onRetry = { orderDetailRevision++ },
                 onConfirmPurchase = {

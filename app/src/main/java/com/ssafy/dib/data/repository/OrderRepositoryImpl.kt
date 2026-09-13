@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.order.OrderRemoteDataSource
 import com.ssafy.dib.data.remote.order.OrderSummaryDto
 import com.ssafy.dib.domain.order.OrderRepository
 import com.ssafy.dib.domain.order.OrderRole
+import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -22,12 +23,34 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Failure -> result
         }
 
+    override fun getShipment(orderId: String): ApiResult<OrderShipment> =
+        when (val result = remote.getShipment(orderId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment> =
+        when (val result = remote.registerShipment(orderId, trackingNumber, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun confirmPurchase(orderId: String): ApiResult<String> =
         when (val result = remote.confirmPurchase(orderId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
             is ApiResult.Failure -> result
         }
 }
+
+internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderShipment = OrderShipment(
+    orderId = orderId.idValue(),
+    trackingNumber = trackingNumber,
+    status = status,
+    carrierStatus = carrierStatus,
+    lastCheckedAt = lastCheckedAt,
+    isStale = isStale,
+    updatedAt = updatedAt
+)
 
 internal fun OrderSummaryDto.toDomain(): OrderSummary {
     val core = order
