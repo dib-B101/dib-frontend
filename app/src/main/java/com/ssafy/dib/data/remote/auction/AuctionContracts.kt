@@ -92,3 +92,16 @@ data class MaskedBidHistoryDto(
     val amount: Long,
     val createdAt: String
 )
+
+@Serializable
+data class AuctionBidSnapshotResponse(
+    val auctionId: JsonElement,
+    val currentPrice: Long,
+    val auctionTime: Long,
+    val startedAt: String? = null,
+    val scheduledEndAt: String? = null,
+    val bidCount: Int = 0,
+    val bidderCount: Int = 0,
+    val isHighestBidder: Boolean = false,
+    val serverTime: String? = null
+)

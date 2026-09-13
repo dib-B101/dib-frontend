@@ -11,6 +11,7 @@ import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
 import com.ssafy.dib.domain.auction.AuctionBidHistoryPage
 import com.ssafy.dib.domain.auction.HomeRecommendations
 import com.ssafy.dib.domain.auction.RecommendedLive
+import com.ssafy.dib.domain.auction.AuctionBidSnapshot
 import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
@@ -108,6 +109,12 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun getBidSnapshot(auctionId: String): ApiResult<AuctionBidSnapshot> =
+        when (val result = remote.getBidSnapshot(auctionId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(now()), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean> =
         when (val result = remote.setBookmark(auctionId, bookmarked, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.bookmarked, result.status)
@@ -161,6 +168,21 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         isHighestBidder = myBid?.isHighestBidder,
         myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
         imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) }
+    )
+}
+
+internal fun com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse.toDomain(now: Instant): AuctionBidSnapshot {
+    val referenceTime = serverTime.toInstantOrNull() ?: now
+    val remaining = scheduledEndAt.toInstantOrNull()
+        ?.let { Duration.between(referenceTime, it).seconds.coerceAtLeast(0) }
+        ?: auctionTime.coerceAtLeast(0)
+    return AuctionBidSnapshot(
+        auctionId = auctionId.idValue(),
+        currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        bidCount = bidCount.coerceAtLeast(0),
+        bidderCount = bidderCount.coerceAtLeast(0),
+        isHighestBidder = isHighestBidder
     )
 }
 

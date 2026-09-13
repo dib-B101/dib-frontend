@@ -917,6 +917,29 @@ fun AppNavHost() {
                 }
                 detailLoading = false
             }
+            LaunchedEffect(productId, realtimeState == RealtimeConnectionState.Connected) {
+                if (!auth.networkConfig.isRestConfigured || realtimeState == RealtimeConnectionState.Connected) return@LaunchedEffect
+                while (true) {
+                    when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBidSnapshot(productId) }) {
+                        is ApiResult.Success -> {
+                            val snapshot = result.value
+                            val base = remoteDetail ?: remoteAuctions?.firstOrNull { it.id == productId }
+                            if (base != null) {
+                                remoteDetail = base.copy(
+                                    price = snapshot.currentPrice,
+                                    bidCount = snapshot.bidCount,
+                                    remainingSeconds = snapshot.remainingSeconds,
+                                    isHighestBidder = snapshot.isHighestBidder
+                                )
+                            }
+                        }
+                        is ApiResult.Failure -> if (remoteDetail == null) {
+                            realtimeNotice = result.error.message.ifBlank { "최신 입찰 정보를 불러오지 못했어요." }
+                        }
+                    }
+                    delay(15_000L)
+                }
+            }
             LaunchedEffect(productId, auctionBidHistoryRevision) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 auctionBidHistoryLoading = true
