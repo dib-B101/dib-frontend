@@ -15,6 +15,10 @@ import com.ssafy.dib.data.remote.socket.SocketCommands
 import com.ssafy.dib.data.remote.socket.SocketEnvelope
 import com.ssafy.dib.data.remote.socket.SocketEventGate
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
+import com.ssafy.dib.data.remote.socket.LiveSocketEventParser
+import java.time.Instant
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -118,5 +122,48 @@ class NetworkContractTest {
         assertEquals("order-7", command.payload.getValue("orderId").jsonPrimitive.content)
         assertEquals("안녕하세요", command.payload.getValue("content").jsonPrimitive.content)
         assertTrue(command.payload.containsKey("clientSentAt"))
+    }
+
+    @Test
+    fun liveAuctionStatusUpdatesPriceCountAndRemainingTime() {
+        val update = LiveSocketEventParser(now = { Instant.parse("2026-09-13T08:00:00Z") }).parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_STATUS_UPDATED,
+                occurredAt = "2026-09-13T08:00:01Z",
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", "auction-3")
+                    put("currentPrice", 57_000)
+                    put("bidCount", 8)
+                    put("endedAt", "2026-09-13T08:00:30Z")
+                    put("status", "ACTIVE")
+                }
+            )
+        )
+
+        requireNotNull(update)
+        assertEquals("live-1", update.liveBroadcastId)
+        assertEquals("auction-3", update.auctionId)
+        assertEquals(57_000, update.currentPrice)
+        assertEquals(8, update.bidCount)
+        assertEquals(30, update.remainingSeconds)
+    }
+
+    @Test
+    fun liveViewerEventDoesNotRequireAnAuction() {
+        val update = LiveSocketEventParser().parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_VIEWER_COUNT_UPDATED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-2")
+                    put("viewerCount", 1_321)
+                }
+            )
+        )
+
+        requireNotNull(update)
+        assertEquals("live-2", update.liveBroadcastId)
+        assertEquals(1_321, update.viewerCount)
+        assertNull(update.auctionId)
     }
 }

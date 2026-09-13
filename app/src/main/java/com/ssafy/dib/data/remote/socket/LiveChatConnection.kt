@@ -1,37 +1,63 @@
 package com.ssafy.dib.data.remote.socket
 
 import com.ssafy.dib.domain.live.LiveChatMessage
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 class LiveChatConnection(
     private val socket: DibWebSocketClient,
-    private val codec: SocketCodec = SocketCodec()
+    private val codec: SocketCodec = SocketCodec(),
+    private val eventParser: LiveSocketEventParser = LiveSocketEventParser()
 ) {
+    private val reconnectExecutor = Executors.newSingleThreadScheduledExecutor { task ->
+        Thread(task, "dib-live-reconnect").apply { isDaemon = true }
+    }
     private var liveBroadcastId = ""
-    private var active = false
+    private var subscribedAuctionId: String? = null
+    @Volatile private var active = false
+    private var reconnectAttempt = 0
+    private var reconnectTask: ScheduledFuture<*>? = null
+    @Volatile private var pendingBidCommand: SocketEnvelope? = null
     private var onMessage: (LiveChatMessage) -> Unit = {}
+    private var onUpdate: (LiveRealtimeUpdate) -> Unit = {}
     private var onError: (String) -> Unit = {}
     private var onState: (RealtimeConnectionState) -> Unit = {}
 
     fun start(
         liveBroadcastId: String,
+        activeAuctionId: String?,
         onMessage: (LiveChatMessage) -> Unit,
+        onUpdate: (LiveRealtimeUpdate) -> Unit,
         onError: (String) -> Unit,
         onState: (RealtimeConnectionState) -> Unit
     ) {
-        close()
+        stopSession()
         this.liveBroadcastId = liveBroadcastId
+        this.subscribedAuctionId = activeAuctionId
         this.onMessage = onMessage
+        this.onUpdate = onUpdate
         this.onError = onError
         this.onState = onState
         active = true
-        onState(RealtimeConnectionState.Connecting)
+        connect(RealtimeConnectionState.Connecting)
+    }
+
+    private fun connect(state: RealtimeConnectionState) {
+        if (!active) return
+        onState(state)
         socket.connect(object : DibSocketListener {
             override fun onConnected() {
                 if (!active) return
+                reconnectTask?.cancel(false)
+                reconnectTask = null
+                reconnectAttempt = 0
                 onState(RealtimeConnectionState.Connected)
                 socket.send(SocketCommands.subscribeLive(liveBroadcastId))
+                subscribedAuctionId?.let { socket.send(SocketCommands.subscribeAuction(it)) }
+                pendingBidCommand?.let(socket::send)
             }
 
             override fun onEvent(envelope: SocketEnvelope) {
@@ -46,13 +72,27 @@ class LiveChatConnection(
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
                     }.getOrNull()?.let { onError(it.message) }
                 }
+                eventParser.parse(envelope)?.let { update ->
+                    when (update.eventType) {
+                        SocketEventTypes.LIVE_AUCTION_OPENED -> update.auctionId?.let(::subscribeAuction)
+                        SocketEventTypes.LIVE_AUCTION_CLOSED -> update.auctionId?.let(::unsubscribeAuction)
+                    }
+                    if (update.bidAccepted != null && update.commandId == pendingBidCommand?.commandId) {
+                        pendingBidCommand = null
+                    }
+                    onUpdate(update)
+                }
+                if (envelope.eventType == SocketEventTypes.SERVER_DRAINING) scheduleReconnect()
             }
 
             override fun onFailure(cause: Throwable) {
                 if (active) {
-                    onState(RealtimeConnectionState.Disconnected)
-                    onError("Live 채팅 연결이 끊어졌어요. 다시 시도해주세요.")
+                    scheduleReconnect()
                 }
+            }
+
+            override fun onClosed(code: Int, reason: String) {
+                if (active) scheduleReconnect()
             }
         })
     }
@@ -63,10 +103,57 @@ class LiveChatConnection(
         return socket.send(SocketCommands.sendLiveChat(liveBroadcastId, value))
     }
 
-    fun close() {
+    @Synchronized
+    fun placeBid(auctionId: String, amount: Int): String? {
+        if (!active || auctionId.isBlank() || amount <= 0 || pendingBidCommand != null) return null
+        if (subscribedAuctionId != auctionId) subscribeAuction(auctionId)
+        return SocketCommands.placeBid(auctionId, amount.toLong()).also { command ->
+            pendingBidCommand = command
+            if (!socket.send(command)) scheduleReconnect()
+        }.commandId
+    }
+
+    private fun subscribeAuction(auctionId: String) {
+        if (subscribedAuctionId == auctionId) return
+        subscribedAuctionId?.takeIf { it != auctionId }?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
+        subscribedAuctionId = auctionId
+        socket.send(SocketCommands.subscribeAuction(auctionId))
+    }
+
+    private fun unsubscribeAuction(auctionId: String) {
+        if (subscribedAuctionId == auctionId) {
+            socket.send(SocketCommands.unsubscribeAuction(auctionId))
+            subscribedAuctionId = null
+        }
+    }
+
+    @Synchronized
+    private fun scheduleReconnect() {
+        if (!active || reconnectTask?.isDone == false) return
+        onState(RealtimeConnectionState.Reconnecting)
+        val delaySeconds = (1L shl reconnectAttempt.coerceAtMost(5)).coerceAtMost(30)
+        reconnectAttempt++
+        reconnectTask = reconnectExecutor.schedule(
+            { connect(RealtimeConnectionState.Reconnecting) },
+            delaySeconds,
+            TimeUnit.SECONDS
+        )
+    }
+
+    private fun stopSession() {
+        reconnectTask?.cancel(false)
+        reconnectTask = null
+        subscribedAuctionId?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
         if (active && liveBroadcastId.isNotBlank()) socket.send(SocketCommands.unsubscribeLive(liveBroadcastId))
         active = false
+        subscribedAuctionId = null
+        pendingBidCommand = null
         socket.disconnect()
+    }
+
+    fun close() {
+        stopSession()
+        reconnectExecutor.shutdownNow()
     }
 }
 

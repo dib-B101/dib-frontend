@@ -546,6 +546,8 @@ fun AppNavHost() {
             var liveChatError by remember { mutableStateOf<String?>(null) }
             var liveChatState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
             var liveChatConnection by remember { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
+            var pendingLiveBidCommandId by remember { mutableStateOf<String?>(null) }
+            var liveBidFeedback by remember { mutableStateOf<RealtimeBidFeedback?>(null) }
             LaunchedEffect(liveFeedRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveFeedLoading = true
@@ -576,13 +578,61 @@ fun AppNavHost() {
             }
             DisposableEffect(activeLiveBroadcastId, signedIn, auth.networkConfig.isWebSocketConfigured) {
                 val liveId = activeLiveBroadcastId
-                val connection = if (liveId != null && signedIn == true && auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (liveId != null && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         liveChatConnection = created
                         created.start(
                             liveBroadcastId = liveId,
+                            activeAuctionId = liveFeedItems?.firstOrNull { it.liveBroadcastId == liveId }?.currentAuction?.auctionId,
                             onMessage = { message -> coroutineScope.launch {
                                 liveComments = (liveComments + message).distinctBy { it.liveChattingId }
+                            } },
+                            onUpdate = { update -> coroutineScope.launch {
+                                val targetLiveId = update.liveBroadcastId ?: liveId
+                                liveFeedItems = liveFeedItems?.map { item ->
+                                    if (item.liveBroadcastId != targetLiveId) return@map item
+                                    val current = item.currentAuction
+                                    val updatedAuction = when {
+                                        update.eventType == SocketEventTypes.LIVE_AUCTION_OPENED && update.auctionId != null ->
+                                            com.ssafy.dib.domain.auction.AuctionSummary(
+                                                auctionId = update.auctionId,
+                                                sellerMemberId = item.memberId,
+                                                productId = update.productId.orEmpty(),
+                                                title = update.title ?: "Live 경매 상품",
+                                                categoryName = "",
+                                                currentPrice = update.currentPrice ?: update.startPrice ?: 0,
+                                                startPrice = update.startPrice ?: update.currentPrice ?: 0,
+                                                bidCount = update.bidCount ?: 0,
+                                                remainingSeconds = update.remainingSeconds ?: 0,
+                                                status = update.status ?: "ACTIVE",
+                                                bookmarked = false,
+                                                imageUrls = listOfNotNull(update.thumbnailUrl)
+                                            )
+                                        current != null && (update.auctionId == null || update.auctionId == current.auctionId) -> current.copy(
+                                            currentPrice = update.currentPrice ?: current.currentPrice,
+                                            bidCount = update.bidCount ?: current.bidCount,
+                                            remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
+                                            status = update.status ?: current.status
+                                        )
+                                        else -> current
+                                    }
+                                    item.copy(
+                                        viewCount = update.viewerCount ?: item.viewCount,
+                                        currentAuction = updatedAuction
+                                    )
+                                }
+                                if (update.bidAccepted != null && update.commandId == pendingLiveBidCommandId) {
+                                    liveBidFeedback = RealtimeBidFeedback(
+                                        accepted = update.bidAccepted,
+                                        message = update.message.orEmpty(),
+                                        currentPrice = update.currentPrice,
+                                        minAllowedAmount = update.minAllowedAmount,
+                                        errorCode = update.errorCode,
+                                        eventKey = "${update.eventType}:${update.commandId}:${update.occurredAt.orEmpty()}"
+                                    )
+                                    pendingLiveBidCommandId = null
+                                }
+                                update.message?.takeIf { update.bidAccepted == null }?.let { liveChatError = it }
                             } },
                             onError = { message -> coroutineScope.launch { liveChatError = message } },
                             onState = { state -> coroutineScope.launch { liveChatState = state } }
@@ -591,6 +641,7 @@ fun AppNavHost() {
                 } else null
                 onDispose {
                     liveChatConnection = null
+                    pendingLiveBidCommandId = null
                     connection?.close()
                 }
             }
@@ -613,10 +664,17 @@ fun AppNavHost() {
                 onSendComment = { content -> liveChatConnection?.send(content) == true },
                 isAuthenticated = signedIn == true,
                 paidBidAmount = paidBidAmount,
-                depositPaid = "camera" in depositPaidProductIds,
+                depositPaidAuctionIds = depositPaidProductIds,
+                realtimeBidFeedback = liveBidFeedback,
+                onRealtimeBid = { auctionId, amount ->
+                    liveChatConnection?.placeBid(auctionId, amount)?.let { commandId ->
+                        pendingLiveBidCommandId = commandId
+                        true
+                    } ?: false
+                },
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
-                onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
+                onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onDepositPayment = { productId, submission ->
                     if (signedIn != true) {
