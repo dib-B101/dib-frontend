@@ -26,6 +26,25 @@ data class ProductCreateResponse(
 )
 
 @Serializable
+data class ProductUpdatePayload(
+    val title: String? = null,
+    val description: String? = null,
+    val categoryId: JsonElement? = null,
+    val condition: String? = null,
+    val modelName: String? = null,
+    val releaseYear: Int? = null,
+    val marketPrice: Long? = null
+)
+
+@Serializable
+data class ProductUpdateResponse(
+    val productId: JsonElement,
+    val status: String,
+    val thumbnailUrl: String? = null,
+    val updatedAt: String
+)
+
+@Serializable
 data class ProductDetailResponse(val product: ProductDetailDto, val sellerSummary: ProductSellerSummaryDto? = null)
 
 @Serializable

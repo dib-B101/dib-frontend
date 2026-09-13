@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.product.CategoryListResponse
 import com.ssafy.dib.data.remote.product.ProductCreatePayload
 import com.ssafy.dib.data.remote.product.ProductDetailResponse
 import com.ssafy.dib.data.remote.product.ProductListResponse
+import com.ssafy.dib.data.remote.product.ProductUpdatePayload
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -70,5 +71,24 @@ class ProductContractTest {
         assertEquals("달빛 유약 머그컵", product.title)
         assertEquals("REGISTERED", product.status)
         assertEquals("https://cdn.example/mug.jpg", product.thumbnailUrl)
+    }
+
+    @Test
+    fun productUpdatePayloadKeepsNumericFieldsAndOmitsNulls() {
+        val payload = ProductUpdatePayload(
+            title = "필름 카메라",
+            description = "정상 작동",
+            categoryId = JsonPrimitive(3),
+            condition = "GOOD",
+            modelName = null,
+            releaseYear = 1982,
+            marketPrice = 120_000
+        )
+
+        val encoded = DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload)
+
+        assertTrue(encoded.contains("\"categoryId\":3"))
+        assertTrue(encoded.contains("\"releaseYear\":1982"))
+        assertTrue(!encoded.contains("modelName"))
     }
 }

@@ -9,6 +9,7 @@ import com.ssafy.dib.core.network.IdempotencyKeyProvider
 import com.ssafy.dib.core.network.UuidIdempotencyKeyProvider
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.product.ProductRegistration
+import com.ssafy.dib.domain.product.ProductUpdate
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -79,6 +80,20 @@ class ProductRemoteDataSource(
                 .delete()
                 .build()
         )
+    }
+
+    fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResponse> = configured {
+        val categoryId = update.categoryId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(update.categoryId)
+        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice)
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "product",
+                null,
+                DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload).toRequestBody("application/json".toMediaType())
+            )
+            .build()
+        val path = "${ApiRoutes.PRODUCTS}/$productId"
+        client.execute(client.requestBuilder(path).patch(multipart).build(), ProductUpdateResponse.serializer())
     }
 
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =
