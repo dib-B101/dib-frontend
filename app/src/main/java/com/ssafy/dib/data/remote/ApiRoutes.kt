@@ -3,6 +3,7 @@ package com.ssafy.dib.data.remote
 object ApiRoutes {
     const val PHONE_VERIFICATIONS = "/api/v1/auth/phone-verifications"
     const val EMAIL_AVAILABILITY = "/api/v1/auth/emails/availability"
+    const val AUTH_EMAIL = "/api/v1/auth/email"
     const val SIGN_UP = "/api/v1/auth/signup"
     const val LOGIN = "/api/v1/auth/login"
     const val TOKEN_REFRESH = "/api/v1/auth/token/refresh"

@@ -29,6 +29,9 @@ class AuthRepositoryImpl(
     override fun requestSensitivePhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
         requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.CHANGE_SENSITIVE)
 
+    override fun requestFindEmailPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge> =
+        requestPhoneVerification(phoneNumber, PhoneVerificationPurpose.FIND_EMAIL)
+
     private fun requestPhoneVerification(phoneNumber: String, purpose: PhoneVerificationPurpose): ApiResult<PhoneVerificationChallenge> =
         when (val result = remote.requestPhoneVerification(
             PhoneVerificationRequest(phoneNumber, purpose)
@@ -65,6 +68,12 @@ class AuthRepositoryImpl(
     override fun checkEmailAvailability(email: String): ApiResult<Boolean> =
         when (val result = remote.checkEmailAvailability(email)) {
             is ApiResult.Success -> ApiResult.Success(result.value.available, result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun findEmail(phoneVerificationToken: String): ApiResult<String> =
+        when (val result = remote.findEmail(phoneVerificationToken)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.maskedEmail, result.status)
             is ApiResult.Failure -> result
         }
 

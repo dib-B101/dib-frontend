@@ -46,11 +46,13 @@ interface AuthRepository {
     fun currentSession(): AuthSession?
     fun requestSignUpPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
     fun requestSensitivePhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
+    fun requestFindEmailPhoneVerification(phoneNumber: String): ApiResult<PhoneVerificationChallenge>
     fun confirmPhoneVerification(
         verificationId: String,
         code: String
     ): ApiResult<PhoneVerificationConfirmation>
     fun checkEmailAvailability(email: String): ApiResult<Boolean>
+    fun findEmail(phoneVerificationToken: String): ApiResult<String>
     fun signUp(command: SignUpCommand): ApiResult<AuthSession>
     fun login(email: String, password: String, deviceId: String): ApiResult<AuthSession>
     fun refresh(deviceId: String): ApiResult<AuthSession>

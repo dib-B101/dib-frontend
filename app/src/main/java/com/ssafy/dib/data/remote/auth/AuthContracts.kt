@@ -36,6 +36,9 @@ data class PhoneVerificationConfirmResponse(
 data class EmailAvailabilityResponse(val available: Boolean)
 
 @Serializable
+data class MaskedEmailResponse(val maskedEmail: String)
+
+@Serializable
 data class SignUpRequest(
     val email: String,
     val password: String,
