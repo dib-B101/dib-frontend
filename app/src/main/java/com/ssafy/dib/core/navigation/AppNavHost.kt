@@ -28,6 +28,7 @@ import com.ssafy.dib.feature.auction.SellerReportScreen
 import com.ssafy.dib.feature.auction.SellerReviewsScreen
 import com.ssafy.dib.feature.auth.LoginScreen
 import com.ssafy.dib.feature.auth.FindEmailScreen
+import com.ssafy.dib.feature.auth.PasswordResetLinkScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SplashScreen
@@ -265,6 +266,7 @@ fun AppNavHost() {
                 onBack = navController::navigateUp,
                 onSignUp = { navController.navigate(Screen.SignUp.route) },
                 onFindEmail = { navController.navigate(Screen.FindEmail.route) },
+                onPasswordReset = { navController.navigate(Screen.PasswordResetLink.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
                 onLogin = { email, password ->
@@ -333,6 +335,50 @@ fun AppNavHost() {
                             is ApiResult.Failure -> findEmailError = signupErrorMessage(confirmation.error)
                         }
                         findEmailLoading = false
+                    }
+                },
+                onBack = navController::navigateUp,
+                onLogin = { navController.popBackStack(Screen.Login.route, inclusive = false) }
+            )
+        }
+        composable(Screen.PasswordResetLink.route) {
+            var verificationId by remember { mutableStateOf<String?>(null) }
+            var resetLoading by remember { mutableStateOf(false) }
+            var resetError by remember { mutableStateOf<String?>(null) }
+            var linkSent by remember { mutableStateOf(false) }
+
+            PasswordResetLinkScreen(
+                verificationRequested = verificationId != null,
+                isLoading = resetLoading,
+                errorMessage = resetError,
+                linkSent = linkSent,
+                onRequestVerification = { phoneNumber ->
+                    resetLoading = true
+                    resetError = null
+                    linkSent = false
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.repository.requestPasswordResetPhoneVerification(phoneNumber) }) {
+                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Failure -> resetError = signupErrorMessage(result.error)
+                        }
+                        resetLoading = false
+                    }
+                },
+                onRequestResetLink = { email, code ->
+                    val challengeId = verificationId ?: return@PasswordResetLinkScreen
+                    resetLoading = true
+                    resetError = null
+                    coroutineScope.launch {
+                        when (val confirmation = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
+                            is ApiResult.Success -> when (val result = withContext(Dispatchers.IO) {
+                                auth.repository.requestPasswordResetLink(email, confirmation.value.verificationToken)
+                            }) {
+                                is ApiResult.Success -> linkSent = true
+                                is ApiResult.Failure -> resetError = signupErrorMessage(result.error)
+                            }
+                            is ApiResult.Failure -> resetError = signupErrorMessage(confirmation.error)
+                        }
+                        resetLoading = false
                     }
                 },
                 onBack = navController::navigateUp,
