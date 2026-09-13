@@ -16,6 +16,7 @@ import com.ssafy.dib.data.remote.report.ReportRemoteDataSource
 import com.ssafy.dib.data.remote.product.ProductRemoteDataSource
 import com.ssafy.dib.data.remote.payment.PaymentRemoteDataSource
 import com.ssafy.dib.data.remote.member.MemberRemoteDataSource
+import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.DibWebSocketClient
 import com.ssafy.dib.data.remote.socket.OrderChatConnection
@@ -28,6 +29,7 @@ import com.ssafy.dib.data.repository.ReportRepositoryImpl
 import com.ssafy.dib.data.repository.ProductRepositoryImpl
 import com.ssafy.dib.data.repository.PaymentRepositoryImpl
 import com.ssafy.dib.data.repository.MemberRepositoryImpl
+import com.ssafy.dib.data.repository.LiveRepositoryImpl
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.BidDepositRepository
 import com.ssafy.dib.domain.auth.AuthRepository
@@ -37,6 +39,7 @@ import com.ssafy.dib.domain.report.ReportRepository
 import com.ssafy.dib.domain.product.ProductRepository
 import com.ssafy.dib.domain.payment.PaymentRepository
 import com.ssafy.dib.domain.member.MemberRepository
+import com.ssafy.dib.domain.live.LiveRepository
 import java.util.UUID
 
 class AuthDependencies(context: Context) {
@@ -56,6 +59,7 @@ class AuthDependencies(context: Context) {
     val productRepository: ProductRepository
     val paymentRepository: PaymentRepository
     val memberRepository: MemberRepository
+    val liveRepository: LiveRepository
 
     init {
         val client = DibHttpClient(
@@ -72,6 +76,7 @@ class AuthDependencies(context: Context) {
         productRepository = ProductRepositoryImpl(ProductRemoteDataSource(client))
         paymentRepository = PaymentRepositoryImpl(PaymentRemoteDataSource(client))
         memberRepository = MemberRepositoryImpl(MemberRemoteDataSource(client))
+        liveRepository = LiveRepositoryImpl(LiveRemoteDataSource(client))
     }
 
     private fun guestSessionId(): String {
