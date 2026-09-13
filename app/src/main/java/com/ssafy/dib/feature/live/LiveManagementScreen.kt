@@ -39,6 +39,7 @@ fun LiveManagementScreen(
     actionRevision: Int,
     onRetry: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
+    onUpdate: (liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
     onPrepareStream: (liveBroadcastId: String) -> Unit,
     onStartLive: (liveBroadcastId: String) -> Unit,
@@ -48,10 +49,12 @@ fun LiveManagementScreen(
     modifier: Modifier = Modifier
 ) {
     var showCreate by rememberSaveable { mutableStateOf(false) }
+    var editingBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingLiveId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(actionRevision) {
         if (actionRevision > 0) {
             showCreate = false
+            editingBroadcastId = null
             editingLiveId = null
         }
     }
@@ -87,6 +90,7 @@ fun LiveManagementScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusBadge(live.status)
                             Spacer(Modifier.weight(1f))
+                            if (live.status == "SCHEDULED") Text("수정", Modifier.clickable { editingBroadcastId = live.liveBroadcastId }.padding(horizontal = 10.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text(live.scheduledAt?.replace('T', ' ')?.take(16) ?: "일정 확인 필요", color = Colors.Muted, fontSize = 11.sp)
                         }
                         Text(live.title, color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -128,9 +132,14 @@ fun LiveManagementScreen(
         }
     }
 
-    if (showCreate) CreateLiveDialog(actionLoading, actionError, { showCreate = false }) { title, description, scheduledAt, streamUrl ->
+    if (showCreate) LiveFormDialog(null, actionLoading, actionError, { showCreate = false }) { title, description, scheduledAt, streamUrl ->
         onCreate(title, description, scheduledAt, streamUrl)
     }
+    editingBroadcastId?.let { liveId -> broadcasts?.firstOrNull { it.liveBroadcastId == liveId }?.let { live ->
+        LiveFormDialog(live, actionLoading, actionError, { editingBroadcastId = null }) { title, description, scheduledAt, streamUrl ->
+            onUpdate(liveId, title, description, scheduledAt, streamUrl)
+        }
+    } }
     editingLiveId?.let { liveId ->
         LiveItemDialog(
             current = assignedAuctions[liveId].orEmpty(),
@@ -148,18 +157,21 @@ fun LiveManagementScreen(
 @Composable private fun StatusBadge(status: String) { val label = when(status) { "SCHEDULED" -> "예정"; "LIVE" -> "방송 중"; "ENDED" -> "종료"; else -> status }; Surface(color = if(status == "LIVE") Colors.Live else Colors.Navy, shape = RoundedCornerShape(10.dp)) { Text(label, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
-private fun CreateLiveDialog(loading: Boolean, error: String?, onDismiss: () -> Unit, onCreate: (String, String?, String, String?) -> Unit) {
-    val tomorrow = remember { LocalDateTime.now().plusDays(1).withSecond(0).withNano(0) }
-    var title by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var date by rememberSaveable { mutableStateOf(tomorrow.toLocalDate().toString()) }
-    var time by rememberSaveable { mutableStateOf(tomorrow.toLocalTime().toString().take(5)) }
-    var streamUrl by rememberSaveable { mutableStateOf("") }
+private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, error: String?, onDismiss: () -> Unit, onSubmit: (String, String?, String, String?) -> Unit) {
+    val initialDateTime = remember(initial?.liveBroadcastId, initial?.scheduledAt) {
+        initial?.scheduledAt?.let { runCatching { LocalDateTime.ofInstant(Instant.parse(it), ZoneId.systemDefault()) }.getOrNull() }
+            ?: LocalDateTime.now().plusDays(1).withSecond(0).withNano(0)
+    }
+    var title by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.title.orEmpty()) }
+    var description by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.description.orEmpty()) }
+    var date by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalDate().toString()) }
+    var time by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalTime().toString().take(5)) }
+    var streamUrl by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.streamUrl.orEmpty()) }
     val scheduledInstant = runCatching { LocalDateTime.parse("${date}T${time}").atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
     val scheduledAt = scheduledInstant?.takeIf { it.isAfter(Instant.now()) }?.toString()
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text("새 Live 예약") },
+        title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정") },
         text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(title, { title = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("방송 제목") }, singleLine = true)
             OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 2)
@@ -171,7 +183,7 @@ private fun CreateLiveDialog(loading: Boolean, error: String?, onDismiss: () -> 
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { TextButton({ scheduledAt?.let { onCreate(title.trim(), description.trim().ifBlank { null }, it, streamUrl.trim().ifBlank { null }) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("예약") } },
+        confirmButton = { TextButton({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, streamUrl.trim().ifBlank { null }) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
         dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
     )
 }

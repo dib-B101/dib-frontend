@@ -81,6 +81,15 @@ class LiveRemoteDataSource(
         )
     }
 
+    fun update(liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<UpdateLiveBroadcastResponse> = configured {
+        val path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId"
+        val body = UpdateLiveBroadcastRequest(title, description?.takeIf(String::isNotBlank), scheduledAt, streamUrl?.takeIf(String::isNotBlank))
+        client.execute(
+            client.requestBuilder(path).patch(client.jsonBody(body, UpdateLiveBroadcastRequest.serializer())).build(),
+            UpdateLiveBroadcastResponse.serializer()
+        )
+    }
+
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String?, size: Int): ApiResult<LiveChatMessageListResponse> = configured {
         val path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/messages"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())

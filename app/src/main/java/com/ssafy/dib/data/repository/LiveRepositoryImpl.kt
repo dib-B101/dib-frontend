@@ -84,6 +84,12 @@ class LiveRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun update(liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String> =
+        when (val result = remote.update(liveBroadcastId, title, description, scheduledAt, streamUrl)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.liveBroadcastId.idValue(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
         when (val result = remote.setItems(liveBroadcastId, auctionIds)) {
             is ApiResult.Success -> ApiResult.Success(result.value.auctions.map { it.toDomain(now()) }, result.status)

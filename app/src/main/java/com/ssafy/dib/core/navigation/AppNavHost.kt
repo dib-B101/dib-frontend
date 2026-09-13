@@ -1429,6 +1429,21 @@ fun AppNavHost() {
                         liveActionLoading = false
                     }
                 },
+                onUpdate = { liveId, title, description, scheduledAt, streamUrl ->
+                    liveActionLoading = true
+                    liveActionError = null
+                    liveActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.update(liveId, title, description, scheduledAt, streamUrl) }) {
+                            is ApiResult.Success -> { liveActionMessage = "Live 예약 정보를 수정했어요."; liveActionRevision++; liveManagementRevision++ }
+                            is ApiResult.Failure -> {
+                                liveActionError = liveControlError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        liveActionLoading = false
+                    }
+                },
                 onSetItems = { liveId, auctionIds ->
                     liveActionLoading = true
                     liveActionError = null
