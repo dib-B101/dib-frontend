@@ -49,6 +49,8 @@ import com.ssafy.dib.feature.auction.sampleBidAddresses
 import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.domain.live.LiveFeedItem
+import com.ssafy.dib.domain.live.LiveChatMessage
+import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
@@ -59,6 +61,12 @@ fun LiveFeedScreen(
     isLoading: Boolean,
     errorMessage: String?,
     onRetry: () -> Unit,
+    activeLiveBroadcastId: String?,
+    liveComments: List<LiveChatMessage>,
+    chatError: String?,
+    chatConnectionState: RealtimeConnectionState?,
+    onLiveVisible: (String) -> Unit,
+    onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
     depositPaid: Boolean,
@@ -83,9 +91,16 @@ fun LiveFeedScreen(
         else -> {
             val items = remoteItems ?: listOf(null)
             val pagerState = rememberPagerState(pageCount = items::size)
+            LaunchedEffect(pagerState.currentPage, remoteItems) {
+                items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
+            }
             VerticalPager(state = pagerState, modifier = modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
                 LiveFeedPage(
                     liveItem = items[page],
+                    liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
+                    chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
+                    chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
+                    onSendComment = onSendComment,
                     isAuthenticated = isAuthenticated,
                     paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
                     depositPaid = depositPaid,
@@ -104,6 +119,10 @@ fun LiveFeedScreen(
 @Composable
 private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
+    liveComments: List<LiveChatMessage>,
+    chatError: String?,
+    chatConnectionState: RealtimeConnectionState?,
+    onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
     depositPaid: Boolean,
@@ -122,7 +141,6 @@ private fun LiveFeedPage(
     var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: 34_500) }
     var remaining by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.remainingSeconds ?: 42) }
     var comment by rememberSaveable { mutableStateOf("") }
-    var comments by rememberSaveable { mutableStateOf(listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?")) }
     var showBidFeedback by remember { mutableStateOf(false) }
     val livePulse = rememberInfiniteTransition(label = "livePulse")
     val liveDotAlpha by livePulse.animateFloat(
@@ -174,7 +192,8 @@ private fun LiveFeedPage(
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 76.dp, bottom = 230.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                comments.takeLast(3).forEach { message ->
+                val displayedComments = if (liveItem == null) listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?") else liveComments.takeLast(3).map { message -> "${message.nickname ?: message.memberId}  ${message.content}" }
+                displayedComments.forEach { message ->
                     Surface(color = Color.Black.copy(alpha = .18f), shape = RoundedCornerShape(9.dp)) {
                         Text(message, Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
                     }
@@ -203,9 +222,10 @@ private fun LiveFeedPage(
                 }
             }
             Row(Modifier.fillMaxWidth().height(44.dp).background(Color.Black.copy(.42f), RoundedCornerShape(22.dp)).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(value = comment, onValueChange = { comment = it.take(40) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
-                Text("↑", Modifier.size(32.dp).background(Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank()) { comments = comments + "dib러버  ${comment.trim()}"; comment = "" } }.wrapContentSize(), color = Colors.Navy, fontWeight = FontWeight.Bold)
+                BasicTextField(value = comment, onValueChange = { comment = it.take(500) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
+                Text("↑", Modifier.size(32.dp).background(Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank() && onSendComment(comment)) comment = "" }.wrapContentSize(), color = Colors.Navy, fontWeight = FontWeight.Bold)
             }
+            if (isAuthenticated && chatConnectionState != RealtimeConnectionState.Connected) Text(chatError ?: "Live 채팅 연결 중", color = Color.White.copy(.75f), fontSize = 9.sp)
         }
         AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center), enter = fadeIn() + scaleIn(initialScale = .7f), exit = fadeOut() + scaleOut(targetScale = .82f)) {
             Surface(color = Colors.Mint, shape = RoundedCornerShape(20.dp), shadowElevation = 8.dp) {

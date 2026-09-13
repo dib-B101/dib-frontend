@@ -20,6 +20,7 @@ import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.DibWebSocketClient
 import com.ssafy.dib.data.remote.socket.OrderChatConnection
+import com.ssafy.dib.data.remote.socket.LiveChatConnection
 import com.ssafy.dib.data.repository.AuctionRepositoryImpl
 import com.ssafy.dib.data.repository.BidDepositRepositoryImpl
 import com.ssafy.dib.data.repository.AuthRepositoryImpl
@@ -99,6 +100,14 @@ class AuthDependencies(context: Context) {
             config = networkConfig,
             accessTokenProvider = AccessTokenProvider { sessionStore.read()?.accessToken },
             guestSessionProvider = GuestSessionProvider { null }
+        )
+    )
+
+    fun createLiveChatConnection() = LiveChatConnection(
+        DibWebSocketClient(
+            config = networkConfig,
+            accessTokenProvider = AccessTokenProvider { sessionStore.read()?.accessToken },
+            guestSessionProvider = GuestSessionProvider { guestSessionId() }
         )
     )
 
