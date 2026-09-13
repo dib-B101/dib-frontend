@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.order.OrderShippingAddress
 import com.ssafy.dib.domain.payment.PaymentPreparation
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
@@ -65,6 +66,9 @@ fun TransactionScreen(
     shipment: OrderShipment?,
     shipmentLoading: Boolean,
     shipmentError: String?,
+    shippingAddress: OrderShippingAddress?,
+    shippingAddressLoading: Boolean,
+    shippingAddressError: String?,
     onPreparePayment: () -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
@@ -90,6 +94,9 @@ fun TransactionScreen(
             shipment = shipment,
             shipmentLoading = shipmentLoading,
             shipmentError = shipmentError,
+            shippingAddress = shippingAddress,
+            shippingAddressLoading = shippingAddressLoading,
+            shippingAddressError = shippingAddressError,
             onPreparePayment = onPreparePayment,
             onCheckPayment = onCheckPayment,
             onResetPayment = onResetPayment,
@@ -120,6 +127,9 @@ private fun RemoteTransactionScreen(
     shipment: OrderShipment?,
     shipmentLoading: Boolean,
     shipmentError: String?,
+    shippingAddress: OrderShippingAddress?,
+    shippingAddressLoading: Boolean,
+    shippingAddressError: String?,
     onPreparePayment: () -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
@@ -183,6 +193,20 @@ private fun RemoteTransactionScreen(
                             ),
                             "거래 정보"
                         )
+                    }
+                    if (shippingAddressLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
+                    shippingAddressError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
+                    shippingAddress?.let { destination ->
+                        item {
+                            InfoCard(
+                                listOf(
+                                    "배송지 이름" to destination.name,
+                                    "우편번호" to destination.postalCode.ifBlank { "-" },
+                                    "주소" to destination.address.ifBlank { "주소 정보 없음" }
+                                ),
+                                "배송지"
+                            )
+                        }
                     }
                     if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "REFUNDED")) {
                         item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }

@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.order.OrderListResponse
 import com.ssafy.dib.data.remote.order.ShipmentRegistrationRequest
 import com.ssafy.dib.data.remote.order.ShipmentResponse
 import com.ssafy.dib.data.remote.order.OrderMessageListResponse
+import com.ssafy.dib.data.remote.order.OrderShippingAddressResponse
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -81,5 +82,17 @@ class OrderContractTest {
         assertEquals("chat-2", response.items.single().chattingId.toString().trim('"'))
         assertEquals("17", response.items.single().memberId.toString())
         assertEquals("내일 발송할게요", response.items.single().content)
+    }
+
+    @Test
+    fun shippingAddressSnapshotMapsDocumentedFields() {
+        val response = DibJson.instance.decodeFromString(
+            OrderShippingAddressResponse.serializer(),
+            """{"address":{"addressId":4,"number":"06236","address":"서울특별시 강남구 테헤란로 212","name":"회사","apiAddressId":"road-8821"}}"""
+        ).toDomain()
+
+        assertEquals("회사", response.name)
+        assertEquals("06236", response.postalCode)
+        assertEquals("서울특별시 강남구 테헤란로 212", response.address)
     }
 }

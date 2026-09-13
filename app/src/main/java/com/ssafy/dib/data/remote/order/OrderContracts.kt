@@ -71,6 +71,9 @@ data class ShipmentResponse(
 )
 
 @Serializable
+data class OrderShippingAddressResponse(val address: JsonElement)
+
+@Serializable
 data class OrderMessageListResponse(val items: List<OrderMessageDto> = emptyList(), val hasMore: Boolean = false)
 
 @Serializable
