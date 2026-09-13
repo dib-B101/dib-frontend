@@ -53,6 +53,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.domain.product.RegisteredProduct
+import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
@@ -60,18 +61,53 @@ import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
-fun ProfileEditScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    var nickname by rememberSaveable { mutableStateOf("dib러버") }
+fun ProfileEditScreen(
+    profile: MemberProfile?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    saveLoading: Boolean,
+    saveError: String?,
+    onRetry: () -> Unit,
+    onSave: (String) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var nickname by rememberSaveable(profile?.memberId) { mutableStateOf(profile?.nickname.orEmpty()) }
     SimpleHeaderScaffold("프로필 수정", onBack, modifier) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(88.dp).background(Color(0xFFD6F5ED), CircleShape).clickable { }, contentAlignment = Alignment.Center) { Text("d", color = Colors.Navy, fontSize = 32.sp, fontWeight = FontWeight.Bold) }
-            Text("사진 변경", Modifier.padding(top = 8.dp), color = Color(0xFFF5636E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("닉네임", Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            OutlinedTextField(nickname, { nickname = it.take(12) }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-            Text("이메일", Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Box(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFFF0F2F7), RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(14.dp)) { Text("dib_user@email.com", color = Colors.Muted, fontSize = 14.sp) }
-            Button(onBack, Modifier.fillMaxWidth().padding(top = 28.dp).height(48.dp), enabled = nickname.isNotBlank(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("변경사항 저장", fontWeight = FontWeight.Bold) }
+        when {
+            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
+            errorMessage != null || profile == null -> Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(errorMessage ?: "내 정보를 불러오지 못했어요.", color = Colors.Muted)
+                OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기") }
+            }
+            else -> Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(88.dp).background(Color(0xFFD6F5ED), CircleShape), contentAlignment = Alignment.Center) { Text(profile.nickname.take(1).ifBlank { "d" }, color = Colors.Navy, fontSize = 32.sp, fontWeight = FontWeight.Bold) }
+                Text("닉네임", Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(nickname, { nickname = it.take(12) }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
+                Text("이메일", Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                ReadOnlyProfileValue(profile.email)
+                Text("이름 · 휴대전화", Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                ReadOnlyProfileValue("${profile.name} · ${profile.phoneNumber}")
+                saveError?.let { Text(it, Modifier.fillMaxWidth().padding(top = 12.dp), color = Colors.Urgent, fontSize = 12.sp) }
+                Button(
+                    onClick = { onSave(nickname.trim()) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 28.dp).height(48.dp),
+                    enabled = nickname.isNotBlank() && nickname != profile.nickname && !saveLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                ) {
+                    if (saveLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    else Text("변경사항 저장", fontWeight = FontWeight.Bold)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ReadOnlyProfileValue(value: String) {
+    Box(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFFF0F2F7), RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(14.dp)) {
+        Text(value, color = Colors.Muted, fontSize = 14.sp)
     }
 }
 
