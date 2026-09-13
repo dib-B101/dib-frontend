@@ -25,6 +25,7 @@ sealed class Screen(val route: String) {
     data object ProfileEdit : Screen("my/profile-edit")
     data object FavoriteAuctions : Screen("my/favorites")
     data object RegisteredProducts : Screen("my/registered-products")
+    data object LiveManagement : Screen("my/live-broadcasts")
     data object ProductEdit : Screen("product/{productId}/edit") {
         fun createRoute(productId: String) = "product/$productId/edit"
     }

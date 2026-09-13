@@ -33,8 +33,21 @@ data class LiveBroadcastDetail(
     val currentAuction: AuctionSummary?
 )
 
+data class LiveBroadcastSummary(
+    val liveBroadcastId: String,
+    val title: String,
+    val description: String?,
+    val status: String,
+    val streamUrl: String?,
+    val scheduledAt: String?,
+    val viewCount: Int
+)
+
 interface LiveRepository {
     fun getFeed(size: Int = 20): ApiResult<List<LiveFeedItem>>
     fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetail>
+    fun getMine(status: String? = null, size: Int = 30): ApiResult<List<LiveBroadcastSummary>>
+    fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String>
+    fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<AuctionSummary>>
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<List<LiveChatMessage>>
 }

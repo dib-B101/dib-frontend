@@ -23,6 +23,12 @@ data class AuctionCommandResult(val auctionId: String, val message: String)
 data class BidHistoryItem(val bidId: String, val auctionId: String, val amount: Int, val createdAt: String)
 
 interface AuctionRepository {
+    fun getAuctions(
+        scope: String,
+        status: String,
+        size: Int = 100
+    ): ApiResult<List<AuctionSummary>>
+
     fun getGeneralAuctions(
         size: Int = 20,
         categoryId: String? = null,
