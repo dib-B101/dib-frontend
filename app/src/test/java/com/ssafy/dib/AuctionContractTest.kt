@@ -8,6 +8,7 @@ import com.ssafy.dib.data.remote.auction.CreateAuctionRequest
 import com.ssafy.dib.data.remote.auction.BookmarkResponse
 import com.ssafy.dib.data.remote.auction.BidHistoryListResponse
 import com.ssafy.dib.data.remote.auction.AuctionBidHistoryListResponse
+import com.ssafy.dib.data.remote.auction.AuctionRecommendationResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -117,5 +118,17 @@ class AuctionContractTest {
         assertEquals(61_500L, response.items.single().amount)
         assertEquals("bid-52", response.nextCursor)
         assertTrue(response.hasNext)
+    }
+
+    @Test
+    fun recommendationContractSeparatesLiveAndGeneralItems() {
+        val response = DibJson.instance.decodeFromString(
+            AuctionRecommendationResponse.serializer(),
+            """{"liveItems":[{"liveBroadcastId":8,"memberId":3,"title":"오늘의 빈티지","status":"LIVE","viewCount":41}],"generalItems":[{"auctionId":12,"memberId":3,"productId":9,"title":"필름 카메라","startPrice":30000,"currentPrice":42000,"status":"ACTIVE"}],"hasNext":false}"""
+        )
+
+        assertEquals("오늘의 빈티지", response.liveItems.single().title)
+        assertEquals("12", response.generalItems.single().auctionId.toString())
+        assertEquals(42_000L, response.generalItems.single().currentPrice)
     }
 }

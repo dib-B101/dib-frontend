@@ -46,6 +46,12 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), AuctionDto.serializer())
     }
 
+    fun getRecommendations(size: Int): ApiResult<AuctionRecommendationResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/recommendation"
+        val url = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString()).build()
+        client.execute(client.requestBuilder(path).url(url).get().build(), AuctionRecommendationResponse.serializer())
+    }
+
     fun getBookmarks(size: Int): ApiResult<AuctionListResponse> = configured {
         val path = "${ApiRoutes.MEMBERS_ME}/bookmarks"
         val url = client.urlBuilder(path)

@@ -9,6 +9,8 @@ import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
 import com.ssafy.dib.domain.auction.AuctionBidHistoryPage
+import com.ssafy.dib.domain.auction.HomeRecommendations
+import com.ssafy.dib.domain.auction.RecommendedLive
 import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
@@ -41,6 +43,26 @@ class AuctionRepositoryImpl(
     override fun getAuction(auctionId: String): ApiResult<AuctionSummary> =
         when (val result = remote.getAuction(auctionId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(now()), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getRecommendations(size: Int): ApiResult<HomeRecommendations> =
+        when (val result = remote.getRecommendations(size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                HomeRecommendations(
+                    liveItems = result.value.liveItems.map { live ->
+                        RecommendedLive(
+                            liveBroadcastId = live.liveBroadcastId.idValue(),
+                            title = live.title,
+                            description = live.description,
+                            status = live.status,
+                            scheduledAt = live.scheduledAt
+                        )
+                    },
+                    generalItems = result.value.generalItems.map { it.toDomain(now()) }
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

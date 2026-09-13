@@ -32,6 +32,7 @@ import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import com.ssafy.dib.domain.auction.RecommendedLive
 import kotlinx.coroutines.delay
 
 /** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
@@ -39,6 +40,7 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     isAuthenticated: Boolean,
     remoteAuctions: List<HomeAuction>?,
+    remoteLives: List<RecommendedLive>?,
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
@@ -146,8 +148,8 @@ fun HomeScreen(
                 }
                 item { AuctionGridSection("곧 마감되는 경매", closingAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             } else {
-                item { HomeLiveSection(onLiveClick) }
-                item { AuctionGridSection("전체 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+                item { HomeLiveSection(remoteLives, onLiveClick) }
+                item { AuctionGridSection(if (remoteAuctions == null) "전체 경매" else "추천 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             }
         }
     }
@@ -173,14 +175,15 @@ private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit,
 }
 
 @Composable
-private fun HomeLiveSection(onLiveClick: () -> Unit) {
+private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("지금 LIVE", "라이브 보기", onLiveClick)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(
-                Triple("하루공방 라이브", "달빛 유약 머그컵", true),
-                Triple("빈티지마켓 라이브", "빈티지 필름 카메라", false)
-            ).forEach { (title, product, live) ->
+        val cards = remoteLives?.take(2)?.map { live -> Triple(live.title, live.description ?: "Live 상품을 확인해보세요", live.status == "LIVE") }
+            ?: listOf(Triple("하루공방 라이브", "달빛 유약 머그컵", true), Triple("빈티지마켓 라이브", "빈티지 필름 카메라", false))
+        if (cards.isEmpty()) {
+            Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
+        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            cards.forEach { (title, product, live) ->
                 Column(Modifier.weight(1f).height(176.dp).clickable(onClick = onLiveClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.fillMaxWidth().height(100.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
                         Surface(Modifier.padding(8.dp), color = if(live) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
