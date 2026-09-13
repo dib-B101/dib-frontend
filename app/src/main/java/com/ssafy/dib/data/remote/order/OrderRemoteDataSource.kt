@@ -32,6 +32,11 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), ShipmentResponse.serializer())
     }
 
+    fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddressResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/shipping-address"
+        client.execute(client.requestBuilder(path).get().build(), OrderShippingAddressResponse.serializer())
+    }
+
     fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<ShipmentResponse> = configured {
         val path = "${ApiRoutes.ORDERS}/$orderId/shipment"
         val body = DibJson.instance.encodeToString(

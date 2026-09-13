@@ -8,8 +8,10 @@ import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.order.OrderShippingAddress
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 
 class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepository {
     override fun getOrders(role: OrderRole, size: Int): ApiResult<List<OrderSummary>> =
@@ -26,6 +28,12 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
 
     override fun getShipment(orderId: String): ApiResult<OrderShipment> =
         when (val result = remote.getShipment(orderId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress> =
+        when (val result = remote.getShippingAddress(orderId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
             is ApiResult.Failure -> result
         }
@@ -61,6 +69,15 @@ internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderS
     updatedAt = updatedAt
 )
 
+internal fun com.ssafy.dib.data.remote.order.OrderShippingAddressResponse.toDomain(): OrderShippingAddress {
+    val value = address.jsonObject
+    return OrderShippingAddress(
+        name = value.stringValue("name").ifBlank { "배송지" },
+        postalCode = value.stringValue("number"),
+        address = value.stringValue("address")
+    )
+}
+
 internal fun OrderSummaryDto.toDomain(): OrderSummary {
     val core = order
     return OrderSummary(
@@ -76,3 +93,6 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
 
 private fun kotlinx.serialization.json.JsonElement?.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: this?.toString()?.trim('"').orEmpty()
+
+private fun kotlinx.serialization.json.JsonObject.stringValue(key: String): String =
+    (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()

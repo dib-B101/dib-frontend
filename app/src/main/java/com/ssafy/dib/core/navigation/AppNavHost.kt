@@ -1237,6 +1237,9 @@ fun AppNavHost() {
             var shipmentLoading by remember(orderId) { mutableStateOf(false) }
             var shipmentError by remember(orderId) { mutableStateOf<String?>(null) }
             var shipmentKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+            var shippingAddress by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShippingAddress?>(null) }
+            var shippingAddressLoading by remember(orderId) { mutableStateOf(false) }
+            var shippingAddressError by remember(orderId) { mutableStateOf<String?>(null) }
 
             LaunchedEffect(orderId, orderDetailRevision) {
                 if (orderId == "sample") return@LaunchedEffect
@@ -1267,6 +1270,26 @@ fun AppNavHost() {
                 orderDetailLoading = false
             }
 
+            LaunchedEffect(orderId, role, remoteOrder?.status, orderDetailRevision) {
+                if (orderId == "sample" || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                val sellerCanView = role == "seller" && remoteOrder?.status?.uppercase() !in setOf(null, "PENDING")
+                if (role != "buyer" && !sellerCanView) return@LaunchedEffect
+                shippingAddressLoading = true
+                shippingAddressError = null
+                when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getShippingAddress(orderId) }) {
+                    is ApiResult.Success -> shippingAddress = result.value
+                    is ApiResult.Failure -> {
+                        shippingAddressError = when (result.error.code) {
+                            "PAYMENT_REQUIRED" -> "결제 완료 후 배송지를 확인할 수 있어요."
+                            "FORBIDDEN" -> "배송지를 확인할 권한이 없어요."
+                            else -> result.error.message.ifBlank { "배송지를 불러오지 못했어요." }
+                        }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                shippingAddressLoading = false
+            }
+
             TransactionScreen(
                 role = role,
                 remoteOrder = remoteOrder,
@@ -1280,6 +1303,9 @@ fun AppNavHost() {
                 shipment = shipment,
                 shipmentLoading = shipmentLoading,
                 shipmentError = shipmentError,
+                shippingAddress = shippingAddress,
+                shippingAddressLoading = shippingAddressLoading,
+                shippingAddressError = shippingAddressError,
                 onPreparePayment = {
                     paymentLoading = true
                     paymentError = null
