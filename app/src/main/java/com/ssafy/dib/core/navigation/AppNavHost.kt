@@ -27,6 +27,7 @@ import com.ssafy.dib.feature.auction.SellerListingsScreen
 import com.ssafy.dib.feature.auction.SellerReportScreen
 import com.ssafy.dib.feature.auction.SellerReviewsScreen
 import com.ssafy.dib.feature.auth.LoginScreen
+import com.ssafy.dib.feature.auth.FindEmailScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SplashScreen
@@ -263,6 +264,7 @@ fun AppNavHost() {
             LoginScreen(
                 onBack = navController::navigateUp,
                 onSignUp = { navController.navigate(Screen.SignUp.route) },
+                onFindEmail = { navController.navigate(Screen.FindEmail.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
                 onLogin = { email, password ->
@@ -290,6 +292,51 @@ fun AppNavHost() {
                         loginLoading = false
                     }
                 }
+            )
+        }
+        composable(Screen.FindEmail.route) {
+            var verificationId by remember { mutableStateOf<String?>(null) }
+            var findEmailLoading by remember { mutableStateOf(false) }
+            var findEmailError by remember { mutableStateOf<String?>(null) }
+            var maskedEmail by remember { mutableStateOf<String?>(null) }
+
+            FindEmailScreen(
+                verificationRequested = verificationId != null,
+                isLoading = findEmailLoading,
+                errorMessage = findEmailError,
+                maskedEmail = maskedEmail,
+                onRequestVerification = { phoneNumber ->
+                    findEmailLoading = true
+                    findEmailError = null
+                    maskedEmail = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.repository.requestFindEmailPhoneVerification(phoneNumber) }) {
+                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Failure -> findEmailError = signupErrorMessage(result.error)
+                        }
+                        findEmailLoading = false
+                    }
+                },
+                onConfirmVerification = { code ->
+                    val challengeId = verificationId ?: return@FindEmailScreen
+                    findEmailLoading = true
+                    findEmailError = null
+                    coroutineScope.launch {
+                        when (val confirmation = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
+                            is ApiResult.Success -> when (val result = withContext(Dispatchers.IO) { auth.repository.findEmail(confirmation.value.verificationToken) }) {
+                                is ApiResult.Success -> maskedEmail = result.value
+                                is ApiResult.Failure -> findEmailError = when (result.error.code) {
+                                    "MEMBER_NOT_FOUND" -> "해당 휴대전화 번호로 가입한 계정을 찾을 수 없어요."
+                                    else -> signupErrorMessage(result.error)
+                                }
+                            }
+                            is ApiResult.Failure -> findEmailError = signupErrorMessage(confirmation.error)
+                        }
+                        findEmailLoading = false
+                    }
+                },
+                onBack = navController::navigateUp,
+                onLogin = { navController.popBackStack(Screen.Login.route, inclusive = false) }
             )
         }
         composable(Screen.SignUp.route) {

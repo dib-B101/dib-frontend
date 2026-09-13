@@ -105,6 +105,7 @@ fun WelcomeScreen(
 fun LoginScreen(
     onBack: () -> Unit,
     onSignUp: () -> Unit,
+    onFindEmail: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
@@ -138,7 +139,7 @@ fun LoginScreen(
                 passwordVisible = !passwordVisible
             }
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("비밀번호 찾기", color = Colors.Muted, fontSize = 12.sp)
+                Text("이메일 찾기", Modifier.clickable(onClick = onFindEmail).padding(4.dp), color = Colors.Muted, fontSize = 12.sp)
                 Text(
                     "회원가입",
                     Modifier.clickable(onClick = onSignUp).padding(4.dp),
