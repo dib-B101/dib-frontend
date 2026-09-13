@@ -53,6 +53,8 @@ import com.ssafy.dib.feature.main.ProductRegistrationForm
 import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
+import com.ssafy.dib.feature.main.SettlementHistoryScreen
+import com.ssafy.dib.feature.main.SettlementDetailScreen
 import com.ssafy.dib.feature.main.TransactionScreen
 import com.ssafy.dib.feature.main.OrderChatScreen
 import com.ssafy.dib.feature.main.WithdrawalScreen
@@ -1347,6 +1349,7 @@ fun AppNavHost() {
                 onInquiriesClick = { navController.navigate(Screen.Inquiries.route) },
                 onAddressesClick = { navController.navigate(Screen.Addresses.route) },
                 onAccountsClick = { navController.navigate(Screen.SettlementAccounts.route) },
+                onSettlementsClick = { navController.navigate(Screen.Settlements.route) },
                 onNotificationSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
                 onReportsClick = { navController.navigate(Screen.ReportHistory.route) },
                 onWithdrawalClick = { navController.navigate(Screen.Withdrawal.route) },
@@ -1610,6 +1613,85 @@ fun AppNavHost() {
                 },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
+            )
+        }
+        composable(Screen.Settlements.route) {
+            var settlements by remember { mutableStateOf<List<com.ssafy.dib.domain.settlement.SettlementSummary>?>(null) }
+            var settlementsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var settlementsError by remember { mutableStateOf<String?>(null) }
+            var settlementsCursor by remember { mutableStateOf<String?>(null) }
+            var settlementsHasNext by remember { mutableStateOf(false) }
+            var settlementsRevision by remember { mutableStateOf(0) }
+
+            fun loadSettlements(cursor: String?, append: Boolean) {
+                settlementsLoading = true
+                settlementsError = null
+                coroutineScope.launch {
+                    when (val result = withContext(Dispatchers.IO) { auth.settlementRepository.getSettlements(cursor) }) {
+                        is ApiResult.Success -> {
+                            settlements = if (append) settlements.orEmpty() + result.value.items else result.value.items
+                            settlementsCursor = result.value.nextCursor
+                            settlementsHasNext = result.value.hasNext
+                        }
+                        is ApiResult.Failure -> {
+                            settlementsError = result.error.message.ifBlank { "정산 내역을 불러오지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
+                    }
+                    settlementsLoading = false
+                }
+            }
+
+            LaunchedEffect(settlementsRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                loadSettlements(cursor = null, append = false)
+            }
+
+            SettlementHistoryScreen(
+                settlements = settlements,
+                isLoading = settlementsLoading,
+                errorMessage = settlementsError,
+                hasNext = settlementsHasNext,
+                onRetry = { settlementsRevision++ },
+                onLoadMore = { if (!settlementsLoading && settlementsHasNext) loadSettlements(settlementsCursor, append = true) },
+                onSettlementClick = { navController.navigate(Screen.SettlementDetail.createRoute(it)) },
+                onBack = navController::navigateUp
+            )
+        }
+        composable(
+            route = Screen.SettlementDetail.route,
+            arguments = listOf(navArgument("settlementId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val settlementId = backStackEntry.arguments?.getString("settlementId").orEmpty()
+            var settlement by remember { mutableStateOf<com.ssafy.dib.domain.settlement.SettlementDetail?>(null) }
+            var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var settlementError by remember { mutableStateOf<String?>(null) }
+            var settlementRevision by remember { mutableStateOf(0) }
+
+            LaunchedEffect(settlementId, settlementRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                settlementLoading = true
+                settlementError = null
+                when (val result = withContext(Dispatchers.IO) { auth.settlementRepository.getSettlement(settlementId) }) {
+                    is ApiResult.Success -> settlement = result.value
+                    is ApiResult.Failure -> {
+                        settlementError = when (result.error.code) {
+                            "SETTLEMENT_NOT_FOUND" -> "정산 내역을 찾을 수 없어요."
+                            "FORBIDDEN" -> "이 정산 내역을 볼 권한이 없어요."
+                            else -> result.error.message.ifBlank { "정산 상세를 불러오지 못했어요." }
+                        }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                settlementLoading = false
+            }
+
+            SettlementDetailScreen(
+                detail = settlement,
+                isLoading = settlementLoading,
+                errorMessage = settlementError,
+                onRetry = { settlementRevision++ },
+                onBack = navController::navigateUp
             )
         }
         composable(Screen.NotificationSettings.route) {

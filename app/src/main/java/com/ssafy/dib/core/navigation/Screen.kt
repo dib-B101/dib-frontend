@@ -21,6 +21,10 @@ sealed class Screen(val route: String) {
     }
     data object Addresses : Screen("my/addresses")
     data object SettlementAccounts : Screen("my/accounts")
+    data object Settlements : Screen("my/settlements")
+    data object SettlementDetail : Screen("my/settlements/{settlementId}") {
+        fun createRoute(settlementId: String) = "my/settlements/$settlementId"
+    }
     data object NotificationSettings : Screen("my/notification-settings")
     data object ProfileEdit : Screen("my/profile-edit")
     data object FavoriteAuctions : Screen("my/favorites")
