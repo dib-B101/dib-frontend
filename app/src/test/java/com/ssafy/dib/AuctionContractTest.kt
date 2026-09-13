@@ -9,6 +9,7 @@ import com.ssafy.dib.data.remote.auction.BookmarkResponse
 import com.ssafy.dib.data.remote.auction.BidHistoryListResponse
 import com.ssafy.dib.data.remote.auction.AuctionBidHistoryListResponse
 import com.ssafy.dib.data.remote.auction.AuctionRecommendationResponse
+import com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -130,5 +131,19 @@ class AuctionContractTest {
         assertEquals("오늘의 빈티지", response.liveItems.single().title)
         assertEquals("12", response.generalItems.single().auctionId.toString())
         assertEquals(42_000L, response.generalItems.single().currentPrice)
+    }
+
+    @Test
+    fun bidSnapshotUsesServerTimeForRemainingSeconds() {
+        val response = DibJson.instance.decodeFromString(
+            AuctionBidSnapshotResponse.serializer(),
+            """{"auctionId":12,"currentPrice":42500,"auctionTime":3600,"startedAt":"2026-09-13T10:00:00Z","scheduledEndAt":"2026-09-13T10:10:30Z","bidCount":9,"bidderCount":4,"isHighestBidder":true,"serverTime":"2026-09-13T10:10:00Z"}"""
+        ).toDomain(Instant.EPOCH)
+
+        assertEquals("12", response.auctionId)
+        assertEquals(42_500, response.currentPrice)
+        assertEquals(30, response.remainingSeconds)
+        assertEquals(9, response.bidCount)
+        assertTrue(response.isHighestBidder)
     }
 }
