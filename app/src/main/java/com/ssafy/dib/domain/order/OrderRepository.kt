@@ -32,6 +32,12 @@ data class OrderMessagePage(
     val hasMore: Boolean
 )
 
+data class OrderPage(
+    val items: List<OrderSummary>,
+    val nextCursor: String?,
+    val hasNext: Boolean
+)
+
 data class OrderShippingAddress(
     val name: String,
     val postalCode: String,
@@ -39,7 +45,7 @@ data class OrderShippingAddress(
 )
 
 interface OrderRepository {
-    fun getOrders(role: OrderRole, size: Int = 30): ApiResult<List<OrderSummary>>
+    fun getOrders(role: OrderRole, cursor: String? = null, size: Int = 30): ApiResult<OrderPage>
     fun getOrder(orderId: String): ApiResult<OrderSummary>
     fun getShipment(orderId: String): ApiResult<OrderShipment>
     fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress>

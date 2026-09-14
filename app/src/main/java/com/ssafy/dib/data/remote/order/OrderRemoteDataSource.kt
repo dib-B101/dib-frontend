@@ -11,11 +11,12 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class OrderRemoteDataSource(private val client: DibHttpClient) {
-    fun getOrders(role: OrderRole, size: Int): ApiResult<OrderListResponse> = configured {
-        val url = client.urlBuilder(ApiRoutes.ORDERS)
+    fun getOrders(role: OrderRole, cursor: String?, size: Int): ApiResult<OrderListResponse> = configured {
+        val urlBuilder = client.urlBuilder(ApiRoutes.ORDERS)
             .addQueryParameter("role", role.name)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
-            .build()
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        val url = urlBuilder.build()
         client.execute(
             client.requestBuilder(ApiRoutes.ORDERS).url(url).get().build(),
             OrderListResponse.serializer()
