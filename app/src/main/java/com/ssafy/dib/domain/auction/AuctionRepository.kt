@@ -58,7 +58,7 @@ interface AuctionRepository {
 
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
     fun getRecommendations(size: Int = 20): ApiResult<HomeRecommendations>
-    fun getBookmarks(size: Int = 100): ApiResult<List<AuctionSummary>>
+    fun getBookmarks(cursor: String? = null, size: Int = 30): ApiResult<AuctionPage>
     fun getMyBids(cursor: String? = null, size: Int = 30): ApiResult<BidHistoryPage>
     fun getBidHistory(auctionId: String, cursor: String? = null, size: Int = 20): ApiResult<AuctionBidHistoryPage>
     fun getBidSnapshot(auctionId: String): ApiResult<AuctionBidSnapshot>
