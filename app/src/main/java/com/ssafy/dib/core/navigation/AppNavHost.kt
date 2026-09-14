@@ -1336,7 +1336,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(productId) }) {
                     is ApiResult.Success -> {
                         remoteDetail = result.value.toHomeAuction()
-                        if (signedIn == true && result.value.productId.isNotBlank()) {
+                        if (result.value.productId.isNotBlank()) {
                             when (val productResult = withContext(Dispatchers.IO) { auth.productRepository.getProduct(result.value.productId) }) {
                                 is ApiResult.Success -> remoteProduct = productResult.value
                                 is ApiResult.Failure -> if (productResult.error.requiresLogin) signedIn = false
@@ -1545,6 +1545,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onSellerClick = { sellerMemberId ->
                     if (sellerMemberId.isNotBlank()) {
+                        backStackEntry.savedStateHandle["sellerNickname"] = remoteProduct?.sellerNickname
+                        backStackEntry.savedStateHandle["sellerRating"] = remoteProduct?.sellerRating
+                        backStackEntry.savedStateHandle["sellerTradeCount"] = remoteProduct?.sellerTradeCount
                         navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId))
                     } else {
                         realtimeNotice = "판매자 정보를 확인하지 못했어요."
@@ -3299,7 +3302,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             arguments = listOf(navArgument("memberId") { type = NavType.StringType })
         ) { backStackEntry ->
             val memberId = backStackEntry.arguments?.getString("memberId").orEmpty()
+            val sourceState = navController.previousBackStackEntry?.savedStateHandle
             SellerProfileScreen(
+                sellerNickname = sourceState?.get<String>("sellerNickname"),
+                sellerRating = sourceState?.get<Double>("sellerRating"),
+                sellerTradeCount = sourceState?.get<Int>("sellerTradeCount"),
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 onBack = navController::navigateUp,
                 onReviewsClick = { navController.navigate(Screen.SellerReviews.createRoute(memberId)) },
                 onListingsClick = { navController.navigate(Screen.SellerListings.createRoute(memberId)) },
