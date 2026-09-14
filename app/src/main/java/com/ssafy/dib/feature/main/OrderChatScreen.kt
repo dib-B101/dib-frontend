@@ -26,9 +26,13 @@ fun OrderChatScreen(
     currentMemberId: String,
     messages: List<OrderMessage>,
     isLoading: Boolean,
+    hasMore: Boolean,
+    isLoadingEarlier: Boolean,
+    loadEarlierError: String?,
     errorMessage: String?,
     connectionState: RealtimeConnectionState?,
     onRetry: () -> Unit,
+    onLoadEarlier: () -> Unit,
     onSend: (String) -> Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -36,7 +40,10 @@ fun OrderChatScreen(
     var input by rememberSaveable(orderId) { mutableStateOf("") }
     val orderedMessages = remember(messages) { messages.distinctBy(OrderMessage::chattingId).sortedBy(OrderMessage::time) }
     val listState = rememberLazyListState()
-    LaunchedEffect(orderedMessages.size) { if (orderedMessages.isNotEmpty()) listState.animateScrollToItem(orderedMessages.lastIndex) }
+    val latestMessageId = orderedMessages.lastOrNull()?.chattingId
+    LaunchedEffect(latestMessageId) {
+        if (orderedMessages.isNotEmpty()) listState.animateScrollToItem(orderedMessages.lastIndex)
+    }
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color(0xFFF7F9FB),
@@ -74,6 +81,27 @@ fun OrderChatScreen(
                 contentPadding = PaddingValues(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (hasMore || isLoadingEarlier || loadEarlierError != null) {
+                    item(key = "load-earlier") {
+                        Column(
+                            Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            when {
+                                isLoadingEarlier -> CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = Colors.Navy,
+                                    strokeWidth = 2.dp
+                                )
+                                loadEarlierError != null -> {
+                                    Text(loadEarlierError, color = Colors.Urgent, fontSize = 11.sp)
+                                    TextButton(onClick = onLoadEarlier) { Text("이전 메시지 다시 불러오기") }
+                                }
+                                hasMore -> TextButton(onClick = onLoadEarlier) { Text("이전 메시지 불러오기") }
+                            }
+                        }
+                    }
+                }
                 errorMessage?.let { item { Text(it, color = Colors.Urgent, fontSize = 11.sp) } }
                 items(orderedMessages, key = OrderMessage::chattingId) { message ->
                     val mine = message.memberId == currentMemberId

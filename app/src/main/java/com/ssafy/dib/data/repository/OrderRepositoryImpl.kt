@@ -7,6 +7,7 @@ import com.ssafy.dib.domain.order.OrderRepository
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderMessage
+import com.ssafy.dib.domain.order.OrderMessagePage
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
 import kotlinx.serialization.json.JsonPrimitive
@@ -44,11 +45,17 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Failure -> result
         }
 
-    override fun getMessages(orderId: String, beforeChattingId: String?, size: Int): ApiResult<List<OrderMessage>> =
+    override fun getMessages(orderId: String, beforeChattingId: String?, size: Int): ApiResult<OrderMessagePage> =
         when (val result = remote.getMessages(orderId, beforeChattingId, size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map { message ->
-                OrderMessage(message.chattingId.idValue(), message.memberId.idValue(), message.content, message.time)
-            }, result.status)
+            is ApiResult.Success -> ApiResult.Success(
+                OrderMessagePage(
+                    items = result.value.items.map { message ->
+                        OrderMessage(message.chattingId.idValue(), message.memberId.idValue(), message.content, message.time)
+                    },
+                    hasMore = result.value.hasMore
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

@@ -27,6 +27,11 @@ data class OrderShipment(
 
 data class OrderMessage(val chattingId: String, val memberId: String, val content: String, val time: String)
 
+data class OrderMessagePage(
+    val items: List<OrderMessage>,
+    val hasMore: Boolean
+)
+
 data class OrderShippingAddress(
     val name: String,
     val postalCode: String,
@@ -39,6 +44,6 @@ interface OrderRepository {
     fun getShipment(orderId: String): ApiResult<OrderShipment>
     fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress>
     fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
-    fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<List<OrderMessage>>
+    fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<OrderMessagePage>
     fun confirmPurchase(orderId: String): ApiResult<String>
 }
