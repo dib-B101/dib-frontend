@@ -212,6 +212,7 @@ private fun LiveFeedPage(
     val activeAuction = liveItem?.currentAuction
     val productAuctions = liveAuctions ?: listOfNotNull(activeAuction)
     val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
+    val hasActiveAuction = auctionKey != null
     val depositPaid = auctionKey in depositPaidAuctionIds
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
@@ -370,7 +371,7 @@ private fun LiveFeedPage(
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0,
+                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0,
                             modifier = Modifier.size(68.dp, 58.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
@@ -380,6 +381,7 @@ private fun LiveFeedPage(
                                 when {
                                     isOwnAuction -> "내 경매"
                                     isHighestBidder -> "최고가"
+                                    !hasActiveAuction -> "대기 중"
                                     paidBidAmount > 0 -> "접속 중"
                                     else -> "입찰"
                                 },
@@ -418,7 +420,11 @@ private fun LiveFeedPage(
                 val auction = displayedAuctions.getOrNull(index)
                 Row(Modifier.fillMaxWidth().height(72.dp).clickable {
                     showProducts = false
-                    if (isAuthenticated) onProductClick(auction?.auctionId ?: if (index == 1) "camera" else "headphones") else onLoginRequired()
+                    val targetAuctionId = auction?.auctionId ?: if (liveItem == null) {
+                        if (index == 1) "camera" else "headphones"
+                    } else null
+                    if (!isAuthenticated) onLoginRequired()
+                    else targetAuctionId?.let(onProductClick)
                 }, verticalAlignment = Alignment.CenterVertically) {
                     if (auction != null) {
                         DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)))
@@ -479,7 +485,7 @@ private fun LiveFeedPage(
     }
     if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
         showBidSheet = false
-        onDepositPayment(auctionKey ?: "camera", submission)
+        auctionKey?.let { onDepositPayment(it, submission) }
     }
     reportTarget?.let { target ->
         AlertDialog(

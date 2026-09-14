@@ -1544,7 +1544,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     )
                 },
                 onSellerClick = { sellerMemberId ->
-                    navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId.ifBlank { "seller01" }))
+                    if (sellerMemberId.isNotBlank()) {
+                        navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId))
+                    } else {
+                        realtimeNotice = "판매자 정보를 확인하지 못했어요."
+                    }
                 },
                 onReportClick = {
                     if (signedIn == true) {
