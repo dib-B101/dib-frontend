@@ -273,6 +273,7 @@ fun ProductDetailScreen(
                     productName = productName,
                     category = product.category,
                     detail = productDetail,
+                    canReport = !isOwnAuction,
                     onReport = onReportClick
                 )
             }
@@ -522,7 +523,7 @@ private fun SellerSummary(detail: ProductDetail?, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProductInformation(productName: String, category: String, detail: ProductDetail?, onReport: () -> Unit) {
+private fun ProductInformation(productName: String, category: String, detail: ProductDetail?, canReport: Boolean, onReport: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
@@ -549,8 +550,10 @@ private fun ProductInformation(productName: String, category: String, detail: Pr
             Text("• 첫 입찰 전에 입찰가의 10%를 보증금으로 결제해요(최소 1,000원)\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
-        Text("이 상품 신고하기", Modifier.clickable(onClick = onReport).padding(vertical = 4.dp),
-            color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        if (canReport) {
+            Text("이 상품 신고하기", Modifier.clickable(onClick = onReport).padding(vertical = 4.dp),
+                color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
     }
 }
 
