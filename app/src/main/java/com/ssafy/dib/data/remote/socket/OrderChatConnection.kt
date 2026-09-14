@@ -19,6 +19,7 @@ class OrderChatConnection(
     private var lastChattingId: String? = null
     private var reconnectAttempt = 0
     private var reconnectTask: ScheduledFuture<*>? = null
+    private val pendingMessages = linkedMapOf<String, SocketEnvelope>()
     private var onMessage: (OrderMessage) -> Unit = {}
     private var onHistoryGap: () -> Unit = {}
     private var onError: (String) -> Unit = {}
@@ -54,6 +55,9 @@ class OrderChatConnection(
                 reconnectAttempt = 0
                 onState(RealtimeConnectionState.Connected)
                 socket.send(SocketCommands.subscribeOrder(orderId, lastChattingId))
+                synchronized(this@OrderChatConnection) {
+                    pendingMessages.values.forEach(socket::send)
+                }
             }
 
             override fun onEvent(envelope: SocketEnvelope) {
@@ -66,6 +70,12 @@ class OrderChatConnection(
                         lastChattingId = message.chattingId
                         onMessage(message)
                     }
+                    SocketEventTypes.CHAT_MESSAGE_ACCEPTED -> runCatching {
+                        codec.decodePayload(envelope, ChatMessageAcceptedPayload.serializer())
+                    }.getOrNull()?.takeIf { it.orderId.idValue() == orderId }?.let { payload ->
+                        synchronized(this@OrderChatConnection) { pendingMessages.remove(payload.commandId) }
+                        lastChattingId = payload.chattingId.idValue()
+                    }
                     SocketEventTypes.ORDER_SNAPSHOT -> {
                         val snapshotOrderId = envelope.payload["orderId"].idValueOrNull()
                         val serverLastChattingId = envelope.payload["lastChattingId"].idValueOrNull()
@@ -75,7 +85,12 @@ class OrderChatConnection(
                     }
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
-                    }.getOrNull()?.let { onError(it.message) }
+                    }.getOrNull()?.let {
+                        it.commandId?.let { commandId ->
+                            synchronized(this@OrderChatConnection) { pendingMessages.remove(commandId) }
+                        }
+                        onError(it.message)
+                    }
                     SocketEventTypes.SERVER_DRAINING -> scheduleReconnect()
                 }
             }
@@ -90,10 +105,14 @@ class OrderChatConnection(
         })
     }
 
+    @Synchronized
     fun send(content: String): Boolean {
         val value = content.trim()
         if (!active || value.isBlank()) return false
-        return socket.send(SocketCommands.sendChatMessage(orderId, value))
+        val command = SocketCommands.sendChatMessage(orderId, value)
+        command.commandId?.let { pendingMessages[it] = command }
+        if (!socket.send(command)) scheduleReconnect()
+        return true
     }
 
     fun updateLastChattingId(chattingId: String?) {
@@ -117,6 +136,7 @@ class OrderChatConnection(
         reconnectTask?.cancel(false)
         reconnectTask = null
         active = false
+        pendingMessages.clear()
         socket.disconnect()
     }
 
