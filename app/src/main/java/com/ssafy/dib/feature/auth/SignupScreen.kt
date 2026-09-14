@@ -79,7 +79,11 @@ object SignupValidator {
     fun isCodeValid(value: String) = value.length == 6 && value.all(Char::isDigit)
     fun isEmailValid(value: String) = emailPattern.matches(value.trim())
     fun isPasswordValid(value: String) =
-        value.length >= 8 && value.any(Char::isLetter) && value.any(Char::isDigit)
+        value.length in 10..64 &&
+            value.any(Char::isUpperCase) &&
+            value.any(Char::isLowerCase) &&
+            value.any(Char::isDigit) &&
+            value.any { !it.isLetterOrDigit() }
     fun isNameValid(value: String) = value.trim().length in 2..30
     fun isNicknameValid(value: String) = value.trim().length in 2..20
     fun isBirthDateValid(value: String): Boolean = try {
@@ -236,7 +240,7 @@ fun SignupScreen(
                 state.checkedEmail == email.trim() && state.emailAvailable == false -> FeedbackText("이미 사용 중인 이메일이에요.")
                 state.emailError != null -> FeedbackText(state.emailError)
             }
-            SignupField("비밀번호", password, { password = it }, "영문·숫자 포함 8자 이상", KeyboardType.Password, password = true)
+            SignupField("비밀번호", password, { password = it.take(64) }, "대·소문자, 숫자, 특수문자 포함 10자 이상", KeyboardType.Password, password = true)
             SignupField("비밀번호 확인", passwordConfirm, { passwordConfirm = it }, "비밀번호 다시 입력", KeyboardType.Password, password = true)
             if (passwordConfirm.isNotEmpty() && !passwordMatches) FeedbackText("비밀번호가 일치하지 않아요.")
             SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요")

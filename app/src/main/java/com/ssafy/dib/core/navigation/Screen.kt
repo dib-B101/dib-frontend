@@ -1,5 +1,7 @@
 package com.ssafy.dib.core.navigation
 
+import android.net.Uri
+
 sealed class Screen(val route: String) {
     data object Splash : Screen("splash")
     data object Welcome : Screen("welcome")
@@ -7,6 +9,9 @@ sealed class Screen(val route: String) {
     data object Login : Screen("login")
     data object FindEmail : Screen("find-email")
     data object PasswordResetLink : Screen("password-reset-link")
+    data object PasswordReset : Screen("password-reset?token={resetToken}") {
+        fun createRoute(resetToken: String) = "password-reset?token=${Uri.encode(resetToken)}"
+    }
     data object Home : Screen("home")
     data object Feed : Screen("feed")
     data object Search : Screen("search")

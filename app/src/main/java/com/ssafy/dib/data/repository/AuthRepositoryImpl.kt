@@ -8,6 +8,7 @@ import com.ssafy.dib.data.remote.auth.PhoneVerificationConfirmRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
 import com.ssafy.dib.data.remote.auth.PhoneVerificationRequest
 import com.ssafy.dib.data.remote.auth.PasswordResetLinkRequest
+import com.ssafy.dib.data.remote.auth.PasswordResetRequest
 import com.ssafy.dib.data.remote.auth.RefreshTokenRequest
 import com.ssafy.dib.data.remote.auth.SignUpRequest
 import com.ssafy.dib.domain.auth.AuthRepository
@@ -83,6 +84,9 @@ class AuthRepositoryImpl(
 
     override fun requestPasswordResetLink(email: String, phoneVerificationToken: String): ApiResult<Unit> =
         remote.requestPasswordResetLink(PasswordResetLinkRequest(email, phoneVerificationToken))
+
+    override fun resetPassword(resetToken: String, newPassword: String): ApiResult<Unit> =
+        remote.resetPassword(PasswordResetRequest(resetToken, newPassword))
 
     override fun signUp(command: SignUpCommand): ApiResult<AuthSession> =
         when (val result = remote.signUp(

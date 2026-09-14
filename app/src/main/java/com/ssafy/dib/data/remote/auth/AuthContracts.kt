@@ -42,6 +42,9 @@ data class MaskedEmailResponse(val maskedEmail: String)
 data class PasswordResetLinkRequest(val email: String, val phoneVerificationToken: String)
 
 @Serializable
+data class PasswordResetRequest(val resetToken: String, val newPassword: String)
+
+@Serializable
 data class SignUpRequest(
     val email: String,
     val password: String,

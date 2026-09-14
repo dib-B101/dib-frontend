@@ -43,6 +43,7 @@ import com.ssafy.dib.feature.auction.SellerReviewsScreen
 import com.ssafy.dib.feature.auth.LoginScreen
 import com.ssafy.dib.feature.auth.FindEmailScreen
 import com.ssafy.dib.feature.auth.PasswordResetLinkScreen
+import com.ssafy.dib.feature.auth.PasswordResetScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SplashScreen
@@ -538,6 +539,44 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onBack = navController::navigateUp,
                 onLogin = { navController.popBackStack(Screen.Login.route, inclusive = false) }
+            )
+        }
+        composable(
+            route = Screen.PasswordReset.route,
+            arguments = listOf(navArgument("resetToken") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val resetToken = backStackEntry.arguments?.getString("resetToken").orEmpty()
+            var resetLoading by remember { mutableStateOf(false) }
+            var resetComplete by remember { mutableStateOf(false) }
+            var resetError by remember { mutableStateOf<String?>(null) }
+
+            PasswordResetScreen(
+                isLoading = resetLoading,
+                isComplete = resetComplete,
+                errorMessage = resetError,
+                onSubmit = { newPassword ->
+                    resetLoading = true
+                    resetError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.repository.resetPassword(resetToken, newPassword)
+                        }) {
+                            is ApiResult.Success -> resetComplete = true
+                            is ApiResult.Failure -> resetError = when (result.error.code) {
+                                "INVALID_RESET_TOKEN" -> "재설정 링크가 만료됐거나 이미 사용됐어요. 링크를 다시 요청해주세요."
+                                "INVALID_PASSWORD" -> "비밀번호 조건을 확인해주세요."
+                                else -> signupErrorMessage(result.error)
+                            }
+                        }
+                        resetLoading = false
+                    }
+                },
+                onBack = navController::navigateUp,
+                onLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.PasswordReset.route) { inclusive = true }
+                    }
+                }
             )
         }
         composable(Screen.SignUp.route) {
