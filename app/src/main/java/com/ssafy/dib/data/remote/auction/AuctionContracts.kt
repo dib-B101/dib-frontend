@@ -3,6 +3,7 @@ package com.ssafy.dib.data.remote.auction
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import com.ssafy.dib.data.remote.live.LiveBroadcastDto
+import com.ssafy.dib.data.remote.product.ProductSellerSummaryDto
 
 @Serializable
 data class AuctionListResponse(
@@ -38,7 +39,8 @@ data class AuctionDto(
     val status: String = "",
     val bookmarked: Boolean = false,
     val myBid: MyBidDto? = null,
-    val product: AuctionProductDto? = null
+    val product: AuctionProductDto? = null,
+    val sellerSummary: ProductSellerSummaryDto? = null
 )
 
 @Serializable

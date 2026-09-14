@@ -16,7 +16,10 @@ data class AuctionSummary(
     val bookmarked: Boolean,
     val isHighestBidder: Boolean? = null,
     val myBidAmount: Int? = null,
-    val imageUrls: List<String> = emptyList()
+    val imageUrls: List<String> = emptyList(),
+    val sellerNickname: String? = null,
+    val sellerRating: Double? = null,
+    val sellerTradeCount: Int? = null
 )
 
 data class AuctionCommandResult(val auctionId: String, val message: String)
