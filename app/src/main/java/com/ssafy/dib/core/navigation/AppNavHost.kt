@@ -1516,6 +1516,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 realtimeNotice = realtimeNotice,
                 realtimeBiddingEnabled = auth.networkConfig.isWebSocketConfigured,
+                realtimeConnected = realtimeState == RealtimeConnectionState.Connected,
                 realtimeBidFeedback = realtimeBidFeedback,
                 onRealtimeBid = { amount ->
                     realtimeConnection?.placeBid(amount)?.let { commandId ->
