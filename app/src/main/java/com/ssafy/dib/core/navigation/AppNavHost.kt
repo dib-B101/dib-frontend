@@ -1099,6 +1099,8 @@ fun AppNavHost() {
                 onReportParticipant = { liveBroadcastId, memberId, content ->
                     if (signedIn != true) {
                         navController.navigate(Screen.Login.route)
+                    } else if (memberId == memberProfile?.memberId) {
+                        liveReportError = "본인은 신고할 수 없어요."
                     } else {
                         liveReportSubmitting = true
                         liveReportError = null

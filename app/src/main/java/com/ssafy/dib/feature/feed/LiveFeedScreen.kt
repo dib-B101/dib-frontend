@@ -322,7 +322,7 @@ private fun LiveFeedPage(
                         Surface(
                             color = Color.Black.copy(alpha = .18f),
                             shape = RoundedCornerShape(9.dp),
-                            modifier = Modifier.clickable {
+                            modifier = Modifier.clickable(enabled = message.memberId != currentMemberId) {
                                 if (isAuthenticated) {
                                     reportTarget = message
                                     reportContent = ""
