@@ -1053,7 +1053,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     if (item.liveBroadcastId != targetLiveId) return@map item
                                     val current = item.currentAuction
                                     val updatedAuction = when {
-                                        update.eventType == SocketEventTypes.LIVE_AUCTION_OPENED && update.auctionId != null ->
+                                        update.eventType in setOf(SocketEventTypes.LIVE_SNAPSHOT, SocketEventTypes.LIVE_AUCTION_OPENED) && update.auctionId != null ->
                                             com.ssafy.dib.domain.auction.AuctionSummary(
                                                 auctionId = update.auctionId,
                                                 sellerMemberId = item.memberId,
@@ -1068,7 +1068,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                                 bookmarked = false,
                                                 imageUrls = listOfNotNull(update.thumbnailUrl)
                                             )
-                                        current != null && (update.auctionId == null || update.auctionId == current.auctionId) -> current.copy(
+                                        current != null && update.auctionId == current.auctionId -> current.copy(
                                             currentPrice = update.currentPrice ?: current.currentPrice,
                                             bidCount = update.bidCount ?: current.bidCount,
                                             remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
@@ -1077,6 +1077,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                         else -> current
                                     }
                                     item.copy(
+                                        title = update.liveTitle ?: item.title,
+                                        streamUrl = update.streamUrl ?: item.streamUrl,
                                         viewCount = update.viewerCount ?: item.viewCount,
                                         currentAuction = updatedAuction
                                     )
