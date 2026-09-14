@@ -17,7 +17,7 @@ DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 
 ## 연결 완료
 
-- 인증: 휴대전화 인증, 이메일 확인, 회원가입, 로그인, 토큰 재발급, 비활동 자동 로그아웃, 로그아웃, Keystore 암호화 저장
+- 인증: 휴대전화 인증, 이메일 확인, 회원가입, 로그인, 비밀번호 재설정 링크·변경, 토큰 재발급, 비활동 자동 로그아웃, 로그아웃, Keystore 암호화 저장
 - 회원: 내 정보 조회·닉네임 수정·탈퇴 제한 확인과 탈퇴
 - 상품: 카테고리, 등록·수정·삭제, 내 상품 cursor 목록, 상품 검색 cursor 목록
 - 경매: 추천, 검색·필터·카테고리 cursor 목록, 상세, 찜과 찜 cursor 목록, 내 입찰·공개 입찰 이력
@@ -39,7 +39,7 @@ REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 �
 | 등록 결제수단 관리 | API 없음 | 등록·조회·삭제·기본수단 지정 endpoint와 자동결제 식별자 |
 | 입찰 사전 조건 | WebSocket `PLACE_BID`는 amount만 전송 | 결제수단·배송지를 서버가 어떤 시점과 데이터로 검증·스냅샷하는지 |
 | 주문·보증금 결제 복귀 | prepare/confirm 계약 구현 | PG 앱·웹 복귀 URI, `paymentKey` 전달 방식과 취소 URI |
-| 비밀번호 재설정 | resetToken 입력 계약 구현 | 이메일 링크의 Android scheme/host/path와 token query 이름 |
+| 비밀번호 재설정 링크 진입 | 변경 API·토큰 입력 화면 구현 | 이메일 링크의 Android scheme/host/path와 token query 이름 |
 | 차순위 구매 제안 | endpoint 없음 | 제안 목록·상세·수락·거절 API와 만료 시각 |
 | 유사 상품 이동 | API가 ProductCard만 반환 | 활성 경매의 `auctionId` 포함 또는 productId→auctionId 조회 계약 |
 | 알림 내역 | WebSocket 수신만 구현 | REST 알림 목록·읽음 처리·미수신 복구 endpoint |

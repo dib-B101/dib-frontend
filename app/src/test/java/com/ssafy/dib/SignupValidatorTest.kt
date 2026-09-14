@@ -10,7 +10,7 @@ class SignupValidatorTest {
     private val validForm = SignupForm(
         phoneNumber = "01012345678",
         email = "member@example.com",
-        password = "dibpass1",
+        password = "Dibpass1!0",
         name = "김디브",
         nickname = "디브러버",
         gender = "FEMALE",
@@ -26,6 +26,14 @@ class SignupValidatorTest {
     fun rejectsPasswordWithoutLettersAndDigits() {
         assertFalse(SignupValidator.isFormValid(validForm.copy(password = "12345678")))
         assertFalse(SignupValidator.isFormValid(validForm.copy(password = "password")))
+    }
+
+    @Test
+    fun rejectsPasswordMissingRequiredCharacterClass() {
+        assertFalse(SignupValidator.isPasswordValid("dibpassword1!"))
+        assertFalse(SignupValidator.isPasswordValid("DIBPASSWORD1!"))
+        assertFalse(SignupValidator.isPasswordValid("Dibpassword!"))
+        assertFalse(SignupValidator.isPasswordValid("Dibpassword1"))
     }
 
     @Test

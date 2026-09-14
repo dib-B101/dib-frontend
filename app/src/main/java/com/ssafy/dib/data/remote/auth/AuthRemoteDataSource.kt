@@ -57,6 +57,14 @@ class AuthRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun resetPassword(request: PasswordResetRequest): ApiResult<Unit> = configured {
+        client.executeUnit(
+            client.requestBuilder(ApiRoutes.PASSWORD)
+                .patch(client.jsonBody(request, PasswordResetRequest.serializer()))
+                .build()
+        )
+    }
+
     fun signUp(request: SignUpRequest): ApiResult<SignUpResponse> = configured {
         client.execute(
             client.requestBuilder(ApiRoutes.SIGN_UP)

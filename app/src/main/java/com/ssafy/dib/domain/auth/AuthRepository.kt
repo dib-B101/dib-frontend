@@ -55,6 +55,7 @@ interface AuthRepository {
     fun checkEmailAvailability(email: String): ApiResult<Boolean>
     fun findEmail(phoneVerificationToken: String): ApiResult<String>
     fun requestPasswordResetLink(email: String, phoneVerificationToken: String): ApiResult<Unit>
+    fun resetPassword(resetToken: String, newPassword: String): ApiResult<Unit>
     fun signUp(command: SignUpCommand): ApiResult<AuthSession>
     fun login(email: String, password: String, deviceId: String): ApiResult<AuthSession>
     fun refresh(deviceId: String): ApiResult<AuthSession>
