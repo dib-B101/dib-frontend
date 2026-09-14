@@ -275,10 +275,10 @@ private fun DepositPaymentSuccess(productName: String, bidAmount: Int, depositAm
         Box(Modifier.size(88.dp).background(Colors.Mint, CircleShape), contentAlignment = Alignment.Center) {
             Text("✓", color = Colors.MintInk, fontSize = 44.sp, fontWeight = FontWeight.Bold)
         }
-        Text("입찰이 접수됐어요", Modifier.padding(top = 28.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text("보증금 ${"%,d".format(depositAmount)}원 결제가 완료됐어요.\n현재 입찰가는 ${"%,d".format(bidAmount)}원입니다.", Modifier.padding(top = 14.dp), color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
+        Text("보증금 결제가 완료됐어요", Modifier.padding(top = 28.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("보증금 ${"%,d".format(depositAmount)}원 결제가 완료됐어요.\n경매로 돌아가면 ${"%,d".format(bidAmount)}원 입찰을 자동으로 요청해요.", Modifier.padding(top = 14.dp), color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
         Column(Modifier.fillMaxWidth().padding(top = 48.dp).background(Color(0xFFF2F6FB), RoundedCornerShape(12.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("$productName · 입찰 완료", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("$productName · 입찰 준비 완료", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text("보증금은 패찰 시 반환돼요", color = Colors.Muted, fontSize = 12.sp)
         }
         Spacer(Modifier.weight(1f))

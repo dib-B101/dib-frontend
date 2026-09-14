@@ -240,7 +240,7 @@ private fun LiveFeedPage(
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
-    LaunchedEffect(paidBidAmount) {
+    LaunchedEffect(paidBidAmount, chatConnectionState, auctionKey) {
         if (paidBidAmount > 0) {
             if (liveItem == null) {
                 currentPrice = paidBidAmount
@@ -248,12 +248,20 @@ private fun LiveFeedPage(
                 bidFeedbackAccepted = true
                 bidFeedbackMessage = "입찰이 접수됐어요."
                 showBidFeedback = true
-            } else if (auctionKey == null || !onRealtimeBid(auctionKey, paidBidAmount)) {
+                onPaymentConsumed()
+            } else if (auctionKey == null || chatConnectionState != RealtimeConnectionState.Connected) {
                 bidFeedbackAccepted = false
-                bidFeedbackMessage = "실시간 연결을 확인한 뒤 다시 입찰해주세요."
+                bidFeedbackMessage = "실시간 연결 후 입찰을 자동으로 요청할게요."
                 showBidFeedback = true
+            } else {
+                while (true) {
+                    if (onRealtimeBid(auctionKey, paidBidAmount)) {
+                        onPaymentConsumed()
+                        break
+                    }
+                    delay(1_000L)
+                }
             }
-            onPaymentConsumed()
         }
     }
     LaunchedEffect(realtimeBidFeedback?.eventKey) {
@@ -362,7 +370,7 @@ private fun LiveFeedPage(
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = remaining > 0 && !isOwnAuction && !isHighestBidder,
+                            enabled = remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0,
                             modifier = Modifier.size(68.dp, 58.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
@@ -372,6 +380,7 @@ private fun LiveFeedPage(
                                 when {
                                     isOwnAuction -> "내 경매"
                                     isHighestBidder -> "최고가"
+                                    paidBidAmount > 0 -> "접속 중"
                                     else -> "입찰"
                                 },
                                 fontSize = 13.sp,

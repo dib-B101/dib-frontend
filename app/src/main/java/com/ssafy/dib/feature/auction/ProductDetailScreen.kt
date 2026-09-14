@@ -72,6 +72,7 @@ fun ProductDetailScreen(
     realtimeStatus: String?,
     realtimeNotice: String?,
     realtimeBiddingEnabled: Boolean,
+    realtimeConnected: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (Int) -> Boolean,
     onDepositInvalid: () -> Unit,
@@ -161,16 +162,22 @@ fun ProductDetailScreen(
         }
     }
 
-    LaunchedEffect(paidBidAmount) {
+    LaunchedEffect(paidBidAmount, realtimeConnected) {
         if (paidBidAmount > 0) {
             if (realtimeBiddingEnabled) {
-                val sent = onRealtimeBid(paidBidAmount)
-                bidSubmitting = sent
-                onPaymentConsumed()
-                snackbar.showSnackbar(
-                    if (sent) "${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요."
-                    else "실시간 연결을 준비하고 있어요. 잠시 후 다시 입찰해주세요."
-                )
+                bidSubmitting = true
+                if (!realtimeConnected) {
+                    snackbar.showSnackbar("실시간 연결 후 ${"%,d".format(paidBidAmount)}원 입찰을 자동으로 요청할게요.")
+                    return@LaunchedEffect
+                }
+                while (true) {
+                    if (onRealtimeBid(paidBidAmount)) {
+                        onPaymentConsumed()
+                        snackbar.showSnackbar("${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요.")
+                        break
+                    }
+                    delay(1_000L)
+                }
                 return@LaunchedEffect
             }
             val wasExtended = remainingSeconds in 1..30
