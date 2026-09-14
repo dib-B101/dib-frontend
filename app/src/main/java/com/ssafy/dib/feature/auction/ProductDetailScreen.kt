@@ -632,11 +632,9 @@ private fun StickyBidAction(
 private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, depositPaid: Boolean, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
     val minimum = currentPrice + 1
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
-    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
-    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val amount = amountText.toIntOrNull() ?: 0
     val depositAmount = maxOf(1_000, amount / 10)
-    val valid = amount >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
+    val valid = amount >= minimum
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -681,20 +679,9 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                     }
                 }
             }
-            BidParticipationFields(
-                selectedPaymentMethodId = paymentMethodId,
-                onPaymentMethodSelected = { paymentMethodId = it },
-                selectedAddressId = addressId,
-                onAddressSelected = { addressId = it }
-            )
-            Surface(color = Colors.Search, shape = RoundedCornerShape(12.dp)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(if (depositPaid) "보증금 결제 완료" else "첫 입찰 보증금 ${"%,d".format(depositAmount)}원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(if (depositPaid) "이 경매에서는 추가 결제 없이 재입찰할 수 있어요." else "입찰 금액과 별도로 한 번만 결제하며 패찰 시 자동 반환돼요.", color = Colors.MintInk, fontSize = 11.sp, lineHeight = 17.sp)
-                }
-            }
+            BidDepositStatusNotice(depositPaid, depositAmount)
             Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            Button(onClick = { onContinue(BidSubmission(amount, paymentMethodId, addressId)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
+            Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
                 Text(if (depositPaid) "${"%,d".format(amount)}원 입찰하기" else "보증금 결제로 계속", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }

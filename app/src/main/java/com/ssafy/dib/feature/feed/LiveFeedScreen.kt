@@ -45,11 +45,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
-import com.ssafy.dib.feature.auction.BidParticipationFields
+import com.ssafy.dib.feature.auction.BidDepositStatusNotice
 import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
-import com.ssafy.dib.feature.auction.sampleBidAddresses
-import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveChatMessage
@@ -577,30 +575,17 @@ private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
 @Composable private fun LiveBidSheet(currentPrice: Int, depositPaid: Boolean, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
     val minimum = currentPrice + 1
     var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
-    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
-    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val parsed = amount.toIntOrNull() ?: 0
     val depositAmount = maxOf(1_000, parsed / 10)
-    val valid = parsed >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
+    val valid = parsed >= minimum
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("현재가 ${"%,d".format(currentPrice)}원 · ${"%,d".format(minimum)}원 이상", color = Color.Gray, fontSize = 12.sp)
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-            BidParticipationFields(
-                selectedPaymentMethodId = paymentMethodId,
-                onPaymentMethodSelected = { paymentMethodId = it },
-                selectedAddressId = addressId,
-                onAddressSelected = { addressId = it }
-            )
-            Text(
-                if (depositPaid) "보증금 결제 완료 · 추가 결제 없이 재입찰할 수 있어요." else "첫 입찰 보증금은 ${"%,d".format(depositAmount)}원이에요(입찰가의 10%).",
-                color = Colors.MintInk,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text("종료 15초 이내 입찰 시 남은 시간이 15초로 갱신돼요.", color = Colors.Muted, fontSize = 11.sp)
-            Button({ onConfirm(BidSubmission(parsed, paymentMethodId, addressId)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (depositPaid) "${"%,d".format(parsed)}원 입찰하기" else "보증금 결제로 계속", fontWeight = FontWeight.Bold) }
+            BidDepositStatusNotice(depositPaid, depositAmount)
+            Text("종료 30초 이내 입찰 시 종료 시간이 15초 연장돼요.", color = Colors.Muted, fontSize = 11.sp)
+            Button({ onConfirm(BidSubmission(parsed)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (depositPaid) "${"%,d".format(parsed)}원 입찰하기" else "보증금 결제로 계속", fontWeight = FontWeight.Bold) }
         }
     }
 }

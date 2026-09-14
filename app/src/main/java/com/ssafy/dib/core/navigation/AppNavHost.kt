@@ -1116,8 +1116,6 @@ fun AppNavHost() {
                         navController.navigate(Screen.Login.route)
                         return@LiveFeedScreen
                     }
-                    backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
-                    backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
                     if (productId in depositPaidProductIds) {
                         backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
                     } else {
@@ -1388,8 +1386,6 @@ fun AppNavHost() {
                         navController.navigate(Screen.Login.route)
                         return@ProductDetailScreen
                     }
-                    backStackEntry.savedStateHandle["pendingPaymentMethodId"] = submission.paymentMethodId
-                    backStackEntry.savedStateHandle["pendingAddressId"] = submission.addressId
                     if (productId in depositPaidProductIds) {
                         backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
                     } else {
