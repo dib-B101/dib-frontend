@@ -30,6 +30,7 @@ class LiveSocketEventParserTest {
                         put("currentPrice", 42_000)
                         put("bidCount", 7)
                         put("status", "ACTIVE")
+                        put("myBid", buildJsonObject { put("isHighestBidder", true) })
                         put("endedAt", "2026-09-14T09:01:00Z")
                         put("product", buildJsonObject {
                             put("productId", 12)
@@ -50,6 +51,7 @@ class LiveSocketEventParserTest {
         assertEquals(42_000, update.currentPrice)
         assertEquals(30, update.remainingSeconds)
         assertEquals(21, update.viewerCount)
+        assertEquals(true, update.isHighestBidder)
         assertEquals("https://stream.example/live.m3u8", update.streamUrl)
     }
 
