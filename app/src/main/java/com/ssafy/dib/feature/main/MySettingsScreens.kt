@@ -198,19 +198,26 @@ fun SettlementAccountsScreen(
 }
 
 @Composable
-fun NotificationSettingsScreen(onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
+fun NotificationSettingsScreen(
+    tradeEnabled: Boolean,
+    liveEnabled: Boolean,
+    wishlistEnabled: Boolean,
+    onTradeEnabledChange: (Boolean) -> Unit,
+    onLiveEnabledChange: (Boolean) -> Unit,
+    onWishlistEnabledChange: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
-    var trade by rememberSaveable { mutableStateOf(true) }
-    var live by rememberSaveable { mutableStateOf(true) }
-    var wishlist by rememberSaveable { mutableStateOf(false) }
     SettingsScaffold("알림 설정", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { Column(Modifier.fillMaxWidth().background(Color(0xFFF1F5FA), RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("알림은 휴대전화 설정에서 관리해요", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text("허용 여부와 소리·진동은 Android 시스템 설정에서 변경할 수 있어요.", color = Colors.Muted, fontSize = 12.sp) } }
             item { Text("dib에서 보내는 알림", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
             item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Color(0xFFE3E8EF), RoundedCornerShape(16.dp))) {
-                NotificationToggle("입찰·거래 상태", "상회 입찰, 낙찰, 결제와 배송 상태", trade) { trade = it }
-                NotificationToggle("팔로잉 판매자 라이브", "예약 라이브 시작 10분 전과 시작 시점", live) { live = it }
-                NotificationToggle("찜한 경매", "찜한 경매의 시작·마감 임박 알림", wishlist) { wishlist = it }
+                NotificationToggle("입찰·거래 상태", "상회 입찰, 낙찰, 결제와 배송 상태", tradeEnabled, onTradeEnabledChange)
+                NotificationToggle("팔로잉 판매자 라이브", "예약 라이브 시작 10분 전과 시작 시점", liveEnabled, onLiveEnabledChange)
+                NotificationToggle("찜한 경매", "찜한 경매의 시작·마감 임박 알림", wishlistEnabled, onWishlistEnabledChange)
             } }
             item { Text("필수 거래 알림은 안전한 경매 진행을 위해 전송될 수 있어요.", color = Colors.Muted, fontSize = 12.sp) }
             item { Button({ context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("시스템 알림 설정 열기", fontWeight = FontWeight.Bold) } }

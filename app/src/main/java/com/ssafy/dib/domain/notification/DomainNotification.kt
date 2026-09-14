@@ -15,7 +15,7 @@ data class DomainNotification(
             return when {
                 "LIVE" in key -> NotificationCategory.Live
                 listOf("BOOKMARK", "FAVORITE", "WISH").any(key::contains) -> NotificationCategory.Bookmark
-                listOf("ORDER", "PAYMENT", "SHIP", "DELIVERY", "SETTLEMENT", "TRANSACTION").any(key::contains) -> NotificationCategory.Trade
+                listOf("BID", "AUCTION", "ORDER", "PAYMENT", "SHIP", "DELIVERY", "SETTLEMENT", "TRANSACTION").any(key::contains) -> NotificationCategory.Trade
                 else -> NotificationCategory.Other
             }
         }

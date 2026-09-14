@@ -94,6 +94,7 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import com.ssafy.dib.domain.notification.DomainNotification
+import com.ssafy.dib.domain.notification.NotificationCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -109,6 +110,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val coroutineScope = rememberCoroutineScope()
     val notificationSnackbar = remember { SnackbarHostState() }
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
+    val notificationPreferences = remember(context) { context.getSharedPreferences("dib_notification_preferences", 0) }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
@@ -146,6 +148,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
     var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
     var unreadNotificationCount by remember { mutableStateOf(0) }
+    var tradeNotificationsEnabled by remember {
+        mutableStateOf(notificationPreferences.getBoolean("trade_enabled", true))
+    }
+    var liveNotificationsEnabled by remember {
+        mutableStateOf(notificationPreferences.getBoolean("live_enabled", true))
+    }
+    var wishlistNotificationsEnabled by remember {
+        mutableStateOf(notificationPreferences.getBoolean("wishlist_enabled", false))
+    }
 
     fun expireInactiveSession() {
         if (signedIn != true) return
@@ -189,6 +200,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "SETTLEMENT", "TRANSACTION" ->
                 navigateMain(DibMainTab.Trades)
         }
+    }
+
+    fun isNotificationEnabled(notification: DomainNotification): Boolean = when (notification.category) {
+        NotificationCategory.Trade -> tradeNotificationsEnabled
+        NotificationCategory.Live -> liveNotificationsEnabled
+        NotificationCategory.Bookmark -> wishlistNotificationsEnabled
+        NotificationCategory.Other -> true
     }
 
     fun updateBookmark(auctionId: String, bookmarked: Boolean) {
@@ -279,7 +297,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 realtime.start(
                     onNotification = { notification ->
                         coroutineScope.launch {
-                            if (domainNotifications.none { it.eventId == notification.eventId }) {
+                            if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = (listOf(notification) + domainNotifications).take(100)
                                 unreadNotificationCount = (unreadNotificationCount + 1).coerceAtMost(100)
                                 val result = notificationSnackbar.showSnackbar(
@@ -2666,7 +2684,25 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.NotificationSettings.route) {
-            NotificationSettingsScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
+            NotificationSettingsScreen(
+                tradeEnabled = tradeNotificationsEnabled,
+                liveEnabled = liveNotificationsEnabled,
+                wishlistEnabled = wishlistNotificationsEnabled,
+                onTradeEnabledChange = { enabled ->
+                    tradeNotificationsEnabled = enabled
+                    notificationPreferences.edit().putBoolean("trade_enabled", enabled).apply()
+                },
+                onLiveEnabledChange = { enabled ->
+                    liveNotificationsEnabled = enabled
+                    notificationPreferences.edit().putBoolean("live_enabled", enabled).apply()
+                },
+                onWishlistEnabledChange = { enabled ->
+                    wishlistNotificationsEnabled = enabled
+                    notificationPreferences.edit().putBoolean("wishlist_enabled", enabled).apply()
+                },
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain
+            )
         }
         composable(Screen.ProfileEdit.route) {
             var profileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }

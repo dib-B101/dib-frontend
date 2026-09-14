@@ -4,6 +4,7 @@ import com.ssafy.dib.data.remote.socket.DomainNotificationParser
 import com.ssafy.dib.data.remote.socket.SocketEnvelope
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import com.ssafy.dib.domain.notification.NotificationCategory
+import com.ssafy.dib.domain.notification.DomainNotification
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -47,5 +48,22 @@ class DomainNotificationParserTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun categorizesBookmarkBeforeAuctionAndTreatsBidAsTrade() {
+        fun notification(type: String, resourceType: String) = DomainNotification(
+            eventId = type,
+            type = type,
+            resourceType = resourceType,
+            resourceId = "1",
+            title = "title",
+            body = "body",
+            occurredAt = "2026-09-14T00:00:00Z"
+        )
+
+        assertEquals(NotificationCategory.Bookmark, notification("BOOKMARK_ENDING_SOON", "AUCTION").category)
+        assertEquals(NotificationCategory.Trade, notification("BID_OUTBID", "AUCTION").category)
+        assertEquals(NotificationCategory.Live, notification("LIVE_STARTED", "LIVE_BROADCAST").category)
     }
 }
