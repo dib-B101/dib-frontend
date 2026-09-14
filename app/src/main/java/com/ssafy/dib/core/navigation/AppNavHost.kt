@@ -9,7 +9,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -95,6 +106,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val lifecycleOwner = context as? LifecycleOwner
     val auth = remember(context) { AuthDependencies(context) }
     val coroutineScope = rememberCoroutineScope()
+    val notificationSnackbar = remember { SnackbarHostState() }
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
@@ -160,6 +172,21 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             if (tab != DibMainTab.Register) popUpTo(Screen.Home.route) { saveState = true }
             launchSingleTop = true
             restoreState = tab != DibMainTab.Register
+        }
+    }
+
+    fun canOpenNotification(notification: DomainNotification): Boolean =
+        notification.resourceType.uppercase() in setOf(
+            "LIVE", "LIVE_BROADCAST", "AUCTION", "ORDER", "PAYMENT", "SHIPMENT",
+            "DELIVERY", "SETTLEMENT", "TRANSACTION"
+        )
+
+    fun openNotification(notification: DomainNotification) {
+        when (notification.resourceType.uppercase()) {
+            "LIVE", "LIVE_BROADCAST" -> navController.navigate(Screen.Feed.route)
+            "AUCTION" -> navController.navigate(Screen.ProductDetail.createRoute(notification.resourceId))
+            "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "SETTLEMENT", "TRANSACTION" ->
+                navigateMain(DibMainTab.Trades)
         }
     }
 
@@ -250,6 +277,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             if (domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = (listOf(notification) + domainNotifications).take(100)
                                 unreadNotificationCount = (unreadNotificationCount + 1).coerceAtMost(100)
+                                val result = notificationSnackbar.showSnackbar(
+                                    message = listOf(notification.title, notification.body)
+                                        .filter(String::isNotBlank)
+                                        .joinToString("\n")
+                                        .ifBlank { "새 알림이 도착했어요" },
+                                    actionLabel = if (canOpenNotification(notification)) "보기" else null,
+                                    withDismissAction = true,
+                                    duration = SnackbarDuration.Long
+                                )
+                                if (result == SnackbarResult.ActionPerformed) openNotification(notification)
                             }
                         }
                     },
@@ -337,10 +374,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         bidHistoryLoading = false
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Splash.route
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Splash.route
+        ) {
         composable(Screen.Splash.route) {
             SplashScreen(onFinished = {
                 coroutineScope.launch {
@@ -856,13 +894,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             NotificationCenterScreen(
                 notifications = domainNotifications,
                 connectionState = notificationConnectionState,
-                onNotificationClick = { notification ->
-                    when (notification.resourceType.uppercase()) {
-                        "LIVE", "LIVE_BROADCAST" -> navController.navigate(Screen.Feed.route)
-                        "AUCTION" -> navController.navigate(Screen.ProductDetail.createRoute(notification.resourceId))
-                        "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "SETTLEMENT", "TRANSACTION" -> navigateMain(DibMainTab.Trades)
-                    }
-                },
+                onNotificationClick = ::openNotification,
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
             )
@@ -3279,6 +3311,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
             )
         }
+        }
+        SnackbarHost(
+            hostState = notificationSnackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 76.dp)
+        )
     }
 }
 

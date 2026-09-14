@@ -25,6 +25,7 @@ DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 - Live: 피드 cursor, 상세, 댓글 과거 내역, 채팅, 신고, 내 방송 cursor 목록, 예약·수정·편성·송출 준비·시작·종료
 - 거래: 구매·판매 cursor 목록, 주문 상세, 결제 준비·상태 확인, 송장 등록·배송 조회·구매 확정
 - 채팅: 주문 채널 연결, 이전 메시지 페이지네이션, 전송 ACK
+- 알림: WebSocket 실시간 수신, 중복 제거, 인앱 배너와 관련 화면 이동
 - 마이: 문의·신고·정산 cursor 목록과 상세, 정산 계좌, 배송지 조회·수정·삭제
 - 배송지 등록: `POST /api/v1/members/me/addresses` DTO와 repository 계약까지 구현
 
