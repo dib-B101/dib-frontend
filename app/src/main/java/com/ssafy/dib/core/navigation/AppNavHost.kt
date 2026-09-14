@@ -1563,9 +1563,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onSellerClick = { sellerMemberId ->
                     if (sellerMemberId.isNotBlank()) {
-                        backStackEntry.savedStateHandle["sellerNickname"] = remoteProduct?.sellerNickname
-                        backStackEntry.savedStateHandle["sellerRating"] = remoteProduct?.sellerRating
-                        backStackEntry.savedStateHandle["sellerTradeCount"] = remoteProduct?.sellerTradeCount
+                        backStackEntry.savedStateHandle["sellerNickname"] = remoteProduct?.sellerNickname ?: remoteDetail?.sellerNickname
+                        backStackEntry.savedStateHandle["sellerRating"] = remoteProduct?.sellerRating ?: remoteDetail?.sellerRating
+                        backStackEntry.savedStateHandle["sellerTradeCount"] = remoteProduct?.sellerTradeCount ?: remoteDetail?.sellerTradeCount
                         navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId))
                     } else {
                         realtimeNotice = "판매자 정보를 확인하지 못했어요."

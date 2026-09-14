@@ -273,7 +273,7 @@ fun ProductDetailScreen(
                 )
             }
             item {
-                SellerSummary(productDetail, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
+                SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
             }
             item {
                 ProductInformation(
@@ -513,15 +513,18 @@ private fun Metric(label: String, value: String, color: androidx.compose.ui.grap
 }
 
 @Composable
-private fun SellerSummary(detail: ProductDetail?, onClick: () -> Unit) {
+private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(20.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(40.dp).background(Colors.Surface, CircleShape), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.seller), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Muted))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(detail?.sellerNickname ?: "판매자", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            val sellerMeta = listOfNotNull(detail?.sellerRating?.let { "★ $it" }, detail?.sellerTradeCount?.let { "거래 ${it}회" }).joinToString("  ·  ")
+            Text(detail?.sellerNickname ?: auction.sellerNickname ?: "판매자", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            val sellerMeta = listOfNotNull(
+                (detail?.sellerRating ?: auction.sellerRating)?.let { "★ $it" },
+                (detail?.sellerTradeCount ?: auction.sellerTradeCount)?.let { "거래 ${it}회" }
+            ).joinToString("  ·  ")
             Text(sellerMeta.ifBlank { "판매자 정보를 확인해보세요" }, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))

@@ -195,7 +195,10 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         bookmarked = bookmarked,
         isHighestBidder = myBid?.isHighestBidder,
         myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
-        imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) }
+        imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) },
+        sellerNickname = sellerSummary?.nickname,
+        sellerRating = sellerSummary?.rating,
+        sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount
     )
 }
 
