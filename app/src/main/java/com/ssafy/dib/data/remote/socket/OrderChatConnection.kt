@@ -85,11 +85,11 @@ class OrderChatConnection(
                     }
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
-                    }.getOrNull()?.let {
-                        it.commandId?.let { commandId ->
+                    }.getOrNull()?.let { error ->
+                        (error.commandId ?: envelope.commandId)?.let { commandId ->
                             synchronized(this@OrderChatConnection) { pendingMessages.remove(commandId) }
                         }
-                        onError(it.message)
+                        onError(error.message)
                     }
                     SocketEventTypes.SERVER_DRAINING -> scheduleReconnect()
                 }
@@ -108,7 +108,7 @@ class OrderChatConnection(
     @Synchronized
     fun send(content: String): Boolean {
         val value = content.trim()
-        if (!active || value.isBlank()) return false
+        if (!active || value.isBlank() || value.length > 500) return false
         val command = SocketCommands.sendChatMessage(orderId, value)
         command.commandId?.let { pendingMessages[it] = command }
         if (!socket.send(command)) scheduleReconnect()
