@@ -121,7 +121,11 @@ fun RegisteredProductsScreen(
     errorMessage: String?,
     deleteError: String?,
     deletingProductId: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     onAuctionRegister: (String) -> Unit,
     onEditProduct: (String) -> Unit,
     onDeleteProduct: (String) -> Unit,
@@ -158,6 +162,12 @@ fun RegisteredProductsScreen(
                         }
                     }
                 }
+            }
+            if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "product-load-more") {
+                LaunchedEffect(products.size, hasNext, loadMoreError) {
+                    if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                }
+                HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
             }
             item { Button(onRegister, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("새 상품 등록", fontWeight = FontWeight.Bold) } }
         }

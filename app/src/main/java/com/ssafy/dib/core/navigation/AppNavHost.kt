@@ -2370,6 +2370,10 @@ fun AppNavHost() {
             var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var registeredProductsError by remember { mutableStateOf<String?>(null) }
             var registeredProductsRevision by remember { mutableStateOf(0) }
+            var registeredProductsCursor by remember { mutableStateOf<String?>(null) }
+            var registeredProductsHasNext by remember { mutableStateOf(false) }
+            var registeredProductsLoadingMore by remember { mutableStateOf(false) }
+            var registeredProductsLoadMoreError by remember { mutableStateOf<String?>(null) }
             var deletingProductId by remember { mutableStateOf<String?>(null) }
             var productDeleteError by remember { mutableStateOf<String?>(null) }
 
@@ -2377,8 +2381,13 @@ fun AppNavHost() {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 registeredProductsLoading = true
                 registeredProductsError = null
+                registeredProductsLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
-                    is ApiResult.Success -> registeredProducts = result.value
+                    is ApiResult.Success -> {
+                        registeredProducts = result.value.items
+                        registeredProductsCursor = result.value.nextCursor
+                        registeredProductsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                    }
                     is ApiResult.Failure -> {
                         registeredProductsError = result.error.message.ifBlank { "등록 상품을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -2395,7 +2404,34 @@ fun AppNavHost() {
                 errorMessage = registeredProductsError,
                 deleteError = productDeleteError,
                 deletingProductId = deletingProductId,
+                hasNext = registeredProductsHasNext,
+                isLoadingMore = registeredProductsLoadingMore,
+                loadMoreError = registeredProductsLoadMoreError,
                 onRetry = { registeredProductsRevision++ },
+                onLoadMore = {
+                    val cursor = registeredProductsCursor
+                    if (cursor != null && registeredProductsHasNext && !registeredProductsLoadingMore) {
+                        registeredProductsLoadingMore = true
+                        registeredProductsLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.productRepository.getMyProducts(cursor = cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    registeredProducts = (registeredProducts.orEmpty() + result.value.items)
+                                        .distinctBy { it.productId }
+                                    registeredProductsCursor = result.value.nextCursor
+                                    registeredProductsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    registeredProductsLoadMoreError = result.error.message.ifBlank { "다음 상품을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            registeredProductsLoadingMore = false
+                        }
+                    }
+                },
                 onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) },
                 onEditProduct = { productId -> navController.navigate(Screen.ProductEdit.createRoute(productId)) },
                 onDeleteProduct = { productId ->

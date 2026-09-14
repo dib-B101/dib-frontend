@@ -65,9 +65,15 @@ data class RegisteredProduct(
     val thumbnailUrl: String?
 )
 
+data class RegisteredProductPage(
+    val items: List<RegisteredProduct>,
+    val nextCursor: String?,
+    val hasNext: Boolean
+)
+
 interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
-    fun getMyProducts(status: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
+    fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun searchProducts(query: String, categoryId: String? = null, size: Int = 100): ApiResult<List<RegisteredProduct>>
     fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
