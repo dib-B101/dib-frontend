@@ -6,6 +6,7 @@ import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveFeedPage
 import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.live.LiveChatMessage
+import com.ssafy.dib.domain.live.LiveChatMessagePage
 import com.ssafy.dib.domain.live.LiveBroadcastDetail
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
 import com.ssafy.dib.domain.live.LiveStreamSession
@@ -40,17 +41,23 @@ class LiveRepositoryImpl(
         is ApiResult.Failure -> result
     }
 
-    override fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String?, size: Int): ApiResult<List<LiveChatMessage>> =
+    override fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String?, size: Int): ApiResult<LiveChatMessagePage> =
         when (val result = remote.getMessages(liveBroadcastId, beforeLiveChattingId, size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map { message ->
-                LiveChatMessage(
-                    liveChattingId = message.liveChattingId.idValue(),
-                    memberId = message.memberId.idValue(),
-                    nickname = message.nickname,
-                    content = message.content,
-                    time = message.time
-                )
-            }, result.status)
+            is ApiResult.Success -> ApiResult.Success(
+                LiveChatMessagePage(
+                    items = result.value.items.map { message ->
+                        LiveChatMessage(
+                            liveChattingId = message.liveChattingId.idValue(),
+                            memberId = message.memberId.idValue(),
+                            nickname = message.nickname,
+                            content = message.content,
+                            time = message.time
+                        )
+                    },
+                    hasMore = result.value.hasMore
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 
