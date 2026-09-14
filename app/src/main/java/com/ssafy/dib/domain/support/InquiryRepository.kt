@@ -18,8 +18,10 @@ data class InquiryDetail(
     val answeredAt: String?
 )
 
+data class InquiryPage(val items: List<InquirySummary>, val nextCursor: String?)
+
 interface InquiryRepository {
-    fun getInquiries(size: Int = 30): ApiResult<List<InquirySummary>>
+    fun getInquiries(cursor: String? = null, size: Int = 30): ApiResult<InquiryPage>
     fun getInquiry(questionId: String): ApiResult<InquiryDetail>
     fun createInquiry(title: String, content: String): ApiResult<String>
 }

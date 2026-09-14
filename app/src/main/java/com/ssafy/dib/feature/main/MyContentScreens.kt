@@ -247,6 +247,9 @@ fun InquiryHistoryScreen(
     remoteInquiries: List<InquirySummary>?,
     isLoading: Boolean,
     errorMessage: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     selectedInquiry: InquiryDetail?,
     detailLoading: Boolean,
     detailError: String?,
@@ -254,6 +257,7 @@ fun InquiryHistoryScreen(
     submitError: String?,
     submissionRevision: Int,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     onInquiryClick: (String) -> Unit,
     onDetailDismiss: () -> Unit,
     onSubmit: (title: String, content: String) -> Unit,
@@ -274,6 +278,12 @@ fun InquiryHistoryScreen(
             else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
             else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }
             else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(104.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Color(0xFF61D1B2) else Color(0xFFF26B47), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
+            if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "inquiry-load-more") {
+                LaunchedEffect(inquiries.size, hasNext, loadMoreError) {
+                    if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                }
+                HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
+            }
             item { Button({ formOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("문의하기", fontWeight = FontWeight.Bold) } }
         }
     }
@@ -306,7 +316,11 @@ fun ReportHistoryScreen(
     reports: List<ReportSummary>?,
     isLoading: Boolean,
     errorMessage: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     SimpleHeaderScaffold("신고 내역", onBack, modifier) { padding ->
@@ -323,6 +337,25 @@ fun ReportHistoryScreen(
                     item { HistoryCard("상품 신고", "빈티지 필름 카메라", "허위 정보가 포함되어 있어요", "검토 완료") }
                     item { HistoryCard("판매자 신고", "seller01", "부적절한 메시지를 받았어요", "접수됨") }
                 }
+            }
+            if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "report-load-more") {
+                LaunchedEffect(reports?.size, hasNext, loadMoreError) {
+                    if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                }
+                HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryLoadMore(isLoading: Boolean, error: String?, onRetry: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        when {
+            isLoading -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+            error != null -> {
+                Text(error, color = Colors.Muted, fontSize = 11.sp)
+                TextButton(onClick = onRetry) { Text("더 불러오기") }
             }
         }
     }

@@ -7,10 +7,11 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
 
 class InquiryRemoteDataSource(private val client: DibHttpClient) {
-    fun getInquiries(size: Int): ApiResult<InquiryListResponse> = configured {
-        val url = client.urlBuilder(ApiRoutes.QUESTIONS)
+    fun getInquiries(cursor: String?, size: Int): ApiResult<InquiryListResponse> = configured {
+        val urlBuilder = client.urlBuilder(ApiRoutes.QUESTIONS)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
-            .build()
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        val url = urlBuilder.build()
         client.execute(
             client.requestBuilder(ApiRoutes.QUESTIONS).url(url).get().build(),
             InquiryListResponse.serializer()
