@@ -21,6 +21,7 @@ class LiveChatConnection(
     private var reconnectAttempt = 0
     private var reconnectTask: ScheduledFuture<*>? = null
     @Volatile private var pendingBidCommand: SocketEnvelope? = null
+    private val pendingChatMessages = linkedMapOf<String, SocketEnvelope>()
     private var onMessage: (LiveChatMessage) -> Unit = {}
     private var onUpdate: (LiveRealtimeUpdate) -> Unit = {}
     private var onError: (String) -> Unit = {}
@@ -58,6 +59,9 @@ class LiveChatConnection(
                 socket.send(SocketCommands.subscribeLive(liveBroadcastId))
                 subscribedAuctionId?.let { socket.send(SocketCommands.subscribeAuction(it)) }
                 pendingBidCommand?.let(socket::send)
+                synchronized(this@LiveChatConnection) {
+                    pendingChatMessages.values.forEach(socket::send)
+                }
             }
 
             override fun onEvent(envelope: SocketEnvelope) {
@@ -68,9 +72,29 @@ class LiveChatConnection(
                     }.getOrNull()?.takeIf { it.liveBroadcastId.idValue() == liveBroadcastId }?.let { payload ->
                         onMessage(LiveChatMessage(payload.liveChattingId.idValue(), payload.memberId.idValue(), payload.nickname, payload.content, payload.time))
                     }
+                    SocketEventTypes.CHAT_ACCEPTED -> runCatching {
+                        codec.decodePayload(envelope, LiveChatAcceptedPayload.serializer())
+                    }.getOrNull()?.takeIf {
+                        it.liveBroadcastId?.idValue()?.let { id -> id == liveBroadcastId } != false
+                    }?.let { payload ->
+                        synchronized(this@LiveChatConnection) { pendingChatMessages.remove(payload.commandId) }
+                    }
+                    SocketEventTypes.CHAT_REJECTED -> runCatching {
+                        codec.decodePayload(envelope, LiveChatRejectedPayload.serializer())
+                    }.getOrNull()?.takeIf {
+                        it.liveBroadcastId?.idValue()?.let { id -> id == liveBroadcastId } != false
+                    }?.let { payload ->
+                        synchronized(this@LiveChatConnection) { pendingChatMessages.remove(payload.commandId) }
+                        onError(payload.message)
+                    }
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
-                    }.getOrNull()?.let { onError(it.message) }
+                    }.getOrNull()?.let {
+                        it.commandId?.let { commandId ->
+                            synchronized(this@LiveChatConnection) { pendingChatMessages.remove(commandId) }
+                        }
+                        onError(it.message)
+                    }
                 }
                 eventParser.parse(envelope)?.let { update ->
                     when (update.eventType) {
@@ -97,10 +121,14 @@ class LiveChatConnection(
         })
     }
 
+    @Synchronized
     fun send(content: String): Boolean {
         val value = content.trim()
         if (!active || value.isBlank() || value.length > 500) return false
-        return socket.send(SocketCommands.sendLiveChat(liveBroadcastId, value))
+        val command = SocketCommands.sendLiveChat(liveBroadcastId, value)
+        command.commandId?.let { pendingChatMessages[it] = command }
+        if (!socket.send(command)) scheduleReconnect()
+        return true
     }
 
     @Synchronized
@@ -148,6 +176,7 @@ class LiveChatConnection(
         active = false
         subscribedAuctionId = null
         pendingBidCommand = null
+        pendingChatMessages.clear()
         socket.disconnect()
     }
 

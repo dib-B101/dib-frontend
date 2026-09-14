@@ -35,6 +35,8 @@ object SocketEventTypes {
     const val SUBSCRIBE_LIVE = "SUBSCRIBE_LIVE"
     const val UNSUBSCRIBE_LIVE = "UNSUBSCRIBE_LIVE"
     const val SEND_LIVE_CHAT = "SEND_LIVE_CHAT"
+    const val CHAT_ACCEPTED = "CHAT_ACCEPTED"
+    const val CHAT_REJECTED = "CHAT_REJECTED"
     const val LIVE_CHAT_MESSAGE_CREATED = "LIVE_CHAT_MESSAGE_CREATED"
     const val LIVE_SNAPSHOT = "LIVE_SNAPSHOT"
     const val LIVE_STARTED = "LIVE_STARTED"
@@ -92,6 +94,14 @@ data class ChatMessageCreatedPayload(
 )
 
 @Serializable
+data class ChatMessageAcceptedPayload(
+    val commandId: String,
+    val chattingId: JsonElement,
+    val orderId: JsonElement,
+    val time: String
+)
+
+@Serializable
 data class SocketErrorPayload(
     val commandId: String? = null,
     val code: String,
@@ -107,4 +117,21 @@ data class LiveChatMessageCreatedPayload(
     val nickname: String? = null,
     val content: String,
     val time: String
+)
+
+@Serializable
+data class LiveChatAcceptedPayload(
+    val commandId: String,
+    val liveBroadcastId: JsonElement? = null,
+    val liveChattingId: JsonElement? = null,
+    val time: String? = null
+)
+
+@Serializable
+data class LiveChatRejectedPayload(
+    val commandId: String,
+    val liveBroadcastId: JsonElement? = null,
+    val code: String,
+    val message: String,
+    val retryable: Boolean = false
 )
