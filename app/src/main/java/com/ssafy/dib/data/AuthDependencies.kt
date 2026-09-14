@@ -38,6 +38,7 @@ import com.ssafy.dib.data.repository.AddressRepositoryImpl
 import com.ssafy.dib.data.repository.LiveRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementAccountRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementRepositoryImpl
+import com.ssafy.dib.data.repository.SessionTokenRefresher
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.BidDepositRepository
 import com.ssafy.dib.domain.auth.AuthRepository
@@ -76,10 +77,23 @@ class AuthDependencies(context: Context) {
     val settlementRepository: SettlementRepository
 
     init {
+        val refreshRemote = AuthRemoteDataSource(
+            DibHttpClient(
+                config = networkConfig,
+                accessTokenProvider = AccessTokenProvider { null },
+                guestSessionProvider = GuestSessionProvider { null }
+            )
+        )
+        val tokenRefresher = SessionTokenRefresher(
+            sessionStore = sessionStore,
+            deviceId = deviceId,
+            refreshRequest = refreshRemote::refresh
+        )
         val client = DibHttpClient(
             config = networkConfig,
             accessTokenProvider = AccessTokenProvider { sessionStore.read()?.accessToken },
-            guestSessionProvider = GuestSessionProvider { guestSessionId() }
+            guestSessionProvider = GuestSessionProvider { guestSessionId() },
+            tokenRefresher = tokenRefresher
         )
         repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
