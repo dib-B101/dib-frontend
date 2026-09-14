@@ -1138,11 +1138,11 @@ fun AppNavHost() {
         }
         composable(
             route = Screen.ProductDetail.route,
-            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+            arguments = listOf(navArgument("auctionId") { type = NavType.StringType })
         ) { backStackEntry ->
             val paidBidAmount by backStackEntry.savedStateHandle
                 .getStateFlow("paidBidAmount", 0).collectAsState()
-            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            val productId = backStackEntry.arguments?.getString("auctionId").orEmpty()
             var remoteDetail by remember(productId) {
                 mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
             }
@@ -1371,7 +1371,7 @@ fun AppNavHost() {
                     backStackEntry.savedStateHandle["productImageUrls"] = ArrayList(remoteProduct?.imageUrls?.takeIf { it.isNotEmpty() } ?: remoteDetail?.imageUrls.orEmpty())
                     navController.navigate(
                         Screen.ProductImages.createRoute(
-                            backStackEntry.arguments?.getString("productId").orEmpty(),
+                            backStackEntry.arguments?.getString("auctionId").orEmpty(),
                             page
                         )
                     )
@@ -1383,7 +1383,7 @@ fun AppNavHost() {
                     if (signedIn == true) {
                         navController.navigate(
                             Screen.ProductReport.createRoute(
-                                backStackEntry.arguments?.getString("productId").orEmpty()
+                                backStackEntry.arguments?.getString("auctionId").orEmpty()
                             )
                         )
                     } else navController.navigate(Screen.Login.route)
@@ -3064,14 +3064,14 @@ fun AppNavHost() {
         composable(
             route = Screen.ProductImages.route,
             arguments = listOf(
-                navArgument("productId") { type = NavType.StringType },
+                navArgument("auctionId") { type = NavType.StringType },
                 navArgument("initialPage") { type = NavType.IntType }
             )
         ) { backStackEntry ->
             val imageUrls = navController.previousBackStackEntry?.savedStateHandle
                 ?.get<ArrayList<String>>("productImageUrls").orEmpty()
             ProductImageViewerScreen(
-                productId = backStackEntry.arguments?.getString("productId").orEmpty(),
+                productId = backStackEntry.arguments?.getString("auctionId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
                 imageUrls = imageUrls,
                 onClose = navController::navigateUp
@@ -3138,9 +3138,9 @@ fun AppNavHost() {
         }
         composable(
             route = Screen.ProductReport.route,
-            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+            arguments = listOf(navArgument("auctionId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val auctionId = backStackEntry.arguments?.getString("productId").orEmpty()
+            val auctionId = backStackEntry.arguments?.getString("auctionId").orEmpty()
             var submitted by remember { mutableStateOf(false) }
             var submitting by remember { mutableStateOf(false) }
             var reportError by remember { mutableStateOf<String?>(null) }
