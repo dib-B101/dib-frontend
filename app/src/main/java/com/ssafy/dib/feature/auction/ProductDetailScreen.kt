@@ -76,6 +76,7 @@ fun ProductDetailScreen(
     onRealtimeBid: (Int) -> Boolean,
     onDepositInvalid: () -> Unit,
     isAuthenticated: Boolean,
+    isOwnAuction: Boolean,
     onBack: () -> Unit,
     onImageClick: (Int) -> Unit,
     onSellerClick: (String) -> Unit,
@@ -204,6 +205,7 @@ fun ProductDetailScreen(
                 favorite = favorite,
                 state = auctionState,
                 submitting = bidSubmitting,
+                isOwnAuction = isOwnAuction,
                 onFavorite = { selected ->
                     if (isAuthenticated && !bookmarkLoading) {
                         favorite = selected
@@ -217,6 +219,7 @@ fun ProductDetailScreen(
                 },
                 onBid = {
                     if (!isAuthenticated) onLoginRequired()
+                    else if (isOwnAuction) scope.launch { snackbar.showSnackbar("내 경매에는 입찰할 수 없어요.") }
                     else if (auctionState == DetailAuctionState.Active && !bidSubmitting) showBidSheet = true
                 },
                 onTransaction = onTransactionClick
@@ -580,6 +583,7 @@ private fun StickyBidAction(
     favorite: Boolean,
     state: DetailAuctionState,
     submitting: Boolean,
+    isOwnAuction: Boolean,
     onFavorite: (Boolean) -> Unit,
     onBid: () -> Unit,
     onTransaction: () -> Unit
@@ -604,7 +608,7 @@ private fun StickyBidAction(
             }
             Button(
                 onClick = onBid,
-                enabled = state == DetailAuctionState.Active && !submitting,
+                enabled = state == DetailAuctionState.Active && !submitting && !isOwnAuction,
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -615,6 +619,7 @@ private fun StickyBidAction(
             ) {
                 Text(
                     when {
+                        isOwnAuction -> "내 경매에는 입찰할 수 없어요"
                         submitting -> "입찰 결과 확인 중"
                         state == DetailAuctionState.HighestBidder -> "✓ 현재 최고 입찰 중이에요"
                         else -> "%,d원 입찰하기".format(price)

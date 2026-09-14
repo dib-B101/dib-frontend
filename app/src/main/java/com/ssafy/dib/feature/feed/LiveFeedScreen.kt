@@ -95,6 +95,7 @@ fun LiveFeedScreen(
     onLoadEarlierComments: () -> Unit,
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
+    currentMemberId: String?,
     paidBidAmount: Int,
     depositPaidAuctionIds: Set<String>,
     realtimeBidFeedback: RealtimeBidFeedback?,
@@ -148,6 +149,7 @@ fun LiveFeedScreen(
                     onLoadEarlierComments = onLoadEarlierComments,
                     onSendComment = onSendComment,
                     isAuthenticated = isAuthenticated,
+                    currentMemberId = currentMemberId,
                     paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
                     depositPaidAuctionIds = depositPaidAuctionIds,
                     realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
@@ -193,6 +195,7 @@ private fun LiveFeedPage(
     onLoadEarlierComments: () -> Unit,
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
+    currentMemberId: String?,
     paidBidAmount: Int,
     depositPaidAuctionIds: Set<String>,
     realtimeBidFeedback: RealtimeBidFeedback?,
@@ -210,6 +213,9 @@ private fun LiveFeedPage(
     val productAuctions = liveAuctions ?: listOfNotNull(activeAuction)
     val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
     val depositPaid = auctionKey in depositPaidAuctionIds
+    val isOwnAuction = currentMemberId != null && (
+        activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
+    )
     var following by rememberSaveable { mutableStateOf(true) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
@@ -353,7 +359,14 @@ private fun LiveFeedPage(
                             Text("현재가 ${"%,d".format(currentPrice)}원", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text("⚡ ${formatClock(remaining)} 남음", color = if (remaining <= 15) Colors.Live else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-                        Button(onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() }, enabled = remaining > 0, modifier = Modifier.size(68.dp, 58.dp), shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy), contentPadding = PaddingValues(0.dp)) { Text("입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        Button(
+                            onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
+                            enabled = remaining > 0 && !isOwnAuction,
+                            modifier = Modifier.size(68.dp, 58.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
+                            contentPadding = PaddingValues(0.dp)
+                        ) { Text(if (isOwnAuction) "내 경매" else "입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }
