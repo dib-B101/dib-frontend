@@ -89,11 +89,28 @@ class LiveChatConnection(
                     }
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
-                    }.getOrNull()?.let {
-                        it.commandId?.let { commandId ->
-                            synchronized(this@LiveChatConnection) { pendingChatMessages.remove(commandId) }
+                    }.getOrNull()?.let { error ->
+                        val commandId = error.commandId ?: envelope.commandId
+                        val isPendingBidError = commandId != null && commandId == pendingBidCommand?.commandId
+                        if (isPendingBidError) {
+                            pendingBidCommand = null
+                            onUpdate(
+                                LiveRealtimeUpdate(
+                                    eventType = SocketEventTypes.BID_REJECTED,
+                                    auctionId = subscribedAuctionId,
+                                    commandId = commandId,
+                                    bidAccepted = false,
+                                    message = error.message,
+                                    errorCode = error.code,
+                                    occurredAt = envelope.occurredAt
+                                )
+                            )
+                        } else {
+                            commandId?.let {
+                                synchronized(this@LiveChatConnection) { pendingChatMessages.remove(it) }
+                            }
+                            onError(error.message)
                         }
-                        onError(it.message)
                     }
                 }
                 eventParser.parse(envelope)?.let { update ->

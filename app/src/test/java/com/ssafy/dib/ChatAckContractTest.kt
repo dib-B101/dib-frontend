@@ -6,6 +6,7 @@ import com.ssafy.dib.data.remote.socket.LiveChatRejectedPayload
 import com.ssafy.dib.data.remote.socket.SocketCodec
 import com.ssafy.dib.data.remote.socket.SocketEnvelope
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
+import com.ssafy.dib.data.remote.socket.SocketErrorPayload
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -64,5 +65,25 @@ class ChatAckContractTest {
         assertEquals("command-2", accepted.commandId)
         assertEquals("CHAT_RATE_LIMITED", rejected.code)
         assertEquals(true, rejected.retryable)
+    }
+
+    @Test
+    fun `decodes command error used to release pending requests`() {
+        val error = codec.decodePayload(
+            SocketEnvelope(
+                eventType = SocketEventTypes.ERROR,
+                commandId = "command-4",
+                payload = buildJsonObject {
+                    put("code", "AUCTION_NOT_ACTIVE")
+                    put("message", "진행 중인 경매가 아닙니다.")
+                    put("retryable", false)
+                }
+            ),
+            SocketErrorPayload.serializer()
+        )
+
+        assertEquals(null, error.commandId)
+        assertEquals("AUCTION_NOT_ACTIVE", error.code)
+        assertEquals(false, error.retryable)
     }
 }
