@@ -1577,6 +1577,9 @@ fun AppNavHost() {
             val orderId = backStackEntry.arguments?.getString("orderId").orEmpty()
             var chatMessages by remember(orderId) { mutableStateOf<List<com.ssafy.dib.domain.order.OrderMessage>>(emptyList()) }
             var chatLoading by remember(orderId) { mutableStateOf(true) }
+            var chatHasMore by remember(orderId) { mutableStateOf(false) }
+            var chatLoadingEarlier by remember(orderId) { mutableStateOf(false) }
+            var chatLoadEarlierError by remember(orderId) { mutableStateOf<String?>(null) }
             var chatError by remember(orderId) { mutableStateOf<String?>(null) }
             var chatRevision by remember(orderId) { mutableStateOf(0) }
             var currentMemberId by remember(orderId) { mutableStateOf("") }
@@ -1595,8 +1598,9 @@ fun AppNavHost() {
                 val memberResult = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }
                 when (messagesResult) {
                     is ApiResult.Success -> {
-                        chatMessages = messagesResult.value
-                        chatConnection?.updateLastChattingId(chatMessages.lastOrNull()?.chattingId)
+                        chatMessages = messagesResult.value.items
+                        chatHasMore = messagesResult.value.hasMore
+                        chatConnection?.updateLastChattingId(chatMessages.maxByOrNull { it.time }?.chattingId)
                     }
                     is ApiResult.Failure -> chatError = messagesResult.error.message.ifBlank { "채팅 내역을 불러오지 못했어요." }
                 }
@@ -1614,7 +1618,7 @@ fun AppNavHost() {
                         chatConnection = created
                         created.start(
                             orderId = orderId,
-                            lastChattingId = chatMessages.lastOrNull()?.chattingId,
+                            lastChattingId = chatMessages.maxByOrNull { it.time }?.chattingId,
                             onMessage = { message -> coroutineScope.launch {
                                 chatMessages = (chatMessages + message).distinctBy { it.chattingId }
                             } },
@@ -1635,9 +1639,38 @@ fun AppNavHost() {
                 currentMemberId = currentMemberId,
                 messages = chatMessages,
                 isLoading = chatLoading,
+                hasMore = chatHasMore,
+                isLoadingEarlier = chatLoadingEarlier,
+                loadEarlierError = chatLoadEarlierError,
                 errorMessage = chatError,
                 connectionState = chatConnectionState,
                 onRetry = { chatRevision++ },
+                onLoadEarlier = {
+                    if (!chatLoadingEarlier && chatHasMore) {
+                        coroutineScope.launch {
+                            val beforeChattingId = chatMessages.minByOrNull { it.time }?.chattingId
+                                ?: return@launch
+                            chatLoadingEarlier = true
+                            chatLoadEarlierError = null
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.orderRepository.getMessages(orderId, beforeChattingId)
+                            }) {
+                                is ApiResult.Success -> {
+                                    chatMessages = (result.value.items + chatMessages)
+                                        .distinctBy { it.chattingId }
+                                    chatHasMore = result.value.hasMore
+                                }
+                                is ApiResult.Failure -> {
+                                    chatLoadEarlierError = result.error.message.ifBlank {
+                                        "이전 메시지를 불러오지 못했어요."
+                                    }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            chatLoadingEarlier = false
+                        }
+                    }
+                },
                 onSend = { content -> chatConnection?.send(content) == true },
                 onBack = navController::navigateUp
             )

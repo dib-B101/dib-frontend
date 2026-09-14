@@ -86,11 +86,12 @@ class OrderContractTest {
     fun orderMessageHistoryAcceptsChatContract() {
         val response = DibJson.instance.decodeFromString(
             OrderMessageListResponse.serializer(),
-            """{"items":[{"chattingId":"chat-2","memberId":17,"content":"내일 발송할게요","time":"2026-09-13T08:00:00Z"}],"hasMore":false}"""
+            """{"items":[{"chattingId":"chat-2","memberId":17,"content":"내일 발송할게요","time":"2026-09-13T08:00:00Z"}],"hasMore":true}"""
         )
 
         assertEquals("chat-2", response.items.single().chattingId.toString().trim('"'))
         assertEquals("17", response.items.single().memberId.toString())
+        assertEquals(true, response.hasMore)
         assertEquals("내일 발송할게요", response.items.single().content)
     }
 
