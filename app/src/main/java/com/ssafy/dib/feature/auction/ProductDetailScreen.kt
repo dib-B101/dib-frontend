@@ -452,7 +452,7 @@ private fun ProductSummary(
                     else -> "남은 시간"
                 },
                 when (state) {
-                    DetailAuctionState.Lost -> "${bidCount}명"
+                    DetailAuctionState.Lost -> "${bidCount}회"
                     DetailAuctionState.Won -> "23시간 42분"
                     else -> formatClock(remainingSeconds)
                 },
@@ -462,7 +462,7 @@ private fun ProductSummary(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            Text("${bidCount}명 입찰 중", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("${bidCount}회 입찰", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (state == DetailAuctionState.Active) {
             Row(Modifier.fillMaxWidth().background(Colors.Mint, RoundedCornerShape(12.dp)).padding(12.dp),

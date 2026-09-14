@@ -23,7 +23,7 @@ data class HomeAuction(
     val startPrice: Int = price
 ) {
     val priceLabel: String get() = "%,d원".format(price)
-    val meta: String get() = "입찰 ${bidCount}명 · ${remainingTimeLabel(remainingSeconds)} 남음"
+    val meta: String get() = "입찰 ${bidCount}회 · ${remainingTimeLabel(remainingSeconds)} 남음"
 }
 
 internal val recommended = listOf(

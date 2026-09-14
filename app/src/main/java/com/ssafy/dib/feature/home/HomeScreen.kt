@@ -401,7 +401,7 @@ private fun DeadlineSection(
                 }
                 Text(auction.name, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
                 Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-                Text("입찰 ${auction.bidCount}명", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
+                Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
                     modifier = Modifier.fillMaxWidth().height(30.dp),
