@@ -23,7 +23,11 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.domain.notification.DomainNotification
+import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import java.time.Duration
+import java.time.Instant
 
 data class AuctionSearchFilters(
     val query: String,
@@ -132,26 +136,24 @@ fun AuctionSearchScreen(
 @Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text(title,fontSize=13.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{FilterChip(selected=selected==it,onClick={onSelect(it)},label={Text(it,fontSize=12.sp)})}}}}
 
 @Composable
-fun NotificationCenterScreen(onBack:()->Unit,onTabSelected:(DibMainTab)->Unit,modifier:Modifier=Modifier){
+fun NotificationCenterScreen(
+    notifications: List<DomainNotification>,
+    connectionState: RealtimeConnectionState?,
+    onNotificationClick: (DomainNotification) -> Unit,
+    onBack: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
+    modifier: Modifier = Modifier
+){
     var filter by rememberSaveable{mutableStateOf("전체")}
-    var loading by rememberSaveable { mutableStateOf(true) }
-    var loadRevision by rememberSaveable { mutableIntStateOf(0) }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val online = remember(loadRevision) { isNetworkAvailable(context) }
-    LaunchedEffect(loadRevision) { loading = true; kotlinx.coroutines.delay(450); loading = false }
-    val all=listOf(Triple("팔로잉","하루공방 라이브가 곧 시작해요","10분 전"),Triple("LIVE","빈티지룸이 지금 경매 중이에요","방금"),Triple("찜","찜한 상품이 곧 마감돼요","2분 전"))
-    val shown=if(filter=="전체") all else all.filter{it.first==filter}
+    val shown = if (filter == "전체") notifications else notifications.filter { it.category.label == filter }
     Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=androidx.compose.ui.graphics.Color.White,contentWindowInsets=WindowInsets(0,0,0,0),topBar={SimpleAppBar("알림",onBack,"설정")},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
-            if (loading) {
-                item { LoadingContent("알림을 불러오고 있어요") }
-            } else if (!online) {
-                item { NetworkErrorContent { loadRevision++ } }
-            } else {
-                item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","팔로잉","찜","거래").forEach{FilterChip(filter==it,{filter=it},{Text(it)})}}}
-                if (shown.isEmpty()) item { EmptyContent("새로운 알림이 없어요", "경매 상태가 바뀌면 여기서 알려드릴게요") }
-                items(shown.size){index->val item=shown[index];Row(Modifier.fillMaxWidth().height(92.dp).border(1.dp,Colors.Border,RoundedCornerShape(14.dp)).padding(12.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(44.dp).background(if(item.first=="LIVE")androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(item.first=="LIVE")"●" else "d",color=if(item.first=="LIVE")androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(start=12.dp)){Text(item.first,color=androidx.compose.ui.graphics.Color(0xFFEF596B),fontSize=9.sp,fontWeight=FontWeight.Bold);Text(item.second,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text(if(index==0)"오늘 오후 3:00 · 선반 5개" else "빈티지 필름 카메라",color=Colors.Muted,fontSize=10.sp)};Text(item.third,color=Colors.Muted,fontSize=9.sp)}}
+            item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{FilterChip(filter==it,{filter=it},{Text(it)})}}}
+            if (connectionState == RealtimeConnectionState.Connecting || connectionState == RealtimeConnectionState.Reconnecting) {
+                item { Text(if(connectionState == RealtimeConnectionState.Connecting) "실시간 알림에 연결하고 있어요" else "실시간 알림을 다시 연결하고 있어요", color=Colors.Muted, fontSize=11.sp) }
             }
+            if (shown.isEmpty()) item { EmptyContent("새로운 알림이 없어요", "앱을 사용하는 동안 새 알림이 여기에 표시돼요") }
+            items(shown.size, key = { shown[it].eventId }){index->val item=shown[index];Row(Modifier.fillMaxWidth().heightIn(min=92.dp).border(1.dp,Colors.Border,RoundedCornerShape(14.dp)).clickable { onNotificationClick(item) }.padding(12.dp),verticalAlignment=Alignment.CenterVertically){val isLive=item.category.label=="라이브";Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold);Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text(item.body,color=Colors.Muted,fontSize=10.sp)};Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp)}}
         }
     }
 }
@@ -159,6 +161,14 @@ fun NotificationCenterScreen(onBack:()->Unit,onTabSelected:(DibMainTab)->Unit,mo
 @Composable private fun LoadingContent(label: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) { CircularProgressIndicator(color = Colors.Navy); Text(label, color = Colors.Muted, fontSize = 13.sp) } }
 @Composable private fun EmptyContent(title: String, body: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(title, color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 12.sp) } }
 @Composable private fun NetworkErrorContent(onRetry: () -> Unit) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("연결이 원활하지 않아요", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("네트워크를 확인하고 다시 시도해주세요", color = Colors.Muted, fontSize = 12.sp); Button(onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("다시 시도") } } }
-private fun isNetworkAvailable(context: android.content.Context): Boolean { val manager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager; val network = manager.activeNetwork ?: return false; return manager.getNetworkCapabilities(network)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true }
+private fun notificationTimeLabel(occurredAt: String): String = runCatching {
+    val seconds = Duration.between(Instant.parse(occurredAt), Instant.now()).seconds.coerceAtLeast(0)
+    when {
+        seconds < 60 -> "방금"
+        seconds < 3_600 -> "${seconds / 60}분 전"
+        seconds < 86_400 -> "${seconds / 3_600}시간 전"
+        else -> "${seconds / 86_400}일 전"
+    }
+}.getOrDefault(occurredAt)
 
 @Composable private fun SimpleAppBar(title:String,onBack:()->Unit,action:String=""){Row(Modifier.fillMaxWidth().height(48.dp).background(androidx.compose.ui.graphics.Color.White),verticalAlignment=Alignment.CenterVertically){Text("←",Modifier.size(48.dp).clickable(onClick=onBack).wrapContentSize(),fontSize=24.sp);Text(title,Modifier.weight(1f),fontSize=16.sp,fontWeight=FontWeight.Bold);if(action.isNotBlank())Text(action,Modifier.padding(end=16.dp),color=Colors.Muted,fontSize=12.sp)}}

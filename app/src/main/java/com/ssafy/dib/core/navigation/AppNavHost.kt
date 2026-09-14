@@ -77,6 +77,7 @@ import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
+import com.ssafy.dib.domain.notification.DomainNotification
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -113,6 +114,8 @@ fun AppNavHost() {
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
+    var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
+    var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
 
     fun navigateMain(tab: DibMainTab) {
         if (signedIn != true && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
@@ -157,7 +160,10 @@ fun AppNavHost() {
     }
 
     LaunchedEffect(signedIn) {
-        if (signedIn != true) memberProfile = null
+        if (signedIn != true) {
+            memberProfile = null
+            domainNotifications = emptyList()
+        }
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
             val waitMillis = max(5_000L, current.accessExpiresAtEpochMillis - System.currentTimeMillis() - 60_000L)
@@ -173,6 +179,30 @@ fun AppNavHost() {
                     delay(30_000L)
                 }
             }
+        }
+    }
+
+    DisposableEffect(signedIn, auth.networkConfig.isWebSocketConfigured) {
+        val connection = if (signedIn == true && auth.networkConfig.isWebSocketConfigured) {
+            auth.createDomainNotificationConnection().also { realtime ->
+                realtime.start(
+                    onNotification = { notification ->
+                        coroutineScope.launch {
+                            domainNotifications = (listOf(notification) + domainNotifications)
+                                .distinctBy(DomainNotification::eventId)
+                                .take(100)
+                        }
+                    },
+                    onState = { state -> coroutineScope.launch { notificationConnectionState = state } }
+                )
+            }
+        } else {
+            notificationConnectionState = null
+            null
+        }
+        onDispose {
+            connection?.close()
+            notificationConnectionState = null
         }
     }
 
@@ -656,7 +686,19 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Notifications.route) {
-            NotificationCenterScreen(onBack = navController::navigateUp, onTabSelected = ::navigateMain)
+            NotificationCenterScreen(
+                notifications = domainNotifications,
+                connectionState = notificationConnectionState,
+                onNotificationClick = { notification ->
+                    when (notification.resourceType.uppercase()) {
+                        "LIVE", "LIVE_BROADCAST" -> navController.navigate(Screen.Feed.route)
+                        "AUCTION" -> navController.navigate(Screen.ProductDetail.createRoute(notification.resourceId))
+                        "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "SETTLEMENT", "TRANSACTION" -> navigateMain(DibMainTab.Trades)
+                    }
+                },
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain
+            )
         }
         composable(Screen.Feed.route) { backStackEntry ->
             val paidBidAmount by backStackEntry.savedStateHandle
