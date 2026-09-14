@@ -1529,7 +1529,10 @@ fun AppNavHost() {
                 val messagesResult = withContext(Dispatchers.IO) { auth.orderRepository.getMessages(orderId) }
                 val memberResult = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }
                 when (messagesResult) {
-                    is ApiResult.Success -> chatMessages = messagesResult.value
+                    is ApiResult.Success -> {
+                        chatMessages = messagesResult.value
+                        chatConnection?.updateLastChattingId(chatMessages.lastOrNull()?.chattingId)
+                    }
                     is ApiResult.Failure -> chatError = messagesResult.error.message.ifBlank { "채팅 내역을 불러오지 못했어요." }
                 }
                 if (memberResult is ApiResult.Success) currentMemberId = memberResult.value.memberId
@@ -1550,6 +1553,7 @@ fun AppNavHost() {
                             onMessage = { message -> coroutineScope.launch {
                                 chatMessages = (chatMessages + message).distinctBy { it.chattingId }
                             } },
+                            onHistoryGap = { coroutineScope.launch { chatRevision++ } },
                             onError = { message -> coroutineScope.launch { chatError = message } },
                             onState = { state -> coroutineScope.launch { chatConnectionState = state } }
                         )
