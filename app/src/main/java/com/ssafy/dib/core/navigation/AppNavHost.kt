@@ -116,6 +116,7 @@ fun AppNavHost() {
     }
     var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
     var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
+    var unreadNotificationCount by remember { mutableStateOf(0) }
 
     fun navigateMain(tab: DibMainTab) {
         if (signedIn != true && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
@@ -163,6 +164,7 @@ fun AppNavHost() {
         if (signedIn != true) {
             memberProfile = null
             domainNotifications = emptyList()
+            unreadNotificationCount = 0
         }
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
@@ -188,9 +190,10 @@ fun AppNavHost() {
                 realtime.start(
                     onNotification = { notification ->
                         coroutineScope.launch {
-                            domainNotifications = (listOf(notification) + domainNotifications)
-                                .distinctBy(DomainNotification::eventId)
-                                .take(100)
+                            if (domainNotifications.none { it.eventId == notification.eventId }) {
+                                domainNotifications = (listOf(notification) + domainNotifications).take(100)
+                                unreadNotificationCount = (unreadNotificationCount + 1).coerceAtMost(100)
+                            }
                         }
                     },
                     onState = { state -> coroutineScope.launch { notificationConnectionState = state } }
@@ -542,6 +545,7 @@ fun AppNavHost() {
                 remoteLives = remoteHomeLives,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
+                unreadNotificationCount = unreadNotificationCount,
                 onRetry = { auctionsRevision++ },
                 onBookmarkChange = ::updateBookmark,
                 onProductClick = { productId ->
@@ -550,7 +554,10 @@ fun AppNavHost() {
                 onLiveClick = { navController.navigate(Screen.Feed.route) },
                 onSearchClick = { navController.navigate(Screen.Search.route) },
                 onNotificationsClick = {
-                    if (signedIn == true) navController.navigate(Screen.Notifications.route)
+                    if (signedIn == true) {
+                        unreadNotificationCount = 0
+                        navController.navigate(Screen.Notifications.route)
+                    }
                     else navController.navigate(Screen.Login.route)
                 },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
@@ -686,6 +693,7 @@ fun AppNavHost() {
             )
         }
         composable(Screen.Notifications.route) {
+            LaunchedEffect(Unit) { unreadNotificationCount = 0 }
             NotificationCenterScreen(
                 notifications = domainNotifications,
                 connectionState = notificationConnectionState,
