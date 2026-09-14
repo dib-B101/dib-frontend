@@ -43,6 +43,7 @@ fun HomeScreen(
     remoteLives: List<RecommendedLive>?,
     remoteLoading: Boolean,
     remoteError: String?,
+    unreadNotificationCount: Int,
     onRetry: () -> Unit,
     onBookmarkChange: (String, Boolean) -> Unit,
     onProductClick: (String) -> Unit,
@@ -91,7 +92,7 @@ fun HomeScreen(
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            HomeHeader(onNotificationsClick)
+            HomeHeader(unreadNotificationCount, onNotificationsClick)
         },
         bottomBar = {
             DibBottomNavigation(
@@ -204,19 +205,30 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
 }
 
 @Composable
-private fun HomeHeader(onNotificationsClick: () -> Unit) {
+private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(52.dp).background(Colors.Background).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(42.dp, 27.dp))
-        Text(
-            "알림",
-            modifier = Modifier.clickable(onClick = onNotificationsClick).padding(vertical = 12.dp),
-            color = Colors.Navy.copy(alpha = .72f),
-            fontSize = 12.sp
-        )
+        Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
+            Image(
+                painterResource(R.drawable.notification),
+                contentDescription = if (unreadNotificationCount > 0) "새 알림 ${unreadNotificationCount}개" else "알림",
+                modifier = Modifier.size(22.dp),
+                colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .72f))
+            )
+            if (unreadNotificationCount > 0) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = 2.dp).heightIn(min = 17.dp)
+                        .background(Colors.Live, RoundedCornerShape(9.dp)).padding(horizontal = 5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (unreadNotificationCount > 99) "99+" else unreadNotificationCount.toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
