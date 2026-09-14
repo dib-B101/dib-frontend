@@ -40,8 +40,12 @@ fun LiveManagementScreen(
     hasNext: Boolean,
     isLoadingMore: Boolean,
     loadMoreError: String?,
+    availableAuctionsHasNext: Boolean,
+    availableAuctionsLoadingMore: Boolean,
+    availableAuctionsLoadMoreError: String?,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
+    onLoadMoreAvailableAuctions: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onUpdate: (liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
@@ -164,6 +168,10 @@ fun LiveManagementScreen(
             available = availableAuctions,
             loading = actionLoading,
             error = actionError,
+            hasNext = availableAuctionsHasNext,
+            loadingMore = availableAuctionsLoadingMore,
+            loadMoreError = availableAuctionsLoadMoreError,
+            onLoadMore = onLoadMoreAvailableAuctions,
             onDismiss = { editingLiveId = null },
             onSave = { ids -> onSetItems(liveId, ids) }
         )
@@ -207,21 +215,48 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
 }
 
 @Composable
-private fun LiveItemDialog(current: List<AuctionSummary>, available: List<AuctionSummary>, loading: Boolean, error: String?, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
+private fun LiveItemDialog(
+    current: List<AuctionSummary>,
+    available: List<AuctionSummary>,
+    loading: Boolean,
+    error: String?,
+    hasNext: Boolean,
+    loadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit
+) {
     val choices = remember(current, available) { (current + available).distinctBy(AuctionSummary::auctionId) }
     val selected = remember(current) { mutableStateListOf<String>().apply { addAll(current.map(AuctionSummary::auctionId)) } }
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
         title = { Text("Live 상품 편성 (${selected.size}/10)") },
         text = { Column(Modifier.fillMaxWidth()) {
-            if (choices.isEmpty()) Text("편성 가능한 예약 경매가 없어요.\n등록 상품에서 경매를 먼저 예약해주세요.", color = Colors.Muted, fontSize = 12.sp)
-            else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(choices, key = AuctionSummary::auctionId) { auction ->
-                Row(Modifier.fillMaxWidth().clickable { if (auction.auctionId in selected) selected.remove(auction.auctionId) else if (selected.size < 10) selected.add(auction.auctionId) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(auction.auctionId in selected, onCheckedChange = null)
-                    DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(44.dp))
-                    Column(Modifier.padding(start = 10.dp)) { Text(auction.title, fontSize = 13.sp, fontWeight = FontWeight.Bold); Text("시작가 ${"%,d".format(auction.startPrice)}원", color = Colors.Muted, fontSize = 11.sp) }
+            if (choices.isEmpty() && !hasNext) Text("편성 가능한 예약 경매가 없어요.\n등록 상품에서 경매를 먼저 예약해주세요.", color = Colors.Muted, fontSize = 12.sp)
+            else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(choices, key = AuctionSummary::auctionId) { auction ->
+                    Row(Modifier.fillMaxWidth().clickable { if (auction.auctionId in selected) selected.remove(auction.auctionId) else if (selected.size < 10) selected.add(auction.auctionId) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(auction.auctionId in selected, onCheckedChange = null)
+                        DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(44.dp))
+                        Column(Modifier.padding(start = 10.dp)) { Text(auction.title, fontSize = 13.sp, fontWeight = FontWeight.Bold); Text("시작가 ${"%,d".format(auction.startPrice)}원", color = Colors.Muted, fontSize = 11.sp) }
+                    }
                 }
-            } }
+                if (hasNext || loadingMore || loadMoreError != null) item(key = "available-auction-load-more") {
+                    LaunchedEffect(choices.size, hasNext, loadMoreError) {
+                        if (hasNext && !loadingMore && loadMoreError == null) onLoadMore()
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            loadingMore -> CircularProgressIndicator(Modifier.size(22.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            loadMoreError != null -> {
+                                Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                TextButton(onClick = onLoadMore) { Text("다시 불러오기") }
+                            }
+                        }
+                    }
+                }
+            }
             error?.let { Text(it, Modifier.padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp) }
         } },
         confirmButton = { TextButton({ onSave(selected.toList()) }, enabled = selected.isNotEmpty() && selected.size <= 10 && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },

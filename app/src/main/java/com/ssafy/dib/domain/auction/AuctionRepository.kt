@@ -40,8 +40,9 @@ interface AuctionRepository {
     fun getAuctions(
         scope: String,
         status: String,
-        size: Int = 100
-    ): ApiResult<List<AuctionSummary>>
+        cursor: String? = null,
+        size: Int = 30
+    ): ApiResult<AuctionPage>
 
     fun getGeneralAuctions(
         size: Int = 20,
