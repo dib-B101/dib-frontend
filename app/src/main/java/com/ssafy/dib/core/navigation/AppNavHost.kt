@@ -1904,6 +1904,10 @@ fun AppNavHost() {
             var liveManagementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var liveManagementError by remember { mutableStateOf<String?>(null) }
             var liveManagementRevision by remember { mutableStateOf(0) }
+            var liveManagementCursor by remember { mutableStateOf<String?>(null) }
+            var liveManagementHasNext by remember { mutableStateOf(false) }
+            var liveManagementLoadingMore by remember { mutableStateOf(false) }
+            var liveManagementLoadMoreError by remember { mutableStateOf<String?>(null) }
             var liveActionLoading by remember { mutableStateOf(false) }
             var liveActionError by remember { mutableStateOf<String?>(null) }
             var liveActionMessage by remember { mutableStateOf<String?>(null) }
@@ -1913,15 +1917,21 @@ fun AppNavHost() {
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveManagementLoading = true
                 liveManagementError = null
+                liveManagementLoadMoreError = null
+                liveManagementCursor = null
+                liveManagementHasNext = false
+                liveManagementLoadingMore = false
                 val profile = memberProfile ?: when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
                     is ApiResult.Success -> result.value.also { memberProfile = it }
                     is ApiResult.Failure -> null
                 }
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMine() }) {
                     is ApiResult.Success -> {
-                        broadcasts = result.value
+                        broadcasts = result.value.items
+                        liveManagementCursor = result.value.nextCursor
+                        liveManagementHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         val loadedAssignments = mutableMapOf<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>()
-                        result.value.filter { it.status == "SCHEDULED" || it.status == "LIVE" }.forEach { live ->
+                        result.value.items.filter { it.status == "SCHEDULED" || it.status == "LIVE" }.forEach { live ->
                             when (val detail = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(live.liveBroadcastId) }) {
                                 is ApiResult.Success -> loadedAssignments[live.liveBroadcastId] = detail.value.auctions
                                 is ApiResult.Failure -> Unit
@@ -1953,7 +1963,45 @@ fun AppNavHost() {
                 actionError = liveActionError,
                 actionMessage = liveActionMessage,
                 actionRevision = liveActionRevision,
+                hasNext = liveManagementHasNext,
+                isLoadingMore = liveManagementLoadingMore,
+                loadMoreError = liveManagementLoadMoreError,
                 onRetry = { liveManagementRevision++ },
+                onLoadMore = {
+                    val cursor = liveManagementCursor
+                    if (cursor != null && liveManagementHasNext && !liveManagementLoadingMore) {
+                        liveManagementLoadingMore = true
+                        liveManagementLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.liveRepository.getMine(cursor = cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    val nextItems = result.value.items
+                                    broadcasts = (broadcasts.orEmpty() + nextItems)
+                                        .distinctBy { it.liveBroadcastId }
+                                    val loadedAssignments = assignedAuctions.toMutableMap()
+                                    nextItems.filter { it.status == "SCHEDULED" || it.status == "LIVE" }.forEach { live ->
+                                        when (val detail = withContext(Dispatchers.IO) {
+                                            auth.liveRepository.getDetail(live.liveBroadcastId)
+                                        }) {
+                                            is ApiResult.Success -> loadedAssignments[live.liveBroadcastId] = detail.value.auctions
+                                            is ApiResult.Failure -> Unit
+                                        }
+                                    }
+                                    assignedAuctions = loadedAssignments
+                                    liveManagementCursor = result.value.nextCursor
+                                    liveManagementHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    liveManagementLoadMoreError = result.error.message.ifBlank { "다음 방송을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            liveManagementLoadingMore = false
+                        }
+                    }
+                },
                 onCreate = { title, description, scheduledAt, streamUrl ->
                     liveActionLoading = true
                     liveActionError = null

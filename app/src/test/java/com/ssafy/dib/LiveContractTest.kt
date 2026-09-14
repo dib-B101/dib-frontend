@@ -59,7 +59,7 @@ class LiveContractTest {
     fun decodesMyLiveListAndScheduledItems() {
         val list = DibJson.instance.decodeFromString(
             LiveBroadcastListResponse.serializer(),
-            """{"items":[{"liveBroadcastId":9,"memberId":17,"title":"주말 빈티지 경매","status":"SCHEDULED","scheduledAt":"2026-09-20T10:00:00Z"}],"hasNext":false}"""
+            """{"items":[{"liveBroadcastId":9,"memberId":17,"title":"주말 빈티지 경매","status":"SCHEDULED","scheduledAt":"2026-09-20T10:00:00Z"}],"nextCursor":"live-next","hasNext":true}"""
         )
         val items = DibJson.instance.decodeFromString(
             SetLiveItemsResponse.serializer(),
@@ -67,6 +67,8 @@ class LiveContractTest {
         )
 
         assertEquals("2026-09-20T10:00:00Z", list.items.single().scheduledAt)
+        assertEquals("live-next", list.nextCursor)
+        assertEquals(true, list.hasNext)
         assertEquals("31", items.auctions.single().auctionId.toString())
     }
 

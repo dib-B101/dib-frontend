@@ -37,7 +37,11 @@ fun LiveManagementScreen(
     actionError: String?,
     actionMessage: String?,
     actionRevision: Int,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onUpdate: (liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
@@ -122,6 +126,20 @@ fun LiveManagementScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Live)
                                 ) { Text("Live 종료", fontWeight = FontWeight.Bold) }
                                 if (activeAuction != null) Text("진행 중인 경매가 끝난 뒤 방송을 종료할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+                if (hasNext || isLoadingMore || loadMoreError != null) item(key = "live-management-load-more") {
+                    LaunchedEffect(items.size, hasNext, loadMoreError) {
+                        if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            isLoadingMore -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            loadMoreError != null -> {
+                                Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                TextButton(onClick = onLoadMore) { Text("다시 불러오기") }
                             }
                         }
                     }
