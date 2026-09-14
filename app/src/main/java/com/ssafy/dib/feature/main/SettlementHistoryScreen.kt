@@ -41,6 +41,8 @@ fun SettlementHistoryScreen(
     isLoading: Boolean,
     errorMessage: String?,
     hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
     onSettlementClick: (String) -> Unit,
@@ -73,16 +75,19 @@ fun SettlementHistoryScreen(
                 items(settlements.orEmpty(), key = SettlementSummary::settlementId) { settlement ->
                     SettlementCard(settlement) { onSettlementClick(settlement.settlementId) }
                 }
-                if (hasNext) item {
-                    Button(
-                        onClick = onLoadMore,
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        enabled = !isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        if (isLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                        else Text("더 보기", fontWeight = FontWeight.Bold)
+                if (hasNext || isLoadingMore || loadMoreError != null) item {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        loadMoreError?.let { Text(it, color = Colors.Muted, fontSize = 11.sp) }
+                        Button(
+                            onClick = onLoadMore,
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            enabled = !isLoadingMore,
+                            colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isLoadingMore) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Text(if (loadMoreError == null) "더 보기" else "다시 불러오기", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

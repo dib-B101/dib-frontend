@@ -2353,24 +2353,38 @@ fun AppNavHost() {
             var settlementsError by remember { mutableStateOf<String?>(null) }
             var settlementsCursor by remember { mutableStateOf<String?>(null) }
             var settlementsHasNext by remember { mutableStateOf(false) }
+            var settlementsLoadingMore by remember { mutableStateOf(false) }
+            var settlementsLoadMoreError by remember { mutableStateOf<String?>(null) }
             var settlementsRevision by remember { mutableStateOf(0) }
 
             fun loadSettlements(cursor: String?, append: Boolean) {
-                settlementsLoading = true
-                settlementsError = null
+                if (append) {
+                    settlementsLoadingMore = true
+                    settlementsLoadMoreError = null
+                } else {
+                    settlementsLoading = true
+                    settlementsError = null
+                    settlementsLoadMoreError = null
+                    settlementsLoadingMore = false
+                    settlementsCursor = null
+                    settlementsHasNext = false
+                }
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) { auth.settlementRepository.getSettlements(cursor) }) {
                         is ApiResult.Success -> {
-                            settlements = if (append) settlements.orEmpty() + result.value.items else result.value.items
+                            settlements = if (append) {
+                                (settlements.orEmpty() + result.value.items).distinctBy { it.settlementId }
+                            } else result.value.items
                             settlementsCursor = result.value.nextCursor
-                            settlementsHasNext = result.value.hasNext
+                            settlementsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         }
                         is ApiResult.Failure -> {
-                            settlementsError = result.error.message.ifBlank { "정산 내역을 불러오지 못했어요." }
+                            val message = result.error.message.ifBlank { "정산 내역을 불러오지 못했어요." }
+                            if (append) settlementsLoadMoreError = message else settlementsError = message
                             if (result.error.requiresLogin) signedIn = false
                         }
                     }
-                    settlementsLoading = false
+                    if (append) settlementsLoadingMore = false else settlementsLoading = false
                 }
             }
 
@@ -2384,8 +2398,14 @@ fun AppNavHost() {
                 isLoading = settlementsLoading,
                 errorMessage = settlementsError,
                 hasNext = settlementsHasNext,
+                isLoadingMore = settlementsLoadingMore,
+                loadMoreError = settlementsLoadMoreError,
                 onRetry = { settlementsRevision++ },
-                onLoadMore = { if (!settlementsLoading && settlementsHasNext) loadSettlements(settlementsCursor, append = true) },
+                onLoadMore = {
+                    if (!settlementsLoadingMore && settlementsCursor != null) {
+                        loadSettlements(settlementsCursor, append = true)
+                    }
+                },
                 onSettlementClick = { navController.navigate(Screen.SettlementDetail.createRoute(it)) },
                 onBack = navController::navigateUp
             )
