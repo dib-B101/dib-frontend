@@ -2370,13 +2370,22 @@ fun AppNavHost() {
             var favoritesError by remember { mutableStateOf<String?>(null) }
             var favoritesRevision by remember { mutableStateOf(0) }
             var removingAuctionId by remember { mutableStateOf<String?>(null) }
+            var favoritesCursor by remember { mutableStateOf<String?>(null) }
+            var favoritesHasNext by remember { mutableStateOf(false) }
+            var favoritesLoadingMore by remember { mutableStateOf(false) }
+            var favoritesLoadMoreError by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(favoritesRevision, signedIn) {
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 favoritesLoading = true
                 favoritesError = null
+                favoritesLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBookmarks() }) {
-                    is ApiResult.Success -> favorites = result.value.map { it.toHomeAuction() }
+                    is ApiResult.Success -> {
+                        favorites = result.value.items.map { it.toHomeAuction() }
+                        favoritesCursor = result.value.nextCursor
+                        favoritesHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                    }
                     is ApiResult.Failure -> {
                         favoritesError = result.error.message.ifBlank { "찜한 경매를 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -2392,7 +2401,34 @@ fun AppNavHost() {
                 isLoading = favoritesLoading,
                 errorMessage = favoritesError,
                 removingAuctionId = removingAuctionId,
+                hasNext = favoritesHasNext,
+                isLoadingMore = favoritesLoadingMore,
+                loadMoreError = favoritesLoadMoreError,
                 onRetry = { favoritesRevision++ },
+                onLoadMore = {
+                    val cursor = favoritesCursor
+                    if (cursor != null && favoritesHasNext && !favoritesLoadingMore) {
+                        favoritesLoadingMore = true
+                        favoritesLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.auctionRepository.getBookmarks(cursor = cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    favorites = (favorites.orEmpty() + result.value.items.map { it.toHomeAuction() })
+                                        .distinctBy(HomeAuction::id)
+                                    favoritesCursor = result.value.nextCursor
+                                    favoritesHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    favoritesLoadMoreError = result.error.message.ifBlank { "다음 찜 목록을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            favoritesLoadingMore = false
+                        }
+                    }
+                },
                 onRemove = { auctionId ->
                     removingAuctionId = auctionId
                     favoritesError = null

@@ -77,9 +77,16 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun getBookmarks(size: Int): ApiResult<List<AuctionSummary>> =
-        when (val result = remote.getBookmarks(size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
+    override fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionPage> =
+        when (val result = remote.getBookmarks(cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionPage(
+                    items = result.value.items.map { it.toDomain(now()) },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

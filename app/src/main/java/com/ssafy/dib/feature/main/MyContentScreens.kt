@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -195,7 +196,11 @@ fun FavoriteAuctionsScreen(
     isLoading: Boolean,
     errorMessage: String?,
     removingAuctionId: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -241,6 +246,15 @@ fun FavoriteAuctionsScreen(
                             Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Text(if (removingAuctionId == auction.id) "찜 해제 중" else auction.meta, color = Colors.Muted, fontSize = 9.sp)
                         }
+                    }
+                    if (hasNext || isLoadingMore || loadMoreError != null) item(
+                        key = "favorite-load-more",
+                        span = { GridItemSpan(maxLineSpan) }
+                    ) {
+                        LaunchedEffect(favorites.size, hasNext, loadMoreError) {
+                            if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                        }
+                        HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
                     }
                 }
             }
