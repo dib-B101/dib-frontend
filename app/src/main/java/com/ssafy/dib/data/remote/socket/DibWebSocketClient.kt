@@ -53,10 +53,7 @@ class DibWebSocketClient(
             }
         }.build()
         socket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                if (socket !== webSocket) return
-                listener.onConnected()
-            }
+            private val handshakeGate = WebSocketHandshakeGate()
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (socket !== webSocket) return
@@ -66,7 +63,10 @@ class DibWebSocketClient(
                             val connected = runCatching {
                                 codec.decodePayload(envelope, ConnectedPayload.serializer())
                             }.getOrNull()
-                            scheduleHeartbeat(connected?.heartbeatIntervalSeconds ?: 20, webSocket, listener)
+                            if (handshakeGate.accept(envelope.eventType)) {
+                                scheduleHeartbeat(connected?.heartbeatIntervalSeconds ?: 20, webSocket, listener)
+                                listener.onConnected()
+                            }
                         }
                         if (envelope.eventType == SocketEventTypes.PONG) heartbeatMonitor.onPong()
                         if (eventGate.shouldHandle(envelope)) listener.onEvent(envelope)
@@ -139,6 +139,17 @@ class DibWebSocketClient(
         heartbeat?.cancel(false)
         heartbeat = null
         heartbeatMonitor.reset()
+    }
+}
+
+internal class WebSocketHandshakeGate {
+    private var completed = false
+
+    @Synchronized
+    fun accept(eventType: String): Boolean {
+        if (eventType != SocketEventTypes.CONNECTED || completed) return false
+        completed = true
+        return true
     }
 }
 
