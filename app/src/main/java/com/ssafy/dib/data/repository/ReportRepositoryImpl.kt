@@ -5,13 +5,17 @@ import com.ssafy.dib.data.remote.report.ReportDto
 import com.ssafy.dib.data.remote.report.ReportRemoteDataSource
 import com.ssafy.dib.domain.report.ReportRepository
 import com.ssafy.dib.domain.report.ReportSummary
+import com.ssafy.dib.domain.report.ReportPage
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportRepository {
-    override fun getMyReports(size: Int): ApiResult<List<ReportSummary>> =
-        when (val result = remote.getMyReports(size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map(ReportDto::toDomain), result.status)
+    override fun getMyReports(cursor: String?, size: Int): ApiResult<ReportPage> =
+        when (val result = remote.getMyReports(cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                ReportPage(result.value.items.map(ReportDto::toDomain), result.value.nextCursor),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

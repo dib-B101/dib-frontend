@@ -11,7 +11,7 @@ class ReportContractTest {
     fun mapsAuctionAndMemberReportTargets() {
         val response = DibJson.instance.decodeFromString(
             ReportListResponse.serializer(),
-            """{"items":[{"reportId":1,"content":"허위 정보","type":"AUCTION","status":"PENDING","auctionId":22},{"reportId":"r-2","content":"부적절한 언행","type":"MEMBER","status":"ACCEPTED","targetMemberId":"member-7"}]}"""
+            """{"items":[{"reportId":1,"content":"허위 정보","type":"AUCTION","status":"PENDING","auctionId":22},{"reportId":"r-2","content":"부적절한 언행","type":"MEMBER","status":"ACCEPTED","targetMemberId":"member-7"}],"nextCursor":"report-2"}"""
         )
 
         val auctionReport = response.items[0].toDomain()
@@ -22,5 +22,6 @@ class ReportContractTest {
         assertEquals("PENDING", auctionReport.status)
         assertEquals("회원 member-7", memberReport.targetLabel)
         assertEquals("ACCEPTED", memberReport.status)
+        assertEquals("report-2", response.nextCursor)
     }
 }

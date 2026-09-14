@@ -2584,6 +2584,9 @@ fun AppNavHost() {
             var inquiriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var inquiriesError by remember { mutableStateOf<String?>(null) }
             var inquiriesRevision by remember { mutableStateOf(0) }
+            var inquiriesCursor by remember { mutableStateOf<String?>(null) }
+            var inquiriesLoadingMore by remember { mutableStateOf(false) }
+            var inquiriesLoadMoreError by remember { mutableStateOf<String?>(null) }
             var selectedInquiry by remember { mutableStateOf<InquiryDetail?>(null) }
             var inquiryDetailLoading by remember { mutableStateOf(false) }
             var inquiryDetailError by remember { mutableStateOf<String?>(null) }
@@ -2595,8 +2598,12 @@ fun AppNavHost() {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 inquiriesLoading = true
                 inquiriesError = null
+                inquiriesLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.inquiryRepository.getInquiries() }) {
-                    is ApiResult.Success -> inquiries = result.value
+                    is ApiResult.Success -> {
+                        inquiries = result.value.items
+                        inquiriesCursor = result.value.nextCursor
+                    }
                     is ApiResult.Failure -> {
                         inquiriesError = result.error.message.ifBlank { "문의 내역을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -2611,6 +2618,9 @@ fun AppNavHost() {
                 remoteInquiries = inquiries,
                 isLoading = inquiriesLoading,
                 errorMessage = inquiriesError,
+                hasNext = !inquiriesCursor.isNullOrBlank(),
+                isLoadingMore = inquiriesLoadingMore,
+                loadMoreError = inquiriesLoadMoreError,
                 selectedInquiry = selectedInquiry,
                 detailLoading = inquiryDetailLoading,
                 detailError = inquiryDetailError,
@@ -2618,6 +2628,28 @@ fun AppNavHost() {
                 submitError = inquirySubmitError,
                 submissionRevision = inquirySubmissionRevision,
                 onRetry = { inquiriesRevision++ },
+                onLoadMore = {
+                    val cursor = inquiriesCursor
+                    if (cursor != null && !inquiriesLoadingMore) {
+                        inquiriesLoadingMore = true
+                        inquiriesLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.inquiryRepository.getInquiries(cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    inquiries = (inquiries.orEmpty() + result.value.items).distinctBy { it.questionId }
+                                    inquiriesCursor = result.value.nextCursor
+                                }
+                                is ApiResult.Failure -> {
+                                    inquiriesLoadMoreError = result.error.message.ifBlank { "다음 문의 내역을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            inquiriesLoadingMore = false
+                        }
+                    }
+                },
                 onInquiryClick = { questionId ->
                     inquiryDetailLoading = true
                     inquiryDetailError = null
@@ -2663,12 +2695,19 @@ fun AppNavHost() {
             var reportsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var reportsError by remember { mutableStateOf<String?>(null) }
             var reportsRevision by remember { mutableStateOf(0) }
+            var reportsCursor by remember { mutableStateOf<String?>(null) }
+            var reportsLoadingMore by remember { mutableStateOf(false) }
+            var reportsLoadMoreError by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(reportsRevision) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 reportsLoading = true
                 reportsError = null
+                reportsLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.reportRepository.getMyReports() }) {
-                    is ApiResult.Success -> reports = result.value
+                    is ApiResult.Success -> {
+                        reports = result.value.items
+                        reportsCursor = result.value.nextCursor
+                    }
                     is ApiResult.Failure -> {
                         reportsError = result.error.message.ifBlank { "신고 내역을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -2681,7 +2720,32 @@ fun AppNavHost() {
                 reports = reports,
                 isLoading = reportsLoading,
                 errorMessage = reportsError,
-                onRetry = { reportsRevision++ }
+                hasNext = !reportsCursor.isNullOrBlank(),
+                isLoadingMore = reportsLoadingMore,
+                loadMoreError = reportsLoadMoreError,
+                onRetry = { reportsRevision++ },
+                onLoadMore = {
+                    val cursor = reportsCursor
+                    if (cursor != null && !reportsLoadingMore) {
+                        reportsLoadingMore = true
+                        reportsLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.reportRepository.getMyReports(cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    reports = (reports.orEmpty() + result.value.items).distinctBy { it.reportId }
+                                    reportsCursor = result.value.nextCursor
+                                }
+                                is ApiResult.Failure -> {
+                                    reportsLoadMoreError = result.error.message.ifBlank { "다음 신고 내역을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            reportsLoadingMore = false
+                        }
+                    }
+                }
             )
         }
         composable(Screen.Withdrawal.route) {

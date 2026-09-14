@@ -11,8 +11,10 @@ data class ReportSummary(
     val createdAt: String?
 )
 
+data class ReportPage(val items: List<ReportSummary>, val nextCursor: String?)
+
 interface ReportRepository {
-    fun getMyReports(size: Int = 30): ApiResult<List<ReportSummary>>
+    fun getMyReports(cursor: String? = null, size: Int = 30): ApiResult<ReportPage>
     fun reportAuction(auctionId: String, content: String): ApiResult<String>
     fun reportMember(memberId: String, content: String): ApiResult<String>
     fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<String>

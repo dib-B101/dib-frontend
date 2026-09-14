@@ -8,13 +8,17 @@ import com.ssafy.dib.data.remote.support.InquirySummaryDto
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquiryRepository
 import com.ssafy.dib.domain.support.InquirySummary
+import com.ssafy.dib.domain.support.InquiryPage
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 class InquiryRepositoryImpl(private val remote: InquiryRemoteDataSource) : InquiryRepository {
-    override fun getInquiries(size: Int): ApiResult<List<InquirySummary>> =
-        when (val result = remote.getInquiries(size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map(InquirySummaryDto::toDomain), result.status)
+    override fun getInquiries(cursor: String?, size: Int): ApiResult<InquiryPage> =
+        when (val result = remote.getInquiries(cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                InquiryPage(result.value.items.map(InquirySummaryDto::toDomain), result.value.nextCursor),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

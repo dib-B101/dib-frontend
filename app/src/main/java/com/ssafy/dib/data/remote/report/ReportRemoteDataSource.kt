@@ -12,10 +12,11 @@ class ReportRemoteDataSource(
     private val client: DibHttpClient,
     private val idempotencyKeys: IdempotencyKeyProvider = UuidIdempotencyKeyProvider
 ) {
-    fun getMyReports(size: Int): ApiResult<ReportListResponse> = configured {
-        val url = client.urlBuilder(ApiRoutes.REPORTS)
+    fun getMyReports(cursor: String?, size: Int): ApiResult<ReportListResponse> = configured {
+        val urlBuilder = client.urlBuilder(ApiRoutes.REPORTS)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
-            .build()
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        val url = urlBuilder.build()
         client.execute(
             client.requestBuilder(ApiRoutes.REPORTS).url(url).get().build(),
             ReportListResponse.serializer()
