@@ -13,8 +13,10 @@ data class LiveRealtimeUpdate(
     val liveBroadcastId: String? = null,
     val auctionId: String? = null,
     val productId: String? = null,
+    val liveTitle: String? = null,
     val title: String? = null,
     val thumbnailUrl: String? = null,
+    val streamUrl: String? = null,
     val currentPrice: Int? = null,
     val startPrice: Int? = null,
     val bidCount: Int? = null,
@@ -58,6 +60,39 @@ class LiveSocketEventParser(
         val payload = envelope.payload
         val occurredAt = payload.string("occurredAt") ?: envelope.occurredAt
         return when (envelope.eventType) {
+            SocketEventTypes.LIVE_SNAPSHOT -> {
+                val live = payload.obj("liveBroadcast") ?: payload
+                val auction = payload.obj("activeAuction")
+                val product = payload.obj("product") ?: auction?.obj("product") ?: auction?.obj("productSummary")
+                LiveRealtimeUpdate(
+                    eventType = envelope.eventType,
+                    liveBroadcastId = live.string("liveBroadcastId") ?: payload.string("liveBroadcastId"),
+                    auctionId = auction?.string("auctionId"),
+                    productId = product?.string("productId"),
+                    liveTitle = live.string("title"),
+                    title = product?.string("title"),
+                    thumbnailUrl = product?.string("thumbnailUrl"),
+                    streamUrl = live.string("streamUrl"),
+                    currentPrice = auction?.int("currentPrice"),
+                    startPrice = auction?.int("startPrice"),
+                    bidCount = auction?.int("bidCount"),
+                    remainingSeconds = remaining(
+                        auction?.string("endedAt") ?: auction?.string("scheduledEndAt"),
+                        payload.string("serverTime")
+                    ),
+                    status = auction?.string("status"),
+                    viewerCount = payload.int("viewerCount") ?: live.int("viewCount"),
+                    occurredAt = occurredAt ?: payload.string("serverTime")
+                )
+            }
+            SocketEventTypes.LIVE_STARTED -> LiveRealtimeUpdate(
+                eventType = envelope.eventType,
+                liveBroadcastId = payload.string("liveBroadcastId"),
+                liveTitle = payload.string("title"),
+                streamUrl = payload.string("streamUrl"),
+                status = "LIVE",
+                occurredAt = occurredAt ?: payload.string("startedAt")
+            )
             SocketEventTypes.LIVE_AUCTION_OPENED -> LiveRealtimeUpdate(
                 eventType = envelope.eventType,
                 liveBroadcastId = payload.string("liveBroadcastId"),
@@ -110,9 +145,10 @@ class LiveSocketEventParser(
         }
     }
 
-    private fun remaining(endedAt: String?): Int? {
+    private fun remaining(endedAt: String?, serverTime: String? = null): Int? {
         val end = endedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
-        return Duration.between(now(), end).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+        val reference = serverTime?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: now()
+        return Duration.between(reference, end).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
     }
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.contentOrNull
