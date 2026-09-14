@@ -18,7 +18,7 @@ class LiveContractTest {
     fun decodesLiveFeedWithCurrentAuctionAndProduct() {
         val response = DibJson.instance.decodeFromString(
             LiveFeedResponse.serializer(),
-            """{"items":[{"liveBroadcast":{"liveBroadcastId":5,"memberId":17,"title":"도자기 경매","status":"LIVE","streamUrl":"https://stream.example/live.m3u8","viewCount":248},"activeAuction":{"auctionId":31,"productId":8,"startPrice":10000,"currentPrice":12500,"bidCount":4,"auctionTime":300,"status":"ACTIVE"},"product":{"productId":8,"title":"달빛 유약 머그컵","thumbnailUrl":"https://cdn.example/mug.jpg"}}],"hasNext":false,"serverTime":"2026-09-13T08:00:00Z"}"""
+            """{"items":[{"liveBroadcast":{"liveBroadcastId":5,"memberId":17,"title":"도자기 경매","status":"LIVE","streamUrl":"https://stream.example/live.m3u8","viewCount":248},"activeAuction":{"auctionId":31,"productId":8,"startPrice":10000,"currentPrice":12500,"bidCount":4,"auctionTime":300,"status":"ACTIVE"},"product":{"productId":8,"title":"달빛 유약 머그컵","thumbnailUrl":"https://cdn.example/mug.jpg"}}],"nextCursor":"next-live","hasNext":true,"serverTime":"2026-09-13T08:00:00Z"}"""
         )
 
         val item = response.items.single()
@@ -26,6 +26,8 @@ class LiveContractTest {
         assertEquals("도자기 경매", item.liveBroadcast.title)
         assertNotNull(item.activeAuction)
         assertEquals("달빛 유약 머그컵", item.product?.title)
+        assertEquals("next-live", response.nextCursor)
+        assertEquals(true, response.hasNext)
     }
 
     @Test

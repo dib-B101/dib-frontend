@@ -75,6 +75,10 @@ fun LiveFeedScreen(
     isLoading: Boolean,
     errorMessage: String?,
     onRetry: () -> Unit,
+    hasNextPage: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
     activeLiveBroadcastId: String?,
     liveComments: List<LiveChatMessage>,
     liveAuctionsByBroadcast: Map<String, List<AuctionSummary>>,
@@ -115,11 +119,15 @@ fun LiveFeedScreen(
         else -> {
             val items = remoteItems ?: listOf(null)
             val pagerState = rememberPagerState(pageCount = items::size)
-            LaunchedEffect(pagerState.currentPage, remoteItems) {
+            LaunchedEffect(pagerState.currentPage, remoteItems, hasNextPage, isLoadingMore, loadMoreError) {
                 items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
+                if (remoteItems != null && hasNextPage && !isLoadingMore && loadMoreError == null && pagerState.currentPage >= items.lastIndex - 1) {
+                    onLoadMore()
+                }
             }
-            VerticalPager(state = pagerState, modifier = modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
-                LiveFeedPage(
+            Box(modifier.fillMaxSize()) {
+                VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
+                    LiveFeedPage(
                     liveItem = items[page],
                     isActivePage = page == pagerState.currentPage,
                     liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
@@ -143,8 +151,16 @@ fun LiveFeedScreen(
                     onLoginRequired = onLoginRequired,
                     onReportParticipant = onReportParticipant,
                     onDismissReport = onDismissReport,
-                    onDepositPayment = onDepositPayment
-                )
+                        onDepositPayment = onDepositPayment
+                    )
+                }
+                if (isLoadingMore) {
+                    CircularProgressIndicator(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.dp).size(24.dp), color = Colors.Mint, strokeWidth = 2.dp)
+                } else if (loadMoreError != null) {
+                    Surface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp).clickable(onClick = onLoadMore), color = Color.Black.copy(alpha = .65f), shape = RoundedCornerShape(16.dp)) {
+                        Text("다음 Live를 불러오지 못했어요 · 다시 시도", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = Color.White, fontSize = 11.sp)
+                    }
+                }
             }
         }
     }

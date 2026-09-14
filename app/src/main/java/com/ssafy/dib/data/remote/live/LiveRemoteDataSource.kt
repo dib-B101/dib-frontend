@@ -14,9 +14,11 @@ class LiveRemoteDataSource(
     private val client: DibHttpClient,
     private val idempotencyKeys: IdempotencyKeyProvider = UuidIdempotencyKeyProvider
 ) {
-    fun getFeed(size: Int): ApiResult<LiveFeedResponse> = configured {
+    fun getFeed(cursor: String?, size: Int): ApiResult<LiveFeedResponse> = configured {
         val path = "${ApiRoutes.LIVE_BROADCASTS}/feed"
-        val url = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 50).toString()).build()
+        val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 50).toString())
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        val url = urlBuilder.build()
         client.execute(client.requestBuilder(path).url(url).get().build(), LiveFeedResponse.serializer())
     }
 
