@@ -87,7 +87,8 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         title = product?.title ?: product?.name ?: auction?.title ?: "거래 상품",
         finalPrice = (finalPrice ?: amount ?: core?.finalPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         status = status ?: core?.status ?: "PENDING",
-        updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt
+        updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt,
+        paymentId = payment?.paymentId.idValue().takeIf(String::isNotBlank)
     )
 }
 

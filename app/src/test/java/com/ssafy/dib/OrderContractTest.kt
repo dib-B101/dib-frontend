@@ -46,6 +46,16 @@ class OrderContractTest {
     }
 
     @Test
+    fun keepsPaymentIdFromOrderDetailJoin() {
+        val response = DibJson.instance.decodeFromString(
+            com.ssafy.dib.data.remote.order.OrderSummaryDto.serializer(),
+            """{"order":{"orderId":"order-1","finalPrice":35000,"status":"PAID"},"payment":{"paymentId":19,"orderId":"order-1","amount":35000,"type":"CARD"}}"""
+        ).toDomain()
+
+        assertEquals("19", response.paymentId)
+    }
+
+    @Test
     fun shipmentRegistrationPayloadContainsTrackingNumber() {
         val encoded = DibJson.instance.encodeToString(
             ShipmentRegistrationRequest.serializer(),

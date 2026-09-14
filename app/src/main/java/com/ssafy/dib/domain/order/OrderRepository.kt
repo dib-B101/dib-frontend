@@ -11,7 +11,8 @@ data class OrderSummary(
     val title: String,
     val finalPrice: Int,
     val status: String,
-    val updatedAt: String?
+    val updatedAt: String?,
+    val paymentId: String? = null
 )
 
 data class OrderShipment(
