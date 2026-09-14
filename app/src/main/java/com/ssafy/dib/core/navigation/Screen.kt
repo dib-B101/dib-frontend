@@ -41,11 +41,11 @@ sealed class Screen(val route: String) {
     data object Inquiries : Screen("my/inquiries")
     data object ReportHistory : Screen("my/reports")
     data object Withdrawal : Screen("my/withdrawal")
-    data object ProductDetail : Screen("product/{productId}") {
-        fun createRoute(productId: String) = "product/$productId"
+    data object ProductDetail : Screen("auction/{auctionId}") {
+        fun createRoute(auctionId: String) = "auction/$auctionId"
     }
-    data object ProductImages : Screen("product/{productId}/images/{initialPage}") {
-        fun createRoute(productId: String, initialPage: Int) = "product/$productId/images/$initialPage"
+    data object ProductImages : Screen("auction/{auctionId}/images/{initialPage}") {
+        fun createRoute(auctionId: String, initialPage: Int) = "auction/$auctionId/images/$initialPage"
     }
     data object SellerProfile : Screen("seller/{memberId}") {
         fun createRoute(memberId: String) = "seller/$memberId"
@@ -59,8 +59,8 @@ sealed class Screen(val route: String) {
     data object SellerReport : Screen("seller/{memberId}/report") {
         fun createRoute(memberId: String) = "seller/$memberId/report"
     }
-    data object ProductReport : Screen("product/{productId}/report") {
-        fun createRoute(productId: String) = "product/$productId/report"
+    data object ProductReport : Screen("auction/{auctionId}/report") {
+        fun createRoute(auctionId: String) = "auction/$auctionId/report"
     }
     data object BidDepositPayment : Screen("deposit/{auctionId}/{bidAmount}") {
         fun createRoute(auctionId: String, bidAmount: Int) = "deposit/$auctionId/$bidAmount"
