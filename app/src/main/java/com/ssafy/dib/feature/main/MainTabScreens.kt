@@ -97,7 +97,7 @@ fun MyTradesScreen(
         )
         TradeTab.Sale -> remoteSaleOrders?.map { it.toTradeItem(isSeller = true) }
             ?: if (remoteLoading || remoteError != null) emptyList() else listOf(
-            TradeItem("경매 진행 중", "빈티지 스니커즈", "현재가 58,000원 · 입찰 12명", "경매 상태 보기 →", TradeTone.Positive),
+            TradeItem("경매 진행 중", "빈티지 스니커즈", "현재가 58,000원 · 입찰 12회", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("발송 필요", "빈티지 필름 카메라", "구매자 결제 완료 · 1일 남음", "배송 정보 입력하기 →", TradeTone.Urgent),
             TradeItem("판매 완료", "원목 라운지 체어", "구매 확정 · 정산 예정", "거래 내역 보기 →", TradeTone.Neutral)
         )

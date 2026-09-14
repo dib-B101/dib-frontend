@@ -331,7 +331,7 @@ private fun FeedPage(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("%,d원".format(currentPrice), color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                Text("입찰 ${bidCount}명", color = Color.White.copy(alpha = .78f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text("입찰 ${bidCount}회", color = Color.White.copy(alpha = .78f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
             }
             Button(
                 onClick = onBidClick,
