@@ -216,6 +216,7 @@ private fun LiveFeedPage(
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
+    val isHighestBidder = activeAuction?.isHighestBidder == true
     var following by rememberSaveable { mutableStateOf(true) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
@@ -361,12 +362,22 @@ private fun LiveFeedPage(
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = remaining > 0 && !isOwnAuction,
+                            enabled = remaining > 0 && !isOwnAuction && !isHighestBidder,
                             modifier = Modifier.size(68.dp, 58.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
                             contentPadding = PaddingValues(0.dp)
-                        ) { Text(if (isOwnAuction) "내 경매" else "입찰", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        ) {
+                            Text(
+                                when {
+                                    isOwnAuction -> "내 경매"
+                                    isHighestBidder -> "최고가"
+                                    else -> "입찰"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

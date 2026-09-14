@@ -4,6 +4,7 @@ import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
@@ -20,6 +21,7 @@ data class LiveRealtimeUpdate(
     val currentPrice: Int? = null,
     val startPrice: Int? = null,
     val bidCount: Int? = null,
+    val isHighestBidder: Boolean? = null,
     val remainingSeconds: Int? = null,
     val status: String? = null,
     val viewerCount: Int? = null,
@@ -42,6 +44,7 @@ class LiveSocketEventParser(
                 auctionId = update.auctionId,
                 currentPrice = update.currentPrice,
                 bidCount = update.bidCount,
+                isHighestBidder = update.isHighestBidder,
                 remainingSeconds = update.remainingSeconds,
                 status = update.status,
                 commandId = update.commandId,
@@ -76,6 +79,7 @@ class LiveSocketEventParser(
                     currentPrice = auction?.int("currentPrice"),
                     startPrice = auction?.int("startPrice"),
                     bidCount = auction?.int("bidCount"),
+                    isHighestBidder = auction?.obj("myBid")?.boolean("isHighestBidder"),
                     remainingSeconds = remaining(
                         auction?.string("endedAt") ?: auction?.string("scheduledEndAt"),
                         payload.string("serverTime")
@@ -155,5 +159,6 @@ class LiveSocketEventParser(
     private fun JsonObject.int(key: String): Int? = (get(key) as? JsonPrimitive)?.let {
         it.intOrNull ?: it.longOrNull?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt()
     }
+    private fun JsonObject.boolean(key: String): Boolean? = (get(key) as? JsonPrimitive)?.booleanOrNull
     private fun JsonObject.obj(key: String): JsonObject? = get(key) as? JsonObject
 }

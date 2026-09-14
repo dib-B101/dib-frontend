@@ -1066,13 +1066,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                                 remainingSeconds = update.remainingSeconds ?: 0,
                                                 status = update.status ?: "ACTIVE",
                                                 bookmarked = false,
+                                                isHighestBidder = update.isHighestBidder,
                                                 imageUrls = listOfNotNull(update.thumbnailUrl)
                                             )
                                         current != null && update.auctionId == current.auctionId -> current.copy(
                                             currentPrice = update.currentPrice ?: current.currentPrice,
                                             bidCount = update.bidCount ?: current.bidCount,
                                             remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
-                                            status = update.status ?: current.status
+                                            status = update.status ?: current.status,
+                                            isHighestBidder = when {
+                                                update.isHighestBidder != null -> update.isHighestBidder
+                                                update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
+                                                    update.currentPrice != null && update.currentPrice != current.currentPrice -> false
+                                                else -> current.isHighestBidder
+                                            }
                                         )
                                         else -> current
                                     }
@@ -1090,7 +1097,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                                 currentPrice = update.currentPrice ?: auction.currentPrice,
                                                 bidCount = update.bidCount ?: auction.bidCount,
                                                 remainingSeconds = update.remainingSeconds ?: auction.remainingSeconds,
-                                                status = update.status ?: auction.status
+                                                status = update.status ?: auction.status,
+                                                isHighestBidder = when {
+                                                    update.isHighestBidder != null -> update.isHighestBidder
+                                                    update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
+                                                        update.currentPrice != null && update.currentPrice != auction.currentPrice -> false
+                                                    else -> auction.isHighestBidder
+                                                }
                                             ) else auction
                                         })
                                     }
