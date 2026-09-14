@@ -1073,6 +1073,7 @@ fun AppNavHost() {
                 },
                 onSendComment = { content -> liveChatConnection?.send(content) == true },
                 isAuthenticated = signedIn == true,
+                currentMemberId = memberProfile?.memberId,
                 paidBidAmount = paidBidAmount,
                 depositPaidAuctionIds = depositPaidProductIds,
                 realtimeBidFeedback = liveBidFeedback,
@@ -1351,6 +1352,9 @@ fun AppNavHost() {
                     session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
                 },
                 isAuthenticated = signedIn == true,
+                isOwnAuction = signedIn == true && memberProfile?.memberId?.let { memberId ->
+                    memberId == remoteDetail?.sellerMemberId
+                } == true,
                 onBack = navController::navigateUp,
                 onImageClick = { page ->
                     backStackEntry.savedStateHandle["productImageUrls"] = ArrayList(remoteProduct?.imageUrls?.takeIf { it.isNotEmpty() } ?: remoteDetail?.imageUrls.orEmpty())
