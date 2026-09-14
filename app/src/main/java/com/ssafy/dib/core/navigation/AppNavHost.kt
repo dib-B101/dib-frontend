@@ -10,6 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -63,6 +66,7 @@ import com.ssafy.dib.feature.main.WithdrawalScreen
 import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.ApiFailure
+import com.ssafy.dib.core.session.SessionInactivityTracker
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
 import com.ssafy.dib.domain.order.OrderRole
@@ -85,9 +89,10 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val lifecycleOwner = context as? LifecycleOwner
     val auth = remember(context) { AuthDependencies(context) }
     val coroutineScope = rememberCoroutineScope()
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
@@ -128,6 +133,16 @@ fun AppNavHost() {
     var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
     var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
     var unreadNotificationCount by remember { mutableStateOf(0) }
+
+    fun expireInactiveSession() {
+        if (signedIn != true) return
+        sessionInactivityTracker.endSession()
+        signedIn = false
+        coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
+        navController.navigate(Screen.Welcome.route) {
+            popUpTo(Screen.Home.route) { inclusive = true }
+        }
+    }
 
     fun navigateMain(tab: DibMainTab) {
         if (signedIn != true && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
@@ -178,6 +193,28 @@ fun AppNavHost() {
                 is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
             }
         }
+    }
+
+    LaunchedEffect(signedIn) {
+        if (signedIn == true) {
+            sessionInactivityTracker.startSession()
+            while (signedIn == true) {
+                delay(5_000L)
+                if (sessionInactivityTracker.hasExpired()) expireInactiveSession()
+            }
+        } else if (signedIn == false) {
+            sessionInactivityTracker.endSession()
+        }
+    }
+
+    DisposableEffect(signedIn, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && signedIn == true && sessionInactivityTracker.hasExpired()) {
+                expireInactiveSession()
+            }
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
     }
 
     LaunchedEffect(signedIn) {
@@ -311,6 +348,10 @@ fun AppNavHost() {
                         val current = auth.repository.currentSession()
                         when {
                             current == null -> false
+                            sessionInactivityTracker.hasExpired() -> {
+                                auth.repository.logout(auth.deviceId)
+                                false
+                            }
                             !current.needsRefresh(System.currentTimeMillis()) -> true
                             else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
                         }
