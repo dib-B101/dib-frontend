@@ -1,6 +1,7 @@
 package com.ssafy.dib.data.remote.socket
 
 import com.ssafy.dib.domain.order.OrderMessage
+import com.ssafy.dib.domain.order.isOrderChatWritable
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -160,6 +161,3 @@ private fun kotlinx.serialization.json.JsonElement.idValue(): String =
 
 private fun kotlinx.serialization.json.JsonElement?.idValueOrNull(): String? =
     (this as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
-
-internal fun isOrderChatWritable(status: String?): Boolean =
-    status?.uppercase() !in setOf("CONFIRMED", "CANCELLED", "REFUNDED")

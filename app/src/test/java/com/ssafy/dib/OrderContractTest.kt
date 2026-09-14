@@ -7,7 +7,7 @@ import com.ssafy.dib.data.remote.order.ShipmentResponse
 import com.ssafy.dib.data.remote.order.OrderMessageListResponse
 import com.ssafy.dib.data.remote.order.OrderShippingAddressResponse
 import com.ssafy.dib.data.repository.toDomain
-import com.ssafy.dib.data.remote.socket.isOrderChatWritable
+import com.ssafy.dib.domain.order.isOrderChatWritable
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -16,9 +16,21 @@ class OrderContractTest {
     @Test
     fun terminalOrdersDisableChatSending() {
         assertEquals(true, isOrderChatWritable("SHIPPED"))
+        assertEquals(false, isOrderChatWritable("SHIPPED", serverReadOnly = true))
         assertEquals(false, isOrderChatWritable("CONFIRMED"))
         assertEquals(false, isOrderChatWritable("CANCELLED"))
         assertEquals(false, isOrderChatWritable("REFUNDED"))
+    }
+
+    @Test
+    fun orderDetailKeepsServerChatReadOnlyPolicy() {
+        val order = DibJson.instance.decodeFromString(
+            com.ssafy.dib.data.remote.order.OrderSummaryDto.serializer(),
+            """{"order":{"orderId":"order-2","status":"SHIPPED"},"chattingReadOnly":true}"""
+        ).toDomain()
+
+        assertEquals(true, order.chattingReadOnly)
+        assertEquals(false, isOrderChatWritable(order.status, order.chattingReadOnly))
     }
 
     @Test

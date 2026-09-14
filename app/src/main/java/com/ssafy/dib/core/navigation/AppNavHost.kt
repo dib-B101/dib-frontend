@@ -2000,7 +2000,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
                 if (memberResult is ApiResult.Success) currentMemberId = memberResult.value.memberId
                 if (orderResult is ApiResult.Success) {
-                    chatWritable = com.ssafy.dib.data.remote.socket.isOrderChatWritable(orderResult.value.status)
+                    chatWritable = com.ssafy.dib.domain.order.isOrderChatWritable(
+                        orderResult.value.status,
+                        orderResult.value.chattingReadOnly
+                    )
                 } else if (orderResult is ApiResult.Failure && chatError == null) {
                     chatError = orderResult.error.message.ifBlank { "거래 상태를 확인하지 못했어요." }
                 }
