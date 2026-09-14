@@ -20,6 +20,7 @@ data class AuctionSummary(
 )
 
 data class AuctionCommandResult(val auctionId: String, val message: String)
+data class AuctionPage(val items: List<AuctionSummary>, val nextCursor: String?, val hasNext: Boolean)
 data class BidHistoryItem(val bidId: String, val auctionId: String, val amount: Int, val createdAt: String)
 data class BidHistoryPage(val items: List<BidHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
 data class AuctionBidHistoryItem(val bidId: String, val maskedBidderId: String, val amount: Int, val createdAt: String)
@@ -48,11 +49,12 @@ interface AuctionRepository {
         status: String = "ACTIVE",
         minPrice: Long? = null,
         maxPrice: Long? = null,
-        sort: String? = null
-    ): ApiResult<List<AuctionSummary>>
+        sort: String? = null,
+        cursor: String? = null
+    ): ApiResult<AuctionPage>
 
-    fun getActiveGeneralAuctions(size: Int = 20, categoryId: String? = null): ApiResult<List<AuctionSummary>> =
-        getGeneralAuctions(size = size, categoryId = categoryId)
+    fun getActiveGeneralAuctions(size: Int = 20, categoryId: String? = null, cursor: String? = null): ApiResult<AuctionPage> =
+        getGeneralAuctions(size = size, categoryId = categoryId, cursor = cursor)
 
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
     fun getRecommendations(size: Int = 20): ApiResult<HomeRecommendations>

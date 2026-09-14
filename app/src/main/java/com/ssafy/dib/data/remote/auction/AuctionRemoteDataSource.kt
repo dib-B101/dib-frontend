@@ -24,7 +24,8 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         status: String = "ACTIVE",
         minPrice: Long? = null,
         maxPrice: Long? = null,
-        sort: String? = null
+        sort: String? = null,
+        cursor: String? = null
     ): ApiResult<AuctionListResponse> = configured {
         val urlBuilder = client.urlBuilder(ApiRoutes.AUCTIONS)
             .addQueryParameter("scope", "GENERAL")
@@ -34,6 +35,7 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         minPrice?.let { urlBuilder.addQueryParameter("minPrice", it.coerceAtLeast(0).toString()) }
         maxPrice?.let { urlBuilder.addQueryParameter("maxPrice", it.coerceAtLeast(0).toString()) }
         sort?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("sort", it) }
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         val url = urlBuilder.build()
         client.execute(
             client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(),

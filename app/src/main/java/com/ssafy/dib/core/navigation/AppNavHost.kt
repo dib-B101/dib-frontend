@@ -597,24 +597,37 @@ fun AppNavHost() {
             var categoryLoading by remember { mutableStateOf(false) }
             var categoryError by remember { mutableStateOf<String?>(null) }
             var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+            var categoryCursor by remember { mutableStateOf<String?>(null) }
+            var categoryHasNext by remember { mutableStateOf(false) }
+            var categoryLoadingMore by remember { mutableStateOf(false) }
+            var categoryLoadMoreError by remember { mutableStateOf<String?>(null) }
 
-            fun loadCategory(categoryId: String) {
+            fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false) {
                 selectedCategoryId = categoryId
                 if (!auth.networkConfig.isRestConfigured) {
                     categoryAuctions = null
                     categoryError = null
                     return
                 }
-                categoryLoading = true
-                categoryError = null
+                if (append) categoryLoadingMore = true else categoryLoading = true
+                if (append) categoryLoadMoreError = null else categoryError = null
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) {
-                        auth.auctionRepository.getActiveGeneralAuctions(categoryId = categoryId)
+                        auth.auctionRepository.getActiveGeneralAuctions(categoryId = categoryId, cursor = cursor)
                     }) {
-                        is ApiResult.Success -> categoryAuctions = result.value.map { it.toHomeAuction() }
-                        is ApiResult.Failure -> categoryError = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
+                        is ApiResult.Success -> {
+                            val mapped = result.value.items.map { it.toHomeAuction() }
+                            categoryAuctions = if (append) (categoryAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
+                            categoryCursor = result.value.nextCursor
+                            categoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                        }
+                        is ApiResult.Failure -> {
+                            val message = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
+                            if (append) categoryLoadMoreError = message else categoryError = message
+                            if (result.error.requiresLogin) signedIn = false
+                        }
                     }
-                    categoryLoading = false
+                    if (append) categoryLoadingMore = false else categoryLoading = false
                 }
             }
 
@@ -638,8 +651,23 @@ fun AppNavHost() {
                 remoteAuctions = categoryAuctions,
                 isLoading = categoryLoading,
                 errorMessage = categoryError,
-                onCategorySelected = ::loadCategory,
-                onRetry = { selectedCategoryId?.let(::loadCategory) }
+                hasNext = categoryHasNext,
+                isLoadingMore = categoryLoadingMore,
+                loadMoreError = categoryLoadMoreError,
+                onCategorySelected = { categoryId ->
+                    categoryCursor = null
+                    categoryHasNext = false
+                    categoryLoadMoreError = null
+                    loadCategory(categoryId)
+                },
+                onRetry = { selectedCategoryId?.let { loadCategory(it) } },
+                onLoadMore = {
+                    val categoryId = selectedCategoryId
+                    val cursor = categoryCursor
+                    if (categoryId != null && cursor != null && categoryHasNext && !categoryLoadingMore) {
+                        loadCategory(categoryId, cursor, append = true)
+                    }
+                }
             )
         }
         composable(Screen.Search.route) {
@@ -648,54 +676,63 @@ fun AppNavHost() {
             var searchLoading by remember { mutableStateOf(false) }
             var searchError by remember { mutableStateOf<String?>(null) }
             var lastSearchFilters by remember { mutableStateOf<AuctionSearchFilters?>(null) }
+            var searchCursor by remember { mutableStateOf<String?>(null) }
+            var searchHasNext by remember { mutableStateOf(false) }
+            var searchLoadingMore by remember { mutableStateOf(false) }
+            var searchLoadMoreError by remember { mutableStateOf<String?>(null) }
 
-            fun search(filters: AuctionSearchFilters) {
+            fun search(filters: AuctionSearchFilters, cursor: String? = null, append: Boolean = false) {
                 lastSearchFilters = filters
                 if (!auth.networkConfig.isRestConfigured) {
                     searchAuctions = null
                     searchError = null
                     return
                 }
-                searchLoading = true
-                searchError = null
+                if (append) searchLoadingMore = true else searchLoading = true
+                if (append) searchLoadMoreError = null else searchError = null
                 coroutineScope.launch {
                     val result = withContext(Dispatchers.IO) {
                         auth.auctionRepository.getGeneralAuctions(
-                            size = 100,
+                            size = 20,
                             categoryId = filters.categoryId,
                             status = filters.status,
                             minPrice = filters.minPrice,
-                            maxPrice = filters.maxPrice
+                            maxPrice = filters.maxPrice,
+                            cursor = cursor
                         )
                     }
                     when (result) {
                         is ApiResult.Success -> {
                             val filtered = if (filters.query.isBlank()) {
-                                result.value
+                                result.value.items
                             } else if (signedIn == true) {
                                 when (val products = withContext(Dispatchers.IO) {
                                     auth.productRepository.searchProducts(filters.query, filters.categoryId)
                                 }) {
                                     is ApiResult.Success -> {
                                         val matchingProductIds = products.value.map { it.productId }.toSet()
-                                        result.value.filter { it.productId in matchingProductIds }
+                                        result.value.items.filter { it.productId in matchingProductIds }
                                     }
                                     is ApiResult.Failure -> {
                                         if (products.error.requiresLogin) signedIn = false
-                                        result.value.filter { it.title.contains(filters.query, ignoreCase = true) }
+                                        result.value.items.filter { it.title.contains(filters.query, ignoreCase = true) }
                                     }
                                 }
                             } else {
-                                result.value.filter { it.title.contains(filters.query, ignoreCase = true) }
+                                result.value.items.filter { it.title.contains(filters.query, ignoreCase = true) }
                             }
-                            searchAuctions = filtered.map { it.toHomeAuction() }
+                            val mapped = filtered.map { it.toHomeAuction() }
+                            searchAuctions = if (append) (searchAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
+                            searchCursor = result.value.nextCursor
+                            searchHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         }
                         is ApiResult.Failure -> {
-                            searchError = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
+                            val message = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
+                            if (append) searchLoadMoreError = message else searchError = message
                             if (result.error.requiresLogin) signedIn = false
                         }
                     }
-                    searchLoading = false
+                    if (append) searchLoadingMore = false else searchLoading = false
                 }
             }
 
@@ -714,8 +751,23 @@ fun AppNavHost() {
                 remoteAuctions = searchAuctions,
                 isLoading = searchLoading,
                 errorMessage = searchError,
-                onSearch = ::search,
-                onRetry = { lastSearchFilters?.let(::search) }
+                hasNext = searchHasNext,
+                isLoadingMore = searchLoadingMore,
+                loadMoreError = searchLoadMoreError,
+                onSearch = { filters ->
+                    searchCursor = null
+                    searchHasNext = false
+                    searchLoadMoreError = null
+                    search(filters)
+                },
+                onRetry = { lastSearchFilters?.let { search(it) } },
+                onLoadMore = {
+                    val filters = lastSearchFilters
+                    val cursor = searchCursor
+                    if (filters != null && cursor != null && searchHasNext && !searchLoadingMore) {
+                        search(filters, cursor, append = true)
+                    }
+                }
             )
         }
         composable(Screen.Notifications.route) {

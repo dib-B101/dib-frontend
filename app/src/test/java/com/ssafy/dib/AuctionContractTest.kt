@@ -37,7 +37,8 @@ class AuctionContractTest {
                     "myBid":{"amount":12000,"isHighestBidder":false},
                     "product":{"name":"빈티지 카메라","categoryName":"디지털기기","thumbnailUrl":"https://cdn.example/thumb.jpg","images":[{"imageUrl":"https://cdn.example/front.jpg"},"https://cdn.example/side.jpg"]}
                 }],
-                "hasNext":false
+                "nextCursor":"auction-3",
+                "hasNext":true
             }""".trimIndent()
         )
 
@@ -50,6 +51,8 @@ class AuctionContractTest {
         assertEquals(12_500, auction.currentPrice)
         assertEquals(600, auction.remainingSeconds)
         assertTrue(auction.bookmarked)
+        assertEquals("auction-3", response.nextCursor)
+        assertTrue(response.hasNext)
         assertEquals(12_000, auction.myBidAmount)
         assertEquals(
             listOf(
