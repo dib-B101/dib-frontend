@@ -1901,6 +1901,10 @@ fun AppNavHost() {
             var broadcasts by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveBroadcastSummary>?>(null) }
             var assignedAuctions by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
             var availableLiveAuctions by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionSummary>>(emptyList()) }
+            var availableLiveAuctionsCursor by remember { mutableStateOf<String?>(null) }
+            var availableLiveAuctionsHasNext by remember { mutableStateOf(false) }
+            var availableLiveAuctionsLoadingMore by remember { mutableStateOf(false) }
+            var availableLiveAuctionsLoadMoreError by remember { mutableStateOf<String?>(null) }
             var liveManagementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var liveManagementError by remember { mutableStateOf<String?>(null) }
             var liveManagementRevision by remember { mutableStateOf(0) }
@@ -1921,6 +1925,10 @@ fun AppNavHost() {
                 liveManagementCursor = null
                 liveManagementHasNext = false
                 liveManagementLoadingMore = false
+                availableLiveAuctionsCursor = null
+                availableLiveAuctionsHasNext = false
+                availableLiveAuctionsLoadingMore = false
+                availableLiveAuctionsLoadMoreError = null
                 val profile = memberProfile ?: when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
                     is ApiResult.Success -> result.value.also { memberProfile = it }
                     is ApiResult.Failure -> null
@@ -1946,8 +1954,11 @@ fun AppNavHost() {
                 }
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED") }) {
                     is ApiResult.Success -> availableLiveAuctions = profile?.memberId?.let { memberId ->
-                        result.value.filter { auction -> auction.sellerMemberId == memberId }
-                    }.orEmpty()
+                        result.value.items.filter { auction -> auction.sellerMemberId == memberId }
+                    }.orEmpty().also {
+                        availableLiveAuctionsCursor = result.value.nextCursor
+                        availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                    }
                     is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
                 }
                 liveManagementLoading = false
@@ -1966,6 +1977,9 @@ fun AppNavHost() {
                 hasNext = liveManagementHasNext,
                 isLoadingMore = liveManagementLoadingMore,
                 loadMoreError = liveManagementLoadMoreError,
+                availableAuctionsHasNext = availableLiveAuctionsHasNext,
+                availableAuctionsLoadingMore = availableLiveAuctionsLoadingMore,
+                availableAuctionsLoadMoreError = availableLiveAuctionsLoadMoreError,
                 onRetry = { liveManagementRevision++ },
                 onLoadMore = {
                     val cursor = liveManagementCursor
@@ -1999,6 +2013,32 @@ fun AppNavHost() {
                                 }
                             }
                             liveManagementLoadingMore = false
+                        }
+                    }
+                },
+                onLoadMoreAvailableAuctions = {
+                    val cursor = availableLiveAuctionsCursor
+                    if (cursor != null && availableLiveAuctionsHasNext && !availableLiveAuctionsLoadingMore) {
+                        availableLiveAuctionsLoadingMore = true
+                        availableLiveAuctionsLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", cursor = cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    val memberId = memberProfile?.memberId
+                                    val nextItems = result.value.items.filter { it.sellerMemberId == memberId }
+                                    availableLiveAuctions = (availableLiveAuctions + nextItems)
+                                        .distinctBy { it.auctionId }
+                                    availableLiveAuctionsCursor = result.value.nextCursor
+                                    availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    availableLiveAuctionsLoadMoreError = result.error.message.ifBlank { "다음 예약 경매를 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            availableLiveAuctionsLoadingMore = false
                         }
                     }
                 },
