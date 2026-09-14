@@ -24,6 +24,10 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 /** Figma 01_Wireframe / 03H_Seller_Profile. */
 @Composable
 fun SellerProfileScreen(
+    sellerNickname: String?,
+    sellerRating: Double?,
+    sellerTradeCount: Int?,
+    showSampleContent: Boolean,
     onBack: () -> Unit,
     onReviewsClick: () -> Unit,
     onListingsClick: () -> Unit,
@@ -47,34 +51,58 @@ fun SellerProfileScreen(
                         Image(painterResource(R.drawable.seller), null, Modifier.size(34.dp), colorFilter = ColorFilter.tint(Colors.Muted))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("seller01", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("★ 4.8    ·  거래 32회", color = Colors.Muted, fontSize = 13.sp)
+                        Text(
+                            if (showSampleContent) "seller01" else sellerNickname?.takeIf(String::isNotBlank) ?: "판매자",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val sellerMeta = if (showSampleContent) {
+                            "★ 4.8    ·  거래 32회"
+                        } else {
+                            listOfNotNull(
+                                sellerRating?.let { "★ $it" },
+                                sellerTradeCount?.let { "거래 ${it}회" }
+                            ).joinToString("    ·  ").ifBlank { "판매자 정보" }
+                        }
+                        Text(sellerMeta, color = Colors.Muted, fontSize = 13.sp)
                     }
                 }
             }
-            item { SectionTitle("판매 후기") }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().background(Color(0xFFF9F9F9), RoundedCornerShape(12.dp)).clickable(onClick = onReviewsClick).padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("후기 목록", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("전체 후기 보기", color = Colors.Navy, fontSize = 12.sp)
+            if (showSampleContent) {
+                item { SectionTitle("판매 후기") }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().background(Color(0xFFF9F9F9), RoundedCornerShape(12.dp)).clickable(onClick = onReviewsClick).padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("후기 목록", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("전체 후기 보기", color = Colors.Navy, fontSize = 12.sp)
+                        }
+                        Text("›", color = Colors.Muted, fontSize = 24.sp)
                     }
-                    Text("›", color = Colors.Muted, fontSize = 24.sp)
                 }
-            }
-            item {
-                Row(Modifier.fillMaxWidth().clickable(onClick = onListingsClick), verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle("판매 내역", Modifier.weight(1f))
-                    Text("전체보기 ›", color = Colors.Navy, fontSize = 12.sp)
+                item {
+                    Row(Modifier.fillMaxWidth().clickable(onClick = onListingsClick), verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle("판매 내역", Modifier.weight(1f))
+                        Text("전체보기 ›", color = Colors.Navy, fontSize = 12.sp)
+                    }
                 }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SaleCard("판매중", Modifier.weight(1f).clickable(onClick = onListingsClick))
-                    SaleCard("판매완료", Modifier.weight(1f).clickable(onClick = onListingsClick))
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SaleCard("판매중", Modifier.weight(1f).clickable(onClick = onListingsClick))
+                        SaleCard("판매완료", Modifier.weight(1f).clickable(onClick = onListingsClick))
+                    }
+                }
+            } else {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().background(Color(0xFFF9F9F9), RoundedCornerShape(12.dp)).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("판매 활동", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("공개된 판매 후기와 판매 내역을 준비하고 있어요.", color = Colors.Muted, fontSize = 12.sp)
+                    }
                 }
             }
             item { HorizontalDivider(color = Colors.Border) }
