@@ -34,12 +34,13 @@ class LiveContractTest {
     fun decodesLiveChatHistoryWithNumericIds() {
         val response = DibJson.instance.decodeFromString(
             LiveChatMessageListResponse.serializer(),
-            """{"items":[{"liveChattingId":81,"memberId":17,"content":"다음 상품 궁금해요","time":"2026-09-13T08:00:00Z"}],"hasMore":false}"""
+            """{"items":[{"liveChattingId":81,"memberId":17,"content":"다음 상품 궁금해요","time":"2026-09-13T08:00:00Z"}],"hasMore":true}"""
         )
 
         assertEquals("81", response.items.single().liveChattingId.toString())
         assertEquals("17", response.items.single().memberId.toString())
         assertEquals("다음 상품 궁금해요", response.items.single().content)
+        assertEquals(true, response.hasMore)
     }
 
     @Test

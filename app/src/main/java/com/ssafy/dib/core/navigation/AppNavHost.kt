@@ -724,6 +724,9 @@ fun AppNavHost() {
             var liveDetailLoading by remember { mutableStateOf(false) }
             var liveDetailError by remember { mutableStateOf<String?>(null) }
             var liveComments by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
+            var liveChatHasMore by remember { mutableStateOf(false) }
+            var liveChatLoadingEarlier by remember { mutableStateOf(false) }
+            var liveChatLoadEarlierError by remember { mutableStateOf<String?>(null) }
             var liveChatError by remember { mutableStateOf<String?>(null) }
             var liveChatState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
             var liveChatConnection by remember { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
@@ -757,11 +760,16 @@ fun AppNavHost() {
                 val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) {
                     liveComments = emptyList()
+                    liveChatHasMore = false
                     return@LaunchedEffect
                 }
                 liveChatError = null
+                liveChatLoadEarlierError = null
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
-                    is ApiResult.Success -> liveComments = result.value
+                    is ApiResult.Success -> {
+                        liveComments = result.value.items
+                        liveChatHasMore = result.value.hasMore
+                    }
                     is ApiResult.Failure -> {
                         liveChatError = result.error.message.ifBlank { "Live 댓글을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -907,6 +915,9 @@ fun AppNavHost() {
                 },
                 activeLiveBroadcastId = activeLiveBroadcastId,
                 liveComments = liveComments,
+                chatHasMore = liveChatHasMore,
+                chatLoadingEarlier = liveChatLoadingEarlier,
+                chatLoadEarlierError = liveChatLoadEarlierError,
                 liveAuctionsByBroadcast = liveAuctionLists,
                 productListLoading = liveDetailLoading,
                 productListError = liveDetailError,
@@ -919,7 +930,36 @@ fun AppNavHost() {
                     if (activeLiveBroadcastId != liveId) {
                         activeLiveBroadcastId = liveId
                         liveComments = emptyList()
+                        liveChatHasMore = false
+                        liveChatLoadingEarlier = false
+                        liveChatLoadEarlierError = null
                         liveChatError = null
+                    }
+                },
+                onLoadEarlierComments = {
+                    val liveId = activeLiveBroadcastId
+                    val cursor = liveComments.minByOrNull { it.time }?.liveChattingId
+                    if (liveId != null && cursor != null && liveChatHasMore && !liveChatLoadingEarlier) {
+                        liveChatLoadingEarlier = true
+                        liveChatLoadEarlierError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.liveRepository.getMessages(liveId, cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    liveComments = (result.value.items + liveComments)
+                                        .distinctBy { it.liveChattingId }
+                                    liveChatHasMore = result.value.hasMore
+                                }
+                                is ApiResult.Failure -> {
+                                    liveChatLoadEarlierError = result.error.message.ifBlank {
+                                        "이전 댓글을 불러오지 못했어요."
+                                    }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            liveChatLoadingEarlier = false
+                        }
                     }
                 },
                 onSendComment = { content -> liveChatConnection?.send(content) == true },

@@ -27,6 +27,11 @@ data class LiveChatMessage(
     val time: String
 )
 
+data class LiveChatMessagePage(
+    val items: List<LiveChatMessage>,
+    val hasMore: Boolean
+)
+
 data class LiveBroadcastDetail(
     val liveBroadcastId: String,
     val memberId: String,
@@ -62,5 +67,5 @@ interface LiveRepository {
     fun start(liveBroadcastId: String): ApiResult<String>
     fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<String>
     fun end(liveBroadcastId: String): ApiResult<String>
-    fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<List<LiveChatMessage>>
+    fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<LiveChatMessagePage>
 }

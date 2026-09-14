@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -81,6 +82,9 @@ fun LiveFeedScreen(
     onLoadMore: () -> Unit,
     activeLiveBroadcastId: String?,
     liveComments: List<LiveChatMessage>,
+    chatHasMore: Boolean,
+    chatLoadingEarlier: Boolean,
+    chatLoadEarlierError: String?,
     liveAuctionsByBroadcast: Map<String, List<AuctionSummary>>,
     productListLoading: Boolean,
     productListError: String?,
@@ -90,6 +94,7 @@ fun LiveFeedScreen(
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onLiveVisible: (String) -> Unit,
+    onLoadEarlierComments: () -> Unit,
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
@@ -131,6 +136,9 @@ fun LiveFeedScreen(
                     liveItem = items[page],
                     isActivePage = page == pagerState.currentPage,
                     liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
+                    chatHasMore = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatHasMore,
+                    chatLoadingEarlier = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatLoadingEarlier,
+                    chatLoadEarlierError = chatLoadEarlierError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
                     liveAuctions = items[page]?.liveBroadcastId?.let(liveAuctionsByBroadcast::get),
                     productListLoading = productListLoading && items[page]?.liveBroadcastId == activeLiveBroadcastId,
                     productListError = productListError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
@@ -139,6 +147,7 @@ fun LiveFeedScreen(
                     reportCompleted = reportCompleted,
                     chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
                     chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
+                    onLoadEarlierComments = onLoadEarlierComments,
                     onSendComment = onSendComment,
                     isAuthenticated = isAuthenticated,
                     paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
@@ -172,6 +181,9 @@ private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
     isActivePage: Boolean,
     liveComments: List<LiveChatMessage>,
+    chatHasMore: Boolean,
+    chatLoadingEarlier: Boolean,
+    chatLoadEarlierError: String?,
     liveAuctions: List<AuctionSummary>?,
     productListLoading: Boolean,
     productListError: String?,
@@ -180,6 +192,7 @@ private fun LiveFeedPage(
     reportCompleted: Boolean,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
+    onLoadEarlierComments: () -> Unit,
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     paidBidAmount: Int,
@@ -202,6 +215,7 @@ private fun LiveFeedPage(
     var following by rememberSaveable { mutableStateOf(true) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
+    var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
     var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: 34_500) }
     var remaining by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.remainingSeconds ?: 42) }
@@ -291,6 +305,15 @@ private fun LiveFeedPage(
                         }
                     }
                 } else {
+                    if (liveComments.isNotEmpty()) {
+                        Text(
+                            "댓글 ${liveComments.size} · 전체보기",
+                            Modifier.clickable { showComments = true }.padding(horizontal = 4.dp, vertical = 2.dp),
+                            color = Color.White.copy(alpha = .82f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     liveComments.takeLast(3).forEach { message ->
                         Surface(
                             color = Color.Black.copy(alpha = .18f),
@@ -375,6 +398,49 @@ private fun LiveFeedPage(
                     Column(Modifier.padding(start = 12.dp)) {
                         Text(auction?.title ?: listOf("푸른 유약 접시", "달빛 유약 머그컵", "수제 화병", "도자기 찻잔", "우드 트레이")[index], fontWeight = FontWeight.Bold)
                         Text(if (isCurrent) "● 현재 경매 중" else if (auction?.status == "ENDED") "종료" else "대기", color = if (isCurrent) Colors.Live else Colors.Muted, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+    if (showComments) ModalBottomSheet(onDismissRequest = { showComments = false }, containerColor = Color.White) {
+        LazyColumn(
+            Modifier.fillMaxWidth().heightIn(max = 520.dp).navigationBarsPadding(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Text("Live 댓글", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            if (chatHasMore || chatLoadingEarlier || chatLoadEarlierError != null) {
+                item {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            chatLoadingEarlier -> CircularProgressIndicator(Modifier.size(22.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            chatLoadEarlierError != null -> {
+                                Text(chatLoadEarlierError, color = Colors.Live, fontSize = 11.sp)
+                                TextButton(onClick = onLoadEarlierComments) { Text("이전 댓글 다시 불러오기") }
+                            }
+                            chatHasMore -> TextButton(onClick = onLoadEarlierComments) { Text("이전 댓글 불러오기") }
+                        }
+                    }
+                }
+            }
+            if (liveComments.isEmpty()) item { Text("아직 작성된 댓글이 없어요.", color = Colors.Muted, fontSize = 13.sp) }
+            items(liveComments.distinctBy(LiveChatMessage::liveChattingId).sortedBy(LiveChatMessage::time), key = LiveChatMessage::liveChattingId) { message ->
+                Surface(
+                    color = Color(0xFFF4F6F8),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        if (isAuthenticated) {
+                            showComments = false
+                            reportTarget = message
+                            reportContent = ""
+                            onDismissReport()
+                        } else onLoginRequired()
+                    }
+                ) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Text(message.nickname ?: message.memberId, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(message.content, Modifier.padding(top = 3.dp), color = Colors.Text, fontSize = 13.sp)
                     }
                 }
             }
