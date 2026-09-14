@@ -118,6 +118,10 @@ fun AppNavHost() {
     var bidHistoryLoading by remember { mutableStateOf(false) }
     var bidHistoryError by remember { mutableStateOf<String?>(null) }
     var bidHistoryRevision by remember { mutableStateOf(0) }
+    var bidHistoryCursor by remember { mutableStateOf<String?>(null) }
+    var bidHistoryHasNext by remember { mutableStateOf(false) }
+    var bidHistoryLoadingMore by remember { mutableStateOf(false) }
+    var bidHistoryLoadMoreError by remember { mutableStateOf<String?>(null) }
     var depositPaidProductIds by remember {
         mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
     }
@@ -272,8 +276,13 @@ fun AppNavHost() {
         if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
         bidHistoryLoading = true
         bidHistoryError = null
+        bidHistoryLoadMoreError = null
         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getMyBids() }) {
-            is ApiResult.Success -> bidHistory = result.value
+            is ApiResult.Success -> {
+                bidHistory = result.value.items
+                bidHistoryCursor = result.value.nextCursor
+                bidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+            }
             is ApiResult.Failure -> {
                 bidHistoryError = result.error.message.ifBlank { "입찰 내역을 불러오지 못했어요." }
                 if (result.error.requiresLogin) signedIn = false
@@ -1403,6 +1412,9 @@ fun AppNavHost() {
                 remoteError = ordersError,
                 bidsLoading = bidHistoryLoading,
                 bidsError = bidHistoryError,
+                bidsHasNext = bidHistoryHasNext,
+                bidsLoadingMore = bidHistoryLoadingMore,
+                bidsLoadMoreError = bidHistoryLoadMoreError,
                 purchaseHasNext = purchaseOrdersHasNext,
                 saleHasNext = saleOrdersHasNext,
                 loadingMoreRole = ordersLoadingMoreRole,
@@ -1410,6 +1422,29 @@ fun AppNavHost() {
                 saleLoadMoreError = saleOrdersLoadMoreError,
                 onRetry = { ordersRevision++ },
                 onBidsRetry = { bidHistoryRevision++ },
+                onLoadMoreBids = {
+                    val cursor = bidHistoryCursor
+                    if (cursor != null && bidHistoryHasNext && !bidHistoryLoadingMore) {
+                        bidHistoryLoadingMore = true
+                        bidHistoryLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.auctionRepository.getMyBids(cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    bidHistory = (bidHistory.orEmpty() + result.value.items).distinctBy { it.bidId }
+                                    bidHistoryCursor = result.value.nextCursor
+                                    bidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    bidHistoryLoadMoreError = result.error.message.ifBlank { "다음 입찰 내역을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            bidHistoryLoadingMore = false
+                        }
+                    }
+                },
                 onLoadMoreOrders = { role ->
                     val cursor = if (role == OrderRole.BUYER) purchaseOrdersCursor else saleOrdersCursor
                     val hasNext = if (role == OrderRole.BUYER) purchaseOrdersHasNext else saleOrdersHasNext

@@ -7,6 +7,7 @@ import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.domain.auction.BidHistoryItem
+import com.ssafy.dib.domain.auction.BidHistoryPage
 import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
 import com.ssafy.dib.domain.auction.AuctionBidHistoryPage
 import com.ssafy.dib.domain.auction.HomeRecommendations
@@ -73,17 +74,21 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun getMyBids(size: Int): ApiResult<List<BidHistoryItem>> =
-        when (val result = remote.getMyBids(size)) {
+    override fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryPage> =
+        when (val result = remote.getMyBids(cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
-                result.value.items.map { bid ->
-                    BidHistoryItem(
-                        bidId = bid.bidId.idValue(),
-                        auctionId = bid.auctionId.idValue(),
-                        amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                        createdAt = bid.createdAt
-                    )
-                },
+                BidHistoryPage(
+                    items = result.value.items.map { bid ->
+                        BidHistoryItem(
+                            bidId = bid.bidId.idValue(),
+                            auctionId = bid.auctionId.idValue(),
+                            amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                            createdAt = bid.createdAt
+                        )
+                    },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
                 result.status
             )
             is ApiResult.Failure -> result
