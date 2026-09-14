@@ -6,12 +6,18 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 object SocketCommands {
-    fun ping(eventId: String = UUID.randomUUID().toString()) = SocketEnvelope(
-        eventType = SocketEventTypes.PING,
-        eventId = eventId,
-        occurredAt = Instant.now().toString(),
-        payload = buildJsonObject { put("clientTime", Instant.now().toString()) }
-    )
+    fun ping(eventId: String = UUID.randomUUID().toString()): SocketEnvelope {
+        val clientTime = Instant.now().toString()
+        return SocketEnvelope(
+            eventType = SocketEventTypes.PING,
+            eventId = eventId,
+            occurredAt = clientTime,
+            payload = buildJsonObject {
+                put("eventId", eventId)
+                put("clientTime", clientTime)
+            }
+        )
+    }
 
     fun subscribeAuction(
         auctionId: String,
