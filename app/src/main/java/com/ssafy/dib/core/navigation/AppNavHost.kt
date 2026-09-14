@@ -171,6 +171,15 @@ fun AppNavHost() {
         }
     }
 
+    LaunchedEffect(signedIn, auth.networkConfig.isRestConfigured) {
+        if (signedIn == true && auth.networkConfig.isRestConfigured) {
+            when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
+                is ApiResult.Success -> memberProfile = result.value
+                is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+            }
+        }
+    }
+
     LaunchedEffect(signedIn) {
         if (signedIn != true) {
             memberProfile = null
