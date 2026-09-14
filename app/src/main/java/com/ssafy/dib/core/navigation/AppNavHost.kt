@@ -753,9 +753,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             categoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         }
                         is ApiResult.Failure -> {
-                            val message = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
-                            if (append) categoryLoadMoreError = message else categoryError = message
-                            if (result.error.requiresLogin) signedIn = false
+                            if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                categoryLoadingMore = false
+                                loadCategory(categoryId)
+                            } else {
+                                val message = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
+                                if (append) categoryLoadMoreError = message else categoryError = message
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                     }
                     if (append) categoryLoadingMore = false else categoryLoading = false
@@ -818,6 +823,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 val ids = linkedSetOf<String>()
                 val visitedCursors = mutableSetOf<String>()
                 var cursor: String? = null
+                var cursorRestarted = false
                 do {
                     when (val products = withContext(Dispatchers.IO) {
                         auth.productRepository.searchProducts(
@@ -836,6 +842,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }
                         }
                         is ApiResult.Failure -> {
+                            if (products.error.code == ApiErrorCodes.INVALID_CURSOR && cursor != null && !cursorRestarted) {
+                                ids.clear()
+                                visitedCursors.clear()
+                                cursor = null
+                                cursorRestarted = true
+                                continue
+                            }
                             if (products.error.requiresLogin) signedIn = false
                             return null
                         }
@@ -889,9 +902,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             searchHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         }
                         is ApiResult.Failure -> {
-                            val message = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
-                            if (append) searchLoadMoreError = message else searchError = message
-                            if (result.error.requiresLogin) signedIn = false
+                            if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                searchLoadingMore = false
+                                search(filters)
+                            } else {
+                                val message = result.error.message.ifBlank { "검색 결과를 불러오지 못했어요." }
+                                if (append) searchLoadMoreError = message else searchError = message
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                     }
                     if (append) searchLoadingMore = false else searchLoading = false
@@ -1167,8 +1185,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     liveFeedHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    liveFeedLoadMoreError = result.error.message.ifBlank { "다음 Live를 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        liveFeedRevision++
+                                    } else {
+                                        liveFeedLoadMoreError = result.error.message.ifBlank { "다음 Live를 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             liveFeedLoadingMore = false
@@ -1675,8 +1697,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     bidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    bidHistoryLoadMoreError = result.error.message.ifBlank { "다음 입찰 내역을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        bidHistoryRevision++
+                                    } else {
+                                        bidHistoryLoadMoreError = result.error.message.ifBlank { "다음 입찰 내역을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             bidHistoryLoadingMore = false
@@ -2194,8 +2220,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     liveManagementHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    liveManagementLoadMoreError = result.error.message.ifBlank { "다음 방송을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        liveManagementRevision++
+                                    } else {
+                                        liveManagementLoadMoreError = result.error.message.ifBlank { "다음 방송을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             liveManagementLoadingMore = false
@@ -2220,8 +2250,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    availableLiveAuctionsLoadMoreError = result.error.message.ifBlank { "다음 예약 경매를 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        liveManagementRevision++
+                                    } else {
+                                        availableLiveAuctionsLoadMoreError = result.error.message.ifBlank { "다음 예약 경매를 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             availableLiveAuctionsLoadingMore = false
@@ -2538,9 +2572,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             settlementsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                         }
                         is ApiResult.Failure -> {
-                            val message = result.error.message.ifBlank { "정산 내역을 불러오지 못했어요." }
-                            if (append) settlementsLoadMoreError = message else settlementsError = message
-                            if (result.error.requiresLogin) signedIn = false
+                            if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                settlementsLoadingMore = false
+                                loadSettlements(cursor = null, append = false)
+                            } else {
+                                val message = result.error.message.ifBlank { "정산 내역을 불러오지 못했어요." }
+                                if (append) settlementsLoadMoreError = message else settlementsError = message
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                     }
                     if (append) settlementsLoadingMore = false else settlementsLoading = false
@@ -2715,8 +2754,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     favoritesHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    favoritesLoadMoreError = result.error.message.ifBlank { "다음 찜 목록을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        favoritesRevision++
+                                    } else {
+                                        favoritesLoadMoreError = result.error.message.ifBlank { "다음 찜 목록을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             favoritesLoadingMore = false
@@ -2806,8 +2849,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     registeredProductsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
-                                    registeredProductsLoadMoreError = result.error.message.ifBlank { "다음 상품을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        registeredProductsRevision++
+                                    } else {
+                                        registeredProductsLoadMoreError = result.error.message.ifBlank { "다음 상품을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             registeredProductsLoadingMore = false
@@ -3060,8 +3107,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     inquiriesCursor = result.value.nextCursor
                                 }
                                 is ApiResult.Failure -> {
-                                    inquiriesLoadMoreError = result.error.message.ifBlank { "다음 문의 내역을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        inquiriesRevision++
+                                    } else {
+                                        inquiriesLoadMoreError = result.error.message.ifBlank { "다음 문의 내역을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             inquiriesLoadingMore = false
@@ -3156,8 +3207,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     reportsCursor = result.value.nextCursor
                                 }
                                 is ApiResult.Failure -> {
-                                    reportsLoadMoreError = result.error.message.ifBlank { "다음 신고 내역을 불러오지 못했어요." }
-                                    if (result.error.requiresLogin) signedIn = false
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        reportsRevision++
+                                    } else {
+                                        reportsLoadMoreError = result.error.message.ifBlank { "다음 신고 내역을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             reportsLoadingMore = false
