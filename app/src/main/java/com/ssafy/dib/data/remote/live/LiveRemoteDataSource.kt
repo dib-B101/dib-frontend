@@ -27,10 +27,11 @@ class LiveRemoteDataSource(
         client.execute(client.requestBuilder(path).get().build(), LiveBroadcastDetailResponse.serializer())
     }
 
-    fun getMine(status: String?, size: Int): ApiResult<LiveBroadcastListResponse> = configured {
+    fun getMine(status: String?, cursor: String?, size: Int): ApiResult<LiveBroadcastListResponse> = configured {
         val path = "${ApiRoutes.MEMBERS_ME}/live-broadcasts"
         val url = client.urlBuilder(path).apply {
             status?.takeIf(String::isNotBlank)?.let { addQueryParameter("status", it) }
+            cursor?.takeIf(String::isNotBlank)?.let { addQueryParameter("cursor", it) }
             addQueryParameter("size", size.coerceIn(1, 100).toString())
         }.build()
         client.execute(client.requestBuilder(path).url(url).get().build(), LiveBroadcastListResponse.serializer())

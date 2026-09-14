@@ -8,6 +8,7 @@ import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.domain.live.LiveChatMessagePage
 import com.ssafy.dib.domain.live.LiveBroadcastDetail
+import com.ssafy.dib.domain.live.LiveBroadcastPage
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
 import com.ssafy.dib.domain.live.LiveStreamSession
 import java.time.Instant
@@ -78,18 +79,25 @@ class LiveRepositoryImpl(
         is ApiResult.Failure -> result
     }
 
-    override fun getMine(status: String?, size: Int): ApiResult<List<LiveBroadcastSummary>> = when (val result = remote.getMine(status, size)) {
-        is ApiResult.Success -> ApiResult.Success(result.value.items.map { live ->
-            LiveBroadcastSummary(
-                liveBroadcastId = live.liveBroadcastId.idValue(),
-                title = live.title,
-                description = live.description,
-                status = live.status,
-                streamUrl = live.streamUrl,
-                scheduledAt = live.scheduledAt,
-                viewCount = live.viewCount.coerceAtLeast(0)
-            )
-        }, result.status)
+    override fun getMine(status: String?, cursor: String?, size: Int): ApiResult<LiveBroadcastPage> = when (val result = remote.getMine(status, cursor, size)) {
+        is ApiResult.Success -> ApiResult.Success(
+            LiveBroadcastPage(
+                items = result.value.items.map { live ->
+                    LiveBroadcastSummary(
+                        liveBroadcastId = live.liveBroadcastId.idValue(),
+                        title = live.title,
+                        description = live.description,
+                        status = live.status,
+                        streamUrl = live.streamUrl,
+                        scheduledAt = live.scheduledAt,
+                        viewCount = live.viewCount.coerceAtLeast(0)
+                    )
+                },
+                nextCursor = result.value.nextCursor,
+                hasNext = result.value.hasNext
+            ),
+            result.status
+        )
         is ApiResult.Failure -> result
     }
 
