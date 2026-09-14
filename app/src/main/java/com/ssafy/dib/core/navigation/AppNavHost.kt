@@ -249,6 +249,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             memberProfile = null
             domainNotifications = emptyList()
             unreadNotificationCount = 0
+            if (signedIn == false) {
+                depositPaidProductIds = emptySet()
+                session.edit().remove("paid_deposits").apply()
+            }
         }
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
