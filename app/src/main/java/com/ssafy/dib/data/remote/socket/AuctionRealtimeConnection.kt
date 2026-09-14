@@ -9,7 +9,8 @@ enum class RealtimeConnectionState { Connecting, Connected, Reconnecting, Discon
 
 class AuctionRealtimeConnection(
     private val socket: DibWebSocketClient,
-    private val parser: AuctionSocketEventParser = AuctionSocketEventParser()
+    private val parser: AuctionSocketEventParser = AuctionSocketEventParser(),
+    private val codec: SocketCodec = SocketCodec()
 ) {
     private val reconnectExecutor = Executors.newSingleThreadScheduledExecutor { task ->
         Thread(task, "dib-auction-reconnect").apply { isDaemon = true }
@@ -79,13 +80,29 @@ class AuctionRealtimeConnection(
 
             override fun onEvent(envelope: SocketEnvelope) {
                 if (!active) return
+                if (envelope.eventType == SocketEventTypes.ERROR) {
+                    runCatching { codec.decodePayload(envelope, SocketErrorPayload.serializer()) }
+                        .getOrNull()
+                        ?.takeIf { (it.commandId ?: envelope.commandId) == pendingBidCommand?.commandId }
+                        ?.let { error ->
+                            val commandId = error.commandId ?: envelope.commandId
+                            clearPendingBid()
+                            onUpdate(
+                                AuctionRealtimeUpdate(
+                                    eventType = SocketEventTypes.BID_REJECTED,
+                                    auctionId = auctionId,
+                                    commandId = commandId,
+                                    message = error.message,
+                                    errorCode = error.code,
+                                    occurredAt = envelope.occurredAt
+                                )
+                            )
+                        }
+                }
                 parser.parse(envelope)?.takeIf { it.auctionId == auctionId }?.let { update ->
                     val isBidResult = update.eventType in setOf(SocketEventTypes.BID_ACCEPTED, SocketEventTypes.BID_REJECTED)
                     if (isBidResult && update.commandId == pendingBidCommand?.commandId) {
-                        pendingBidCommand = null
-                        pendingBidRetryTask?.cancel(false)
-                        pendingBidRetryTask = null
-                        pendingBidRetryAttempt = 0
+                        clearPendingBid()
                     }
                     if (isBidResult || isNewer(update.occurredAt)) {
                         update.occurredAt?.let { lastKnownOccurredAt = it }
@@ -121,6 +138,14 @@ class AuctionRealtimeConnection(
         reconnectTask?.cancel(false)
         reconnectTask = null
         reconnectAttempt = 0
+    }
+
+    @Synchronized
+    private fun clearPendingBid() {
+        pendingBidCommand = null
+        pendingBidRetryTask?.cancel(false)
+        pendingBidRetryTask = null
+        pendingBidRetryAttempt = 0
     }
 
     @Synchronized
