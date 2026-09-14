@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,8 +68,12 @@ fun CategoryScreen(
     remoteAuctions: List<HomeAuction>?,
     isLoading: Boolean,
     errorMessage: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onCategorySelected: (String) -> Unit,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -163,6 +168,22 @@ fun CategoryScreen(
                             ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().height(132.dp))
                             Text(auction.name, color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Text("${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음", color = Colors.Navy, fontSize = 11.sp)
+                        }
+                    }
+                    if (hasNext || isLoadingMore || loadMoreError != null) {
+                        item(key = "category-load-more", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            LaunchedEffect(visibleAuctions.size, hasNext, loadMoreError) {
+                                if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                            }
+                            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                when {
+                                    isLoadingMore -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                                    loadMoreError != null -> {
+                                        Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                        OutlinedButton(onClick = onLoadMore, modifier = Modifier.padding(top = 6.dp)) { Text("더 불러오기") }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

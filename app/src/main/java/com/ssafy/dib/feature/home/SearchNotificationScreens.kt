@@ -47,8 +47,12 @@ fun AuctionSearchScreen(
     remoteAuctions: List<HomeAuction>?,
     isLoading: Boolean,
     errorMessage: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
     onSearch: (AuctionSearchFilters) -> Unit,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -118,6 +122,20 @@ fun AuctionSearchScreen(
                 item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(true,{}, {Text(status)}); FilterChip(category!="전체",{}, {Text(category)}); FilterChip(price!="전체",{}, {Text(price)}); FilterChip(false,{showFilters=true},{Text("필터")}) } }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text("검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
+                if (hasNext || isLoadingMore || loadMoreError != null) item(key = "search-load-more") {
+                    LaunchedEffect(results.size, hasNext, loadMoreError) {
+                        if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            isLoadingMore -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            loadMoreError != null -> {
+                                Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                TextButton(onClick = onLoadMore) { Text("더 불러오기") }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

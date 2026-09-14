@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.auction.AuctionDto
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
+import com.ssafy.dib.domain.auction.AuctionPage
 import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.BidHistoryPage
@@ -35,10 +36,18 @@ class AuctionRepositoryImpl(
         status: String,
         minPrice: Long?,
         maxPrice: Long?,
-        sort: String?
-    ): ApiResult<List<AuctionSummary>> =
-        when (val result = remote.getGeneralAuctions(size, categoryId, status, minPrice, maxPrice, sort)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map { it.toDomain(now()) }, result.status)
+        sort: String?,
+        cursor: String?
+    ): ApiResult<AuctionPage> =
+        when (val result = remote.getGeneralAuctions(size, categoryId, status, minPrice, maxPrice, sort, cursor)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionPage(
+                    items = result.value.items.map { it.toDomain(now()) },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 
