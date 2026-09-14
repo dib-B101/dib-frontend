@@ -107,6 +107,16 @@ class NetworkContractTest {
     }
 
     @Test
+    fun pingUsesTheSameEventIdInEnvelopeAndPayload() {
+        val command = SocketCommands.ping(eventId = "heartbeat-1")
+
+        assertEquals(SocketEventTypes.PING, command.eventType)
+        assertEquals("heartbeat-1", command.eventId)
+        assertEquals("heartbeat-1", command.payload.getValue("eventId").jsonPrimitive.content)
+        assertEquals(command.occurredAt, command.payload.getValue("clientTime").jsonPrimitive.content)
+    }
+
+    @Test
     fun liveChatRejectsOversizedMessageInsteadOfTruncatingIt() {
         assertThrows(IllegalArgumentException::class.java) {
             SocketCommands.sendLiveChat("live-1", "가".repeat(501))
