@@ -3,6 +3,7 @@ package com.ssafy.dib.data.repository
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.domain.live.LiveFeedItem
+import com.ssafy.dib.domain.live.LiveFeedPage
 import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.domain.live.LiveBroadcastDetail
@@ -16,19 +17,26 @@ class LiveRepositoryImpl(
     private val remote: LiveRemoteDataSource,
     private val now: () -> Instant = Instant::now
 ) : LiveRepository {
-    override fun getFeed(size: Int): ApiResult<List<LiveFeedItem>> = when (val result = remote.getFeed(size)) {
-        is ApiResult.Success -> ApiResult.Success(result.value.items.map { item ->
-            val live = item.liveBroadcast
-            LiveFeedItem(
-                liveBroadcastId = live.liveBroadcastId.idValue(),
-                memberId = live.memberId?.idValue().orEmpty(),
-                title = live.title,
-                description = live.description,
-                streamUrl = live.streamUrl,
-                viewCount = live.viewCount.coerceAtLeast(0),
-                currentAuction = item.activeAuction?.copy(product = item.activeAuction.product ?: item.product)?.toDomain(now())
-            )
-        }, result.status)
+    override fun getFeed(cursor: String?, size: Int): ApiResult<LiveFeedPage> = when (val result = remote.getFeed(cursor, size)) {
+        is ApiResult.Success -> ApiResult.Success(
+            LiveFeedPage(
+                items = result.value.items.map { item ->
+                    val live = item.liveBroadcast
+                    LiveFeedItem(
+                        liveBroadcastId = live.liveBroadcastId.idValue(),
+                        memberId = live.memberId?.idValue().orEmpty(),
+                        title = live.title,
+                        description = live.description,
+                        streamUrl = live.streamUrl,
+                        viewCount = live.viewCount.coerceAtLeast(0),
+                        currentAuction = item.activeAuction?.copy(product = item.activeAuction.product ?: item.product)?.toDomain(now())
+                    )
+                },
+                nextCursor = result.value.nextCursor,
+                hasNext = result.value.hasNext
+            ),
+            result.status
+        )
         is ApiResult.Failure -> result
     }
 

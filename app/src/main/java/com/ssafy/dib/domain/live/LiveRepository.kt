@@ -13,6 +13,12 @@ data class LiveFeedItem(
     val currentAuction: AuctionSummary?
 )
 
+data class LiveFeedPage(
+    val items: List<LiveFeedItem>,
+    val nextCursor: String?,
+    val hasNext: Boolean
+)
+
 data class LiveChatMessage(
     val liveChattingId: String,
     val memberId: String,
@@ -46,7 +52,7 @@ data class LiveBroadcastSummary(
 data class LiveStreamSession(val streamUrl: String, val expiresAt: String?, val provider: String?)
 
 interface LiveRepository {
-    fun getFeed(size: Int = 20): ApiResult<List<LiveFeedItem>>
+    fun getFeed(cursor: String? = null, size: Int = 20): ApiResult<LiveFeedPage>
     fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetail>
     fun getMine(status: String? = null, size: Int = 30): ApiResult<List<LiveBroadcastSummary>>
     fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String>

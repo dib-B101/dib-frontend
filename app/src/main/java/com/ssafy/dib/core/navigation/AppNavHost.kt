@@ -715,6 +715,10 @@ fun AppNavHost() {
             var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var liveFeedError by remember { mutableStateOf<String?>(null) }
             var liveFeedRevision by remember { mutableStateOf(0) }
+            var liveFeedNextCursor by remember { mutableStateOf<String?>(null) }
+            var liveFeedHasNext by remember { mutableStateOf(false) }
+            var liveFeedLoadingMore by remember { mutableStateOf(false) }
+            var liveFeedLoadMoreError by remember { mutableStateOf<String?>(null) }
             var activeLiveBroadcastId by remember { mutableStateOf<String?>(null) }
             var liveAuctionLists by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
             var liveDetailLoading by remember { mutableStateOf(false) }
@@ -732,8 +736,16 @@ fun AppNavHost() {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveFeedLoading = true
                 liveFeedError = null
+                liveFeedLoadMoreError = null
+                liveFeedNextCursor = null
+                liveFeedHasNext = false
+                liveFeedLoadingMore = false
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getFeed() }) {
-                    is ApiResult.Success -> liveFeedItems = result.value
+                    is ApiResult.Success -> {
+                        liveFeedItems = result.value.items
+                        liveFeedNextCursor = result.value.nextCursor
+                        liveFeedHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                    }
                     is ApiResult.Failure -> {
                         liveFeedError = result.error.message.ifBlank { "Live 피드를 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -868,6 +880,31 @@ fun AppNavHost() {
                 isLoading = liveFeedLoading,
                 errorMessage = liveFeedError,
                 onRetry = { liveFeedRevision++ },
+                hasNextPage = liveFeedHasNext,
+                isLoadingMore = liveFeedLoadingMore,
+                loadMoreError = liveFeedLoadMoreError,
+                onLoadMore = {
+                    val cursor = liveFeedNextCursor
+                    if (!liveFeedLoadingMore && liveFeedHasNext && cursor != null) {
+                        liveFeedLoadingMore = true
+                        liveFeedLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getFeed(cursor) }) {
+                                is ApiResult.Success -> {
+                                    liveFeedItems = (liveFeedItems.orEmpty() + result.value.items)
+                                        .distinctBy { it.liveBroadcastId }
+                                    liveFeedNextCursor = result.value.nextCursor
+                                    liveFeedHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                }
+                                is ApiResult.Failure -> {
+                                    liveFeedLoadMoreError = result.error.message.ifBlank { "다음 Live를 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            liveFeedLoadingMore = false
+                        }
+                    }
+                },
                 activeLiveBroadcastId = activeLiveBroadcastId,
                 liveComments = liveComments,
                 liveAuctionsByBroadcast = liveAuctionLists,
