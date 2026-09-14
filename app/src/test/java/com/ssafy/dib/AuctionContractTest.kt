@@ -100,12 +100,14 @@ class AuctionContractTest {
     fun bidHistoryContractAcceptsNumericAndStringIds() {
         val response = DibJson.instance.decodeFromString(
             BidHistoryListResponse.serializer(),
-            """{"items":[{"bidId":41,"auctionId":"auction-3","amount":58000,"createdAt":"2026-09-13T08:00:00Z"}],"hasNext":false}"""
+            """{"items":[{"bidId":41,"auctionId":"auction-3","amount":58000,"createdAt":"2026-09-13T08:00:00Z"}],"nextCursor":"bid-41","hasNext":true}"""
         )
 
         assertEquals("41", response.items.single().bidId.toString())
         assertEquals("\"auction-3\"", response.items.single().auctionId.toString())
         assertEquals(58_000L, response.items.single().amount)
+        assertEquals("bid-41", response.nextCursor)
+        assertTrue(response.hasNext)
     }
 
     @Test

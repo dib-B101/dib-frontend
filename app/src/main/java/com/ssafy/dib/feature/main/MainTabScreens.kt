@@ -66,6 +66,9 @@ fun MyTradesScreen(
     remoteError: String?,
     bidsLoading: Boolean,
     bidsError: String?,
+    bidsHasNext: Boolean,
+    bidsLoadingMore: Boolean,
+    bidsLoadMoreError: String?,
     purchaseHasNext: Boolean,
     saleHasNext: Boolean,
     loadingMoreRole: OrderRole?,
@@ -73,6 +76,7 @@ fun MyTradesScreen(
     saleLoadMoreError: String?,
     onRetry: () -> Unit,
     onBidsRetry: () -> Unit,
+    onLoadMoreBids: () -> Unit,
     onLoadMoreOrders: (OrderRole) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -195,6 +199,22 @@ fun MyTradesScreen(
                             selectedLoadMoreError != null -> {
                                 Text(selectedLoadMoreError, color = Colors.Muted, fontSize = 11.sp)
                                 TextButton(onClick = { onLoadMoreOrders(selectedOrderRole) }) { Text("더 불러오기") }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!selectedLoading && selectedError == null && selected == TradeTab.Bid && (bidsHasNext || bidsLoadingMore || bidsLoadMoreError != null)) {
+                item(key = "load-more-bids") {
+                    LaunchedEffect(items.size, bidsHasNext, bidsLoadMoreError) {
+                        if (bidsHasNext && !bidsLoadingMore && bidsLoadMoreError == null) onLoadMoreBids()
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            bidsLoadingMore -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            bidsLoadMoreError != null -> {
+                                Text(bidsLoadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                TextButton(onClick = onLoadMoreBids) { Text("더 불러오기") }
                             }
                         }
                     }
