@@ -11,6 +11,15 @@ class AddressRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(ApiRoutes.MEMBER_ADDRESSES).get().build(), AddressListResponse.serializer())
     }
 
+    fun createAddress(request: CreateAddressRequest): ApiResult<AddressDto> = configured {
+        client.execute(
+            client.requestBuilder(ApiRoutes.MEMBER_ADDRESSES)
+                .post(client.jsonBody(request, CreateAddressRequest.serializer()))
+                .build(),
+            AddressDto.serializer()
+        )
+    }
+
     fun updateAddress(addressId: String, request: UpdateAddressRequest): ApiResult<AddressDto> = configured {
         val path = "${ApiRoutes.MEMBER_ADDRESSES}/$addressId"
         client.execute(client.requestBuilder(path).patch(client.jsonBody(request, UpdateAddressRequest.serializer())).build(), AddressDto.serializer())

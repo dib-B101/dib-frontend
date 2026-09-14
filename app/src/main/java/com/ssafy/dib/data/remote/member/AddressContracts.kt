@@ -15,6 +15,14 @@ data class AddressDto(
 )
 
 @Serializable
+data class CreateAddressRequest(
+    val number: String? = null,
+    val address: String,
+    val name: String,
+    val apiAddressId: JsonElement
+)
+
+@Serializable
 data class UpdateAddressRequest(
     val number: String? = null,
     val address: String? = null,
