@@ -11,6 +11,7 @@ import com.ssafy.dib.domain.order.OrderMessagePage
 import com.ssafy.dib.domain.order.OrderPage
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
+import com.ssafy.dib.domain.order.isOrderChatWritable
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -95,15 +96,17 @@ internal fun com.ssafy.dib.data.remote.order.OrderShippingAddressResponse.toDoma
 
 internal fun OrderSummaryDto.toDomain(): OrderSummary {
     val core = order
+    val resolvedStatus = status ?: core?.status ?: "PENDING"
     return OrderSummary(
         orderId = (orderId ?: core?.orderId).idValue(),
         auctionId = (auctionId ?: core?.auctionId ?: auction?.auctionId).idValue(),
         productId = (productId ?: core?.productId ?: product?.productId ?: auction?.productId).idValue(),
         title = product?.title ?: product?.name ?: auction?.title ?: "거래 상품",
         finalPrice = (finalPrice ?: amount ?: core?.finalPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-        status = status ?: core?.status ?: "PENDING",
+        status = resolvedStatus,
         updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt,
-        paymentId = payment?.paymentId.idValue().takeIf(String::isNotBlank)
+        paymentId = payment?.paymentId.idValue().takeIf(String::isNotBlank),
+        chattingReadOnly = chattingReadOnly ?: !isOrderChatWritable(resolvedStatus)
     )
 }
 

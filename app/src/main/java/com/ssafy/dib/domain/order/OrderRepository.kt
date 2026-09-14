@@ -12,8 +12,12 @@ data class OrderSummary(
     val finalPrice: Int,
     val status: String,
     val updatedAt: String?,
-    val paymentId: String? = null
+    val paymentId: String? = null,
+    val chattingReadOnly: Boolean = false
 )
+
+fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =
+    !serverReadOnly && status?.uppercase() !in setOf("CONFIRMED", "CANCELLED", "REFUNDED")
 
 data class OrderShipment(
     val orderId: String,

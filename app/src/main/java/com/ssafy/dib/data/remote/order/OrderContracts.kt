@@ -23,7 +23,8 @@ data class OrderSummaryDto(
     val order: OrderCoreDto? = null,
     val auction: OrderAuctionDto? = null,
     val product: OrderProductDto? = null,
-    val payment: OrderPaymentDto? = null
+    val payment: OrderPaymentDto? = null,
+    val chattingReadOnly: Boolean? = null
 )
 
 @Serializable
