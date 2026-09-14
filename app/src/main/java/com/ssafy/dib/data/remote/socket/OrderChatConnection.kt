@@ -19,10 +19,12 @@ class OrderChatConnection(
     private var lastChattingId: String? = null
     private var reconnectAttempt = 0
     private var reconnectTask: ScheduledFuture<*>? = null
+    @Volatile private var chatWritable = true
     private val pendingMessages = linkedMapOf<String, SocketEnvelope>()
     private var onMessage: (OrderMessage) -> Unit = {}
     private var onHistoryGap: () -> Unit = {}
     private var onError: (String) -> Unit = {}
+    private var onWritableChanged: (Boolean) -> Unit = {}
     private var onState: (RealtimeConnectionState) -> Unit = {}
 
     fun start(
@@ -31,6 +33,7 @@ class OrderChatConnection(
         onMessage: (OrderMessage) -> Unit,
         onHistoryGap: () -> Unit,
         onError: (String) -> Unit,
+        onWritableChanged: (Boolean) -> Unit,
         onState: (RealtimeConnectionState) -> Unit
     ) {
         stopSession()
@@ -39,6 +42,7 @@ class OrderChatConnection(
         this.onMessage = onMessage
         this.onHistoryGap = onHistoryGap
         this.onError = onError
+        this.onWritableChanged = onWritableChanged
         this.onState = onState
         active = true
         connect(RealtimeConnectionState.Connecting)
@@ -79,8 +83,12 @@ class OrderChatConnection(
                     SocketEventTypes.ORDER_SNAPSHOT -> {
                         val snapshotOrderId = envelope.payload["orderId"].idValueOrNull()
                         val serverLastChattingId = envelope.payload["lastChattingId"].idValueOrNull()
-                        if (snapshotOrderId == orderId && serverLastChattingId != null && serverLastChattingId != lastChattingId) {
-                            onHistoryGap()
+                        if (snapshotOrderId == orderId) {
+                            chatWritable = isOrderChatWritable(envelope.payload["status"].idValueOrNull())
+                            onWritableChanged(chatWritable)
+                            if (serverLastChattingId != null && serverLastChattingId != lastChattingId) {
+                                onHistoryGap()
+                            }
                         }
                     }
                     SocketEventTypes.ERROR -> runCatching {
@@ -108,7 +116,7 @@ class OrderChatConnection(
     @Synchronized
     fun send(content: String): Boolean {
         val value = content.trim()
-        if (!active || value.isBlank() || value.length > 500) return false
+        if (!active || !chatWritable || value.isBlank() || value.length > 500) return false
         val command = SocketCommands.sendChatMessage(orderId, value)
         command.commandId?.let { pendingMessages[it] = command }
         if (!socket.send(command)) scheduleReconnect()
@@ -136,6 +144,7 @@ class OrderChatConnection(
         reconnectTask?.cancel(false)
         reconnectTask = null
         active = false
+        chatWritable = true
         pendingMessages.clear()
         socket.disconnect()
     }
@@ -151,3 +160,6 @@ private fun kotlinx.serialization.json.JsonElement.idValue(): String =
 
 private fun kotlinx.serialization.json.JsonElement?.idValueOrNull(): String? =
     (this as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+
+internal fun isOrderChatWritable(status: String?): Boolean =
+    status?.uppercase() !in setOf("CONFIRMED", "CANCELLED", "REFUNDED")
