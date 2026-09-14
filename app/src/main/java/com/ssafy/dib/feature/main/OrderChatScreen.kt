@@ -31,6 +31,7 @@ fun OrderChatScreen(
     loadEarlierError: String?,
     errorMessage: String?,
     connectionState: RealtimeConnectionState?,
+    canSend: Boolean,
     onRetry: () -> Unit,
     onLoadEarlier: () -> Unit,
     onSend: (String) -> Boolean,
@@ -58,10 +59,18 @@ fun OrderChatScreen(
         },
         bottomBar = {
             Row(Modifier.fillMaxWidth().imePadding().background(Color.White).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(input, { input = it.take(500) }, Modifier.weight(1f), placeholder = { Text("메시지를 입력하세요") }, singleLine = true, shape = RoundedCornerShape(22.dp))
+                OutlinedTextField(
+                    input,
+                    { input = it.take(500) },
+                    Modifier.weight(1f),
+                    enabled = canSend,
+                    placeholder = { Text(if (canSend) "메시지를 입력하세요" else "종료된 거래에서는 채팅할 수 없어요") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(22.dp)
+                )
                 Button(
                     onClick = { if (onSend(input)) input = "" },
-                    enabled = input.isNotBlank() && connectionState == RealtimeConnectionState.Connected,
+                    enabled = canSend && input.isNotBlank() && connectionState == RealtimeConnectionState.Connected,
                     shape = RoundedCornerShape(20.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)

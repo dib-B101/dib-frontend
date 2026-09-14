@@ -1975,6 +1975,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var chatError by remember(orderId) { mutableStateOf<String?>(null) }
             var chatRevision by remember(orderId) { mutableStateOf(0) }
             var currentMemberId by remember(orderId) { mutableStateOf("") }
+            var chatWritable by remember(orderId) { mutableStateOf(false) }
             var chatConnectionState by remember(orderId) { mutableStateOf<RealtimeConnectionState?>(null) }
             var chatConnection by remember(orderId) { mutableStateOf<com.ssafy.dib.data.remote.socket.OrderChatConnection?>(null) }
 
@@ -1988,6 +1989,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 chatError = null
                 val messagesResult = withContext(Dispatchers.IO) { auth.orderRepository.getMessages(orderId) }
                 val memberResult = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }
+                val orderResult = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }
                 when (messagesResult) {
                     is ApiResult.Success -> {
                         chatMessages = messagesResult.value.items
@@ -1997,9 +1999,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Failure -> chatError = messagesResult.error.message.ifBlank { "채팅 내역을 불러오지 못했어요." }
                 }
                 if (memberResult is ApiResult.Success) currentMemberId = memberResult.value.memberId
+                if (orderResult is ApiResult.Success) {
+                    chatWritable = com.ssafy.dib.data.remote.socket.isOrderChatWritable(orderResult.value.status)
+                } else if (orderResult is ApiResult.Failure && chatError == null) {
+                    chatError = orderResult.error.message.ifBlank { "거래 상태를 확인하지 못했어요." }
+                }
                 if (
                     (messagesResult is ApiResult.Failure && messagesResult.error.requiresLogin) ||
-                    (memberResult is ApiResult.Failure && memberResult.error.requiresLogin)
+                    (memberResult is ApiResult.Failure && memberResult.error.requiresLogin) ||
+                    (orderResult is ApiResult.Failure && orderResult.error.requiresLogin)
                 ) signedIn = false
                 chatLoading = false
             }
@@ -2016,6 +2024,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             } },
                             onHistoryGap = { coroutineScope.launch { chatRevision++ } },
                             onError = { message -> coroutineScope.launch { chatError = message } },
+                            onWritableChanged = { writable -> coroutineScope.launch { chatWritable = writable } },
                             onState = { state -> coroutineScope.launch { chatConnectionState = state } }
                         )
                     }
@@ -2036,6 +2045,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 loadEarlierError = chatLoadEarlierError,
                 errorMessage = chatError,
                 connectionState = chatConnectionState,
+                canSend = chatWritable,
                 onRetry = { chatRevision++ },
                 onLoadEarlier = {
                     if (!chatLoadingEarlier && chatHasMore) {
