@@ -117,23 +117,33 @@ fun CategoryScreen(
             Text(selectedName ?: "카테고리", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(14.dp))
             if (selectedId == null) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    items(visibleCategories) { category ->
-                        Column(
-                            Modifier.height(88.dp).clickable { selectedId = category.id; selectedName = category.name; onCategorySelected(category.id) },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(Modifier.size(48.dp).background(category.surface, CircleShape), contentAlignment = Alignment.Center) {
-                                Text(category.icon, color = category.tint, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                if (visibleCategories.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("카테고리를 불러올 수 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("검색에서 상품명으로 경매를 찾아보세요", color = Colors.Muted, fontSize = 12.sp)
+                            OutlinedButton(onClick = onSearchClick) { Text("검색하기") }
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        items(visibleCategories) { category ->
+                            Column(
+                                Modifier.height(88.dp).clickable { selectedId = category.id; selectedName = category.name; onCategorySelected(category.id) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(Modifier.size(48.dp).background(category.surface, CircleShape), contentAlignment = Alignment.Center) {
+                                    Text(category.icon, color = category.tint, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(category.name, Modifier.padding(top = 8.dp), color = Colors.Navy, fontSize = 10.sp, maxLines = 1)
                             }
-                            Text(category.name, Modifier.padding(top = 8.dp), color = Colors.Navy, fontSize = 10.sp, maxLines = 1)
                         }
                     }
                 }

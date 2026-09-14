@@ -741,7 +741,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.Categories.route) {
-            var categoryList by remember { mutableStateOf<List<ProductCategory>?>(null) }
+            var categoryList by remember {
+                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured) emptyList() else null)
+            }
             var categoryAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
             var categoryLoading by remember { mutableStateOf(false) }
             var categoryError by remember { mutableStateOf<String?>(null) }
@@ -825,7 +827,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.Search.route) {
-            var searchCategories by remember { mutableStateOf<List<ProductCategory>?>(null) }
+            var searchCategories by remember {
+                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured) emptyList() else null)
+            }
             var searchAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
             var searchLoading by remember { mutableStateOf(false) }
             var searchError by remember { mutableStateOf<String?>(null) }
