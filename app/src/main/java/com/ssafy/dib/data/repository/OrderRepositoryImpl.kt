@@ -8,6 +8,7 @@ import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.domain.order.OrderMessagePage
+import com.ssafy.dib.domain.order.OrderPage
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
 import kotlinx.serialization.json.JsonPrimitive
@@ -15,9 +16,16 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
 class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepository {
-    override fun getOrders(role: OrderRole, size: Int): ApiResult<List<OrderSummary>> =
-        when (val result = remote.getOrders(role, size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map(OrderSummaryDto::toDomain), result.status)
+    override fun getOrders(role: OrderRole, cursor: String?, size: Int): ApiResult<OrderPage> =
+        when (val result = remote.getOrders(role, cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                OrderPage(
+                    items = result.value.items.map(OrderSummaryDto::toDomain),
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

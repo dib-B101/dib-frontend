@@ -16,7 +16,7 @@ class OrderContractTest {
     fun mapsFlatOrderSummary() {
         val response = DibJson.instance.decodeFromString(
             OrderListResponse.serializer(),
-            """{"items":[{"orderId":12,"auctionId":"auction-3","productId":7,"finalPrice":58000,"status":"SHIPPED","product":{"title":"필름 카메라"}}]}"""
+            """{"items":[{"orderId":12,"auctionId":"auction-3","productId":7,"finalPrice":58000,"status":"SHIPPED","product":{"title":"필름 카메라"}}],"nextCursor":"order-12","hasNext":true}"""
         )
 
         val order = response.items.single().toDomain()
@@ -27,6 +27,8 @@ class OrderContractTest {
         assertEquals("필름 카메라", order.title)
         assertEquals(58_000, order.finalPrice)
         assertEquals("SHIPPED", order.status)
+        assertEquals("order-12", response.nextCursor)
+        assertEquals(true, response.hasNext)
     }
 
     @Test

@@ -104,6 +104,13 @@ fun AppNavHost() {
     var auctionsRevision by remember { mutableStateOf(0) }
     var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
     var saleOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
+    var purchaseOrdersCursor by remember { mutableStateOf<String?>(null) }
+    var saleOrdersCursor by remember { mutableStateOf<String?>(null) }
+    var purchaseOrdersHasNext by remember { mutableStateOf(false) }
+    var saleOrdersHasNext by remember { mutableStateOf(false) }
+    var ordersLoadingMoreRole by remember { mutableStateOf<OrderRole?>(null) }
+    var purchaseOrdersLoadMoreError by remember { mutableStateOf<String?>(null) }
+    var saleOrdersLoadMoreError by remember { mutableStateOf<String?>(null) }
     var ordersLoading by remember { mutableStateOf(false) }
     var ordersError by remember { mutableStateOf<String?>(null) }
     var ordersRevision by remember { mutableStateOf(0) }
@@ -230,16 +237,26 @@ fun AppNavHost() {
         if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
         ordersLoading = true
         ordersError = null
+        purchaseOrdersLoadMoreError = null
+        saleOrdersLoadMoreError = null
         val (buyerResult, sellerResult) = withContext(Dispatchers.IO) {
             auth.orderRepository.getOrders(OrderRole.BUYER) to
                 auth.orderRepository.getOrders(OrderRole.SELLER)
         }
         when (buyerResult) {
-            is ApiResult.Success -> purchaseOrders = buyerResult.value
+            is ApiResult.Success -> {
+                purchaseOrders = buyerResult.value.items
+                purchaseOrdersCursor = buyerResult.value.nextCursor
+                purchaseOrdersHasNext = buyerResult.value.hasNext && !buyerResult.value.nextCursor.isNullOrBlank()
+            }
             is ApiResult.Failure -> ordersError = buyerResult.error.message.ifBlank { "구매 내역을 불러오지 못했어요." }
         }
         when (sellerResult) {
-            is ApiResult.Success -> saleOrders = sellerResult.value
+            is ApiResult.Success -> {
+                saleOrders = sellerResult.value.items
+                saleOrdersCursor = sellerResult.value.nextCursor
+                saleOrdersHasNext = sellerResult.value.hasNext && !sellerResult.value.nextCursor.isNullOrBlank()
+            }
             is ApiResult.Failure -> if (ordersError == null) {
                 ordersError = sellerResult.error.message.ifBlank { "판매 내역을 불러오지 못했어요." }
             }
@@ -1386,8 +1403,44 @@ fun AppNavHost() {
                 remoteError = ordersError,
                 bidsLoading = bidHistoryLoading,
                 bidsError = bidHistoryError,
+                purchaseHasNext = purchaseOrdersHasNext,
+                saleHasNext = saleOrdersHasNext,
+                loadingMoreRole = ordersLoadingMoreRole,
+                purchaseLoadMoreError = purchaseOrdersLoadMoreError,
+                saleLoadMoreError = saleOrdersLoadMoreError,
                 onRetry = { ordersRevision++ },
-                onBidsRetry = { bidHistoryRevision++ }
+                onBidsRetry = { bidHistoryRevision++ },
+                onLoadMoreOrders = { role ->
+                    val cursor = if (role == OrderRole.BUYER) purchaseOrdersCursor else saleOrdersCursor
+                    val hasNext = if (role == OrderRole.BUYER) purchaseOrdersHasNext else saleOrdersHasNext
+                    if (cursor != null && hasNext && ordersLoadingMoreRole == null) {
+                        ordersLoadingMoreRole = role
+                        if (role == OrderRole.BUYER) purchaseOrdersLoadMoreError = null else saleOrdersLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.orderRepository.getOrders(role, cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    if (role == OrderRole.BUYER) {
+                                        purchaseOrders = (purchaseOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
+                                        purchaseOrdersCursor = result.value.nextCursor
+                                        purchaseOrdersHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    } else {
+                                        saleOrders = (saleOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
+                                        saleOrdersCursor = result.value.nextCursor
+                                        saleOrdersHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    }
+                                }
+                                is ApiResult.Failure -> {
+                                    val message = result.error.message.ifBlank { "다음 거래 내역을 불러오지 못했어요." }
+                                    if (role == OrderRole.BUYER) purchaseOrdersLoadMoreError = message else saleOrdersLoadMoreError = message
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            ordersLoadingMoreRole = null
+                        }
+                    }
+                }
             )
         }
         composable(

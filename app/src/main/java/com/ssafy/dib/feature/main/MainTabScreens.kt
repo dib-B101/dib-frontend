@@ -33,6 +33,7 @@ import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.product.ProductCategory
@@ -65,8 +66,14 @@ fun MyTradesScreen(
     remoteError: String?,
     bidsLoading: Boolean,
     bidsError: String?,
+    purchaseHasNext: Boolean,
+    saleHasNext: Boolean,
+    loadingMoreRole: OrderRole?,
+    purchaseLoadMoreError: String?,
+    saleLoadMoreError: String?,
     onRetry: () -> Unit,
     onBidsRetry: () -> Unit,
+    onLoadMoreOrders: (OrderRole) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
@@ -93,6 +100,21 @@ fun MyTradesScreen(
     }
     val selectedLoading = if (selected == TradeTab.Bid) bidsLoading else remoteLoading
     val selectedError = if (selected == TradeTab.Bid) bidsError else remoteError
+    val selectedOrderRole = when (selected) {
+        TradeTab.Purchase -> OrderRole.BUYER
+        TradeTab.Sale -> OrderRole.SELLER
+        TradeTab.Bid -> null
+    }
+    val selectedHasNext = when (selected) {
+        TradeTab.Purchase -> purchaseHasNext
+        TradeTab.Sale -> saleHasNext
+        TradeTab.Bid -> false
+    }
+    val selectedLoadMoreError = when (selected) {
+        TradeTab.Purchase -> purchaseLoadMoreError
+        TradeTab.Sale -> saleLoadMoreError
+        TradeTab.Bid -> null
+    }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
@@ -159,6 +181,22 @@ fun MyTradesScreen(
                             TradeGridCard(item, Modifier.weight(1f)) { openTradeItem(selected, item, onProductClick, onTransactionClick) }
                         }
                         if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+            if (!selectedLoading && selectedError == null && selectedOrderRole != null && (selectedHasNext || loadingMoreRole == selectedOrderRole || selectedLoadMoreError != null)) {
+                item(key = "load-more-${selectedOrderRole.name}") {
+                    LaunchedEffect(selectedOrderRole, items.size, selectedHasNext, selectedLoadMoreError) {
+                        if (selectedHasNext && loadingMoreRole == null && selectedLoadMoreError == null) onLoadMoreOrders(selectedOrderRole)
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            loadingMoreRole == selectedOrderRole -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                            selectedLoadMoreError != null -> {
+                                Text(selectedLoadMoreError, color = Colors.Muted, fontSize = 11.sp)
+                                TextButton(onClick = { onLoadMoreOrders(selectedOrderRole) }) { Text("더 불러오기") }
+                            }
+                        }
                     }
                 }
             }
