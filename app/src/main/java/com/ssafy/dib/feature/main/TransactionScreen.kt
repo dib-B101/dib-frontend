@@ -48,6 +48,7 @@ import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
 import com.ssafy.dib.domain.payment.PaymentPreparation
+import com.ssafy.dib.domain.payment.Payment
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
 private enum class SellerStep { ShippingRequired, TrackingInput, Shipping, Settlement }
@@ -63,6 +64,9 @@ fun TransactionScreen(
     paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
+    completedPayment: Payment?,
+    completedPaymentLoading: Boolean,
+    completedPaymentError: String?,
     shipment: OrderShipment?,
     shipmentLoading: Boolean,
     shipmentError: String?,
@@ -91,6 +95,9 @@ fun TransactionScreen(
             paymentPreparation = paymentPreparation,
             paymentLoading = paymentLoading,
             paymentError = paymentError,
+            completedPayment = completedPayment,
+            completedPaymentLoading = completedPaymentLoading,
+            completedPaymentError = completedPaymentError,
             shipment = shipment,
             shipmentLoading = shipmentLoading,
             shipmentError = shipmentError,
@@ -124,6 +131,9 @@ private fun RemoteTransactionScreen(
     paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
+    completedPayment: Payment?,
+    completedPaymentLoading: Boolean,
+    completedPaymentError: String?,
     shipment: OrderShipment?,
     shipmentLoading: Boolean,
     shipmentError: String?,
@@ -193,6 +203,23 @@ private fun RemoteTransactionScreen(
                             ),
                             "거래 정보"
                         )
+                    }
+                    if (completedPaymentLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
+                    completedPaymentError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
+                    completedPayment?.let { payment ->
+                        item {
+                            InfoCard(
+                                listOf(
+                                    "결제 수단" to if (payment.type == "TRANSFER") "계좌이체" else "카드",
+                                    "결제 금액" to "${"%,d".format(payment.amount)}원",
+                                    "결제 일시" to payment.paidAt.orEmpty().take(16).replace('T', ' ').ifBlank { "확인 중" }
+                                ),
+                                "결제 정보"
+                            )
+                        }
+                        payment.receiptUrl?.takeIf(String::isNotBlank)?.let { receiptUrl ->
+                            item { OutlinedButton(onClick = { runCatching { uriHandler.openUri(receiptUrl) } }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("결제 영수증 보기", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
+                        }
                     }
                     if (shippingAddressLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
                     shippingAddressError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }

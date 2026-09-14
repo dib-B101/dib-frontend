@@ -1332,6 +1332,9 @@ fun AppNavHost() {
             var paymentLoading by remember(orderId) { mutableStateOf(false) }
             var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
             var paymentPrepareKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+            var completedPayment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.Payment?>(null) }
+            var completedPaymentLoading by remember(orderId) { mutableStateOf(false) }
+            var completedPaymentError by remember(orderId) { mutableStateOf<String?>(null) }
             var shipment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShipment?>(null) }
             var shipmentLoading by remember(orderId) { mutableStateOf(false) }
             var shipmentError by remember(orderId) { mutableStateOf<String?>(null) }
@@ -1352,6 +1355,19 @@ fun AppNavHost() {
                 when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }) {
                     is ApiResult.Success -> {
                         remoteOrder = result.value
+                        completedPayment = null
+                        completedPaymentError = null
+                        result.value.paymentId?.takeIf(String::isNotBlank)?.let { paymentId ->
+                            completedPaymentLoading = true
+                            when (val paymentResult = withContext(Dispatchers.IO) { auth.paymentRepository.getPayment(paymentId) }) {
+                                is ApiResult.Success -> completedPayment = paymentResult.value
+                                is ApiResult.Failure -> {
+                                    completedPaymentError = paymentResult.error.message.ifBlank { "결제 상세를 불러오지 못했어요." }
+                                    if (paymentResult.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            completedPaymentLoading = false
+                        }
                         if (result.value.status.uppercase() in setOf("SHIPPED", "DELIEVERED", "DELIVERED")) {
                             shipmentLoading = true
                             when (val shipmentResult = withContext(Dispatchers.IO) { auth.orderRepository.getShipment(orderId) }) {
@@ -1399,6 +1415,9 @@ fun AppNavHost() {
                 paymentPreparation = paymentPreparation,
                 paymentLoading = paymentLoading,
                 paymentError = paymentError,
+                completedPayment = completedPayment,
+                completedPaymentLoading = completedPaymentLoading,
+                completedPaymentError = completedPaymentError,
                 shipment = shipment,
                 shipmentLoading = shipmentLoading,
                 shipmentError = shipmentError,
@@ -1430,6 +1449,7 @@ fun AppNavHost() {
                                 remoteOrder = result.value
                                 if (result.value.status.uppercase() != "PENDING") {
                                     paymentPreparation = null
+                                    orderDetailRevision++
                                     ordersRevision++
                                 }
                             }

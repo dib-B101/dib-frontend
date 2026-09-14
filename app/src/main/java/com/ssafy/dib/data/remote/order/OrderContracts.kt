@@ -22,7 +22,18 @@ data class OrderSummaryDto(
     val createdAt: String? = null,
     val order: OrderCoreDto? = null,
     val auction: OrderAuctionDto? = null,
-    val product: OrderProductDto? = null
+    val product: OrderProductDto? = null,
+    val payment: OrderPaymentDto? = null
+)
+
+@Serializable
+data class OrderPaymentDto(
+    val paymentId: JsonElement? = null,
+    val orderId: JsonElement? = null,
+    val amount: Long? = null,
+    val type: String? = null,
+    val receiptUrl: String? = null,
+    val paidAt: String? = null
 )
 
 @Serializable
