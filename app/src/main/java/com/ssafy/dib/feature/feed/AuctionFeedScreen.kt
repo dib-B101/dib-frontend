@@ -34,10 +34,8 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
-import com.ssafy.dib.feature.auction.BidParticipationFields
+import com.ssafy.dib.feature.auction.BidDepositStatusNotice
 import com.ssafy.dib.feature.auction.BidSubmission
-import com.ssafy.dib.feature.auction.sampleBidAddresses
-import com.ssafy.dib.feature.auction.samplePaymentMethods
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
@@ -430,10 +428,8 @@ private fun FeedBidSheet(
 ) {
     val minimum = currentPrice + 1
     var amountText by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
-    var paymentMethodId by rememberSaveable { mutableStateOf(samplePaymentMethods.first().id) }
-    var addressId by rememberSaveable { mutableStateOf(sampleBidAddresses.first().id) }
     val amount = amountText.toIntOrNull() ?: 0
-    val valid = amount >= minimum && paymentMethodId.isNotBlank() && addressId.isNotBlank()
+    val valid = amount >= minimum
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -468,12 +464,7 @@ private fun FeedBidSheet(
                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 shape = RoundedCornerShape(12.dp)
             )
-            BidParticipationFields(
-                selectedPaymentMethodId = paymentMethodId,
-                onPaymentMethodSelected = { paymentMethodId = it },
-                selectedAddressId = addressId,
-                onAddressSelected = { addressId = it }
-            )
+            BidDepositStatusNotice(depositPaid = false, depositAmount = maxOf(1_000, amount / 10))
             Text(
                 if (valid) "첫 입찰 보증금 ${"%,d".format(maxOf(1_000, amount / 10))}원이 필요해요" else "현재가보다 큰 금액을 입력해주세요",
                 color = if (valid) Color(0xFF6B6B6B) else Color(0xFFB34821),
@@ -481,7 +472,7 @@ private fun FeedBidSheet(
                 fontWeight = FontWeight.Medium
             )
             Button(
-                onClick = { onConfirm(BidSubmission(amount, paymentMethodId, addressId)) },
+                onClick = { onConfirm(BidSubmission(amount)) },
                 enabled = valid,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
