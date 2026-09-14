@@ -680,6 +680,38 @@ fun AppNavHost() {
             var searchHasNext by remember { mutableStateOf(false) }
             var searchLoadingMore by remember { mutableStateOf(false) }
             var searchLoadMoreError by remember { mutableStateOf<String?>(null) }
+            var matchingProductIds by remember { mutableStateOf<Set<String>?>(null) }
+            var matchingProductFilterKey by remember { mutableStateOf<String?>(null) }
+
+            suspend fun loadMatchingProductIds(filters: AuctionSearchFilters): Set<String>? {
+                val ids = linkedSetOf<String>()
+                val visitedCursors = mutableSetOf<String>()
+                var cursor: String? = null
+                do {
+                    when (val products = withContext(Dispatchers.IO) {
+                        auth.productRepository.searchProducts(
+                            query = filters.query,
+                            categoryId = filters.categoryId,
+                            cursor = cursor
+                        )
+                    }) {
+                        is ApiResult.Success -> {
+                            ids += products.value.items.map { it.productId }
+                            val nextCursor = products.value.nextCursor
+                            if (!products.value.hasNext || nextCursor.isNullOrBlank() || !visitedCursors.add(nextCursor)) {
+                                cursor = null
+                            } else {
+                                cursor = nextCursor
+                            }
+                        }
+                        is ApiResult.Failure -> {
+                            if (products.error.requiresLogin) signedIn = false
+                            return null
+                        }
+                    }
+                } while (cursor != null)
+                return ids
+            }
 
             fun search(filters: AuctionSearchFilters, cursor: String? = null, append: Boolean = false) {
                 lastSearchFilters = filters
@@ -691,6 +723,16 @@ fun AppNavHost() {
                 if (append) searchLoadingMore = true else searchLoading = true
                 if (append) searchLoadMoreError = null else searchError = null
                 coroutineScope.launch {
+                    val productFilterKey = "${filters.query.trim()}|${filters.categoryId.orEmpty()}"
+                    val productIds = when {
+                        filters.query.isBlank() -> null
+                        signedIn != true -> null
+                        append && matchingProductFilterKey == productFilterKey -> matchingProductIds
+                        else -> loadMatchingProductIds(filters).also {
+                            matchingProductIds = it
+                            matchingProductFilterKey = productFilterKey
+                        }
+                    }
                     val result = withContext(Dispatchers.IO) {
                         auth.auctionRepository.getGeneralAuctions(
                             size = 20,
@@ -705,19 +747,8 @@ fun AppNavHost() {
                         is ApiResult.Success -> {
                             val filtered = if (filters.query.isBlank()) {
                                 result.value.items
-                            } else if (signedIn == true) {
-                                when (val products = withContext(Dispatchers.IO) {
-                                    auth.productRepository.searchProducts(filters.query, filters.categoryId)
-                                }) {
-                                    is ApiResult.Success -> {
-                                        val matchingProductIds = products.value.map { it.productId }.toSet()
-                                        result.value.items.filter { it.productId in matchingProductIds }
-                                    }
-                                    is ApiResult.Failure -> {
-                                        if (products.error.requiresLogin) signedIn = false
-                                        result.value.items.filter { it.title.contains(filters.query, ignoreCase = true) }
-                                    }
-                                }
+                            } else if (productIds != null) {
+                                result.value.items.filter { it.productId in productIds }
                             } else {
                                 result.value.items.filter { it.title.contains(filters.query, ignoreCase = true) }
                             }
