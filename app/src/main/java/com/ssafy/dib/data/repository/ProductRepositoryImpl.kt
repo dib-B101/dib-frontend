@@ -12,6 +12,7 @@ import com.ssafy.dib.domain.product.ProductDetail
 import com.ssafy.dib.domain.product.ProductUpdate
 import com.ssafy.dib.domain.product.ProductUpdateResult
 import com.ssafy.dib.domain.product.RegisteredProduct
+import com.ssafy.dib.domain.product.RegisteredProductPage
 import com.ssafy.dib.domain.product.ProductRepository
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -30,9 +31,16 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
-    override fun getMyProducts(status: String?, size: Int): ApiResult<List<RegisteredProduct>> =
-        when (val result = remote.getMyProducts(status, size)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.items.map(ProductCardDto::toDomain), result.status)
+    override fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<RegisteredProductPage> =
+        when (val result = remote.getMyProducts(status, cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                RegisteredProductPage(
+                    items = result.value.items.map(ProductCardDto::toDomain),
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 

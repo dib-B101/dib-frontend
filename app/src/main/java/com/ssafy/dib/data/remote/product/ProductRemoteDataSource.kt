@@ -32,10 +32,11 @@ class ProductRemoteDataSource(
         client.execute(client.requestBuilder(path).get().build(), ProductDetailResponse.serializer())
     }
 
-    fun getMyProducts(status: String?, size: Int): ApiResult<ProductListResponse> = configured {
+    fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.MEMBERS_ME}/products"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
         status?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("status", it) }
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
     }
 

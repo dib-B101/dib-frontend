@@ -63,7 +63,7 @@ class ProductContractTest {
     fun myProductCardMapsModerationState() {
         val response = DibJson.instance.decodeFromString(
             ProductListResponse.serializer(),
-            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","status":"REGISTERED","thumbnailUrl":"https://cdn.example/mug.jpg"}],"hasNext":false}"""
+            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","status":"REGISTERED","thumbnailUrl":"https://cdn.example/mug.jpg"}],"nextCursor":"product-12","hasNext":true}"""
         )
 
         val product = response.items.single().toDomain()
@@ -72,6 +72,8 @@ class ProductContractTest {
         assertEquals("달빛 유약 머그컵", product.title)
         assertEquals("REGISTERED", product.status)
         assertEquals("https://cdn.example/mug.jpg", product.thumbnailUrl)
+        assertEquals("product-12", response.nextCursor)
+        assertTrue(response.hasNext)
     }
 
     @Test
