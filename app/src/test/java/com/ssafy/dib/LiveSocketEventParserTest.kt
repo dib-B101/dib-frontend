@@ -74,4 +74,23 @@ class LiveSocketEventParserTest {
         assertEquals("오늘의 경매", update.liveTitle)
         assertEquals("https://stream.example/live-1.m3u8", update.streamUrl)
     }
+
+    @Test
+    fun `live ended identifies the broadcast to remove from feed`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_ENDED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("viewCount", 57)
+                    put("endedAt", "2026-09-14T09:30:00Z")
+                }
+            )
+        )!!
+
+        assertEquals("live-1", update.liveBroadcastId)
+        assertEquals("ENDED", update.status)
+        assertEquals(57, update.viewerCount)
+        assertEquals("Live 방송이 종료됐어요.", update.message)
+    }
 }

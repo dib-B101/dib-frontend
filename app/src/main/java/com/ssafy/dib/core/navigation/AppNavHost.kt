@@ -1049,6 +1049,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             } },
                             onUpdate = { update -> coroutineScope.launch {
                                 val targetLiveId = update.liveBroadcastId ?: liveId
+                                if (update.eventType == SocketEventTypes.LIVE_ENDED) {
+                                    liveFeedItems = liveFeedItems?.filterNot {
+                                        it.liveBroadcastId == targetLiveId
+                                    }
+                                    liveAuctionLists = liveAuctionLists - targetLiveId
+                                    if (activeLiveBroadcastId == targetLiveId) {
+                                        activeLiveBroadcastId = null
+                                        pendingLiveBidCommandId = null
+                                        liveBidFeedback = null
+                                    }
+                                    liveFeedRevision++
+                                    return@launch
+                                }
                                 liveFeedItems = liveFeedItems?.map { item ->
                                     if (item.liveBroadcastId != targetLiveId) return@map item
                                     val current = item.currentAuction
