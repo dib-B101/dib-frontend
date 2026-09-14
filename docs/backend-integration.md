@@ -29,7 +29,7 @@ DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 - 마이: 문의·신고·정산 cursor 목록과 상세, 정산 계좌, 배송지 조회·수정·삭제
 - 배송지 등록: `POST /api/v1/members/me/addresses` DTO와 repository 계약까지 구현
 
-REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 세션이면 `X-Guest-Session-Id`를 사용한다. 공통 오류의 목표 계약과 축약 계약을 모두 해석하며, 변경 요청 자동 재시도는 `Idempotency-Key`가 있을 때만 허용한다.
+REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 세션이면 `X-Guest-Session-Id`를 사용한다. 인증된 요청이 401을 받으면 Refresh rotation을 한 번 수행하고 새 Access Token으로 원래 요청을 한 번만 재시도한다. 동시에 여러 요청이 만료되어도 먼저 갱신된 토큰을 재사용한다. 공통 오류의 목표 계약과 축약 계약을 모두 해석하며, 변경 요청 자동 재시도는 `Idempotency-Key`가 있을 때만 허용한다.
 
 ## 확정이 필요한 외부 계약
 

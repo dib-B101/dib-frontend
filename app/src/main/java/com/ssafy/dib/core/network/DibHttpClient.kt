@@ -15,6 +15,7 @@ class DibHttpClient(
     private val config: NetworkConfig,
     accessTokenProvider: AccessTokenProvider,
     guestSessionProvider: GuestSessionProvider,
+    tokenRefresher: AccessTokenRefresher? = null,
     private val json: Json = DibJson.instance,
     private val errorParser: ApiErrorParser = ApiErrorParser(json),
     baseClient: OkHttpClient = OkHttpClient()
@@ -29,6 +30,25 @@ class DibHttpClient(
                 builder.header("X-Guest-Session-Id", it)
             }
             chain.proceed(builder.build())
+        }
+        .authenticator { _, response ->
+            val failedToken = response.request.header("Authorization")
+                ?.removePrefix("Bearer ")
+                ?.takeIf(String::isNotBlank)
+            if (
+                tokenRefresher == null ||
+                failedToken == null ||
+                response.request.url.encodedPath == TOKEN_REFRESH_PATH ||
+                response.retryCount() >= MAX_AUTH_ATTEMPTS
+            ) {
+                null
+            } else {
+                tokenRefresher.refresh(failedToken)?.let { refreshedToken ->
+                    response.request.newBuilder()
+                        .header("Authorization", "Bearer $refreshedToken")
+                        .build()
+                }
+            }
         }
         .build()
 
@@ -99,5 +119,21 @@ class DibHttpClient(
 
     companion object {
         private const val JSON_MEDIA_TYPE = "application/json"
+        private const val TOKEN_REFRESH_PATH = "/api/v1/auth/token/refresh"
+        private const val MAX_AUTH_ATTEMPTS = 2
     }
+}
+
+fun interface AccessTokenRefresher {
+    fun refresh(failedAccessToken: String): String?
+}
+
+private fun okhttp3.Response.retryCount(): Int {
+    var count = 1
+    var previous = priorResponse
+    while (previous != null) {
+        count++
+        previous = previous.priorResponse
+    }
+    return count
 }

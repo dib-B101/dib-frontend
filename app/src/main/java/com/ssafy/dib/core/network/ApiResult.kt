@@ -20,6 +20,7 @@ data class ApiFailure(
     val requiresLogin: Boolean
         get() = code in setOf(
             "UNAUTHORIZED",
+            "ACCESS_TOKEN_EXPIRED",
             "REFRESH_TOKEN_EXPIRED",
             "SESSION_REVOKED",
             "DEVICE_MISMATCH"
