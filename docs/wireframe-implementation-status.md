@@ -28,6 +28,7 @@ Figma `01_Wireframe`를 디자인과 상태 정의 기준으로 사용하고, Co
 - 차순위 구매 제안 API
 - 유사 상품에서 활성 auctionId를 찾는 계약
 - REST 알림 내역·읽음 처리 API
+- 판매자 공개 프로필·후기·판매 경매 목록 API
 - 실제 Live 송출 SDK와 장애 복구 규칙
 
 세부 endpoint와 검증 순서는 [backend-integration.md](backend-integration.md)를 따른다.
