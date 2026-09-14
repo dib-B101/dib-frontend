@@ -57,6 +57,7 @@ fun ProductDetailScreen(
     productId: String,
     remoteAuction: HomeAuction?,
     productDetail: ProductDetail?,
+    showSampleContent: Boolean,
     remoteLoading: Boolean,
     remoteError: String?,
     onRetry: () -> Unit,
@@ -90,7 +91,34 @@ fun ProductDetailScreen(
     onDepositPayment: (BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val product = remoteAuction ?: allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
+    val product = remoteAuction ?: if (showSampleContent) {
+        allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
+    } else null
+    if (product == null) {
+        Scaffold(
+            modifier = modifier.fillMaxSize().safeDrawingPadding(),
+            containerColor = Colors.Background,
+            contentColor = Colors.Text,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = { DetailAppBar(onBack = onBack, onShare = {}) }
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (remoteLoading) {
+                        CircularProgressIndicator(color = Colors.Navy)
+                        Text("경매 정보를 불러오고 있어요", color = Colors.Muted, fontSize = 13.sp)
+                    } else {
+                        Text("경매 정보를 불러오지 못했어요", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(remoteError ?: "잠시 후 다시 시도해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
+                            Text("다시 불러오기")
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     val productName = productDetail?.title ?: product.name
     val productImages = productDetail?.imageUrls?.takeIf { it.isNotEmpty() } ?: product.imageUrls
     val context = LocalContext.current

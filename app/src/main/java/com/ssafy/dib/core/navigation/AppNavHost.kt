@@ -1335,7 +1335,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
             }
             var remoteProduct by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
-            var detailLoading by remember(productId) { mutableStateOf(false) }
+            var detailLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var detailError by remember(productId) { mutableStateOf<String?>(null) }
             var detailRevision by remember(productId) { mutableStateOf(0) }
             var realtimeState by remember(productId) { mutableStateOf<RealtimeConnectionState?>(null) }
@@ -1478,6 +1478,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 productId = productId,
                 remoteAuction = remoteDetail,
                 productDetail = remoteProduct,
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
