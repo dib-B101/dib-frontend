@@ -21,8 +21,15 @@ android {
 
         val apiBaseUrl = providers.gradleProperty("DIB_API_BASE_URL").orElse("").get()
         val webSocketUrl = providers.gradleProperty("DIB_WS_URL").orElse("").get()
+        val sessionIdleTimeoutMinutes = providers.gradleProperty("DIB_SESSION_IDLE_TIMEOUT_MINUTES")
+            .orElse("30")
+            .get()
+            .toLongOrNull()
+            ?.takeIf { it > 0 }
+            ?: 30L
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "WEB_SOCKET_URL", "\"${webSocketUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("long", "SESSION_IDLE_TIMEOUT_MILLIS", "${sessionIdleTimeoutMinutes * 60_000L}L")
     }
 
     buildTypes {
