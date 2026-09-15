@@ -369,8 +369,8 @@ fun MyPageScreen(
             item { Text("바로가기", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf("♡" to "찜한 상품", "▣" to "등록 상품", "♧" to "알림", "◉" to "문의 내역").forEach { (icon,label) ->
-                        Column(Modifier.width(76.dp).clickable { when(label) { "찜한 상품" -> onFavoritesClick(); "등록 상품" -> onRegisteredProductsClick(); "알림" -> onNotificationsClick(); else -> onInquiriesClick() } }, horizontalAlignment = Alignment.CenterHorizontally) { Box(Modifier.size(40.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) { Text(icon, color = Colors.Navy, fontSize = 22.sp) }; Text(label, Modifier.padding(top = 5.dp), color = Colors.Muted, fontSize = 11.sp) }
+                    listOf("♡" to "찜한 경매", "▣" to "등록 상품", "♧" to "알림", "◉" to "문의 내역").forEach { (icon,label) ->
+                        Column(Modifier.width(76.dp).clickable { when(label) { "찜한 경매" -> onFavoritesClick(); "등록 상품" -> onRegisteredProductsClick(); "알림" -> onNotificationsClick(); else -> onInquiriesClick() } }, horizontalAlignment = Alignment.CenterHorizontally) { Box(Modifier.size(40.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) { Text(icon, color = Colors.Navy, fontSize = 22.sp) }; Text(label, Modifier.padding(top = 5.dp), color = Colors.Muted, fontSize = 11.sp) }
                     }
                 }
             }
