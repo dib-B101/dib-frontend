@@ -110,6 +110,7 @@ fun LiveFeedScreen(
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
+    onReportAuction: (String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
@@ -170,6 +171,7 @@ fun LiveFeedScreen(
                     onFavoriteChange = onFavoriteChange,
                     onDismissFavoriteError = onDismissFavoriteError,
                     onLoginRequired = onLoginRequired,
+                    onReportAuction = onReportAuction,
                     onReportParticipant = onReportParticipant,
                     onDismissReport = onDismissReport,
                         onDepositPayment = onDepositPayment
@@ -222,6 +224,7 @@ private fun LiveFeedPage(
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
+    onReportAuction: (String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
@@ -242,6 +245,7 @@ private fun LiveFeedPage(
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
+    var showReportTypes by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
     var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) {
         mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: if (isSampleContent) 34_500 else 0)
@@ -392,6 +396,9 @@ private fun LiveFeedPage(
                     }
                 }
                 LiveAction("···", Color.White) { showProducts = true }
+                LiveAction("!", Color.White) {
+                    if (isAuthenticated) showReportTypes = true else onLoginRequired()
+                }
             }
         }
         AnimatedVisibility(
@@ -483,6 +490,35 @@ private fun LiveFeedPage(
         }
     }
 
+    if (showReportTypes) ModalBottomSheet(onDismissRequest = { showReportTypes = false }, containerColor = Color.White) {
+        Column(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("무엇을 신고할까요?", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                auctionKey?.let { "경매 ID $it" } ?: "현재 진행 중인 경매가 없어요.",
+                color = Colors.Muted,
+                fontSize = 10.sp
+            )
+            LiveReportTypeAction(
+                title = "상품 신고",
+                description = "현재 경매 상품의 정보·설명을 신고",
+                enabled = auctionKey != null
+            ) {
+                showReportTypes = false
+                auctionKey?.let(onReportAuction)
+            }
+            LiveReportTypeAction(
+                title = "회원·채팅 신고",
+                description = "신고할 댓글의 작성자와 메시지를 선택",
+                enabled = true
+            ) {
+                showReportTypes = false
+                showComments = true
+            }
+        }
+    }
     if (showProducts) ModalBottomSheet(onDismissRequest = { showProducts = false }, containerColor = Color.White) {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp).navigationBarsPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val displayedAuctions = if (liveItem == null && productAuctions.isEmpty()) emptyList() else productAuctions
@@ -540,7 +576,7 @@ private fun LiveFeedPage(
                 Surface(
                     color = Color(0xFFF4F6F8),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().clickable {
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = message.memberId != currentMemberId) {
                         if (isAuthenticated) {
                             showComments = false
                             reportTarget = message
@@ -662,6 +698,21 @@ private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
+    }
+}
+
+@Composable
+private fun LiveReportTypeAction(title: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = Color(0xFFF8F9FB),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().height(62.dp).graphicsLayer(alpha = if (enabled) 1f else .5f)
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(description, color = Colors.Muted, fontSize = 10.sp)
+        }
     }
 }
 
