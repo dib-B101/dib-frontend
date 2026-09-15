@@ -3409,19 +3409,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var withdrawalLoading by remember { mutableStateOf(false) }
             var withdrawalError by remember { mutableStateOf<String?>(null) }
             var withdrawalBlockingMessage by remember { mutableStateOf<String?>(null) }
-            var withdrawalCompleted by remember { mutableStateOf(false) }
+            var withdrawalResult by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberWithdrawal?>(null) }
             WithdrawalScreen(
                 isSubmitting = withdrawalLoading,
                 errorMessage = withdrawalError,
                 blockingMessage = withdrawalBlockingMessage,
-                completed = withdrawalCompleted,
+                withdrawal = withdrawalResult,
                 onSubmit = {
                     withdrawalLoading = true
                     withdrawalError = null
                     withdrawalBlockingMessage = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.memberRepository.requestWithdrawal() }) {
-                            is ApiResult.Success -> withdrawalCompleted = true
+                            is ApiResult.Success -> withdrawalResult = result.value
                             is ApiResult.Failure -> {
                                 when (result.error.code) {
                                     "ACTIVE_ORDER_EXISTS" -> withdrawalBlockingMessage = "진행 중인 주문을 모두 완료한 뒤 다시 시도해주세요."

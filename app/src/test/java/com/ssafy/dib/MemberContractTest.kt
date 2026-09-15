@@ -6,8 +6,10 @@ import com.ssafy.dib.data.remote.member.MemberProfileUpdateRequest
 import com.ssafy.dib.data.remote.member.MemberWithdrawalRequest
 import com.ssafy.dib.data.remote.member.MemberWithdrawalResponse
 import com.ssafy.dib.data.repository.toDomain
+import com.ssafy.dib.feature.main.withdrawalTimeLabel
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.ZoneId
 
 class MemberContractTest {
     @Test
@@ -48,5 +50,13 @@ class MemberContractTest {
 
         assertEquals("{}", encoded)
         assertEquals("WITHDRAWN", response.status)
+    }
+
+    @Test
+    fun withdrawalScheduleUsesTheDisplayedLocalTimeZone() {
+        assertEquals(
+            "2026년 9월 20일 18:00",
+            withdrawalTimeLabel("2026-09-20T09:00:00Z", ZoneId.of("Asia/Seoul"))
+        )
     }
 }
