@@ -1336,6 +1336,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     if (productId in depositPaidProductIds) {
                         backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
                     } else {
+                        val auction = liveAuctionLists.values.asSequence().flatten().firstOrNull { it.auctionId == productId }
+                            ?: liveFeedItems?.firstNotNullOfOrNull { it.currentAuction?.takeIf { active -> active.auctionId == productId } }
+                        backStackEntry.savedStateHandle["depositProductName"] = auction?.title
+                        backStackEntry.savedStateHandle["depositRemainingSeconds"] = auction?.remainingSeconds
                         navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
                     }
                 }
@@ -1627,6 +1631,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     if (productId in depositPaidProductIds) {
                         backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
                     } else {
+                        backStackEntry.savedStateHandle["depositProductName"] = remoteProduct?.title ?: remoteDetail?.name
+                        backStackEntry.savedStateHandle["depositRemainingSeconds"] = remoteDetail?.remainingSeconds
                         navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
                     }
                 }
@@ -3466,6 +3472,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         ) { backStackEntry ->
             val auctionId = backStackEntry.arguments?.getString("auctionId").orEmpty()
             val bidAmount = backStackEntry.arguments?.getInt("bidAmount") ?: 0
+            val sourceState = navController.previousBackStackEntry?.savedStateHandle
             var preparedDeposit by remember { mutableStateOf<com.ssafy.dib.domain.auction.BidDeposit?>(null) }
             var depositProcessing by remember { mutableStateOf(false) }
             var depositError by remember { mutableStateOf<String?>(null) }
@@ -3508,6 +3515,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             BidDepositPaymentScreen(
                 auctionId = auctionId,
                 bidAmount = bidAmount,
+                productName = sourceState?.get<String>("depositProductName"),
+                remainingSeconds = sourceState?.get<Int>("depositRemainingSeconds"),
                 preparedDeposit = preparedDeposit,
                 isProcessing = depositProcessing,
                 errorMessage = depositError,
