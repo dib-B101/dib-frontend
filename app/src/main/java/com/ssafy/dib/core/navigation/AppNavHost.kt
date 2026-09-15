@@ -1359,6 +1359,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onDismissFavoriteError = { liveFavoriteError = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
+                onReportAuction = { auctionId ->
+                    navController.navigate(Screen.ProductReport.createRoute(auctionId))
+                },
                 onReportParticipant = { liveBroadcastId, memberId, content ->
                     if (signedIn != true) {
                         navController.navigate(Screen.Login.route)
