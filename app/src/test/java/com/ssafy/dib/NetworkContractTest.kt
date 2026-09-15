@@ -15,6 +15,7 @@ import com.ssafy.dib.data.remote.socket.SocketCommands
 import com.ssafy.dib.data.remote.socket.SocketEnvelope
 import com.ssafy.dib.data.remote.socket.SocketEventGate
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
+import com.ssafy.dib.data.remote.socket.SocketUpdateFreshnessGate
 import com.ssafy.dib.data.remote.socket.LiveSocketEventParser
 import java.time.Instant
 import kotlinx.serialization.json.buildJsonObject
@@ -29,6 +30,16 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class NetworkContractTest {
+    @Test
+    fun socketFreshnessRejectsOlderStateAndKeepsRecoveryCursor() {
+        val gate = SocketUpdateFreshnessGate()
+
+        assertTrue(gate.shouldHandle("auction:3", "2026-09-15T05:00:00Z"))
+        assertFalse(gate.shouldHandle("auction:3", "2026-09-15T04:59:59Z"))
+        assertTrue(gate.shouldHandle("auction:3", "2026-09-15T05:00:01Z"))
+        assertEquals("2026-09-15T05:00:01Z", gate.lastKnown("auction:3"))
+    }
+
     @Test
     fun commonErrorParserSupportsTargetContract() {
         val error = ApiErrorParser().parse(
