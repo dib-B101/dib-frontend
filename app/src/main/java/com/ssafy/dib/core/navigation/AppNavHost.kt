@@ -290,7 +290,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             }
         }
         while (signedIn == true) {
-            val current = withContext(Dispatchers.IO) { auth.repository.currentSession() } ?: break
+            val current = withContext(Dispatchers.IO) { auth.repository.currentSession() }
+            if (current == null) {
+                signedIn = false
+                break
+            }
             val waitMillis = max(5_000L, current.accessExpiresAtEpochMillis - System.currentTimeMillis() - 60_000L)
             delay(waitMillis)
             when (val refreshed = withContext(Dispatchers.IO) { auth.repository.refresh(auth.deviceId) }) {
@@ -1714,7 +1718,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     )
                                 }) {
                                     is ApiResult.Success -> productResult = result.value
-                                    is ApiResult.Failure -> productSubmitError = productSubmissionMessage(result.error)
+                                    is ApiResult.Failure -> {
+                                        productSubmitError = productSubmissionMessage(result.error)
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             },
                             onFailure = { productSubmitError = it.message ?: "선택한 사진을 읽지 못했어요." }
@@ -2233,7 +2240,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 availableLiveAuctionsLoadMoreError = null
                 val profile = memberProfile ?: when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
                     is ApiResult.Success -> result.value.also { memberProfile = it }
-                    is ApiResult.Failure -> null
+                    is ApiResult.Failure -> {
+                        if (result.error.requiresLogin) signedIn = false
+                        null
+                    }
                 }
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMine() }) {
                     is ApiResult.Success -> {
@@ -2244,7 +2254,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         result.value.items.filter { it.status == "SCHEDULED" || it.status == "LIVE" }.forEach { live ->
                             when (val detail = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(live.liveBroadcastId) }) {
                                 is ApiResult.Success -> loadedAssignments[live.liveBroadcastId] = detail.value.auctions
-                                is ApiResult.Failure -> Unit
+                                is ApiResult.Failure -> if (detail.error.requiresLogin) signedIn = false
                             }
                         }
                         assignedAuctions = loadedAssignments
@@ -2302,7 +2312,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                             auth.liveRepository.getDetail(live.liveBroadcastId)
                                         }) {
                                             is ApiResult.Success -> loadedAssignments[live.liveBroadcastId] = detail.value.auctions
-                                            is ApiResult.Failure -> Unit
+                                            is ApiResult.Failure -> if (detail.error.requiresLogin) signedIn = false
                                         }
                                     }
                                     assignedAuctions = loadedAssignments
@@ -2580,7 +2590,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.requestSensitivePhoneVerification(phone) }) {
                             is ApiResult.Success -> settlementChallengeId = result.value.verificationId
-                            is ApiResult.Failure -> settlementActionError = signupErrorMessage(result.error)
+                            is ApiResult.Failure -> {
+                                settlementActionError = signupErrorMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         settlementActionLoading = false
                     }
@@ -2592,7 +2605,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
                             is ApiResult.Success -> settlementVerificationToken = result.value.verificationToken
-                            is ApiResult.Failure -> settlementActionError = signupErrorMessage(result.error)
+                            is ApiResult.Failure -> {
+                                settlementActionError = signupErrorMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         settlementActionLoading = false
                     }
@@ -3063,6 +3079,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                             "FILE_COUNT_EXCEEDED" -> "상품 이미지는 최대 10장까지 등록할 수 있어요."
                                             else -> result.error.message.ifBlank { "상품을 수정하지 못했어요." }
                                         }
+                                        if (result.error.requiresLogin) signedIn = false
                                     }
                                 }
                             },
@@ -3120,7 +3137,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.updateAuction(auctionId, startPrice, auctionTime) }) {
                             is ApiResult.Success -> createResult = result.value
-                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
+                            is ApiResult.Failure -> {
+                                commandError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         commandLoading = false
                     }
@@ -3132,7 +3152,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.cancelAuction(auctionId, cancelKey) }) {
                             is ApiResult.Success -> { auctionCancelled = true; auctionsRevision++ }
-                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
+                            is ApiResult.Failure -> {
+                                commandError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         commandLoading = false
                     }
@@ -3144,7 +3167,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, startKey) }) {
                             is ApiResult.Success -> { auctionStarted = true; auctionsRevision++ }
-                            is ApiResult.Failure -> commandError = auctionCommandError(result.error)
+                            is ApiResult.Failure -> {
+                                commandError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         commandLoading = false
                     }
@@ -3239,7 +3265,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             auth.inquiryRepository.getInquiry(questionId)
                         }) {
                             is ApiResult.Success -> selectedInquiry = result.value
-                            is ApiResult.Failure -> inquiryDetailError = result.error.message.ifBlank { "문의 상세를 불러오지 못했어요." }
+                            is ApiResult.Failure -> {
+                                inquiryDetailError = result.error.message.ifBlank { "문의 상세를 불러오지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         inquiryDetailLoading = false
                     }
@@ -3260,9 +3289,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 inquirySubmissionRevision++
                                 inquiriesRevision++
                             }
-                            is ApiResult.Failure -> inquirySubmitError = when (result.error.code) {
-                                "INVALID_QUESTION" -> "제목과 문의 내용을 확인해주세요."
-                                else -> result.error.message.ifBlank { "문의를 등록하지 못했어요." }
+                            is ApiResult.Failure -> {
+                                inquirySubmitError = when (result.error.code) {
+                                    "INVALID_QUESTION" -> "제목과 문의 내용을 확인해주세요."
+                                    else -> result.error.message.ifBlank { "문의를 등록하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
                             }
                         }
                         inquirySubmitLoading = false
@@ -3443,7 +3475,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             auth.reportRepository.reportMember(memberId, content)
                         }) {
                             is ApiResult.Success -> submitted = true
-                            is ApiResult.Failure -> reportError = reportSubmissionMessage(result.error)
+                            is ApiResult.Failure -> {
+                                reportError = reportSubmissionMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         submitting = false
                     }
@@ -3472,7 +3507,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             auth.reportRepository.reportAuction(auctionId, content)
                         }) {
                             is ApiResult.Success -> submitted = true
-                            is ApiResult.Failure -> reportError = reportSubmissionMessage(result.error)
+                            is ApiResult.Failure -> {
+                                reportError = reportSubmissionMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         submitting = false
                     }
