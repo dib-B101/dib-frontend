@@ -48,6 +48,7 @@ fun PasswordResetScreen(
 ) {
     var password by rememberSaveable { mutableStateOf("") }
     var confirmation by rememberSaveable { mutableStateOf("") }
+    var attempted by rememberSaveable { mutableStateOf(false) }
     val validPassword = SignupValidator.isPasswordValid(password)
     val matches = password == confirmation
 
@@ -98,7 +99,9 @@ fun PasswordResetScreen(
                     label = { Text("새 비밀번호") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation()
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = attempted && !validPassword,
+                    supportingText = if (attempted && !validPassword) ({ Text("비밀번호 조건을 확인해주세요.") }) else null
                 )
                 OutlinedTextField(
                     value = confirmation,
@@ -107,19 +110,24 @@ fun PasswordResetScreen(
                     label = { Text("새 비밀번호 확인") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation()
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = (attempted || confirmation.isNotEmpty()) && !matches,
+                    supportingText = if ((attempted || confirmation.isNotEmpty()) && !matches) ({ Text("비밀번호가 일치하지 않아요.") }) else null
                 )
-                if (confirmation.isNotEmpty() && !matches) {
-                    Text("비밀번호가 일치하지 않아요.", Modifier.padding(top = 8.dp), color = Colors.Urgent, fontSize = 12.sp)
-                }
                 errorMessage?.let {
                     Text(it, Modifier.fillMaxWidth().padding(top = 10.dp), color = Colors.Urgent, fontSize = 12.sp)
                 }
                 Button(
-                    onClick = { onSubmit(password) },
+                    onClick = {
+                        attempted = true
+                        if (validPassword && matches) onSubmit(password)
+                    },
                     modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(52.dp),
-                    enabled = validPassword && matches && !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (validPassword && matches) Colors.Navy else Color(0xFFD6DBE3),
+                        contentColor = if (validPassword && matches) Color.White else Color(0xFF8C94A1)
+                    ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
