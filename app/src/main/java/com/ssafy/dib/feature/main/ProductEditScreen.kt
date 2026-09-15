@@ -52,6 +52,15 @@ fun ProductEditScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val replacementUris = remember(detail?.productId) { mutableStateListOf<Uri>() }
+    val replacementTypes = remember(detail?.productId) { mutableStateListOf<String>() }
+    var showPhotoReorder by remember(detail?.productId) { mutableStateOf(false) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
+        replacementUris.clear()
+        replacementUris.addAll(uris.take(10))
+        replacementTypes.clear()
+        replacementTypes.addAll(defaultProductImageTypes(replacementUris.size))
+    }
     if (result != null) {
         Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Background) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -63,6 +72,22 @@ fun ProductEditScreen(
         }
         return
     }
+    if (showPhotoReorder) {
+        ProductPhotoReorderScreen(
+            images = replacementUris.toList(),
+            imageTypes = replacementTypes.toList(),
+            onSave = { reorderedImages, reorderedTypes ->
+                replacementUris.clear()
+                replacementUris.addAll(reorderedImages)
+                replacementTypes.clear()
+                replacementTypes.addAll(reorderedTypes)
+                showPhotoReorder = false
+            },
+            onBack = { showPhotoReorder = false },
+            modifier = modifier
+        )
+        return
+    }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Background,
@@ -72,13 +97,35 @@ fun ProductEditScreen(
         when {
             isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
             errorMessage != null || detail == null -> Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(errorMessage ?: "상품 정보를 불러오지 못했어요.", color = Colors.Muted); OutlinedButton(onRetry, Modifier.padding(top = 12.dp)) { Text("다시 불러오기") } }
-            else -> ProductEditForm(detail, categories, submitLoading, submitError, onSubmit, Modifier.padding(padding))
+            else -> ProductEditForm(
+                detail = detail,
+                categories = categories,
+                submitLoading = submitLoading,
+                submitError = submitError,
+                replacementUris = replacementUris,
+                replacementTypes = replacementTypes,
+                onPickImages = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onReorderImages = { showPhotoReorder = true },
+                onSubmit = onSubmit,
+                modifier = Modifier.padding(padding)
+            )
         }
     }
 }
 
 @Composable
-private fun ProductEditForm(detail: ProductDetail, categories: List<ProductCategory>, submitLoading: Boolean, submitError: String?, onSubmit: (ProductUpdate, List<ProductImageSelection>?) -> Unit, modifier: Modifier) {
+private fun ProductEditForm(
+    detail: ProductDetail,
+    categories: List<ProductCategory>,
+    submitLoading: Boolean,
+    submitError: String?,
+    replacementUris: List<Uri>,
+    replacementTypes: MutableList<String>,
+    onPickImages: () -> Unit,
+    onReorderImages: () -> Unit,
+    onSubmit: (ProductUpdate, List<ProductImageSelection>?) -> Unit,
+    modifier: Modifier
+) {
     var title by rememberSaveable(detail.productId) { mutableStateOf(detail.title) }
     var description by rememberSaveable(detail.productId) { mutableStateOf(detail.description) }
     var categoryId by rememberSaveable(detail.productId) { mutableStateOf(detail.categoryId) }
@@ -87,14 +134,6 @@ private fun ProductEditForm(detail: ProductDetail, categories: List<ProductCateg
     var releaseYear by rememberSaveable(detail.productId) { mutableStateOf(detail.releaseYear?.toString().orEmpty()) }
     var marketPrice by rememberSaveable(detail.productId) { mutableStateOf(detail.marketPrice?.toString().orEmpty()) }
     var showCategories by rememberSaveable { mutableStateOf(false) }
-    val replacementUris = remember(detail.productId) { mutableStateListOf<Uri>() }
-    val replacementTypes = remember(detail.productId) { mutableStateListOf<String>() }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
-        replacementUris.clear()
-        replacementUris.addAll(uris.take(10))
-        replacementTypes.clear()
-        replacementTypes.addAll(defaultProductImageTypes(replacementUris.size))
-    }
     val valid = title.isNotBlank() && description.isNotBlank() && categoryId.isNotBlank() && condition in setOf("GOOD", "NORMAL", "BAD")
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -117,8 +156,13 @@ private fun ProductEditForm(detail: ProductDetail, categories: List<ProductCateg
                         }
                     }
                     Text("새 이미지 ${replacementUris.size}장 · 사진별 촬영 방향을 확인해주세요", color = Colors.MintInk, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    if (replacementUris.size > 1) {
+                        OutlinedButton(onClick = onReorderImages, modifier = Modifier.fillMaxWidth()) {
+                            Text("사진 순서 편집", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-                OutlinedButton({ photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, Modifier.fillMaxWidth()) { Text(if (replacementUris.isEmpty()) "새 이미지 선택" else "이미지 다시 선택") }
+                OutlinedButton(onPickImages, Modifier.fillMaxWidth()) { Text(if (replacementUris.isEmpty()) "새 이미지 선택" else "이미지 다시 선택") }
             }
         }
         item { EditField("상품명", title, { title = it }, KeyboardType.Text) }

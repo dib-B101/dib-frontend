@@ -544,7 +544,7 @@ fun ProductRegisterScreen(
 }
 
 @Composable
-private fun ProductPhotoReorderScreen(
+internal fun ProductPhotoReorderScreen(
     images: List<Uri>,
     imageTypes: List<String>,
     onSave: (List<Uri>, List<String>) -> Unit,
