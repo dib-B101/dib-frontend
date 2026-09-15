@@ -3534,11 +3534,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var preparedDeposit by remember { mutableStateOf<com.ssafy.dib.domain.auction.BidDeposit?>(null) }
             var depositProcessing by remember { mutableStateOf(false) }
             var depositError by remember { mutableStateOf<String?>(null) }
+            var depositStatusMessage by remember { mutableStateOf<String?>(null) }
             var prepareKey by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
 
             fun prepareDeposit(paymentMethod: String) {
                 depositProcessing = true
                 depositError = null
+                depositStatusMessage = null
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) {
                         auth.bidDepositRepository.prepare(
@@ -3573,9 +3575,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             fun checkDepositStatus() {
                 depositProcessing = true
                 depositError = null
+                depositStatusMessage = null
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(auctionId) }) {
-                        is ApiResult.Success -> preparedDeposit = result.value
+                        is ApiResult.Success -> {
+                            preparedDeposit = result.value
+                            when (result.value.status.uppercase()) {
+                                "PENDING" -> depositStatusMessage = "아직 결제가 승인되지 않았어요. 결제 페이지에서 승인을 마친 뒤 다시 확인해주세요."
+                                "REFUNDED" -> depositError = "이 경매의 보증금이 반환됐어요. 결제수단을 다시 선택해주세요."
+                            }
+                        }
                         is ApiResult.Failure -> {
                             depositError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
                             if (result.error.requiresLogin) signedIn = false
@@ -3593,11 +3602,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 preparedDeposit = preparedDeposit,
                 isProcessing = depositProcessing,
                 errorMessage = depositError,
+                statusMessage = depositStatusMessage,
                 onPrepare = ::prepareDeposit,
                 onCheckStatus = ::checkDepositStatus,
                 onReset = {
                     preparedDeposit = null
                     depositError = null
+                    depositStatusMessage = null
                     prepareKey = java.util.UUID.randomUUID().toString()
                 },
                 onBack = navController::navigateUp,
