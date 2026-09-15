@@ -131,11 +131,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var ordersLoadingMoreRole by remember { mutableStateOf<OrderRole?>(null) }
     var purchaseOrdersLoadMoreError by remember { mutableStateOf<String?>(null) }
     var saleOrdersLoadMoreError by remember { mutableStateOf<String?>(null) }
-    var ordersLoading by remember { mutableStateOf(false) }
+    var ordersLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var ordersError by remember { mutableStateOf<String?>(null) }
     var ordersRevision by remember { mutableStateOf(0) }
     var bidHistory by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.BidHistoryItem>?>(null) }
-    var bidHistoryLoading by remember { mutableStateOf(false) }
+    var bidHistoryLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var bidHistoryError by remember { mutableStateOf<String?>(null) }
     var bidHistoryRevision by remember { mutableStateOf(0) }
     var bidHistoryCursor by remember { mutableStateOf<String?>(null) }
@@ -268,6 +268,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             memberProfile = null
             domainNotifications = emptyList()
             unreadNotificationCount = 0
+            purchaseOrders = null
+            saleOrders = null
+            purchaseOrdersCursor = null
+            saleOrdersCursor = null
+            purchaseOrdersHasNext = false
+            saleOrdersHasNext = false
+            purchaseOrdersLoadMoreError = null
+            saleOrdersLoadMoreError = null
+            ordersLoadingMoreRole = null
+            ordersError = null
+            bidHistory = null
+            bidHistoryCursor = null
+            bidHistoryHasNext = false
+            bidHistoryLoadMoreError = null
+            bidHistoryLoadingMore = false
+            bidHistoryError = null
             if (signedIn == false) {
                 depositPaidProductIds = emptySet()
                 session.edit().remove("paid_deposits").apply()
