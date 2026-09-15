@@ -32,6 +32,7 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
+import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.auction.BidHistoryItem
@@ -228,7 +229,7 @@ fun MyTradesScreen(
 private fun BidHistoryItem.toTradeItem() = TradeItem(
     status = "입찰 참여",
     title = "경매 #$auctionId",
-    meta = "내 입찰가 ${"%,d".format(amount)}원 · ${createdAt.take(16).replace('T', ' ')}",
+    meta = "내 입찰가 ${"%,d".format(amount)}원 · ${formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')}",
     action = "경매 상태 보기 →",
     tone = TradeTone.Positive,
     auctionId = auctionId
@@ -255,7 +256,7 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
     return TradeItem(
         status = statusLabel,
         title = title,
-        meta = listOfNotNull(price, updatedAt?.take(10)).joinToString(" · "),
+        meta = listOfNotNull(price, updatedAt?.let { formatServerTime(it, "yyyy.MM.dd") ?: it.take(10) }).joinToString(" · "),
         action = "거래 상세 보기 →",
         tone = tone,
         orderId = orderId

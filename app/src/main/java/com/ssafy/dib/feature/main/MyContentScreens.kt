@@ -1,5 +1,7 @@
 package com.ssafy.dib.feature.main
 
+import com.ssafy.dib.core.time.formatServerTime
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -295,7 +297,12 @@ fun InquiryHistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val inquiries = remoteInquiries?.map {
-        Inquiry(if (it.answeredAt != null) "답변 완료" else "답변 대기", it.title, it.createdAt.take(10), it.questionId)
+        Inquiry(
+            if (it.answeredAt != null) "답변 완료" else "답변 대기",
+            it.title,
+            formatServerTime(it.createdAt, "yyyy.MM.dd") ?: it.createdAt.take(10),
+            it.questionId
+        )
     } ?: if (showSampleContent) {
         listOf(
             Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"),

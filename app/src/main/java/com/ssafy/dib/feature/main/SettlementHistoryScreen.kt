@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.domain.settlement.SettlementDetail
 import com.ssafy.dib.domain.settlement.SettlementSummary
+import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -175,4 +176,5 @@ private fun SettlementScaffold(title: String, onBack: () -> Unit, modifier: Modi
 }
 
 private fun money(value: Long) = "${"%,d".format(value)}원"
-private fun formatSettlementDate(value: String?): String = value?.take(16)?.replace('T', ' ') ?: "지급 일정을 확인하고 있어요"
+private fun formatSettlementDate(value: String?): String =
+    formatServerTime(value) ?: "지급 일정을 확인하고 있어요"

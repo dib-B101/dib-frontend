@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.feature.home.allHomeAuctions
@@ -384,7 +385,8 @@ private fun AuctionBidHistorySection(
     HorizontalDivider(color = Colors.Border)
 }
 
-private fun formatBidCreatedAt(value: String): String = value.take(16).replace('T', ' ')
+private fun formatBidCreatedAt(value: String): String =
+    formatServerTime(value) ?: value.take(16).replace('T', ' ')
 
 @Composable
 private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit) {
