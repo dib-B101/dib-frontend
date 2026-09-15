@@ -1730,14 +1730,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch {
                         val uploads = withContext(Dispatchers.IO) {
                             runCatching {
-                                val types = listOf("LEFT", "RIGHT", "TOP", "BOTTOM", "BACK")
-                                form.imageUris.mapIndexed { index, uri ->
+                                form.images.mapIndexed { index, image ->
+                                    val uri = image.uri
                                     ProductImageUpload(
                                         fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-$index.jpg",
                                         mediaType = context.contentResolver.getType(uri) ?: "image/jpeg",
                                         bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                             ?: error("선택한 사진을 읽을 수 없습니다."),
-                                        type = if (index == 0) "FRONT" else types[(index - 1) % types.size]
+                                        type = image.type
                                     )
                                 }
                             }
@@ -3089,19 +3089,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 submitError = editSubmitError,
                 result = editResult,
                 onRetry = { editRevision++ },
-                onSubmit = { update, imageUris ->
+                onSubmit = { update, imageSelections ->
                     editSubmitLoading = true
                     editSubmitError = null
                     coroutineScope.launch {
                         val replacementImages = withContext(Dispatchers.IO) {
                             runCatching {
-                                imageUris?.mapIndexed { index, uri ->
-                                    val secondaryTypes = listOf("LEFT", "RIGHT", "TOP", "BOTTOM", "BACK")
+                                imageSelections?.mapIndexed { index, image ->
+                                    val uri = image.uri
                                     ProductImageUpload(
                                         fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-update-$index.jpg",
                                         mediaType = context.contentResolver.getType(uri) ?: "image/jpeg",
                                         bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("선택한 사진을 읽을 수 없습니다."),
-                                        type = if (index == 0) "FRONT" else secondaryTypes[(index - 1) % secondaryTypes.size]
+                                        type = image.type
                                     )
                                 }
                             }
