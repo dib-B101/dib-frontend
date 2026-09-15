@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +25,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -57,11 +59,13 @@ fun MyAuctionManagementScreen(
     hasNext: Boolean,
     isLoadingMore: Boolean,
     loadMoreError: String?,
+    selectedStatus: String?,
     actionAuctionId: String?,
     actionMessage: String?,
     actionError: String?,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
+    onStatusSelected: (String?) -> Unit,
     onOpenAuction: (String) -> Unit,
     onUpdate: (String, Long, Long) -> Unit,
     onStart: (String) -> Unit,
@@ -91,6 +95,18 @@ fun MyAuctionManagementScreen(
             }
             actionError?.let { message ->
                 item { Text(message, Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) }
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(auctionStatusFilters, key = { it.second ?: "ALL" }) { (label, status) ->
+                        FilterChip(
+                            selected = selectedStatus == status,
+                            onClick = { onStatusSelected(status) },
+                            label = { Text(label) },
+                            enabled = !isLoading && !isLoadingMore && actionAuctionId == null
+                        )
+                    }
+                }
             }
             when {
                 isLoading -> item { Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
@@ -250,3 +266,11 @@ private fun orderStatusLabel(status: String): String = when (status.uppercase())
     "REFUNDED" -> "환불"
     else -> status
 }
+
+private val auctionStatusFilters = listOf(
+    "전체" to null,
+    "예정" to "SCHEDULED",
+    "진행 중" to "ACTIVE",
+    "종료" to "ENDED",
+    "취소" to "CANCELLED"
+)

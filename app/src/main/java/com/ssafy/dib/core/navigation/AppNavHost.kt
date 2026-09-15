@@ -2256,6 +2256,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var salesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
             var salesError by remember { mutableStateOf<String?>(null) }
             var salesRevision by remember { mutableStateOf(0) }
+            var salesStatus by remember { mutableStateOf<String?>(null) }
             var salesCursor by remember { mutableStateOf<String?>(null) }
             var salesHasNext by remember { mutableStateOf(false) }
             var salesLoadingMore by remember { mutableStateOf(false) }
@@ -2266,7 +2267,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             val startKeys = remember { mutableMapOf<String, String>() }
             val cancelKeys = remember { mutableMapOf<String, String>() }
 
-            LaunchedEffect(salesRevision, signedIn) {
+            LaunchedEffect(salesRevision, salesStatus, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) {
                     sales = emptyList()
                     salesLoading = false
@@ -2283,7 +2284,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 salesCursor = null
                 salesHasNext = false
                 salesLoadingMore = false
-                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getMySales() }) {
+                when (val result = withContext(Dispatchers.IO) {
+                    auth.auctionRepository.getMySales(auctionStatus = salesStatus)
+                }) {
                     is ApiResult.Success -> {
                         sales = result.value.items
                         salesCursor = result.value.nextCursor
@@ -2304,27 +2307,40 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 hasNext = salesHasNext,
                 isLoadingMore = salesLoadingMore,
                 loadMoreError = salesLoadMoreError,
+                selectedStatus = salesStatus,
                 actionAuctionId = actionAuctionId,
                 actionMessage = actionMessage,
                 actionError = actionError,
                 onRetry = { salesRevision++ },
+                onStatusSelected = { status ->
+                    if (status != salesStatus) {
+                        salesStatus = status
+                        actionMessage = null
+                        actionError = null
+                    }
+                },
                 onLoadMore = {
                     val cursor = salesCursor
+                    val requestedStatus = salesStatus
                     if (cursor != null && salesHasNext && !salesLoadingMore) {
                         salesLoadingMore = true
                         salesLoadMoreError = null
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.auctionRepository.getMySales(cursor = cursor)
+                                auth.auctionRepository.getMySales(auctionStatus = requestedStatus, cursor = cursor)
                             }) {
                                 is ApiResult.Success -> {
-                                    sales = (sales.orEmpty() + result.value.items)
-                                        .distinctBy { it.auction.auctionId }
-                                    salesCursor = result.value.nextCursor
-                                    salesHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
+                                    if (salesStatus == requestedStatus) {
+                                        sales = (sales.orEmpty() + result.value.items)
+                                            .distinctBy { it.auction.auctionId }
+                                        salesCursor = result.value.nextCursor
+                                        salesHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
+                                    }
                                 }
                                 is ApiResult.Failure -> {
-                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                    if (salesStatus != requestedStatus) {
+                                        Unit
+                                    } else if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
                                         salesRevision++
                                     } else {
                                         salesLoadMoreError = result.error.message.ifBlank { "다음 경매를 불러오지 못했어요." }
