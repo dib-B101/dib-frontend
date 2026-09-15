@@ -41,7 +41,11 @@ fun PasswordResetLinkScreen(
     var email by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
+    var phoneAttempted by remember { mutableStateOf(false) }
+    var linkAttempted by remember { mutableStateOf(false) }
     val emailValid = email.contains('@') && email.substringAfter('@').contains('.')
+    val phoneValid = phoneNumber.length in 10..11
+    val codeValid = verificationCode.length == 6
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
@@ -64,7 +68,9 @@ fun PasswordResetLinkScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("가입 이메일") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    singleLine = true
+                    singleLine = true,
+                    isError = linkAttempted && !emailValid,
+                    supportingText = if (linkAttempted && !emailValid) ({ Text("올바른 이메일을 입력해주세요.") }) else null
                 )
                 Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
@@ -73,9 +79,17 @@ fun PasswordResetLinkScreen(
                         modifier = Modifier.weight(1f),
                         label = { Text("휴대전화 번호") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        singleLine = true
+                        singleLine = true,
+                        isError = phoneAttempted && !phoneValid,
+                        supportingText = if (phoneAttempted && !phoneValid) ({ Text("휴대전화 번호를 확인해주세요.") }) else null
                     )
-                    TextButton({ onRequestVerification(phoneNumber) }, enabled = phoneNumber.length >= 10 && !isLoading) { Text(if (verificationRequested) "재전송" else "인증요청") }
+                    TextButton(
+                        onClick = {
+                            phoneAttempted = true
+                            if (phoneValid) onRequestVerification(phoneNumber)
+                        },
+                        enabled = !isLoading
+                    ) { Text(if (verificationRequested) "재전송" else "인증요청") }
                 }
                 if (verificationRequested) {
                     OutlinedTextField(
@@ -84,13 +98,21 @@ fun PasswordResetLinkScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         label = { Text("인증번호") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                        singleLine = true,
+                        isError = linkAttempted && !codeValid,
+                        supportingText = if (linkAttempted && !codeValid) ({ Text("인증번호 6자리를 입력해주세요.") }) else null
                     )
                     Button(
-                        onClick = { onRequestResetLink(email.trim(), verificationCode) },
+                        onClick = {
+                            linkAttempted = true
+                            if (emailValid && codeValid) onRequestResetLink(email.trim(), verificationCode)
+                        },
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp),
-                        enabled = emailValid && verificationCode.length >= 4 && !isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (emailValid && codeValid) Colors.Navy else Color(0xFFD6DBE3),
+                            contentColor = if (emailValid && codeValid) Color.White else Color(0xFF8C94A1)
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) { if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text("재설정 링크 받기", fontWeight = FontWeight.Bold) }
                 }
