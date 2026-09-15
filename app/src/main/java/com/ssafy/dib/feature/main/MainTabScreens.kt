@@ -62,6 +62,7 @@ fun MyTradesScreen(
     remotePurchaseOrders: List<OrderSummary>?,
     remoteSaleOrders: List<OrderSummary>?,
     remoteBids: List<BidHistoryItem>?,
+    showSampleContent: Boolean,
     remoteLoading: Boolean,
     remoteError: String?,
     bidsLoading: Boolean,
@@ -84,19 +85,19 @@ fun MyTradesScreen(
     var contentView by rememberSaveable { mutableStateOf(DibContentView.List) }
     val items = when (selected) {
         TradeTab.Bid -> remoteBids?.map(BidHistoryItem::toTradeItem)
-            ?: if (bidsLoading || bidsError != null) emptyList() else listOf(
+            ?: if (!showSampleContent || bidsLoading || bidsError != null) emptyList() else listOf(
             TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "현재가보다 높게 입찰하기 →", TradeTone.Urgent),
             TradeItem("최고 입찰자", "빈티지 스니커즈", "내 입찰가 58,000원 · 마감 12분", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("경매 종료", "레더 숄더백", "최종가 72,000원 · 미낙찰", "결과 확인하기 →", TradeTone.Neutral)
         )
         TradeTab.Purchase -> remotePurchaseOrders?.map { it.toTradeItem(isSeller = false) }
-            ?: if (remoteLoading || remoteError != null) emptyList() else listOf(
+            ?: if (!showSampleContent || remoteLoading || remoteError != null) emptyList() else listOf(
             TradeItem("결제 필요", "빈티지 필름 카메라", "낙찰가 35,000원 · 23:42:18 남음", "거래 진행하기 →", TradeTone.Urgent),
             TradeItem("배송 중", "노이즈 캔슬링 헤드폰", "판매자가 상품을 발송했어요", "배송 조회하기 →", TradeTone.Positive),
             TradeItem("구매 완료", "레더 카드지갑", "거래가 안전하게 완료됐어요", "거래 내역 보기 →", TradeTone.Neutral)
         )
         TradeTab.Sale -> remoteSaleOrders?.map { it.toTradeItem(isSeller = true) }
-            ?: if (remoteLoading || remoteError != null) emptyList() else listOf(
+            ?: if (!showSampleContent || remoteLoading || remoteError != null) emptyList() else listOf(
             TradeItem("경매 진행 중", "빈티지 스니커즈", "현재가 58,000원 · 입찰 12회", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("발송 필요", "빈티지 필름 카메라", "구매자 결제 완료 · 1일 남음", "배송 정보 입력하기 →", TradeTone.Urgent),
             TradeItem("판매 완료", "원목 라운지 체어", "구매 확정 · 정산 예정", "거래 내역 보기 →", TradeTone.Neutral)

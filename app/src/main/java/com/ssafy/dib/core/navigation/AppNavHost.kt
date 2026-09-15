@@ -1731,6 +1731,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 remotePurchaseOrders = purchaseOrders,
                 remoteSaleOrders = saleOrders,
                 remoteBids = bidHistory,
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 remoteLoading = ordersLoading,
                 remoteError = ordersError,
                 bidsLoading = bidHistoryLoading,
