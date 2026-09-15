@@ -39,7 +39,20 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class DetailAuctionState { Active, HighestBidder, Lost, Won }
+internal enum class DetailAuctionState { Active, HighestBidder, Scheduled, Cancelled, Lost, Won }
+
+internal fun detailAuctionState(status: String, remainingSeconds: Int, isHighestBidder: Boolean): DetailAuctionState =
+    when (status.uppercase()) {
+        "SCHEDULED" -> DetailAuctionState.Scheduled
+        "CANCELLED" -> DetailAuctionState.Cancelled
+        "ACTIVE" -> when {
+            remainingSeconds > 0 && isHighestBidder -> DetailAuctionState.HighestBidder
+            remainingSeconds > 0 -> DetailAuctionState.Active
+            isHighestBidder -> DetailAuctionState.Won
+            else -> DetailAuctionState.Lost
+        }
+        else -> if (isHighestBidder) DetailAuctionState.Won else DetailAuctionState.Lost
+    }
 
 data class RealtimeBidFeedback(
     val accepted: Boolean,
@@ -133,12 +146,7 @@ fun ProductDetailScreen(
     var bidError by rememberSaveable { mutableStateOf("") }
     var priceUpdateScheduled by rememberSaveable { mutableStateOf(false) }
     var bidSubmitting by rememberSaveable(productId) { mutableStateOf(false) }
-    val auctionState = when {
-        remainingSeconds > 0 && isHighestBidder -> DetailAuctionState.HighestBidder
-        remainingSeconds > 0 -> DetailAuctionState.Active
-        isHighestBidder -> DetailAuctionState.Won
-        else -> DetailAuctionState.Lost
-    }
+    val auctionState = detailAuctionState(product.status, remainingSeconds, isHighestBidder)
 
     LaunchedEffect(productId) {
         while (remainingSeconds > 0) {
@@ -150,7 +158,7 @@ fun ProductDetailScreen(
     LaunchedEffect(remoteAuction?.price, remoteAuction?.bidCount, remoteAuction?.remainingSeconds, remoteAuction?.status) {
         remoteAuction?.let { updated ->
             currentPrice = updated.price
-            remainingSeconds = if (updated.status == "ENDED") 0 else updated.remainingSeconds
+            remainingSeconds = if (updated.status.equals("ACTIVE", ignoreCase = true)) updated.remainingSeconds else 0
             updated.myBidAmount?.let { myHighestBidAmount = it }
             updated.isHighestBidder?.let { isHighestBidder = it }
             myHighestBidAmount?.let { ownBid ->
@@ -472,25 +480,40 @@ private fun ProductSummary(
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when (state) {
+                DetailAuctionState.Scheduled -> Badge("경매 예정")
+                DetailAuctionState.Cancelled -> Badge("경매 취소")
                 DetailAuctionState.Lost -> Badge("경매 종료")
                 DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
-                else -> Badge("마감 임박", urgent = true)
+                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge("마감 임박", urgent = true)
             }
             Badge("상품 상태 · ${conditionLabel(condition)}")
         }
         Text(name, fontSize = 20.sp, lineHeight = 30.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Metric(if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) "현재가" else "낙찰가", "%,d원".format(price), Colors.Navy, 24)
+            Metric(
+                when (state) {
+                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
+                    DetailAuctionState.Scheduled -> "시작가"
+                    DetailAuctionState.Cancelled -> "취소 시점 가격"
+                    DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
+                },
+                "%,d원".format(price),
+                Colors.Navy,
+                24
+            )
             Metric(
                 when (state) {
                     DetailAuctionState.Lost -> "총 입찰"
                     DetailAuctionState.Won -> "거래까지"
-                    else -> "남은 시간"
+                    DetailAuctionState.Scheduled, DetailAuctionState.Cancelled -> "경매 상태"
+                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "남은 시간"
                 },
                 when (state) {
                     DetailAuctionState.Lost -> "${bidCount}회"
                     DetailAuctionState.Won -> "23시간 42분"
-                    else -> formatClock(remainingSeconds)
+                    DetailAuctionState.Scheduled -> "시작 대기"
+                    DetailAuctionState.Cancelled -> "취소"
+                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> formatClock(remainingSeconds)
                 },
                 if (remainingSeconds in 1..59) Colors.Urgent else Colors.Text,
                 24
@@ -646,9 +669,18 @@ private fun StickyBidAction(
     onTransaction: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().height(76.dp).background(Colors.Background).padding(horizontal = 20.dp, vertical = 12.dp)) {
-        if (state == DetailAuctionState.Lost) {
+        if (state in setOf(DetailAuctionState.Lost, DetailAuctionState.Scheduled, DetailAuctionState.Cancelled)) {
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                Text("경매가 종료된 상품이에요", color = Colors.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    when (state) {
+                        DetailAuctionState.Scheduled -> "아직 시작 전인 경매예요"
+                        DetailAuctionState.Cancelled -> "취소된 경매예요"
+                        else -> "경매가 종료된 상품이에요"
+                    },
+                    color = Colors.Muted,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
             return@Column
         }
