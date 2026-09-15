@@ -166,6 +166,7 @@ fun LiveFeedScreen(
                     onRealtimeBid = onRealtimeBid,
                     onDepositInvalid = onDepositInvalid,
                     onPaymentConsumed = onPaymentConsumed,
+                    onStreamRetry = onRetry,
                     onClose = onClose,
                     onProductClick = onProductClick,
                     onFavoriteChange = onFavoriteChange,
@@ -219,6 +220,7 @@ private fun LiveFeedPage(
     onRealtimeBid: (String, Int) -> Boolean,
     onDepositInvalid: (String) -> Unit,
     onPaymentConsumed: () -> Unit,
+    onStreamRetry: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
@@ -333,7 +335,15 @@ private fun LiveFeedPage(
     }
 
     Box(modifier.fillMaxSize().safeDrawingPadding().background(Color(0xFF17212D))) {
-        LiveVideoBackground(liveItem?.streamUrl, isActivePage)
+        LiveVideoBackground(
+            streamUrl = liveItem?.streamUrl,
+            fallbackImageUrl = activeAuction?.imageUrls?.firstOrNull(),
+            fallbackTitle = activeAuction?.title.orEmpty(),
+            streamExpected = liveItem != null,
+            isActivePage = isActivePage,
+            onRetry = onStreamRetry,
+            onExit = onClose
+        )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.12f), Color.Transparent, Color(0xFF07101D).copy(.72f)))))
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -836,11 +846,21 @@ private fun reportContentPrefix(reason: String, evidence: String?): String = bui
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
+private fun LiveVideoBackground(
+    streamUrl: String?,
+    fallbackImageUrl: String?,
+    fallbackTitle: String,
+    streamExpected: Boolean,
+    isActivePage: Boolean,
+    onRetry: () -> Unit,
+    onExit: () -> Unit
+) {
     val context = LocalContext.current
     var playbackFailed by remember(streamUrl) { mutableStateOf(false) }
+    var retryCount by remember(streamUrl) { mutableIntStateOf(0) }
+    var retryKey by remember(streamUrl) { mutableIntStateOf(0) }
     val activePage by rememberUpdatedState(isActivePage)
-    val player = remember(streamUrl) {
+    val player = remember(streamUrl, retryKey) {
         streamUrl?.takeIf(String::isNotBlank)?.let { url ->
             ExoPlayer.Builder(context).build().apply {
                 setMediaItem(MediaItem.fromUri(url))
@@ -857,6 +877,7 @@ private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 playbackFailed = true
+                retryCount++
             }
         }
         val observer = LifecycleEventObserver { _, event ->
@@ -877,6 +898,17 @@ private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
     LaunchedEffect(player, isActivePage) {
         if (isActivePage) player?.play() else player?.pause()
     }
+    LaunchedEffect(playbackFailed, retryCount, isActivePage) {
+        if (playbackFailed && isActivePage && retryCount < LIVE_STREAM_MAX_RETRIES) {
+            delay(LIVE_STREAM_RETRY_DELAY_MILLIS)
+            playbackFailed = false
+            retryKey++
+        }
+    }
+
+    val streamMissing = streamExpected && streamUrl.isNullOrBlank()
+    val recoveryFailed = streamMissing || (playbackFailed && retryCount >= LIVE_STREAM_MAX_RETRIES)
+    val reconnecting = playbackFailed && !recoveryFailed
 
     if (player != null && !playbackFailed) {
         PlayerSurface(
@@ -885,14 +917,59 @@ private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
             surfaceType = SURFACE_TYPE_TEXTURE_VIEW
         )
     } else {
-        Image(
-            painterResource(R.drawable.live_video),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+        if (!fallbackImageUrl.isNullOrBlank()) {
+            DibNetworkImage(fallbackImageUrl, fallbackTitle, Modifier.fillMaxSize())
+        } else {
+            Image(
+                painterResource(R.drawable.live_video),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
+    if (reconnecting) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Surface(
+                modifier = Modifier.padding(horizontal = 48.dp),
+                color = Color(0xFF101C2C).copy(alpha = .92f),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(
+                    Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("라이브 연결이 불안정해요", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("대표 이미지로 경매를 계속 보여드려요", color = Color.White.copy(alpha = .78f), fontSize = 10.sp)
+                    Text("재연결 중 · $retryCount/$LIVE_STREAM_MAX_RETRIES", color = Colors.Mint, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+    if (recoveryFailed && isActivePage) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("라이브 연결을 복구하지 못했어요") },
+            text = { Text("네트워크를 확인한 뒤 다시 시도해 주세요.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        retryCount = 0
+                        playbackFailed = false
+                        retryKey++
+                        onRetry()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                ) { Text("다시 연결") }
+            },
+            dismissButton = { TextButton(onClick = onExit) { Text("라이브 나가기") } }
         )
     }
 }
+
+private const val LIVE_STREAM_MAX_RETRIES = 3
+private const val LIVE_STREAM_RETRY_DELAY_MILLIS = 2_000L
 
 @Composable
 private fun LiveReportTypeAction(title: String, description: String, enabled: Boolean, onClick: () -> Unit) {
