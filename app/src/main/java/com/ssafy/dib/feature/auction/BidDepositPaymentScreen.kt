@@ -41,6 +41,7 @@ fun BidDepositPaymentScreen(
     preparedDeposit: BidDeposit?,
     isProcessing: Boolean,
     errorMessage: String?,
+    statusMessage: String?,
     onPrepare: (String) -> Unit,
     onCheckStatus: () -> Unit,
     onReset: () -> Unit,
@@ -130,6 +131,7 @@ fun BidDepositPaymentScreen(
             }
             DepositPaymentState.AwaitingApproval -> DepositPaymentAwaitingApproval(
                 deposit = requireNotNull(preparedDeposit),
+                statusMessage = statusMessage,
                 onCheckStatus = onCheckStatus,
                 onChangeMethod = onReset,
                 modifier = Modifier.padding(padding)
@@ -225,6 +227,7 @@ private fun DepositPaymentForm(
 @Composable
 private fun DepositPaymentAwaitingApproval(
     deposit: BidDeposit,
+    statusMessage: String?,
     onCheckStatus: () -> Unit,
     onChangeMethod: () -> Unit,
     modifier: Modifier = Modifier
@@ -245,6 +248,9 @@ private fun DepositPaymentAwaitingApproval(
             Text("결제 대기 정보", color = Colors.Muted, fontSize = 11.sp)
             Text("보증금 ${"%,d".format(deposit.amount ?: 0)}원", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text("상태 ${deposit.status.ifBlank { "PENDING" }}", color = Colors.Muted, fontSize = 12.sp)
+        }
+        statusMessage?.let {
+            Text(it, Modifier.fillMaxWidth().padding(top = 12.dp), color = Colors.Urgent, fontSize = 12.sp, lineHeight = 18.sp)
         }
         Spacer(Modifier.weight(1f))
         Button(onCheckStatus, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("결제 승인 상태 확인", fontWeight = FontWeight.Bold) }
