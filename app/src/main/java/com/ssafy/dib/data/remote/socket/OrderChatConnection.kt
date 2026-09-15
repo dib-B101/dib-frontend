@@ -17,7 +17,8 @@ class OrderChatConnection(
     }
     private var orderId = ""
     @Volatile private var active = false
-    private var lastChattingId: String? = null
+    @Volatile private var lastChattingId: String? = null
+    @Volatile private var currentMemberId: String? = null
     private var reconnectAttempt = 0
     private var reconnectTask: ScheduledFuture<*>? = null
     @Volatile private var chatWritable = true
@@ -78,8 +79,13 @@ class OrderChatConnection(
                     SocketEventTypes.CHAT_MESSAGE_ACCEPTED -> runCatching {
                         codec.decodePayload(envelope, ChatMessageAcceptedPayload.serializer())
                     }.getOrNull()?.takeIf { it.orderId.idValue() == orderId }?.let { payload ->
-                        synchronized(this@OrderChatConnection) { pendingMessages.remove(payload.commandId) }
-                        lastChattingId = payload.chattingId.idValue()
+                        val pending = synchronized(this@OrderChatConnection) {
+                            pendingMessages.remove(payload.commandId)
+                        }
+                        acceptedOrderMessage(payload, pending, currentMemberId)?.let { message ->
+                            lastChattingId = message.chattingId
+                            onMessage(message)
+                        }
                     }
                     SocketEventTypes.ORDER_SNAPSHOT -> {
                         val snapshotOrderId = envelope.payload["orderId"].idValueOrNull()
@@ -135,6 +141,10 @@ class OrderChatConnection(
         lastChattingId = chattingId?.takeIf(String::isNotBlank)
     }
 
+    fun updateCurrentMemberId(memberId: String?) {
+        currentMemberId = memberId?.takeIf(String::isNotBlank)
+    }
+
     @Synchronized
     private fun scheduleReconnect() {
         if (!active || reconnectTask?.isDone == false) return
@@ -153,6 +163,7 @@ class OrderChatConnection(
         reconnectTask = null
         active = false
         chatWritable = true
+        currentMemberId = null
         pendingMessages.clear()
         socket.disconnect()
     }
@@ -162,6 +173,19 @@ class OrderChatConnection(
         socket.close()
         reconnectExecutor.shutdownNow()
     }
+}
+
+internal fun acceptedOrderMessage(
+    accepted: ChatMessageAcceptedPayload,
+    pending: SocketEnvelope?,
+    currentMemberId: String?
+): OrderMessage? {
+    if (pending?.commandId != accepted.commandId) return null
+    val memberId = currentMemberId?.takeIf(String::isNotBlank) ?: return null
+    val acceptedOrderId = accepted.orderId.idValue()
+    if (pending.payload["orderId"].idValueOrNull() != acceptedOrderId) return null
+    val content = pending.payload["content"].idValueOrNull() ?: return null
+    return OrderMessage(accepted.chattingId.idValue(), memberId, content, accepted.time)
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

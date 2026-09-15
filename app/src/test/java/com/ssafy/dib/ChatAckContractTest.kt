@@ -4,9 +4,12 @@ import com.ssafy.dib.data.remote.socket.ChatMessageAcceptedPayload
 import com.ssafy.dib.data.remote.socket.LiveChatAcceptedPayload
 import com.ssafy.dib.data.remote.socket.LiveChatRejectedPayload
 import com.ssafy.dib.data.remote.socket.SocketCodec
+import com.ssafy.dib.data.remote.socket.SocketCommands
 import com.ssafy.dib.data.remote.socket.SocketEnvelope
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import com.ssafy.dib.data.remote.socket.SocketErrorPayload
+import com.ssafy.dib.data.remote.socket.acceptedLiveMessage
+import com.ssafy.dib.data.remote.socket.acceptedOrderMessage
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -34,6 +37,15 @@ class ChatAckContractTest {
         assertEquals("command-1", payload.commandId)
         assertEquals("41", payload.chattingId.toString())
         assertEquals("7", payload.orderId.toString())
+
+        val message = acceptedOrderMessage(
+            payload,
+            SocketCommands.sendChatMessage("7", "거래 채팅입니다.", "command-1"),
+            "member-2"
+        )!!
+        assertEquals("41", message.chattingId)
+        assertEquals("member-2", message.memberId)
+        assertEquals("거래 채팅입니다.", message.content)
     }
 
     @Test
@@ -65,6 +77,17 @@ class ChatAckContractTest {
         assertEquals("command-2", accepted.commandId)
         assertEquals("CHAT_RATE_LIMITED", rejected.code)
         assertEquals(true, rejected.retryable)
+
+        val message = acceptedLiveMessage(
+            accepted,
+            SocketCommands.sendLiveChat("live-1", "라이브 댓글입니다.", "command-2"),
+            "member-3",
+            "2026-09-14T10:01:00Z"
+        )!!
+        assertEquals("19", message.liveChattingId)
+        assertEquals("member-3", message.memberId)
+        assertEquals("라이브 댓글입니다.", message.content)
+        assertEquals("2026-09-14T10:01:00Z", message.time)
     }
 
     @Test
