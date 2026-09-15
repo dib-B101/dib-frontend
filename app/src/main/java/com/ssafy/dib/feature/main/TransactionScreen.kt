@@ -511,7 +511,6 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
 @Composable
 private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     var step by rememberSaveable { mutableStateOf(SellerStep.ShippingRequired) }
-    var carrier by rememberSaveable { mutableStateOf("") }
     var tracking by rememberSaveable { mutableStateOf("") }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFFAFBFC),
@@ -529,15 +528,15 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
                 }
                 SellerStep.TrackingInput -> {
                     item { ProductSummary(35_000) }
-                    item { OutlinedTextField(carrier, { carrier = it }, Modifier.fillMaxWidth(), label = { Text("택배사") }, placeholder = { Text("택배사를 선택해주세요") }, singleLine = true, shape = RoundedCornerShape(12.dp)) }
-                    item { OutlinedTextField(tracking, { tracking = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), label = { Text("송장번호") }, placeholder = { Text("숫자만 입력해주세요") }, singleLine = true, shape = RoundedCornerShape(12.dp)) }
+                    item { Text("실제 발송을 완료한 뒤 송장번호를 입력해주세요. 택배사는 배송 조회 시 자동으로 확인해요.", color = Colors.Muted, fontSize = 12.sp) }
+                    item { OutlinedTextField(tracking, { tracking = it }, Modifier.fillMaxWidth(), label = { Text("송장번호") }, placeholder = { Text("예: 1234-5678-9012") }, singleLine = true, shape = RoundedCornerShape(12.dp)) }
                     item { Text("등록하면 구매자에게 배송 알림이 전송돼요", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp) }
-                    item { Button({ step = SellerStep.Shipping }, Modifier.fillMaxWidth().height(52.dp), enabled = carrier.isNotBlank() && tracking.length >= 8, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("배송 정보 등록", fontWeight = FontWeight.Bold) } }
+                    item { Button({ step = SellerStep.Shipping }, Modifier.fillMaxWidth().height(52.dp), enabled = tracking.isNotBlank(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("배송 정보 등록", fontWeight = FontWeight.Bold) } }
                 }
                 SellerStep.Shipping -> {
                     item { StateHeader("배송 중", 2) }
                     item { StatusHero("✓", "배송 정보가 등록됐어요", "구매자가 상품을 확인하면 정산이 시작돼요.", Color(0xFFE8FAF5)) }
-                    item { InfoCard(listOf("택배사" to carrier, "송장번호" to tracking, "구매 확정" to "대기 중"), "배송 정보") }
+                    item { InfoCard(listOf("택배사" to "배송 조회 시 자동 확인", "송장번호" to tracking.trim(), "구매 확정" to "대기 중"), "배송 정보") }
                     item { PrimaryButton("구매 확정 상태 반영") { step = SellerStep.Settlement } }
                 }
                 SellerStep.Settlement -> {
