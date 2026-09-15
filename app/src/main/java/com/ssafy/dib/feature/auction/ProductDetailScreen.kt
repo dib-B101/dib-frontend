@@ -144,7 +144,6 @@ fun ProductDetailScreen(
     var isHighestBidder by rememberSaveable(productId) { mutableStateOf(productId == "won") }
     var myHighestBidAmount by rememberSaveable(productId) { mutableStateOf(product.myBidAmount) }
     var bidError by rememberSaveable { mutableStateOf("") }
-    var priceUpdateScheduled by rememberSaveable { mutableStateOf(false) }
     var bidSubmitting by rememberSaveable(productId) { mutableStateOf(false) }
     val auctionState = detailAuctionState(product.status, remainingSeconds, isHighestBidder)
 
@@ -200,31 +199,24 @@ fun ProductDetailScreen(
 
     LaunchedEffect(paidBidAmount, realtimeConnected) {
         if (paidBidAmount > 0) {
-            if (realtimeBiddingEnabled) {
-                bidSubmitting = true
-                if (!realtimeConnected) {
-                    snackbar.showSnackbar("실시간 연결 후 ${"%,d".format(paidBidAmount)}원 입찰을 자동으로 요청할게요.")
-                    return@LaunchedEffect
-                }
-                while (true) {
-                    if (onRealtimeBid(paidBidAmount)) {
-                        onPaymentConsumed()
-                        snackbar.showSnackbar("${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요.")
-                        break
-                    }
-                    delay(1_000L)
-                }
+            if (!realtimeBiddingEnabled) {
+                onPaymentConsumed()
+                snackbar.showSnackbar("실시간 입찰 연결을 사용할 수 없어요. 연결 설정 후 다시 입찰해주세요.")
                 return@LaunchedEffect
             }
-            val wasExtended = remainingSeconds in 1..30
-            currentPrice = paidBidAmount
-            isHighestBidder = true
-            if (wasExtended) remainingSeconds += 15
-            onPaymentConsumed()
-            snackbar.showSnackbar(
-                if (wasExtended) "보증금 결제·입찰 완료 · 경매 시간이 15초 연장됐어요"
-                else "보증금 결제 완료 · ${"%,d".format(paidBidAmount)}원으로 입찰했어요"
-            )
+            bidSubmitting = true
+            if (!realtimeConnected) {
+                snackbar.showSnackbar("실시간 연결 후 ${"%,d".format(paidBidAmount)}원 입찰을 자동으로 요청할게요.")
+                return@LaunchedEffect
+            }
+            while (true) {
+                if (onRealtimeBid(paidBidAmount)) {
+                    onPaymentConsumed()
+                    snackbar.showSnackbar("${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요.")
+                    break
+                }
+                delay(1_000L)
+            }
         }
     }
 
@@ -248,6 +240,7 @@ fun ProductDetailScreen(
                 favorite = favorite,
                 state = auctionState,
                 submitting = bidSubmitting,
+                biddingAvailable = realtimeBiddingEnabled,
                 isOwnAuction = isOwnAuction,
                 onFavorite = { selected ->
                     if (isAuthenticated && !bookmarkLoading) {
@@ -263,6 +256,7 @@ fun ProductDetailScreen(
                 onBid = {
                     if (!isAuthenticated) onLoginRequired()
                     else if (isOwnAuction) scope.launch { snackbar.showSnackbar("내 경매에는 입찰할 수 없어요.") }
+                    else if (!realtimeBiddingEnabled) scope.launch { snackbar.showSnackbar("실시간 입찰 연결을 사용할 수 없어요.") }
                     else if (auctionState == DetailAuctionState.Active && !bidSubmitting) showBidSheet = true
                 },
                 onTransaction = onTransactionClick
@@ -325,17 +319,6 @@ fun ProductDetailScreen(
     }
 
     if (showBidSheet) {
-        LaunchedEffect(Unit) {
-            if (!realtimeBiddingEnabled && !priceUpdateScheduled) {
-                priceUpdateScheduled = true
-                delay(2_500)
-                if (showBidSheet) {
-                    currentPrice += 500
-                    bidError = "다른 입찰이 먼저 반영됐어요\n최신 입찰가를 확인하고 다시 입찰해 주세요."
-                    snackbar.showSnackbar("새 입찰로 500원 올랐어요")
-                }
-            }
-        }
         BidSheet(
             productName = productName,
             currentPrice = currentPrice,
@@ -663,6 +646,7 @@ private fun StickyBidAction(
     favorite: Boolean,
     state: DetailAuctionState,
     submitting: Boolean,
+    biddingAvailable: Boolean,
     isOwnAuction: Boolean,
     onFavorite: (Boolean) -> Unit,
     onBid: () -> Unit,
@@ -697,7 +681,7 @@ private fun StickyBidAction(
             }
             Button(
                 onClick = onBid,
-                enabled = state == DetailAuctionState.Active && !submitting && !isOwnAuction,
+                enabled = state == DetailAuctionState.Active && !submitting && !isOwnAuction && biddingAvailable,
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -709,8 +693,9 @@ private fun StickyBidAction(
                 Text(
                     when {
                         isOwnAuction -> "내 경매에는 입찰할 수 없어요"
-                        submitting -> "입찰 결과 확인 중"
                         state == DetailAuctionState.HighestBidder -> "✓ 현재 최고 입찰 중이에요"
+                        !biddingAvailable -> "실시간 입찰 연결이 필요해요"
+                        submitting -> "입찰 결과 확인 중"
                         else -> "%,d원 입찰하기".format(price)
                     },
                     fontSize = 14.sp,
