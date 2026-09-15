@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -74,7 +73,7 @@ fun TransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
-    onPreparePayment: () -> Unit,
+    onPreparePayment: (String) -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
     onRegisterShipment: (String) -> Unit,
@@ -141,7 +140,7 @@ private fun RemoteTransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
-    onPreparePayment: () -> Unit,
+    onPreparePayment: (String) -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
     onRegisterShipment: (String) -> Unit,
@@ -154,6 +153,7 @@ private fun RemoteTransactionScreen(
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
+    var paymentType by rememberSaveable(order?.orderId) { mutableStateOf("CARD") }
     val uriHandler = LocalUriHandler.current
     ExternalPaymentReturnEffect(
         requestKey = paymentPreparation?.orderId,
@@ -252,9 +252,10 @@ private fun RemoteTransactionScreen(
                             item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
                         }
                         if (paymentPreparation == null) {
+                            item { PaymentTypeSelector(paymentType, { paymentType = it }) }
                             item {
                                 Button(
-                                    onClick = onPreparePayment,
+                                    onClick = { onPreparePayment(paymentType) },
                                     enabled = !paymentLoading,
                                     modifier = Modifier.fillMaxWidth().height(56.dp),
                                     shape = RoundedCornerShape(14.dp),
@@ -394,13 +395,39 @@ private fun orderPresentation(status: String, seller: Boolean): OrderPresentatio
 }
 
 @Composable
+private fun PaymentTypeSelector(selected: String, onSelect: (String) -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("결제 방식", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("CARD" to "카드", "TRANSFER" to "계좌이체").forEach { (value, label) ->
+                OutlinedButton(
+                    onClick = { onSelect(value) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (selected == value) Color(0xFFE8FAF5) else Color.White,
+                        contentColor = Colors.Navy
+                    )
+                ) {
+                    Text(if (selected == value) "✓ $label" else label, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Text("선택한 방식으로 TossPayments 결제 페이지를 열어요.", color = Colors.Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
 private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (role == "seller") {
         SellerTransactionScreen(onBack, modifier)
         return
     }
     var step by rememberSaveable { mutableStateOf(TransactionStep.PaymentRequired) }
-    var paymentMethod by rememberSaveable { mutableIntStateOf(0) }
+    var paymentType by rememberSaveable { mutableStateOf("CARD") }
     var tossRetried by rememberSaveable { mutableStateOf(false) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     val amount = 58_000
@@ -423,43 +450,29 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
             when (step) {
                 TransactionStep.PaymentRequired -> {
                     item { StateHeader("재결제 필요", 1) }
-                    item { StatusHero("!", "자동 결제를 완료하지 못했어요", "등록 결제수단을 변경하거나 기한 내 다시 결제해주세요.", Color(0xFFFFEEE8)) }
+                    item { StatusHero("!", "자동 결제를 완료하지 못했어요", "결제 방식을 선택해 기한 내 다시 결제해주세요.", Color(0xFFFFEEE8)) }
                     item { ProductSummary(amount) }
                     item {
                         InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "자동 결제" to "승인 실패"))
                     }
-                    item { PrimaryButton("결제수단 변경·재결제") { step = TransactionStep.Paying } }
+                    item { PrimaryButton("결제 방식 선택·재결제") { step = TransactionStep.Paying } }
                 }
                 TransactionStep.Paying -> {
                     item { Text("낙찰을 축하해요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                     item { Text("결제가 완료되면 판매자와의 거래 채팅이 활성화돼요.", color = Colors.Muted, fontSize = 11.sp) }
                     item { ProductSummary(amount) }
-                    item {
-                        Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(14.dp)) {
-                            Text("결제 수단", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            listOf("신한카드 ···· 1234", "우리카드 ···· 5678", "새 결제수단 등록").forEachIndexed { index, label ->
-                                Row(
-                                    Modifier.fillMaxWidth().height(44.dp).clickable { paymentMethod = index },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(if (paymentMethod == index) "●" else "○", color = if (paymentMethod == index) Colors.Navy else Colors.Muted)
-                                    Text(label, Modifier.padding(start = 7.dp).weight(1f), color = Colors.Navy, fontSize = 13.sp)
-                                    if (index == paymentMethod) Text(if (index == 2) "TossPayments" else "선택됨", color = Color(0xFF41AA8E), fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                    item { PrimaryButton("${"%,d".format(amount)}원 재결제하기") { step = if (paymentMethod == 2 && !tossRetried) TransactionStep.PaymentFailed else TransactionStep.PaymentSuccess } }
+                    item { PaymentTypeSelector(paymentType, { paymentType = it }) }
+                    item { PrimaryButton("${"%,d".format(amount)}원 재결제하기") { step = if (paymentType == "TRANSFER" && !tossRetried) TransactionStep.PaymentFailed else TransactionStep.PaymentSuccess } }
                 }
                 TransactionStep.PaymentFailed -> {
                     item { StatusHero("!", "결제를 완료하지 못했어요", "결제 승인 중 문제가 발생했어요. 결제 수단을 확인한 뒤 다시 시도해주세요.", Color(0xFFFFE9E9)) }
                     item { InfoCard(listOf("실패 사유" to "카드 승인 실패", "결제 상태" to "결제되지 않음")) }
                     item { PrimaryButton("다시 결제하기") { tossRetried = true; step = TransactionStep.Paying } }
-                    item { TextButton({ paymentMethod = 0; step = TransactionStep.Paying }, Modifier.fillMaxWidth()) { Text("다른 결제 수단 선택", color = Colors.Navy) } }
+                    item { TextButton({ paymentType = "CARD"; step = TransactionStep.Paying }, Modifier.fillMaxWidth()) { Text("다른 결제 방식 선택", color = Colors.Navy) } }
                 }
                 TransactionStep.PaymentSuccess -> {
                     item { StatusHero("✓", "결제가 완료됐어요", "판매자와의 거래 채팅이 열렸어요. 배송·수령 방법을 협의해주세요.", Color(0xFFE8FAF5)) }
-                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 수단" to if (paymentMethod == 2) "TossPayments" else "등록 카드 ···· 1234")) }
+                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to if (paymentType == "TRANSFER") "계좌이체" else "카드")) }
                     item { PrimaryButton("거래 시작") { step = TransactionStep.Preparing } }
                 }
                 TransactionStep.Preparing -> {
@@ -491,7 +504,7 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
                     item { StatusHero("✓", "거래가 완료됐어요", "상품 후기를 남기면 다른 사용자에게 도움이 돼요.", Color(0xFFE8FAF5)) }
                     item { ProductSummary(amount) }
                     item { ProgressCard(3) }
-                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to "등록 결제수단 자동 결제", "거래 상태" to "구매 확정"), "거래 정보") }
+                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to if (paymentType == "TRANSFER") "계좌이체" else "카드", "거래 상태" to "구매 확정"), "거래 정보") }
                     item { PrimaryButton("내 거래로 돌아가기", onBack) }
                 }
             }
