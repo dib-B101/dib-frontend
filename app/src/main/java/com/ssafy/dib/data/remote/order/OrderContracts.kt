@@ -18,6 +18,8 @@ data class OrderSummaryDto(
     val finalPrice: Long? = null,
     val amount: Long? = null,
     val status: String? = null,
+    val productTitle: String? = null,
+    val thumbnailUrl: String? = null,
     val updatedAt: String? = null,
     val createdAt: String? = null,
     val order: OrderCoreDto? = null,
