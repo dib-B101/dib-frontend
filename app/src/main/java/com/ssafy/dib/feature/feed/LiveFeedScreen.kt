@@ -110,7 +110,7 @@ fun LiveFeedScreen(
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
-    onReportAuction: (String) -> Unit,
+    onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
@@ -224,7 +224,7 @@ private fun LiveFeedPage(
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
-    onReportAuction: (String) -> Unit,
+    onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
     onDepositPayment: (String, BidSubmission) -> Unit,
@@ -246,6 +246,9 @@ private fun LiveFeedPage(
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var showReportTypes by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
+    var reportAuctionId by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf<String?>(null) }
+    var productReportReason by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf("상품 정보가 실제와 달라요") }
+    var showProductReportReasons by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
     var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) {
         mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: if (isSampleContent) 34_500 else 0)
@@ -507,7 +510,11 @@ private fun LiveFeedPage(
                 enabled = auctionKey != null
             ) {
                 showReportTypes = false
-                auctionKey?.let(onReportAuction)
+                reportAuctionId = auctionKey
+                productReportReason = "상품 정보가 실제와 달라요"
+                showProductReportReasons = false
+                reportContent = ""
+                onDismissReport()
             }
             LiveReportTypeAction(
                 title = "회원·채팅 신고",
@@ -516,6 +523,95 @@ private fun LiveFeedPage(
             ) {
                 showReportTypes = false
                 showComments = true
+            }
+        }
+    }
+    reportAuctionId?.let { auctionId ->
+        ModalBottomSheet(
+            onDismissRequest = {
+                if (!reportSubmitting) {
+                    reportAuctionId = null
+                    showProductReportReasons = false
+                    onDismissReport()
+                }
+            },
+            containerColor = Color(0xFFF8F9FB)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("상품 신고", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("신고 대상", color = Colors.Muted, fontSize = 10.sp)
+                        Text("현재 경매 상품", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("경매 ID  $auctionId", color = Colors.Muted, fontSize = 10.sp)
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = !reportSubmitting && !reportCompleted) {
+                        showProductReportReasons = !showProductReportReasons
+                    },
+                    color = Color.White,
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("신고 사유", color = Colors.Muted, fontSize = 10.sp)
+                        Text("$productReportReason  ›", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (showProductReportReasons && !reportCompleted) {
+                    Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            productReportReasons.forEach { reason ->
+                                Text(
+                                    reason,
+                                    Modifier.fillMaxWidth().clickable {
+                                        productReportReason = reason
+                                        showProductReportReasons = false
+                                    }.padding(horizontal = 14.dp, vertical = 11.dp),
+                                    color = if (reason == productReportReason) Colors.Navy else Colors.Text,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (reason == productReportReason) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+                if (reportCompleted) {
+                    Surface(Modifier.fillMaxWidth(), color = Colors.Mint.copy(alpha = .22f), shape = RoundedCornerShape(14.dp)) {
+                        Text("신고가 접수됐어요.", Modifier.padding(16.dp), color = Colors.MintInk, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = reportContent,
+                        onValueChange = { reportContent = it.take(500) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                        enabled = !reportSubmitting,
+                        label = { Text("상세 내용") },
+                        placeholder = { Text("신고 내용을 구체적으로 입력해주세요.") },
+                        supportingText = { Text("${reportContent.length}/500") }
+                    )
+                    reportError?.let { Text(it, color = Colors.Live, fontSize = 11.sp) }
+                }
+                Button(
+                    onClick = {
+                        if (reportCompleted) {
+                            reportAuctionId = null
+                            onDismissReport()
+                        } else {
+                            onReportAuction(auctionId, "$productReportReason: ${reportContent.trim()}")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    enabled = reportCompleted || (reportContent.isNotBlank() && !reportSubmitting),
+                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (reportCompleted) "확인" else if (reportSubmitting) "접수 중" else "신고 접수", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -640,6 +736,14 @@ private fun LiveFeedPage(
         )
     }
 }
+
+private val productReportReasons = listOf(
+    "상품 정보가 실제와 달라요",
+    "위조품이 의심돼요",
+    "판매가 금지된 상품이에요",
+    "부적절한 이미지나 설명이 있어요",
+    "기타"
+)
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable

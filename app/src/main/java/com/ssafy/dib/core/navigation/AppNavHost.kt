@@ -1359,8 +1359,31 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onDismissFavoriteError = { liveFavoriteError = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
-                onReportAuction = { auctionId ->
-                    navController.navigate(Screen.ProductReport.createRoute(auctionId))
+                onReportAuction = { auctionId, content ->
+                    if (signedIn != true) {
+                        navController.navigate(Screen.Login.route)
+                    } else {
+                        val command = "auction-report:$auctionId:$content"
+                        val idempotencyKey = commandKeys.keyFor(command)
+                        liveReportSubmitting = true
+                        liveReportError = null
+                        liveReportCompleted = false
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.reportRepository.reportAuction(auctionId, content, idempotencyKey)
+                            }) {
+                                is ApiResult.Success -> {
+                                    commandKeys.complete(command)
+                                    liveReportCompleted = true
+                                }
+                                is ApiResult.Failure -> {
+                                    liveReportError = reportSubmissionMessage(result.error)
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            liveReportSubmitting = false
+                        }
+                    }
                 },
                 onReportParticipant = { liveBroadcastId, memberId, content ->
                     if (signedIn != true) {
@@ -1382,7 +1405,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     liveReportCompleted = true
                                 }
                                 is ApiResult.Failure -> {
-                                    liveReportError = result.error.message.ifBlank { "신고를 접수하지 못했어요." }
+                                    liveReportError = reportSubmissionMessage(result.error)
                                     if (result.error.requiresLogin) signedIn = false
                                 }
                             }
