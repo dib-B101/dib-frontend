@@ -9,6 +9,7 @@ import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.order.OrderRole
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.serialization.builtins.ListSerializer
 
 class OrderRemoteDataSource(private val client: DibHttpClient) {
     fun getOrders(role: OrderRole, cursor: String?, size: Int): ApiResult<OrderListResponse> = configured {
@@ -38,11 +39,18 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), OrderShippingAddressResponse.serializer())
     }
 
-    fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<ShipmentResponse> = configured {
+    fun getShippingCarriers(): ApiResult<List<CarrierDto>> = configured {
+        client.execute(
+            client.requestBuilder(ApiRoutes.CARRIERS).get().build(),
+            ListSerializer(CarrierDto.serializer())
+        )
+    }
+
+    fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<ShipmentResponse> = configured {
         val path = "${ApiRoutes.ORDERS}/$orderId/shipment"
         val body = DibJson.instance.encodeToString(
             ShipmentRegistrationRequest.serializer(),
-            ShipmentRegistrationRequest(trackingNumber)
+            ShipmentRegistrationRequest(carrier, trackingNumber)
         ).toRequestBody("application/json".toMediaType())
         client.execute(
             client.requestBuilder(path)

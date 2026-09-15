@@ -69,12 +69,16 @@ data class OrderConfirmationResponse(
 )
 
 @Serializable
-data class ShipmentRegistrationRequest(val trackingNumber: String)
+data class ShipmentRegistrationRequest(val carrier: String, val trackingNumber: String)
+
+@Serializable
+data class CarrierDto(val code: String, val name: String? = null)
 
 @Serializable
 data class ShipmentResponse(
     val orderId: JsonElement,
     val trackingNumber: String,
+    val carrier: String? = null,
     val status: String,
     val carrierStatus: String? = null,
     val lastCheckedAt: String? = null,

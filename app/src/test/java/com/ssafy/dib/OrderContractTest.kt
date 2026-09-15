@@ -82,10 +82,10 @@ class OrderContractTest {
     fun shipmentRegistrationPayloadContainsTrackingNumber() {
         val encoded = DibJson.instance.encodeToString(
             ShipmentRegistrationRequest.serializer(),
-            ShipmentRegistrationRequest("123456789012")
+            ShipmentRegistrationRequest("CJ", "123456789012")
         )
 
-        assertEquals("{\"trackingNumber\":\"123456789012\"}", encoded)
+        assertEquals("{\"carrier\":\"CJ\",\"trackingNumber\":\"123456789012\"}", encoded)
     }
 
     @Test
