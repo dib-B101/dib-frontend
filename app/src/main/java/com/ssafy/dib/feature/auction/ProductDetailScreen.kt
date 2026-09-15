@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,12 +31,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.feature.home.allHomeAuctions
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.domain.product.ProductDetail
+import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
@@ -103,6 +107,11 @@ fun ProductDetailScreen(
     depositPaid: Boolean,
     onPaymentConsumed: () -> Unit,
     onDepositPayment: (BidSubmission) -> Unit,
+    similarProducts: List<RegisteredProduct>?,
+    similarProductsLoading: Boolean,
+    similarProductsError: String?,
+    onSimilarProductsRetry: () -> Unit,
+    onSimilarProductClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val product = remoteAuction ?: if (showSampleContent) {
@@ -316,6 +325,17 @@ fun ProductDetailScreen(
                     onReport = onReportClick
                 )
             }
+            if (similarProductsLoading || similarProductsError != null || !similarProducts.isNullOrEmpty()) {
+                item {
+                    SimilarProductsSection(
+                        products = similarProducts.orEmpty(),
+                        loading = similarProductsLoading,
+                        errorMessage = similarProductsError,
+                        onRetry = onSimilarProductsRetry,
+                        onProductClick = onSimilarProductClick
+                    )
+                }
+            }
         }
     }
 
@@ -337,6 +357,47 @@ fun ProductDetailScreen(
             }
         )
     }
+}
+
+@Composable
+private fun SimilarProductsSection(
+    products: List<RegisteredProduct>,
+    loading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onProductClick: (String) -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("비슷한 상품", Modifier.weight(1f), color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Colors.MintInk)
+        }
+        errorMessage?.let { message ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).background(Colors.UrgentBackground, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                TextButton(onClick = onRetry) { Text("재시도", fontSize = 11.sp) }
+            }
+        }
+        if (products.isNotEmpty()) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(products, key = { it.productId }) { product ->
+                    Column(Modifier.width(144.dp).clickable { onProductClick(product.productId) }) {
+                        DibNetworkImage(product.thumbnailUrl, product.title, Modifier.fillMaxWidth().height(144.dp))
+                        Text(product.title, Modifier.padding(top = 8.dp), maxLines = 2, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(productConditionLabelForCard(product.condition), color = Colors.Muted, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun productConditionLabelForCard(condition: String): String = when (condition.uppercase()) {
+    "NEW" -> "새 상품"
+    "LIKE_NEW" -> "거의 새 상품"
+    "GOOD" -> "사용감 적음"
+    "FAIR" -> "사용감 있음"
+    else -> condition
 }
 
 @Composable

@@ -78,6 +78,7 @@ interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
     fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
+    fun getSimilarProducts(productId: String, size: Int = 20): ApiResult<List<RegisteredProduct>>
     fun searchProducts(query: String, categoryId: String? = null, cursor: String? = null, size: Int = 100): ApiResult<RegisteredProductPage>
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductRegistrationResult>
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult>

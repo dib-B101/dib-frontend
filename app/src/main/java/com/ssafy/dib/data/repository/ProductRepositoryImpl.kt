@@ -31,6 +31,12 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
+    override fun getSimilarProducts(productId: String, size: Int): ApiResult<List<RegisteredProduct>> =
+        when (val result = remote.getSimilarProducts(productId, size)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.items.map(ProductCardDto::toDomain), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<RegisteredProductPage> =
         when (val result = remote.getMyProducts(status, cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(

@@ -83,6 +83,22 @@ class ProductContractTest {
     }
 
     @Test
+    fun similarProductResponseAllowsCursorFieldsToBeOmitted() {
+        val response = DibJson.instance.decodeFromString(
+            ProductListResponse.serializer(),
+            """{"items":[{"productId":21,"title":"필름 렌즈","condition":"LIKE_NEW","status":"REGISTERED","thumbnailUrl":"https://cdn.example/lens.jpg"}]}"""
+        )
+
+        val product = response.items.single().toDomain()
+
+        assertEquals("21", product.productId)
+        assertEquals("필름 렌즈", product.title)
+        assertEquals("LIKE_NEW", product.condition)
+        assertEquals(null, response.nextCursor)
+        assertTrue(!response.hasNext)
+    }
+
+    @Test
     fun productUpdatePayloadKeepsNumericFieldsAndOmitsNulls() {
         val payload = ProductUpdatePayload(
             title = "필름 카메라",
