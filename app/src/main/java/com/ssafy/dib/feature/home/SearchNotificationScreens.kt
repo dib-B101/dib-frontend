@@ -161,13 +161,14 @@ fun NotificationCenterScreen(
     notifications: List<DomainNotification>,
     connectionState: RealtimeConnectionState?,
     onNotificationClick: (DomainNotification) -> Unit,
+    onSettingsClick: () -> Unit,
     onBack: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
 ){
     var filter by rememberSaveable{mutableStateOf("전체")}
     val shown = if (filter == "전체") notifications else notifications.filter { it.category.label == filter }
-    Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=androidx.compose.ui.graphics.Color.White,contentWindowInsets=WindowInsets(0,0,0,0),topBar={SimpleAppBar("알림",onBack,"설정")},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
+    Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=androidx.compose.ui.graphics.Color.White,contentWindowInsets=WindowInsets(0,0,0,0),topBar={SimpleAppBar("알림",onBack,"설정",onSettingsClick)},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
             item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{FilterChip(filter==it,{filter=it},{Text(it)})}}}
             if (connectionState == RealtimeConnectionState.Connecting || connectionState == RealtimeConnectionState.Reconnecting) {
@@ -192,4 +193,4 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
     }
 }.getOrDefault(occurredAt)
 
-@Composable private fun SimpleAppBar(title:String,onBack:()->Unit,action:String=""){Row(Modifier.fillMaxWidth().height(48.dp).background(androidx.compose.ui.graphics.Color.White),verticalAlignment=Alignment.CenterVertically){Text("←",Modifier.size(48.dp).clickable(onClick=onBack).wrapContentSize(),fontSize=24.sp);Text(title,Modifier.weight(1f),fontSize=16.sp,fontWeight=FontWeight.Bold);if(action.isNotBlank())Text(action,Modifier.padding(end=16.dp),color=Colors.Muted,fontSize=12.sp)}}
+@Composable private fun SimpleAppBar(title:String,onBack:()->Unit,action:String="",onActionClick:(()->Unit)?=null){Row(Modifier.fillMaxWidth().height(48.dp).background(androidx.compose.ui.graphics.Color.White),verticalAlignment=Alignment.CenterVertically){Text("←",Modifier.size(48.dp).clickable(onClick=onBack).wrapContentSize(),fontSize=24.sp);Text(title,Modifier.weight(1f),fontSize=16.sp,fontWeight=FontWeight.Bold);if(action.isNotBlank())Text(action,Modifier.clickable(enabled=onActionClick!=null){onActionClick?.invoke()}.padding(horizontal=16.dp,vertical=14.dp),color=Colors.Muted,fontSize=12.sp)}}
