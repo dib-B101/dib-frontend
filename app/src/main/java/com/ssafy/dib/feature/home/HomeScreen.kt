@@ -33,6 +33,9 @@ import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.auction.RecommendedLive
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 /** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
@@ -183,29 +186,53 @@ private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit,
 private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("지금 LIVE", "라이브 보기", onLiveClick)
-        val cards = remoteLives?.take(2)?.map { live -> Triple(live.title, live.description ?: "Live 상품을 확인해보세요", live.status == "LIVE") }
-            ?: listOf(Triple("하루공방 라이브", "달빛 유약 머그컵", true), Triple("빈티지마켓 라이브", "빈티지 필름 카메라", false))
+        val cards = remoteLives?.take(2)?.map { item ->
+            val isLive = item.status.equals("LIVE", ignoreCase = true)
+            HomeLiveCard(
+                title = item.title,
+                description = item.description ?: "Live 상품을 확인해보세요",
+                isLive = isLive,
+                footer = if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt)
+            )
+        } ?: listOf(
+            HomeLiveCard("하루공방 라이브", "달빛 유약 머그컵", true, "상품 5개 · 목록 보기"),
+            HomeLiveCard("빈티지마켓 라이브", "빈티지 필름 카메라", false, "상품 3개 · 오늘 20:00")
+        )
         if (cards.isEmpty()) {
             Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
         } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            cards.forEach { (title, product, live) ->
+            cards.forEach { card ->
                 Column(Modifier.weight(1f).height(176.dp).clickable(onClick = onLiveClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.fillMaxWidth().height(100.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
-                        Surface(Modifier.padding(8.dp), color = if(live) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
+                        Surface(Modifier.padding(8.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
                             Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                if (!live) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
-                                Text(if(live) "● LIVE" else "예정", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
+                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                    Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(product, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(if(live) "상품 5개 · 목록 보기" else "상품 3개 · 오늘 20:00", color = Colors.Muted, fontSize = 9.sp)
+                    Text(card.title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(card.description, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(card.footer, color = Colors.Muted, fontSize = 9.sp)
                 }
             }
         }
     }
 }
+
+private data class HomeLiveCard(
+    val title: String,
+    val description: String,
+    val isLive: Boolean,
+    val footer: String
+)
+
+internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.systemDefault()): String =
+    value?.let { scheduledAt ->
+        runCatching {
+            Instant.parse(scheduledAt).atZone(zoneId).format(DateTimeFormatter.ofPattern("M월 d일 HH:mm 예정"))
+        }.getOrNull()
+    } ?: "방송 예정"
 
 @Composable
 private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () -> Unit) {
