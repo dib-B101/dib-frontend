@@ -101,8 +101,8 @@ class LiveRepositoryImpl(
         is ApiResult.Failure -> result
     }
 
-    override fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String> =
-        when (val result = remote.create(title, description, scheduledAt, streamUrl)) {
+    override fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.create(title, description, scheduledAt, streamUrl, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.liveBroadcastId.idValue(), result.status)
             is ApiResult.Failure -> result
         }
@@ -119,22 +119,22 @@ class LiveRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun prepareStream(liveBroadcastId: String): ApiResult<LiveStreamSession> = when (val result = remote.prepareStream(liveBroadcastId)) {
+    override fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSession> = when (val result = remote.prepareStream(liveBroadcastId, idempotencyKey)) {
         is ApiResult.Success -> ApiResult.Success(LiveStreamSession(result.value.streamUrl, result.value.expiresAt, result.value.provider), result.status)
         is ApiResult.Failure -> result
     }
 
-    override fun start(liveBroadcastId: String): ApiResult<String> = when (val result = remote.start(liveBroadcastId)) {
+    override fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.start(liveBroadcastId, idempotencyKey)) {
         is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
         is ApiResult.Failure -> result
     }
 
-    override fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<String> = when (val result = remote.startAuction(liveBroadcastId, auctionId)) {
+    override fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.startAuction(liveBroadcastId, auctionId, idempotencyKey)) {
         is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
         is ApiResult.Failure -> result
     }
 
-    override fun end(liveBroadcastId: String): ApiResult<String> = when (val result = remote.end(liveBroadcastId)) {
+    override fun end(liveBroadcastId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.end(liveBroadcastId, idempotencyKey)) {
         is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
         is ApiResult.Failure -> result
     }

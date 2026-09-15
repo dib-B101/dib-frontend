@@ -66,12 +66,12 @@ interface LiveRepository {
     fun getFeed(cursor: String? = null, size: Int = 20): ApiResult<LiveFeedPage>
     fun getDetail(liveBroadcastId: String): ApiResult<LiveBroadcastDetail>
     fun getMine(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<LiveBroadcastPage>
-    fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String>
+    fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?, idempotencyKey: String): ApiResult<String>
     fun update(liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String>
     fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<AuctionSummary>>
-    fun prepareStream(liveBroadcastId: String): ApiResult<LiveStreamSession>
-    fun start(liveBroadcastId: String): ApiResult<String>
-    fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<String>
-    fun end(liveBroadcastId: String): ApiResult<String>
+    fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSession>
+    fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<String>
+    fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<String>
+    fun end(liveBroadcastId: String, idempotencyKey: String): ApiResult<String>
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<LiveChatMessagePage>
 }

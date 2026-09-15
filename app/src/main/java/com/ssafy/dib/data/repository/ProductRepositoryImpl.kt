@@ -57,8 +57,8 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
-    override fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult> =
-        when (val result = remote.registerProduct(registration)) {
+    override fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductRegistrationResult> =
+        when (val result = remote.registerProduct(registration, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(
                 ProductRegistrationResult(
                     productId = result.value.productId.idValue(),
@@ -71,7 +71,8 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
-    override fun deleteProduct(productId: String): ApiResult<Unit> = remote.deleteProduct(productId)
+    override fun deleteProduct(productId: String, idempotencyKey: String): ApiResult<Unit> =
+        remote.deleteProduct(productId, idempotencyKey)
 
     override fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult> =
         when (val result = remote.updateProduct(productId, update)) {
