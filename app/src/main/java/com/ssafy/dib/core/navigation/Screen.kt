@@ -21,7 +21,7 @@ sealed class Screen(val route: String) {
     data object Trades : Screen("trades")
     data object My : Screen("my")
     data object Transaction : Screen("transaction/{role}/{orderId}") {
-        fun createRoute(role: String, orderId: String = "sample") = "transaction/$role/$orderId"
+        fun createRoute(role: String, orderId: String) = "transaction/$role/$orderId"
     }
     data object OrderChat : Screen("order/{orderId}/chat") {
         fun createRoute(orderId: String) = "order/$orderId/chat"

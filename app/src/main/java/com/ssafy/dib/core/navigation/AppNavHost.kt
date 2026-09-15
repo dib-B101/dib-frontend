@@ -1360,6 +1360,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var realtimeConnection by remember(productId) { mutableStateOf<AuctionRealtimeConnection?>(null) }
             var pendingBidCommandId by remember(productId) { mutableStateOf<String?>(null) }
             var realtimeBidFeedback by remember(productId) { mutableStateOf<RealtimeBidFeedback?>(null) }
+            var wonOrderId by remember(productId) { mutableStateOf<String?>(null) }
             var bookmarkLoading by remember(productId) { mutableStateOf(false) }
             var bookmarkError by remember(productId) { mutableStateOf<String?>(null) }
             var auctionBidHistory by remember(productId) { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionBidHistoryItem>?>(null) }
@@ -1464,6 +1465,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                         SocketEventTypes.BID_REJECTED
                                     )
                                     if (update.eventType == SocketEventTypes.BID_ACCEPTED) auctionBidHistoryRevision++
+                                    if (update.eventType == SocketEventTypes.AUCTION_ENDED) {
+                                        wonOrderId = update.orderId?.takeIf(String::isNotBlank)
+                                    }
                                     if (isBidResult && update.commandId == pendingBidCommandId) {
                                         realtimeBidFeedback = RealtimeBidFeedback(
                                             accepted = update.eventType == SocketEventTypes.BID_ACCEPTED,
@@ -1603,8 +1607,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     } else navController.navigate(Screen.Login.route)
                 },
                 onTransactionClick = {
-                    if (signedIn == true) navController.navigate(Screen.Transaction.createRoute("buyer"))
-                    else navController.navigate(Screen.Login.route)
+                    if (signedIn != true) {
+                        navController.navigate(Screen.Login.route)
+                    } else {
+                        val orderId = wonOrderId
+                        if (orderId != null) navController.navigate(Screen.Transaction.createRoute("buyer", orderId))
+                        else navigateMain(DibMainTab.Trades)
+                    }
                 },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 paidBidAmount = paidBidAmount,

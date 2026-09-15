@@ -21,6 +21,7 @@ data class AuctionRealtimeUpdate(
     val message: String? = null,
     val errorCode: String? = null,
     val minAllowedAmount: Int? = null,
+    val orderId: String? = null,
     val occurredAt: String? = null
 )
 
@@ -61,6 +62,7 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 currentPrice = payload.int("finalPrice"),
                 remainingSeconds = 0,
                 status = "ENDED",
+                orderId = payload.string("orderId"),
                 message = if (payload.string("result") == "SOLD") "경매가 낙찰됐어요." else "경매가 종료됐어요.",
                 occurredAt = occurredAt
             )

@@ -45,6 +45,7 @@ class AuctionSocketEventParserTest {
                     put("auctionId", "auction-1")
                     put("result", "SOLD")
                     put("finalPrice", 52_000)
+                    put("orderId", 81)
                     put("endedAt", "2026-09-11T06:00:00Z")
                 }
             )
@@ -53,6 +54,7 @@ class AuctionSocketEventParserTest {
         assertEquals(0, update.remainingSeconds)
         assertEquals(52_000, update.currentPrice)
         assertEquals("ENDED", update.status)
+        assertEquals("81", update.orderId)
         assertEquals("경매가 낙찰됐어요.", update.message)
     }
 
