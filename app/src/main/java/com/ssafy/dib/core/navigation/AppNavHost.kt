@@ -4002,7 +4002,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     }
 }
 
-private fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
+internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 연결 설정을 확인해주세요."
     "INVALID_PHONE" -> "휴대폰 번호 형식을 확인해주세요."
     "RATE_LIMITED" -> "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
@@ -4012,41 +4012,56 @@ private fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "INVALID_EMAIL" -> "이메일 형식을 확인해주세요."
     "EMAIL_DUPLICATED" -> "이미 가입된 이메일이에요."
     "PHONE_DUPLICATED" -> "이미 가입된 휴대폰 번호예요."
+    "NICKNAME_DUPLICATED" -> "이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요."
     "INVALID_PASSWORD" -> "비밀번호 조건을 확인해주세요."
     "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
+    "INVALID_VERIFICATION_ID" -> "인증 요청 정보가 올바르지 않아요. 인증번호를 다시 요청해주세요."
+    "INVALID_RESET_TOKEN" -> "비밀번호 재설정 링크가 만료됐거나 이미 사용됐어요. 링크를 다시 요청해주세요."
+    "ACCOUNT_NOT_FOUND", "MEMBER_NOT_FOUND" -> "입력한 정보와 일치하는 계정을 찾을 수 없어요."
     else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
 
-private fun auctionCommandError(error: ApiFailure): String = when (error.code) {
-    "NOT_MY_PRODUCT" -> "본인이 등록한 상품만 경매에 올릴 수 있어요."
-    "PRODUCT_PENDING" -> "상품 검수가 끝난 뒤 경매를 등록할 수 있어요."
-    "PRODUCT_ON_AUCTION" -> "이미 경매에 등록된 상품이에요."
+internal fun auctionCommandError(error: ApiFailure): String = when (error.code) {
+    "PRODUCT_NOT_OWNED", "NOT_MY_PRODUCT" -> "본인이 등록한 상품만 경매에 올릴 수 있어요."
+    "PRODUCT_NOT_APPROVED", "PRODUCT_PENDING" -> "상품 검수가 끝난 뒤 경매를 등록할 수 있어요."
+    "PRODUCT_ALREADY_LISTED", "PRODUCT_ON_AUCTION" -> "이미 다른 경매에 등록되거나 Live에 편성된 상품이에요."
     "PRODUCT_ALREADY_SOLD" -> "판매가 완료된 상품이에요."
     "PRODUCT_ALREADY_DELETED" -> "삭제된 상품이에요."
-    "AUCTION_NOT_EDITABLE" -> "예정 상태의 경매만 변경하거나 시작할 수 있어요."
+    "AUCTION_STARTED", "AUCTION_NOT_EDITABLE" -> "시작된 경매는 변경하거나 취소할 수 없어요."
+    "AUCTION_NOT_FOUND" -> "경매를 찾을 수 없어요. 목록에서 다시 확인해주세요."
+    "INVALID_AUCTION", "LIVE_RULES_INVALID" -> "시작가와 경매 시간을 다시 확인해주세요."
     else -> error.message.ifBlank { "경매 요청을 처리하지 못했어요." }
 }
 
-private fun liveControlError(error: ApiFailure): String = when (error.code) {
+internal fun liveControlError(error: ApiFailure): String = when (error.code) {
     "STREAM_UNAVAILABLE" -> "송출 연결을 준비하지 못했어요. 잠시 후 다시 시도해주세요."
     "LIVE_ITEMS_EMPTY" -> "상품을 한 개 이상 편성한 뒤 방송을 시작해주세요."
     "LIVE_END_BLOCKED_BY_AUCTION" -> "진행 중인 경매가 끝난 뒤 방송을 종료할 수 있어요."
     "LIVE_INVALID_STATUS" -> "현재 방송 상태에서는 이 작업을 할 수 없어요."
+    "LIVE_NOT_EDITABLE" -> "시작된 방송의 설정이나 상품 편성은 변경할 수 없어요."
+    "LIVE_ITEMS_LIMIT_EXCEEDED" -> "Live에는 상품을 최대 10개까지 편성할 수 있어요."
+    "PRODUCT_NOT_OWNED" -> "본인이 등록한 상품만 Live에 편성할 수 있어요."
+    "PRODUCT_NOT_APPROVED" -> "검수가 승인된 상품만 Live에 편성할 수 있어요."
+    "PRODUCT_ALREADY_LISTED" -> "이미 다른 경매에 등록되거나 Live에 편성된 상품이에요."
+    "LIVE_AUCTION_ALREADY_ACTIVE" -> "현재 경매가 끝난 뒤 다음 상품 경매를 시작해주세요."
+    "LIVE_AUCTION_ALREADY_PROCESSED" -> "이미 시작되었거나 종료된 경매예요. 다른 예정 경매를 선택해주세요."
+    "LIVE_RULES_INVALID" -> "Live 경매의 시작가와 진행 시간을 확인해주세요."
     "AUCTION_NOT_ACTIVE" -> "선택한 경매를 시작할 수 있는 상태가 아니에요."
     "NOT_BROADCASTER" -> "이 방송을 관리할 권한이 없어요."
     else -> error.message.ifBlank { "Live 요청을 처리하지 못했어요." }
 }
 
-private fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {
+internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {
     ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
     "SELF_REPORT_NOT_ALLOWED" -> "본인은 신고할 수 없어요."
     "DUPLICATE_REPORT" -> "이미 접수된 신고가 있어요."
     "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
     "MEMBER_NOT_FOUND" -> "신고할 회원을 찾을 수 없어요."
+    "LIVE_NOT_FOUND" -> "신고할 Live 방송을 찾을 수 없어요."
     else -> error.message.ifBlank { "신고를 접수하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
 
-private fun productSubmissionMessage(error: ApiFailure): String = when (error.code) {
+internal fun productSubmissionMessage(error: ApiFailure): String = when (error.code) {
     ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
     "IMAGE_REQUIRED" -> "상품 사진을 한 장 이상 선택해주세요."
     "INVALID_CONTENT_TYPE" -> "지원하지 않는 사진 형식이 포함돼 있어요."
