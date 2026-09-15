@@ -168,7 +168,7 @@ fun RegisteredProductsScreen(
                 }
             }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "product-load-more") {
-                LaunchedEffect(products.size, hasNext, loadMoreError) {
+                LaunchedEffect(products.size, hasNext, isLoadingMore, loadMoreError) {
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                 }
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
@@ -255,7 +255,7 @@ fun FavoriteAuctionsScreen(
                         key = "favorite-load-more",
                         span = { GridItemSpan(maxLineSpan) }
                     ) {
-                        LaunchedEffect(favorites.size, hasNext, loadMoreError) {
+                        LaunchedEffect(favorites.size, hasNext, isLoadingMore, loadMoreError) {
                             if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                         }
                         HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
@@ -310,7 +310,7 @@ fun InquiryHistoryScreen(
             else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }
             else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(104.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Color(0xFF61D1B2) else Color(0xFFF26B47), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "inquiry-load-more") {
-                LaunchedEffect(inquiries.size, hasNext, loadMoreError) {
+                LaunchedEffect(inquiries.size, hasNext, isLoadingMore, loadMoreError) {
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                 }
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
@@ -370,7 +370,7 @@ fun ReportHistoryScreen(
                 }
             }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "report-load-more") {
-                LaunchedEffect(reports?.size, hasNext, loadMoreError) {
+                LaunchedEffect(reports?.size, hasNext, isLoadingMore, loadMoreError) {
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                 }
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
