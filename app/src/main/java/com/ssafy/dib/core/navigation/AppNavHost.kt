@@ -1913,7 +1913,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var paymentPreparation by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.PaymentPreparation?>(null) }
             var paymentLoading by remember(orderId) { mutableStateOf(false) }
             var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
-            var paymentPrepareKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
             var completedPayment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.Payment?>(null) }
             var completedPaymentLoading by remember(orderId) { mutableStateOf(false) }
             var completedPaymentError by remember(orderId) { mutableStateOf<String?>(null) }
@@ -2008,14 +2007,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 shippingAddress = shippingAddress,
                 shippingAddressLoading = shippingAddressLoading,
                 shippingAddressError = shippingAddressError,
-                onPreparePayment = {
+                onPreparePayment = { paymentType ->
+                    val command = "payment-prepare:$orderId:$paymentType"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     paymentLoading = true
                     paymentError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.paymentRepository.prepare(orderId, "CARD", paymentPrepareKey)
+                            auth.paymentRepository.prepare(orderId, paymentType, idempotencyKey)
                         }) {
-                            is ApiResult.Success -> paymentPreparation = result.value
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                paymentPreparation = result.value
+                            }
                             is ApiResult.Failure -> {
                                 paymentError = result.error.message.ifBlank { "결제를 준비하지 못했어요." }
                                 if (result.error.requiresLogin) signedIn = false
@@ -2050,7 +2054,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onResetPayment = {
                     paymentPreparation = null
                     paymentError = null
-                    paymentPrepareKey = java.util.UUID.randomUUID().toString()
                 },
                 onRegisterShipment = { trackingNumber ->
                     val command = "shipment:$orderId:$trackingNumber"
