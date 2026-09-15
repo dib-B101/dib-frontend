@@ -3,6 +3,8 @@ package com.ssafy.dib.feature.main
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +50,7 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
+import com.ssafy.dib.domain.order.ShippingCarrier
 import com.ssafy.dib.domain.payment.PaymentPreparation
 import com.ssafy.dib.domain.payment.Payment
 
@@ -73,10 +77,14 @@ fun TransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    shippingCarriers: List<ShippingCarrier>?,
+    shippingCarriersLoading: Boolean,
+    shippingCarriersError: String?,
     onPreparePayment: (String) -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
-    onRegisterShipment: (String) -> Unit,
+    onRegisterShipment: (String, String) -> Unit,
+    onShippingCarriersRetry: () -> Unit,
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
@@ -104,10 +112,14 @@ fun TransactionScreen(
             shippingAddress = shippingAddress,
             shippingAddressLoading = shippingAddressLoading,
             shippingAddressError = shippingAddressError,
+            shippingCarriers = shippingCarriers,
+            shippingCarriersLoading = shippingCarriersLoading,
+            shippingCarriersError = shippingCarriersError,
             onPreparePayment = onPreparePayment,
             onCheckPayment = onCheckPayment,
             onResetPayment = onResetPayment,
             onRegisterShipment = onRegisterShipment,
+            onShippingCarriersRetry = onShippingCarriersRetry,
             onRefreshShipment = onRefreshShipment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
@@ -140,10 +152,14 @@ private fun RemoteTransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    shippingCarriers: List<ShippingCarrier>?,
+    shippingCarriersLoading: Boolean,
+    shippingCarriersError: String?,
     onPreparePayment: (String) -> Unit,
     onCheckPayment: () -> Unit,
     onResetPayment: () -> Unit,
-    onRegisterShipment: (String) -> Unit,
+    onRegisterShipment: (String, String) -> Unit,
+    onShippingCarriersRetry: () -> Unit,
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
@@ -153,6 +169,7 @@ private fun RemoteTransactionScreen(
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
+    var selectedCarrier by rememberSaveable(order?.orderId) { mutableStateOf("") }
     var paymentType by rememberSaveable(order?.orderId) { mutableStateOf("CARD") }
     val uriHandler = LocalUriHandler.current
     ExternalPaymentReturnEffect(
@@ -304,7 +321,25 @@ private fun RemoteTransactionScreen(
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Text("배송 정보 등록", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("실제 발송을 완료한 뒤 송장번호를 입력해주세요. 택배사는 배송 조회 시 자동으로 확인해요.", color = Colors.Muted, fontSize = 12.sp)
+                                Text("실제 발송을 완료한 뒤 택배사와 송장번호를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                                Text("택배사", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                when {
+                                    shippingCarriersLoading -> CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                                    shippingCarriersError != null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(shippingCarriersError, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
+                                        TextButton(onClick = onShippingCarriersRetry) { Text("재시도") }
+                                    }
+                                    shippingCarriers.isNullOrEmpty() -> Text("선택할 수 있는 택배사가 없어요.", color = Colors.Muted, fontSize = 11.sp)
+                                    else -> Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        shippingCarriers.forEach { carrier ->
+                                            FilterChip(
+                                                selected = selectedCarrier == carrier.code,
+                                                onClick = { selectedCarrier = carrier.code },
+                                                label = { Text(carrier.name, fontSize = 11.sp) }
+                                            )
+                                        }
+                                    }
+                                }
                                 OutlinedTextField(
                                     value = trackingNumber,
                                     onValueChange = { trackingNumber = it },
@@ -317,8 +352,8 @@ private fun RemoteTransactionScreen(
                         }
                         item {
                             Button(
-                                onClick = { onRegisterShipment(trackingNumber.trim()) },
-                                enabled = trackingNumber.isNotBlank() && !shipmentLoading,
+                                onClick = { onRegisterShipment(selectedCarrier, trackingNumber.trim()) },
+                                enabled = selectedCarrier.isNotBlank() && trackingNumber.isNotBlank() && !shipmentLoading,
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
@@ -332,6 +367,7 @@ private fun RemoteTransactionScreen(
                         item {
                             InfoCard(
                                 listOf(
+                                    "택배사" to (shippingCarriers?.firstOrNull { it.code == shipment.carrier }?.name ?: shipment.carrier ?: "확인 중"),
                                     "송장번호" to shipment.trackingNumber,
                                     "배송 상태" to shipmentStatusLabel(shipment.carrierStatus ?: shipment.status),
                                     "조회 상태" to if (shipment.isStale) "최근 저장 정보" else "최신 정보"

@@ -11,6 +11,7 @@ import com.ssafy.dib.domain.order.OrderMessagePage
 import com.ssafy.dib.domain.order.OrderPage
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
+import com.ssafy.dib.domain.order.ShippingCarrier
 import com.ssafy.dib.domain.order.isOrderChatWritable
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -48,8 +49,17 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Failure -> result
         }
 
-    override fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment> =
-        when (val result = remote.registerShipment(orderId, trackingNumber, idempotencyKey)) {
+    override fun getShippingCarriers(): ApiResult<List<ShippingCarrier>> =
+        when (val result = remote.getShippingCarriers()) {
+            is ApiResult.Success -> ApiResult.Success(
+                result.value.map { carrier -> ShippingCarrier(carrier.code, carrier.name ?: carrierName(carrier.code)) },
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
+    override fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment> =
+        when (val result = remote.registerShipment(orderId, carrier, trackingNumber, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
             is ApiResult.Failure -> result
         }
@@ -75,6 +85,15 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
         }
 }
 
+private fun carrierName(code: String): String = when (code.uppercase()) {
+    "CJ" -> "CJ대한통운"
+    "HANJIN" -> "한진택배"
+    "LOGEN" -> "로젠택배"
+    "LOTTE" -> "롯데택배"
+    "EPOST" -> "우체국택배"
+    else -> code
+}
+
 internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderShipment = OrderShipment(
     orderId = orderId.idValue(),
     trackingNumber = trackingNumber,
@@ -82,7 +101,8 @@ internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderS
     carrierStatus = carrierStatus,
     lastCheckedAt = lastCheckedAt,
     isStale = isStale,
-    updatedAt = updatedAt
+    updatedAt = updatedAt,
+    carrier = carrier
 )
 
 internal fun com.ssafy.dib.data.remote.order.OrderShippingAddressResponse.toDomain(): OrderShippingAddress {

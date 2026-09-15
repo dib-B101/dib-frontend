@@ -1976,6 +1976,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var shippingAddress by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShippingAddress?>(null) }
             var shippingAddressLoading by remember(orderId) { mutableStateOf(false) }
             var shippingAddressError by remember(orderId) { mutableStateOf<String?>(null) }
+            var shippingCarriers by remember(orderId) { mutableStateOf<List<com.ssafy.dib.domain.order.ShippingCarrier>?>(null) }
+            var shippingCarriersLoading by remember(orderId) { mutableStateOf(false) }
+            var shippingCarriersError by remember(orderId) { mutableStateOf<String?>(null) }
+            var shippingCarriersRevision by remember(orderId) { mutableStateOf(0) }
 
             LaunchedEffect(orderId, orderDetailRevision) {
                 if (orderId == "sample") return@LaunchedEffect
@@ -2042,6 +2046,25 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 shippingAddressLoading = false
             }
 
+            LaunchedEffect(orderId, role, remoteOrder?.status, shippingCarriersRevision) {
+                if (
+                    orderId == "sample" ||
+                    !auth.networkConfig.isRestConfigured ||
+                    role != "seller" ||
+                    remoteOrder?.status?.uppercase() !in setOf("PAID", "PREPARING")
+                ) return@LaunchedEffect
+                shippingCarriersLoading = true
+                shippingCarriersError = null
+                when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getShippingCarriers() }) {
+                    is ApiResult.Success -> shippingCarriers = result.value
+                    is ApiResult.Failure -> {
+                        shippingCarriersError = result.error.message.ifBlank { "택배사 목록을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                shippingCarriersLoading = false
+            }
+
             TransactionScreen(
                 role = role,
                 remoteOrder = remoteOrder,
@@ -2061,6 +2084,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 shippingAddress = shippingAddress,
                 shippingAddressLoading = shippingAddressLoading,
                 shippingAddressError = shippingAddressError,
+                shippingCarriers = shippingCarriers,
+                shippingCarriersLoading = shippingCarriersLoading,
+                shippingCarriersError = shippingCarriersError,
                 onPreparePayment = { paymentType ->
                     val command = "payment-prepare:$orderId:$paymentType"
                     val idempotencyKey = commandKeys.keyFor(command)
@@ -2109,14 +2135,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     paymentPreparation = null
                     paymentError = null
                 },
-                onRegisterShipment = { trackingNumber ->
-                    val command = "shipment:$orderId:$trackingNumber"
+                onRegisterShipment = { carrier, trackingNumber ->
+                    val command = "shipment:$orderId:$carrier:$trackingNumber"
                     val idempotencyKey = commandKeys.keyFor(command)
                     shipmentLoading = true
                     shipmentError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.orderRepository.registerShipment(orderId, trackingNumber, idempotencyKey)
+                            auth.orderRepository.registerShipment(orderId, carrier, trackingNumber, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
@@ -2136,6 +2162,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         shipmentLoading = false
                     }
                 },
+                onShippingCarriersRetry = { shippingCarriersRevision++ },
                 onRefreshShipment = {
                     shipmentLoading = true
                     shipmentError = null

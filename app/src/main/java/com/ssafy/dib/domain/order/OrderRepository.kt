@@ -26,8 +26,11 @@ data class OrderShipment(
     val carrierStatus: String?,
     val lastCheckedAt: String?,
     val isStale: Boolean,
-    val updatedAt: String?
+    val updatedAt: String?,
+    val carrier: String? = null
 )
+
+data class ShippingCarrier(val code: String, val name: String)
 
 data class OrderMessage(val chattingId: String, val memberId: String, val content: String, val time: String)
 
@@ -53,7 +56,8 @@ interface OrderRepository {
     fun getOrder(orderId: String): ApiResult<OrderSummary>
     fun getShipment(orderId: String): ApiResult<OrderShipment>
     fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress>
-    fun registerShipment(orderId: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
+    fun getShippingCarriers(): ApiResult<List<ShippingCarrier>>
+    fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
     fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<OrderMessagePage>
     fun confirmPurchase(orderId: String): ApiResult<String>
 }
