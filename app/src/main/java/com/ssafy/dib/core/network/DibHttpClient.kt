@@ -4,6 +4,9 @@ import java.io.IOException
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -64,7 +67,9 @@ class DibHttpClient(
             client.newCall(request).execute().use { response ->
                 val body = response.body.string()
                 if (response.isSuccessful) {
-                    runCatching { json.decodeFromString(responseSerializer, body) }
+                    runCatching {
+                        json.decodeFromJsonElement(responseSerializer, json.responsePayload(body))
+                    }
                         .fold(
                             onSuccess = { ApiResult.Success(it, response.code) },
                             onFailure = {
@@ -122,6 +127,11 @@ class DibHttpClient(
         private const val TOKEN_REFRESH_PATH = "/api/v1/auth/token/refresh"
         private const val MAX_AUTH_ATTEMPTS = 2
     }
+}
+
+internal fun Json.responsePayload(body: String): JsonElement {
+    val root = parseToJsonElement(body)
+    return (root as? JsonObject)?.get("data") ?: root
 }
 
 fun interface AccessTokenRefresher {
