@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import com.ssafy.dib.core.time.formatServerTime
+import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
@@ -363,19 +364,38 @@ fun ReportHistoryScreen(
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SimpleHeaderScaffold("신고 내역", onBack, modifier) { padding ->
+    var selectedReport by remember { mutableStateOf<ReportSummary?>(null) }
+    val sampleReports = remember {
+        listOf(
+            ReportSummary("sample-auction", "AUCTION", "허위 정보가 포함되어 있어요", "ACCEPTED", "빈티지 필름 카메라", "2026-09-08T09:00:00Z"),
+            ReportSummary("sample-member", "MEMBER", "부적절한 메시지를 받았어요", "PENDING", "seller01", "2026-09-09T09:00:00Z")
+        )
+    }
+    val displayedReports = reports ?: sampleReports
+    BackHandler(enabled = selectedReport != null) { selectedReport = null }
+    SimpleHeaderScaffold(
+        if (selectedReport == null) "신고 내역" else "신고 상세",
+        onBack = { if (selectedReport == null) onBack() else selectedReport = null },
+        modifier = modifier
+    ) { padding ->
+        selectedReport?.let { report ->
+            ReportDetailContent(report, Modifier.fillMaxSize().padding(padding))
+            return@SimpleHeaderScaffold
+        }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
                 isLoading -> item { Row(Modifier.fillMaxWidth().padding(40.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null -> item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
                 reports != null && reports.isEmpty() -> item { Text("접수한 신고가 없어요.", Modifier.fillMaxWidth().padding(vertical = 40.dp), color = Colors.Muted, fontSize = 13.sp) }
-                reports != null -> items(reports.size) { index ->
-                    val report = reports[index]
-                    HistoryCard(reportTypeLabel(report.type), report.targetLabel, report.content, reportStatusLabel(report.status))
-                }
-                else -> {
-                    item { HistoryCard("상품 신고", "빈티지 필름 카메라", "허위 정보가 포함되어 있어요", "검토 완료") }
-                    item { HistoryCard("판매자 신고", "seller01", "부적절한 메시지를 받았어요", "접수됨") }
+                else -> items(displayedReports.size, key = { displayedReports[it].reportId }) { index ->
+                    val report = displayedReports[index]
+                    HistoryCard(
+                        reportTypeLabel(report.type),
+                        report.targetLabel,
+                        reportContentPreview(report.content),
+                        reportStatusLabel(report.status),
+                        onClick = { selectedReport = report }
+                    )
                 }
             }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "report-load-more") {
@@ -383,6 +403,53 @@ fun ReportHistoryScreen(
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                 }
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column(
+                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(Modifier.fillMaxWidth()) {
+                    Text(reportTypeLabel(report.type), Modifier.weight(1f), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(reportStatusLabel(report.status), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(report.targetLabel, color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(reportContentDetail(report.content), color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        item {
+            Column(
+                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("처리 상태", color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (report.status.equals("PENDING", true)) "신고 내용을 검토하고 있어요" else "신고 처리가 완료됐어요",
+                    color = Colors.Navy,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (report.status.equals("PENDING", true)) "처리 결과는 알림에서 확인할 수 있어요." else "현재 상태는 ${reportStatusLabel(report.status)}입니다.",
+                    color = Colors.Muted,
+                    fontSize = 12.sp
+                )
+                report.createdAt?.let { createdAt ->
+                    Text(formatServerTime(createdAt) ?: createdAt, Modifier.fillMaxWidth(), color = Colors.MintInk, fontSize = 11.sp)
+                }
             }
         }
     }
@@ -416,7 +483,16 @@ private fun reportStatusLabel(status: String) = when (status.uppercase()) {
     else -> status
 }
 
-@Composable private fun HistoryCard(type: String, target: String, reason: String, status: String) { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Color(0xFF41AA8E), fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }
+private fun reportContentPreview(content: String): String =
+    content.lineSequence().firstOrNull { it.isNotBlank() }?.removePrefix("[신고 사유] ") ?: "신고 내용"
+
+private fun reportContentDetail(content: String): String = content
+    .replace("[신고 사유] ", "신고 사유 · ")
+    .replace("[신고할 메시지] ", "신고 메시지 · ")
+    .replace("[거래 채팅 메시지] ", "거래 메시지 · ")
+    .replace("[상세 내용] ", "상세 내용 · ")
+
+@Composable private fun HistoryCard(type: String, target: String, reason: String, status: String, onClick: () -> Unit) { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Color(0xFF41AA8E), fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }
 
 @Composable private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) { Text(label, Modifier.height(32.dp).background(if (selected) Colors.Navy else Color.White, RoundedCornerShape(16.dp)).border(1.dp, if (selected) Colors.Navy else Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 7.dp), color = if (selected) Color.White else Colors.Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
 
