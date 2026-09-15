@@ -89,6 +89,8 @@ fun LiveFeedScreen(
     reportSubmitting: Boolean,
     reportError: String?,
     reportCompleted: Boolean,
+    favoriteError: String?,
+    favoriteUpdatingAuctionIds: Set<String>,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onLiveVisible: (String) -> Unit,
@@ -104,6 +106,8 @@ fun LiveFeedScreen(
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onFavoriteChange: (String, Boolean) -> Unit,
+    onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
@@ -145,6 +149,8 @@ fun LiveFeedScreen(
                     reportSubmitting = reportSubmitting,
                     reportError = reportError,
                     reportCompleted = reportCompleted,
+                    favoriteError = favoriteError,
+                    favoriteUpdatingAuctionIds = favoriteUpdatingAuctionIds,
                     chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
                     chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
                     onLoadEarlierComments = onLoadEarlierComments,
@@ -159,6 +165,8 @@ fun LiveFeedScreen(
                     onPaymentConsumed = onPaymentConsumed,
                     onClose = onClose,
                     onProductClick = onProductClick,
+                    onFavoriteChange = onFavoriteChange,
+                    onDismissFavoriteError = onDismissFavoriteError,
                     onLoginRequired = onLoginRequired,
                     onReportParticipant = onReportParticipant,
                     onDismissReport = onDismissReport,
@@ -192,6 +200,8 @@ private fun LiveFeedPage(
     reportSubmitting: Boolean,
     reportError: String?,
     reportCompleted: Boolean,
+    favoriteError: String?,
+    favoriteUpdatingAuctionIds: Set<String>,
     chatError: String?,
     chatConnectionState: RealtimeConnectionState?,
     onLoadEarlierComments: () -> Unit,
@@ -206,6 +216,8 @@ private fun LiveFeedPage(
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onFavoriteChange: (String, Boolean) -> Unit,
+    onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
@@ -287,6 +299,9 @@ private fun LiveFeedPage(
         activeAuction?.currentPrice?.let { currentPrice = it }
         activeAuction?.remainingSeconds?.let { remaining = it }
     }
+    LaunchedEffect(activeAuction?.auctionId, activeAuction?.bookmarked) {
+        favorite = activeAuction?.bookmarked == true
+    }
     LaunchedEffect(showBidFeedback) {
         if (showBidFeedback) {
             delay(1_500)
@@ -355,8 +370,36 @@ private fun LiveFeedPage(
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 218.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LiveFavoriteAction(favorite) { if (isAuthenticated) favorite = !favorite else onLoginRequired() }
+                LiveFavoriteAction(favorite, enabled = auctionKey !in favoriteUpdatingAuctionIds) {
+                    when {
+                        !isAuthenticated -> onLoginRequired()
+                        auctionKey != null -> {
+                            val selected = !favorite
+                            favorite = selected
+                            onFavoriteChange(auctionKey, selected)
+                        }
+                    }
+                }
                 LiveAction("···", Color.White) { showProducts = true }
+            }
+        }
+        AnimatedVisibility(
+            visible = favoriteError != null,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 62.dp),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Surface(
+                color = Color.Black.copy(alpha = .72f),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.clickable(onClick = onDismissFavoriteError)
+            ) {
+                Text(
+                    favoriteError.orEmpty(),
+                    Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                    color = Color.White,
+                    fontSize = 11.sp
+                )
             }
         }
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -601,9 +644,12 @@ private fun LiveVideoBackground(streamUrl: String?, isActivePage: Boolean) {
 @Composable private fun LiveAction(text: String, color: Color, onClick: () -> Unit) { Box(Modifier.size(44.dp).background(Color.Black.copy(.42f), CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Text(text, color = color, fontSize = 25.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
-private fun LiveFavoriteAction(selected: Boolean, onClick: () -> Unit) {
+private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Column(
-        Modifier.size(48.dp, 58.dp).background(Color.Black.copy(.28f), RoundedCornerShape(24.dp)).clickable(onClick = onClick),
+        Modifier.size(48.dp, 58.dp)
+            .graphicsLayer(alpha = if (enabled) 1f else .6f)
+            .background(Color.Black.copy(.28f), RoundedCornerShape(24.dp))
+            .clickable(enabled = enabled, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

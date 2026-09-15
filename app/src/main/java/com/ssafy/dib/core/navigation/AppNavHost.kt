@@ -209,7 +209,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         NotificationCategory.Other -> true
     }
 
-    fun updateBookmark(auctionId: String, bookmarked: Boolean) {
+    fun updateBookmark(
+        auctionId: String,
+        bookmarked: Boolean,
+        onResult: ((bookmarked: Boolean, errorMessage: String?) -> Unit)? = null
+    ) {
         if (signedIn != true) return
         remoteAuctions = remoteAuctions?.map { auction ->
             if (auction.id == auctionId) auction.copy(bookmarked = bookmarked) else auction
@@ -218,14 +222,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             when (val result = withContext(Dispatchers.IO) {
                 auth.auctionRepository.setBookmark(auctionId, bookmarked, java.util.UUID.randomUUID().toString())
             }) {
-                is ApiResult.Success -> remoteAuctions = remoteAuctions?.map { auction ->
-                    if (auction.id == auctionId) auction.copy(bookmarked = result.value) else auction
+                is ApiResult.Success -> {
+                    remoteAuctions = remoteAuctions?.map { auction ->
+                        if (auction.id == auctionId) auction.copy(bookmarked = result.value) else auction
+                    }
+                    onResult?.invoke(result.value, null)
                 }
                 is ApiResult.Failure -> {
                     remoteAuctions = remoteAuctions?.map { auction ->
                         if (auction.id == auctionId) auction.copy(bookmarked = !bookmarked) else auction
                     }
-                    auctionsError = result.error.message.ifBlank { "찜 상태를 변경하지 못했어요." }
+                    val message = result.error.message.ifBlank { "찜 상태를 변경하지 못했어요." }
+                    auctionsError = message
+                    onResult?.invoke(!bookmarked, message)
                     if (result.error.requiresLogin) signedIn = false
                 }
             }
@@ -1030,6 +1039,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var liveReportSubmitting by remember { mutableStateOf(false) }
             var liveReportError by remember { mutableStateOf<String?>(null) }
             var liveReportCompleted by remember { mutableStateOf(false) }
+            var liveFavoriteError by remember { mutableStateOf<String?>(null) }
+            var liveFavoriteUpdatingAuctionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
             LaunchedEffect(liveFeedRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveFeedLoading = true
@@ -1206,6 +1217,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     connection?.close()
                 }
             }
+            fun applyLiveBookmark(auctionId: String, bookmarked: Boolean) {
+                liveFeedItems = liveFeedItems?.map { item ->
+                    item.copy(
+                        currentAuction = item.currentAuction?.let { auction ->
+                            if (auction.auctionId == auctionId) auction.copy(bookmarked = bookmarked) else auction
+                        }
+                    )
+                }
+                liveAuctionLists = liveAuctionLists.mapValues { (_, auctions) ->
+                    auctions.map { auction ->
+                        if (auction.auctionId == auctionId) auction.copy(bookmarked = bookmarked) else auction
+                    }
+                }
+            }
             LiveFeedScreen(
                 remoteItems = liveFeedItems,
                 isLoading = liveFeedLoading,
@@ -1251,6 +1276,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 reportSubmitting = liveReportSubmitting,
                 reportError = liveReportError,
                 reportCompleted = liveReportCompleted,
+                favoriteError = liveFavoriteError,
+                favoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds,
                 chatError = liveChatError,
                 chatConnectionState = liveChatState,
                 onLiveVisible = { liveId ->
@@ -1309,6 +1336,17 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onFavoriteChange = { auctionId, bookmarked ->
+                    liveFavoriteError = null
+                    liveFavoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds + auctionId
+                    applyLiveBookmark(auctionId, bookmarked)
+                    updateBookmark(auctionId, bookmarked) { resolvedBookmark, errorMessage ->
+                        applyLiveBookmark(auctionId, resolvedBookmark)
+                        liveFavoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds - auctionId
+                        liveFavoriteError = errorMessage
+                    }
+                },
+                onDismissFavoriteError = { liveFavoriteError = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onReportParticipant = { liveBroadcastId, memberId, content ->
                     if (signedIn != true) {
