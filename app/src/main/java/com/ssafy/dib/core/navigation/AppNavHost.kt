@@ -800,7 +800,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             val mapped = result.value.items.map { it.toHomeAuction() }
                             categoryAuctions = if (append) (categoryAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             categoryCursor = result.value.nextCursor
-                            categoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                            categoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                         }
                         is ApiResult.Failure -> {
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -952,7 +952,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             searchAuctions = if (append) (searchAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             val nextCursor = result.value.nextCursor
                             searchCursor = nextCursor
-                            searchHasNext = result.value.hasNext && !nextCursor.isNullOrBlank() && nextCursor != cursor
+                            searchHasNext = hasUsableNextCursor(result.value.hasNext, nextCursor, cursor)
                         }
                         is ApiResult.Failure -> {
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -1251,7 +1251,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     liveFeedItems = (liveFeedItems.orEmpty() + result.value.items)
                                         .distinctBy { it.liveBroadcastId }
                                     liveFeedNextCursor = result.value.nextCursor
-                                    liveFeedHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    liveFeedHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -1561,17 +1561,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 bidHistoryHasNext = auctionBidHistoryHasNext,
                 onBidHistoryRetry = { auctionBidHistoryRevision++ },
                 onBidHistoryLoadMore = {
-                    if (!auctionBidHistoryLoading && auctionBidHistoryHasNext) {
+                    val cursor = auctionBidHistoryCursor
+                    if (cursor != null && !auctionBidHistoryLoading && auctionBidHistoryHasNext) {
                         auctionBidHistoryLoading = true
                         auctionBidHistoryError = null
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.auctionRepository.getBidHistory(productId, auctionBidHistoryCursor)
+                                auth.auctionRepository.getBidHistory(productId, cursor)
                             }) {
                                 is ApiResult.Success -> {
                                     auctionBidHistory = (auctionBidHistory.orEmpty() + result.value.items).distinctBy { it.bidId }
                                     auctionBidHistoryCursor = result.value.nextCursor
-                                    auctionBidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    auctionBidHistoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 더 불러오지 못했어요." }
                             }
@@ -1812,7 +1813,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 is ApiResult.Success -> {
                                     bidHistory = (bidHistory.orEmpty() + result.value.items).distinctBy { it.bidId }
                                     bidHistoryCursor = result.value.nextCursor
-                                    bidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    bidHistoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -1841,11 +1842,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     if (role == OrderRole.BUYER) {
                                         purchaseOrders = (purchaseOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
                                         purchaseOrdersCursor = result.value.nextCursor
-                                        purchaseOrdersHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                        purchaseOrdersHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                     } else {
                                         saleOrders = (saleOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
                                         saleOrdersCursor = result.value.nextCursor
-                                        saleOrdersHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                        saleOrdersHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                     }
                                 }
                                 is ApiResult.Failure -> {
@@ -2359,7 +2360,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     }
                                     assignedAuctions = loadedAssignments
                                     liveManagementCursor = result.value.nextCursor
-                                    liveManagementHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    liveManagementHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -2389,7 +2390,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     availableLiveAuctions = (availableLiveAuctions + nextItems)
                                         .distinctBy { it.auctionId }
                                     availableLiveAuctionsCursor = result.value.nextCursor
-                                    availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    availableLiveAuctionsHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -2717,7 +2718,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 (settlements.orEmpty() + result.value.items).distinctBy { it.settlementId }
                             } else result.value.items
                             settlementsCursor = result.value.nextCursor
-                            settlementsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                            settlementsHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                         }
                         is ApiResult.Failure -> {
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -2918,7 +2919,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     favorites = (favorites.orEmpty() + result.value.items.map { it.toHomeAuction() })
                                         .distinctBy(HomeAuction::id)
                                     favoritesCursor = result.value.nextCursor
-                                    favoritesHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    favoritesHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -3014,7 +3015,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     registeredProducts = (registeredProducts.orEmpty() + result.value.items)
                                         .distinctBy { it.productId }
                                     registeredProductsCursor = result.value.nextCursor
-                                    registeredProductsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                                    registeredProductsHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -3283,7 +3284,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }) {
                                 is ApiResult.Success -> {
                                     inquiries = (inquiries.orEmpty() + result.value.items).distinctBy { it.questionId }
-                                    inquiriesCursor = result.value.nextCursor
+                                    inquiriesCursor = result.value.nextCursor.takeIf {
+                                        hasUsableNextCursor(true, it, cursor)
+                                    }
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -3389,7 +3392,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }) {
                                 is ApiResult.Success -> {
                                     reports = (reports.orEmpty() + result.value.items).distinctBy { it.reportId }
-                                    reportsCursor = result.value.nextCursor
+                                    reportsCursor = result.value.nextCursor.takeIf {
+                                        hasUsableNextCursor(true, it, cursor)
+                                    }
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {

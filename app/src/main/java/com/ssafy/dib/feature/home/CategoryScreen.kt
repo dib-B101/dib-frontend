@@ -182,7 +182,7 @@ fun CategoryScreen(
                     }
                     if (hasNext || isLoadingMore || loadMoreError != null) {
                         item(key = "category-load-more", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                            LaunchedEffect(visibleAuctions.size, hasNext, loadMoreError) {
+                            LaunchedEffect(visibleAuctions.size, hasNext, isLoadingMore, loadMoreError) {
                                 if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                             }
                             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {

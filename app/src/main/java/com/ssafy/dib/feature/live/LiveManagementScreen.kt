@@ -135,7 +135,7 @@ fun LiveManagementScreen(
                     }
                 }
                 if (hasNext || isLoadingMore || loadMoreError != null) item(key = "live-management-load-more") {
-                    LaunchedEffect(items.size, hasNext, loadMoreError) {
+                    LaunchedEffect(items.size, hasNext, isLoadingMore, loadMoreError) {
                         if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -243,7 +243,7 @@ private fun LiveItemDialog(
                     }
                 }
                 if (hasNext || loadingMore || loadMoreError != null) item(key = "available-auction-load-more") {
-                    LaunchedEffect(choices.size, hasNext, loadMoreError) {
+                    LaunchedEffect(choices.size, hasNext, loadingMore, loadMoreError) {
                         if (hasNext && !loadingMore && loadMoreError == null) onLoadMore()
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {

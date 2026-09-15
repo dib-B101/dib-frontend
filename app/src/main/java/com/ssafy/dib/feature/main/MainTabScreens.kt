@@ -191,7 +191,7 @@ fun MyTradesScreen(
             }
             if (!selectedLoading && selectedError == null && selectedOrderRole != null && (selectedHasNext || loadingMoreRole == selectedOrderRole || selectedLoadMoreError != null)) {
                 item(key = "load-more-${selectedOrderRole.name}") {
-                    LaunchedEffect(selectedOrderRole, items.size, selectedHasNext, selectedLoadMoreError) {
+                    LaunchedEffect(selectedOrderRole, items.size, selectedHasNext, loadingMoreRole, selectedLoadMoreError) {
                         if (selectedHasNext && loadingMoreRole == null && selectedLoadMoreError == null) onLoadMoreOrders(selectedOrderRole)
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -207,7 +207,7 @@ fun MyTradesScreen(
             }
             if (!selectedLoading && selectedError == null && selected == TradeTab.Bid && (bidsHasNext || bidsLoadingMore || bidsLoadMoreError != null)) {
                 item(key = "load-more-bids") {
-                    LaunchedEffect(items.size, bidsHasNext, bidsLoadMoreError) {
+                    LaunchedEffect(items.size, bidsHasNext, bidsLoadingMore, bidsLoadMoreError) {
                         if (bidsHasNext && !bidsLoadingMore && bidsLoadMoreError == null) onLoadMoreBids()
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
