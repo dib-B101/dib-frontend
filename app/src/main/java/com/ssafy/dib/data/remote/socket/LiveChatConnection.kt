@@ -16,6 +16,7 @@ class LiveChatConnection(
         Thread(task, "dib-live-reconnect").apply { isDaemon = true }
     }
     private var liveBroadcastId = ""
+    @Volatile private var currentMemberId: String? = null
     private var subscribedAuctionId: String? = null
     @Volatile private var active = false
     private var reconnectAttempt = 0
@@ -86,7 +87,10 @@ class LiveChatConnection(
                     }.getOrNull()?.takeIf {
                         it.liveBroadcastId?.idValue()?.let { id -> id == liveBroadcastId } != false
                     }?.let { payload ->
-                        synchronized(this@LiveChatConnection) { pendingChatMessages.remove(payload.commandId) }
+                        val pending = synchronized(this@LiveChatConnection) {
+                            pendingChatMessages.remove(payload.commandId)
+                        }
+                        acceptedLiveMessage(payload, pending, currentMemberId, envelope.occurredAt)?.let(onMessage)
                     }
                     SocketEventTypes.CHAT_REJECTED -> runCatching {
                         codec.decodePayload(envelope, LiveChatRejectedPayload.serializer())
@@ -167,6 +171,10 @@ class LiveChatConnection(
         }.commandId
     }
 
+    fun updateCurrentMemberId(memberId: String?) {
+        currentMemberId = memberId?.takeIf(String::isNotBlank)
+    }
+
     private fun subscribeAuction(auctionId: String) {
         if (subscribedAuctionId == auctionId) return
         subscribedAuctionId?.takeIf { it != auctionId }?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
@@ -205,6 +213,7 @@ class LiveChatConnection(
         subscribedAuctionId?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
         if (active && liveBroadcastId.isNotBlank()) socket.send(SocketCommands.unsubscribeLive(liveBroadcastId))
         active = false
+        currentMemberId = null
         subscribedAuctionId = null
         pendingBidCommand = null
         pendingChatMessages.clear()
@@ -232,8 +241,27 @@ class LiveChatConnection(
     private fun auctionStreamKey(auctionId: String) = "auction:$auctionId"
 }
 
+internal fun acceptedLiveMessage(
+    accepted: LiveChatAcceptedPayload,
+    pending: SocketEnvelope?,
+    currentMemberId: String?,
+    envelopeOccurredAt: String?
+): LiveChatMessage? {
+    if (pending?.commandId != accepted.commandId) return null
+    val memberId = currentMemberId?.takeIf(String::isNotBlank) ?: return null
+    val pendingLiveId = pending.payload["liveBroadcastId"].idValueOrNull() ?: return null
+    if (accepted.liveBroadcastId?.idValue()?.let { it != pendingLiveId } == true) return null
+    val chattingId = accepted.liveChattingId?.idValue() ?: return null
+    val content = pending.payload["content"].idValueOrNull() ?: return null
+    val time = accepted.time ?: envelopeOccurredAt ?: return null
+    return LiveChatMessage(chattingId, memberId, null, content, time)
+}
+
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
+
+private fun kotlinx.serialization.json.JsonElement?.idValueOrNull(): String? =
+    (this as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
 
 private val auctionStateEventTypes = setOf(
     SocketEventTypes.AUCTION_SNAPSHOT,

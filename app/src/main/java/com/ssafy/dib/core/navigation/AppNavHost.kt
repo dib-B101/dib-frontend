@@ -1318,7 +1318,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         }
                     }
                 },
-                onSendComment = { content -> liveChatConnection?.send(content) == true },
+                onSendComment = { content ->
+                    liveChatConnection?.updateCurrentMemberId(memberProfile?.memberId)
+                    liveChatConnection?.send(content) == true
+                },
                 isAuthenticated = signedIn == true,
                 currentMemberId = memberProfile?.memberId,
                 paidBidAmount = paidBidAmount,
@@ -2177,7 +2180,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 loadEarlierError = chatLoadEarlierError,
                 errorMessage = chatError,
                 connectionState = chatConnectionState,
-                canSend = chatWritable,
+                canSend = chatWritable && currentMemberId.isNotBlank(),
                 onRetry = { chatRevision++ },
                 onLoadEarlier = {
                     if (!chatLoadingEarlier && chatHasMore) {
@@ -2205,7 +2208,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         }
                     }
                 },
-                onSend = { content -> chatConnection?.send(content) == true },
+                onSend = { content ->
+                    chatConnection?.updateCurrentMemberId(currentMemberId)
+                    chatConnection?.send(content) == true
+                },
                 onBack = navController::navigateUp
             )
         }
