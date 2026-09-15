@@ -98,6 +98,8 @@ data class OrderMessageListResponse(val items: List<OrderMessageDto> = emptyList
 data class OrderMessageDto(
     val chattingId: JsonElement,
     val memberId: JsonElement,
+    val memberNickname: String? = null,
+    val orderId: JsonElement? = null,
     val content: String,
     val time: String
 )

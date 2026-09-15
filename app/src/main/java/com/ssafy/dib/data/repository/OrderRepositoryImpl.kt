@@ -69,7 +69,13 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Success -> ApiResult.Success(
                 OrderMessagePage(
                     items = result.value.items.map { message ->
-                        OrderMessage(message.chattingId.idValue(), message.memberId.idValue(), message.content, message.time)
+                        OrderMessage(
+                            message.chattingId.idValue(),
+                            message.memberId.idValue(),
+                            message.content,
+                            message.time,
+                            message.memberNickname
+                        )
                     },
                     hasMore = result.value.hasMore
                 ),

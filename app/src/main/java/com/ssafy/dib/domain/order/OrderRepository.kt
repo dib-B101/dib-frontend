@@ -32,7 +32,13 @@ data class OrderShipment(
 
 data class ShippingCarrier(val code: String, val name: String)
 
-data class OrderMessage(val chattingId: String, val memberId: String, val content: String, val time: String)
+data class OrderMessage(
+    val chattingId: String,
+    val memberId: String,
+    val content: String,
+    val time: String,
+    val memberNickname: String? = null
+)
 
 data class OrderMessagePage(
     val items: List<OrderMessage>,

@@ -89,6 +89,7 @@ data class ChatMessageCreatedPayload(
     val chattingId: JsonElement,
     val orderId: JsonElement,
     val memberId: JsonElement,
+    val memberNickname: String? = null,
     val content: String,
     val time: String
 )
