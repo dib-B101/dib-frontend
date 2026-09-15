@@ -198,7 +198,12 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname,
         sellerRating = sellerSummary?.rating,
-        sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount
+        sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,
+        productDescription = product?.description,
+        productCondition = product?.condition,
+        productModelName = product?.modelName,
+        productReleaseYear = product?.releaseYear,
+        productMarketPrice = product?.marketPrice
     )
 }
 

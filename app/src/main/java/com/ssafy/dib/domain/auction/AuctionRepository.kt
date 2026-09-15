@@ -19,7 +19,12 @@ data class AuctionSummary(
     val imageUrls: List<String> = emptyList(),
     val sellerNickname: String? = null,
     val sellerRating: Double? = null,
-    val sellerTradeCount: Int? = null
+    val sellerTradeCount: Int? = null,
+    val productDescription: String? = null,
+    val productCondition: String? = null,
+    val productModelName: String? = null,
+    val productReleaseYear: Int? = null,
+    val productMarketPrice: Long? = null
 )
 
 data class AuctionCommandResult(val auctionId: String, val message: String)

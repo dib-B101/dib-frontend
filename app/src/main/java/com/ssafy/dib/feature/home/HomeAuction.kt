@@ -23,7 +23,12 @@ data class HomeAuction(
     val startPrice: Int = price,
     val sellerNickname: String? = null,
     val sellerRating: Double? = null,
-    val sellerTradeCount: Int? = null
+    val sellerTradeCount: Int? = null,
+    val productDescription: String? = null,
+    val productCondition: String? = null,
+    val productModelName: String? = null,
+    val productReleaseYear: Int? = null,
+    val productMarketPrice: Long? = null
 ) {
     val priceLabel: String get() = "%,d원".format(price)
     val meta: String get() = "입찰 ${bidCount}회 · ${remainingTimeLabel(remainingSeconds)} 남음"
@@ -70,7 +75,12 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     startPrice = startPrice,
     sellerNickname = sellerNickname,
     sellerRating = sellerRating,
-    sellerTradeCount = sellerTradeCount
+    sellerTradeCount = sellerTradeCount,
+    productDescription = productDescription,
+    productCondition = productCondition,
+    productModelName = productModelName,
+    productReleaseYear = productReleaseYear,
+    productMarketPrice = productMarketPrice
 )
 
 internal fun remainingTimeLabel(seconds: Int): String = when {
