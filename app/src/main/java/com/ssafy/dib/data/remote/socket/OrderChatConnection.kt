@@ -86,6 +86,7 @@ class OrderChatConnection(
                         val serverLastChattingId = envelope.payload["lastChattingId"].idValueOrNull()
                         if (snapshotOrderId == orderId) {
                             chatWritable = isOrderChatWritable(envelope.payload["status"].idValueOrNull())
+                            if (!chatWritable) synchronized(this@OrderChatConnection) { pendingMessages.clear() }
                             onWritableChanged(chatWritable)
                             if (serverLastChattingId != null && serverLastChattingId != lastChattingId) {
                                 onHistoryGap()
@@ -95,8 +96,14 @@ class OrderChatConnection(
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
                     }.getOrNull()?.let { error ->
-                        (error.commandId ?: envelope.commandId)?.let { commandId ->
-                            synchronized(this@OrderChatConnection) { pendingMessages.remove(commandId) }
+                        if (error.code == "CHAT_CLOSED") {
+                            chatWritable = false
+                            synchronized(this@OrderChatConnection) { pendingMessages.clear() }
+                            onWritableChanged(false)
+                        } else {
+                            (error.commandId ?: envelope.commandId)?.let { commandId ->
+                                synchronized(this@OrderChatConnection) { pendingMessages.remove(commandId) }
+                            }
                         }
                         onError(error.message)
                     }
