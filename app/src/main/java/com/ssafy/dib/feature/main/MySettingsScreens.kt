@@ -216,7 +216,7 @@ fun NotificationSettingsScreen(
             item { Text("dib에서 보내는 알림", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
             item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Color(0xFFE3E8EF), RoundedCornerShape(16.dp))) {
                 NotificationToggle("입찰·거래 상태", "상회 입찰, 낙찰, 결제와 배송 상태", tradeEnabled, onTradeEnabledChange)
-                NotificationToggle("팔로잉 판매자 라이브", "예약 라이브 시작 10분 전과 시작 시점", liveEnabled, onLiveEnabledChange)
+                NotificationToggle("Live 방송", "예약 Live 시작과 방송 상태 알림", liveEnabled, onLiveEnabledChange)
                 NotificationToggle("찜한 경매", "찜한 경매의 시작·마감 임박 알림", wishlistEnabled, onWishlistEnabledChange)
             } }
             item { Text("필수 거래 알림은 안전한 경매 진행을 위해 전송될 수 있어요.", color = Colors.Muted, fontSize = 12.sp) }
