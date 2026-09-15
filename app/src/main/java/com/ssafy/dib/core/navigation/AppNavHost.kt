@@ -1297,6 +1297,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         true
                     } ?: false
                 },
+                onDepositInvalid = { auctionId ->
+                    val updatedPaidProducts = depositPaidProductIds - auctionId
+                    depositPaidProductIds = updatedPaidProducts
+                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
+                },
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
