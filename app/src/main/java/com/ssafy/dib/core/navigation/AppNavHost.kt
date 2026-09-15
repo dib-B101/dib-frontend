@@ -1015,6 +1015,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 notifications = domainNotifications,
                 connectionState = notificationConnectionState,
                 onNotificationClick = ::openNotification,
+                onSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
             )
