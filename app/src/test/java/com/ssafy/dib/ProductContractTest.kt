@@ -30,13 +30,19 @@ class ProductContractTest {
             title = "필름 카메라",
             description = "정상 작동합니다.",
             categoryId = JsonPrimitive(3),
-            condition = "GOOD"
+            condition = "GOOD",
+            modelName = "FM2",
+            releaseYear = 1982,
+            marketPrice = 120_000
         )
 
         val encoded = DibJson.instance.encodeToString(ProductCreatePayload.serializer(), payload)
 
         assertTrue(encoded.contains("\"categoryId\":3"))
         assertTrue(encoded.contains("\"condition\":\"GOOD\""))
+        assertTrue(encoded.contains("\"modelName\":\"FM2\""))
+        assertTrue(encoded.contains("\"releaseYear\":1982"))
+        assertTrue(encoded.contains("\"marketPrice\":120000"))
     }
 
     @Test

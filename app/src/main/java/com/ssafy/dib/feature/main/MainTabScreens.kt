@@ -425,6 +425,9 @@ fun ProductRegisterScreen(
     var categoryId by rememberSaveable { mutableStateOf("") }
     var condition by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
+    var modelName by rememberSaveable { mutableStateOf("") }
+    var releaseYear by rememberSaveable { mutableStateOf("") }
+    var marketPrice by rememberSaveable { mutableStateOf("") }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
     val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
@@ -469,15 +472,18 @@ fun ProductRegisterScreen(
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
                     item { RegisterSelect("상품 상태 *", conditionLabel(condition)) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
                     item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp) }
+                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
+                    item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
+                    item { RegisterTextField("시세 (선택)", marketPrice, { marketPrice = it.filter(Char::isDigit).take(10) }, "원 단위로 입력", keyboardType = KeyboardType.Number) }
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · 첫 사진이 대표", color = Colors.Navy, fontWeight = FontWeight.Bold); Text(description, color = Colors.Muted, fontSize = 12.sp) } }
+                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · 첫 사진이 대표", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; Text(description, color = Colors.Muted, fontSize = 12.sp) } }
                     item { Text("AI 상품 검수 요청 후 승인되면 경매를 시작할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
-            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, photoUris.toList())) }, enabled = formValid && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
+            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.toList())) }, enabled = formValid && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
         }
     }
     if (categoryDialog) AlertDialog(
@@ -493,6 +499,9 @@ data class ProductRegistrationForm(
     val description: String,
     val categoryId: String,
     val condition: String,
+    val modelName: String?,
+    val releaseYear: Int?,
+    val marketPrice: Long?,
     val imageUris: List<Uri>
 )
 

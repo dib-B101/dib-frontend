@@ -1713,6 +1713,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                             description = form.description,
                                             categoryId = form.categoryId,
                                             condition = form.condition,
+                                            modelName = form.modelName,
+                                            releaseYear = form.releaseYear,
+                                            marketPrice = form.marketPrice,
                                             images = images
                                         )
                                     )
