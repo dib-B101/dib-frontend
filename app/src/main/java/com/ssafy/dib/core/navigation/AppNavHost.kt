@@ -1920,7 +1920,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var shipment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShipment?>(null) }
             var shipmentLoading by remember(orderId) { mutableStateOf(false) }
             var shipmentError by remember(orderId) { mutableStateOf<String?>(null) }
-            var shipmentKey by remember(orderId) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
             var shippingAddress by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.order.OrderShippingAddress?>(null) }
             var shippingAddressLoading by remember(orderId) { mutableStateOf(false) }
             var shippingAddressError by remember(orderId) { mutableStateOf<String?>(null) }
@@ -2054,16 +2053,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     paymentPrepareKey = java.util.UUID.randomUUID().toString()
                 },
                 onRegisterShipment = { trackingNumber ->
+                    val command = "shipment:$orderId:$trackingNumber"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     shipmentLoading = true
                     shipmentError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.orderRepository.registerShipment(orderId, trackingNumber, shipmentKey)
+                            auth.orderRepository.registerShipment(orderId, trackingNumber, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
+                                commandKeys.complete(command)
                                 shipment = result.value
                                 remoteOrder = remoteOrder?.copy(status = result.value.status)
-                                shipmentKey = java.util.UUID.randomUUID().toString()
                                 ordersRevision++
                             }
                             is ApiResult.Failure -> {
@@ -3383,9 +3384,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var auctionCancelled by remember(productId) { mutableStateOf(false) }
             var commandLoading by remember(productId) { mutableStateOf(false) }
             var commandError by remember(productId) { mutableStateOf<String?>(null) }
-            val createKey = remember(productId) { java.util.UUID.randomUUID().toString() }
-            val startKey = remember(productId) { java.util.UUID.randomUUID().toString() }
-            val cancelKey = remember(productId) { java.util.UUID.randomUUID().toString() }
 
             AuctionRegisterScreen(
                 productId = productId,
@@ -3395,11 +3393,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 isLoading = commandLoading,
                 errorMessage = commandError,
                 onCreate = { startPrice, auctionTime ->
+                    val command = "auction-create:$productId:$startPrice:$auctionTime"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
                     commandError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.createAuction(productId, startPrice, auctionTime, createKey) }) {
-                            is ApiResult.Success -> createResult = result.value
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.createAuction(productId, startPrice, auctionTime, idempotencyKey) }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                createResult = result.value
+                            }
                             is ApiResult.Failure -> {
                                 commandError = auctionCommandError(result.error)
                                 if (result.error.requiresLogin) signedIn = false
@@ -3425,11 +3428,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onCancel = {
                     val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    val command = "auction-cancel:$auctionId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
                     commandError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.cancelAuction(auctionId, cancelKey) }) {
-                            is ApiResult.Success -> { auctionCancelled = true; auctionsRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.cancelAuction(auctionId, idempotencyKey) }) {
+                            is ApiResult.Success -> { commandKeys.complete(command); auctionCancelled = true; auctionsRevision++ }
                             is ApiResult.Failure -> {
                                 commandError = auctionCommandError(result.error)
                                 if (result.error.requiresLogin) signedIn = false
@@ -3440,11 +3445,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onStart = {
                     val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    val command = "auction-start:$auctionId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
                     commandError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, startKey) }) {
-                            is ApiResult.Success -> { auctionStarted = true; auctionsRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, idempotencyKey) }) {
+                            is ApiResult.Success -> { commandKeys.complete(command); auctionStarted = true; auctionsRevision++ }
                             is ApiResult.Failure -> {
                                 commandError = auctionCommandError(result.error)
                                 if (result.error.requiresLogin) signedIn = false
@@ -3825,9 +3832,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var depositProcessing by remember { mutableStateOf(false) }
             var depositError by remember { mutableStateOf<String?>(null) }
             var depositStatusMessage by remember { mutableStateOf<String?>(null) }
-            var prepareKey by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
 
             fun prepareDeposit(paymentMethod: String) {
+                val command = "deposit-prepare:$auctionId:$bidAmount:$paymentMethod"
+                val idempotencyKey = commandKeys.keyFor(command)
                 depositProcessing = true
                 depositError = null
                 depositStatusMessage = null
@@ -3837,16 +3845,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             auctionId = auctionId,
                             firstBidAmount = bidAmount.toLong(),
                             paymentMethod = paymentMethod,
-                            idempotencyKey = prepareKey
+                            idempotencyKey = idempotencyKey
                         )
                     }) {
-                        is ApiResult.Success -> preparedDeposit = result.value
+                        is ApiResult.Success -> {
+                            commandKeys.complete(command)
+                            preparedDeposit = result.value
+                        }
                         is ApiResult.Failure -> {
                             if (result.error.code == "DEPOSIT_ALREADY_PAID") {
                                 when (val existing = withContext(Dispatchers.IO) {
                                     auth.bidDepositRepository.getMine(auctionId)
                                 }) {
-                                    is ApiResult.Success -> preparedDeposit = existing.value
+                                    is ApiResult.Success -> {
+                                        commandKeys.complete(command)
+                                        preparedDeposit = existing.value
+                                    }
                                     is ApiResult.Failure -> {
                                         depositError = existing.error.message.ifBlank { "기존 보증금 상태를 확인하지 못했어요." }
                                         if (existing.error.requiresLogin) signedIn = false
@@ -3899,7 +3913,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     preparedDeposit = null
                     depositError = null
                     depositStatusMessage = null
-                    prepareKey = java.util.UUID.randomUUID().toString()
                 },
                 onBack = navController::navigateUp,
                 onReturnToAuction = {
