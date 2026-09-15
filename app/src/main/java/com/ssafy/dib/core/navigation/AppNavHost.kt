@@ -3496,8 +3496,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }) {
                         is ApiResult.Success -> preparedDeposit = result.value
                         is ApiResult.Failure -> {
-                            depositError = result.error.message.ifBlank { "보증금 결제를 준비하지 못했어요." }
-                            if (result.error.requiresLogin) signedIn = false
+                            if (result.error.code == "DEPOSIT_ALREADY_PAID") {
+                                when (val existing = withContext(Dispatchers.IO) {
+                                    auth.bidDepositRepository.getMine(auctionId)
+                                }) {
+                                    is ApiResult.Success -> preparedDeposit = existing.value
+                                    is ApiResult.Failure -> {
+                                        depositError = existing.error.message.ifBlank { "기존 보증금 상태를 확인하지 못했어요." }
+                                        if (existing.error.requiresLogin) signedIn = false
+                                    }
+                                }
+                            } else {
+                                depositError = result.error.message.ifBlank { "보증금 결제를 준비하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                     }
                     depositProcessing = false
@@ -3510,7 +3522,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(auctionId) }) {
                         is ApiResult.Success -> preparedDeposit = result.value
-                        is ApiResult.Failure -> depositError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                        is ApiResult.Failure -> {
+                            depositError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
                     }
                     depositProcessing = false
                 }
