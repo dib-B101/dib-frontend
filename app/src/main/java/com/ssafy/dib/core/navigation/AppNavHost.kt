@@ -950,8 +950,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }
                             val mapped = filtered.map { it.toHomeAuction() }
                             searchAuctions = if (append) (searchAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
-                            searchCursor = result.value.nextCursor
-                            searchHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                            val nextCursor = result.value.nextCursor
+                            searchCursor = nextCursor
+                            searchHasNext = result.value.hasNext && !nextCursor.isNullOrBlank() && nextCursor != cursor
                         }
                         is ApiResult.Failure -> {
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
