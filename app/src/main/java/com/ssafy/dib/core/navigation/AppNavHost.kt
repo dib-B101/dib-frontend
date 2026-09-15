@@ -1323,6 +1323,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 currentMemberId = memberProfile?.memberId,
                 paidBidAmount = paidBidAmount,
                 depositPaidAuctionIds = depositPaidProductIds,
+                realtimeBiddingEnabled = auth.networkConfig.isWebSocketConfigured,
                 realtimeBidFeedback = liveBidFeedback,
                 onRealtimeBid = { auctionId, amount ->
                     liveChatConnection?.placeBid(auctionId, amount)?.let { commandId ->

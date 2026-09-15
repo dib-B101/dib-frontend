@@ -100,6 +100,7 @@ fun LiveFeedScreen(
     currentMemberId: String?,
     paidBidAmount: Int,
     depositPaidAuctionIds: Set<String>,
+    realtimeBiddingEnabled: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
     onDepositInvalid: (String) -> Unit,
@@ -159,6 +160,7 @@ fun LiveFeedScreen(
                     currentMemberId = currentMemberId,
                     paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
                     depositPaidAuctionIds = depositPaidAuctionIds,
+                    realtimeBiddingEnabled = realtimeBiddingEnabled,
                     realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
                     onRealtimeBid = onRealtimeBid,
                     onDepositInvalid = onDepositInvalid,
@@ -210,6 +212,7 @@ private fun LiveFeedPage(
     currentMemberId: String?,
     paidBidAmount: Int,
     depositPaidAuctionIds: Set<String>,
+    realtimeBiddingEnabled: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
     onDepositInvalid: (String) -> Unit,
@@ -269,6 +272,11 @@ private fun LiveFeedPage(
                 if (remaining in 1..15) remaining = 15
                 bidFeedbackAccepted = true
                 bidFeedbackMessage = "입찰이 접수됐어요."
+                showBidFeedback = true
+                onPaymentConsumed()
+            } else if (!realtimeBiddingEnabled) {
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "실시간 입찰 연결을 사용할 수 없어요."
                 showBidFeedback = true
                 onPaymentConsumed()
             } else if (auctionKey == null || chatConnectionState != RealtimeConnectionState.Connected) {
@@ -436,7 +444,7 @@ private fun LiveFeedPage(
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0,
+                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0 && realtimeBiddingEnabled,
                             modifier = Modifier.size(68.dp, 58.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
@@ -447,6 +455,7 @@ private fun LiveFeedPage(
                                     isOwnAuction -> "내 경매"
                                     isHighestBidder -> "최고가"
                                     !hasActiveAuction -> "대기 중"
+                                    !realtimeBiddingEnabled -> "연결 필요"
                                     paidBidAmount > 0 -> "접속 중"
                                     else -> "입찰"
                                 },
