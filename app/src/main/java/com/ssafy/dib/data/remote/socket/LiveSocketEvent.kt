@@ -121,16 +121,19 @@ class LiveSocketEventParser(
                 status = payload.string("status"),
                 occurredAt = occurredAt
             )
-            SocketEventTypes.LIVE_AUCTION_CLOSED -> LiveRealtimeUpdate(
-                eventType = envelope.eventType,
-                liveBroadcastId = payload.string("liveBroadcastId"),
-                auctionId = payload.string("auctionId"),
-                currentPrice = payload.int("finalPrice"),
-                remainingSeconds = 0,
-                status = payload.string("result") ?: "ENDED",
-                message = if (payload.string("result") == "SOLD") "Live 경매가 낙찰됐어요." else "Live 경매가 종료됐어요.",
-                occurredAt = occurredAt
-            )
+            SocketEventTypes.LIVE_AUCTION_CLOSED -> {
+                val result = payload.string("result")
+                LiveRealtimeUpdate(
+                    eventType = envelope.eventType,
+                    liveBroadcastId = payload.string("liveBroadcastId"),
+                    auctionId = payload.string("auctionId"),
+                    currentPrice = payload.int("finalPrice"),
+                    remainingSeconds = 0,
+                    status = if (result == "CANCELLED") "CANCELLED" else "ENDED",
+                    message = if (result == "SOLD") "Live 경매가 낙찰됐어요." else "Live 경매가 종료됐어요.",
+                    occurredAt = occurredAt
+                )
+            }
             SocketEventTypes.LIVE_VIEWER_COUNT_UPDATED -> LiveRealtimeUpdate(
                 eventType = envelope.eventType,
                 liveBroadcastId = payload.string("liveBroadcastId"),

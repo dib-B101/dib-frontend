@@ -93,4 +93,38 @@ class LiveSocketEventParserTest {
         assertEquals(57, update.viewerCount)
         assertEquals("Live 방송이 종료됐어요.", update.message)
     }
+
+    @Test
+    fun `closed live auction maps sale result to ended status`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_CLOSED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 31)
+                    put("result", "SOLD")
+                    put("finalPrice", 52_000)
+                    put("endedAt", "2026-09-14T09:10:00Z")
+                }
+            )
+        )!!
+
+        assertEquals("31", update.auctionId)
+        assertEquals("ENDED", update.status)
+        assertEquals(0, update.remainingSeconds)
+        assertEquals(52_000, update.currentPrice)
+        assertEquals("Live 경매가 낙찰됐어요.", update.message)
+
+        val cancelled = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_CLOSED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 32)
+                    put("result", "CANCELLED")
+                }
+            )
+        )!!
+        assertEquals("CANCELLED", cancelled.status)
+    }
 }
