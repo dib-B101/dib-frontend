@@ -102,6 +102,12 @@ class DibWebSocketClient(
     }
 
     @Synchronized
+    fun close() {
+        disconnect()
+        heartbeatExecutor.shutdownNow()
+    }
+
+    @Synchronized
     private fun scheduleHeartbeat(intervalSeconds: Long, expectedSocket: WebSocket, listener: DibSocketListener) {
         stopHeartbeat()
         heartbeatMonitor.reset()

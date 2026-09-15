@@ -199,6 +199,7 @@ class LiveChatConnection(
 
     fun close() {
         stopSession()
+        socket.close()
         reconnectExecutor.shutdownNow()
     }
 }

@@ -54,6 +54,7 @@ class AuctionRealtimeConnection(
 
     fun close() {
         stop()
+        socket.close()
         reconnectExecutor.shutdownNow()
     }
 
