@@ -36,6 +36,8 @@ private val depositPaymentMethods = listOf(
 fun BidDepositPaymentScreen(
     auctionId: String,
     bidAmount: Int,
+    productName: String?,
+    remainingSeconds: Int?,
     preparedDeposit: BidDeposit?,
     isProcessing: Boolean,
     errorMessage: String?,
@@ -46,7 +48,9 @@ fun BidDepositPaymentScreen(
     onReturnToAuction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val product = allHomeAuctions.firstOrNull { it.id == auctionId }
+    val sampleProduct = allHomeAuctions.firstOrNull { it.id == auctionId }
+    val displayedProductName = productName?.takeIf(String::isNotBlank) ?: sampleProduct?.name ?: "선택한 경매"
+    val displayedRemainingSeconds = remainingSeconds ?: sampleProduct?.remainingSeconds ?: 0
     var selectedPaymentMethodCode by rememberSaveable { mutableStateOf("") }
     val selectedPaymentMethod = depositPaymentMethods.firstOrNull { it.code == selectedPaymentMethodCode }
     var agreed by rememberSaveable { mutableStateOf(false) }
@@ -108,9 +112,9 @@ fun BidDepositPaymentScreen(
     ) { padding ->
         when (state) {
             DepositPaymentState.Form -> DepositPaymentForm(
-                productName = product?.name ?: "선택한 경매",
+                productName = displayedProductName,
                 bidAmount = bidAmount,
-                remainingSeconds = product?.remainingSeconds ?: 0,
+                remainingSeconds = displayedRemainingSeconds,
                 paymentMethod = selectedPaymentMethod?.label.orEmpty(),
                 agreed = agreed,
                 onMethodClick = { showMethodSheet = true },
@@ -131,7 +135,7 @@ fun BidDepositPaymentScreen(
                 modifier = Modifier.padding(padding)
             )
             DepositPaymentState.Success -> DepositPaymentSuccess(
-                productName = product?.name ?: "선택한 경매",
+                productName = displayedProductName,
                 bidAmount = bidAmount,
                 depositAmount = preparedDeposit?.amount ?: maxOf(1_000L, bidAmount.toLong() / 10L),
                 onReturn = onReturnToAuction,
