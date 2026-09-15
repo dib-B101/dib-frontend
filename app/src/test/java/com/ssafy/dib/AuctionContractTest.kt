@@ -35,7 +35,7 @@ class AuctionContractTest {
                     "status":"ACTIVE",
                     "bookmarked":true,
                     "myBid":{"amount":12000,"isHighestBidder":false},
-                    "product":{"name":"빈티지 카메라","categoryName":"디지털기기","thumbnailUrl":"https://cdn.example/thumb.jpg","images":[{"imageUrl":"https://cdn.example/front.jpg"},"https://cdn.example/side.jpg"]},
+                    "product":{"name":"빈티지 카메라","categoryName":"디지털기기","description":"필름 테스트를 마친 카메라입니다.","condition":"GOOD","modelName":"FM2","releaseYear":1982,"marketPrice":180000,"thumbnailUrl":"https://cdn.example/thumb.jpg","images":[{"imageUrl":"https://cdn.example/front.jpg"},"https://cdn.example/side.jpg"]},
                     "sellerSummary":{"nickname":"필름상점","rating":4.9,"completedTradeCount":32}
                 }],
                 "nextCursor":"auction-3",
@@ -58,6 +58,11 @@ class AuctionContractTest {
         assertEquals("필름상점", auction.sellerNickname)
         assertEquals(4.9, auction.sellerRating)
         assertEquals(32, auction.sellerTradeCount)
+        assertEquals("필름 테스트를 마친 카메라입니다.", auction.productDescription)
+        assertEquals("GOOD", auction.productCondition)
+        assertEquals("FM2", auction.productModelName)
+        assertEquals(1982, auction.productReleaseYear)
+        assertEquals(180_000L, auction.productMarketPrice)
         assertEquals(
             listOf(
                 "https://cdn.example/front.jpg",

@@ -1380,7 +1380,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(productId) }) {
                     is ApiResult.Success -> {
                         remoteDetail = result.value.toHomeAuction()
-                        if (result.value.productId.isNotBlank()) {
+                        if (signedIn == true && result.value.productId.isNotBlank()) {
                             when (val productResult = withContext(Dispatchers.IO) { auth.productRepository.getProduct(result.value.productId) }) {
                                 is ApiResult.Success -> remoteProduct = productResult.value
                                 is ApiResult.Failure -> if (productResult.error.requiresLogin) signedIn = false

@@ -289,7 +289,7 @@ fun ProductDetailScreen(
             item {
                 ProductGallery(product.photo, productImages, onImageClick)
             }
-            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition) }
+            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition) }
             item {
                 AuctionBidHistorySection(
                     items = bidHistory,
@@ -307,6 +307,7 @@ fun ProductDetailScreen(
                 ProductInformation(
                     productName = productName,
                     category = product.category,
+                    auction = product,
                     detail = productDetail,
                     canReport = !isOwnAuction,
                     onReport = onReportClick
@@ -561,7 +562,22 @@ private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick:
 }
 
 @Composable
-private fun ProductInformation(productName: String, category: String, detail: ProductDetail?, canReport: Boolean, onReport: () -> Unit) {
+private fun ProductInformation(
+    productName: String,
+    category: String,
+    auction: HomeAuction,
+    detail: ProductDetail?,
+    canReport: Boolean,
+    onReport: () -> Unit
+) {
+    val description = detail?.description?.takeIf(String::isNotBlank)
+        ?: auction.productDescription?.takeIf(String::isNotBlank)
+        ?: "$productName 상품입니다. 자세한 상태는 사진을 확인해주세요."
+    val condition = detail?.condition ?: auction.productCondition
+    val modelName = detail?.modelName?.takeIf(String::isNotBlank)
+        ?: auction.productModelName?.takeIf(String::isNotBlank)
+    val releaseYear = detail?.releaseYear ?: auction.productReleaseYear
+    val marketPrice = detail?.marketPrice ?: auction.productMarketPrice
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
@@ -570,16 +586,16 @@ private fun ProductInformation(productName: String, category: String, detail: Pr
                 Badge("배송비 포함")
             }
         }
-        InfoBlock("상품 설명", detail?.description?.takeIf(String::isNotBlank) ?: "$productName 상품입니다. 자세한 상태는 사진을 확인해주세요.")
+        InfoBlock("상품 설명", description)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("상품 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Colors.Border)) {
-                InfoRow("상품 상태", conditionLabel(detail?.condition))
+                InfoRow("상품 상태", conditionLabel(condition))
                 HorizontalDivider(color = Colors.Border)
                 InfoRow("카테고리", category)
-                detail?.modelName?.takeIf(String::isNotBlank)?.let { model -> HorizontalDivider(color = Colors.Border); InfoRow("모델명", model) }
-                detail?.releaseYear?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("출시연도", "${year}년") }
-                detail?.marketPrice?.let { marketPrice -> HorizontalDivider(color = Colors.Border); InfoRow("시세", "${"%,d".format(marketPrice)}원") }
+                modelName?.let { model -> HorizontalDivider(color = Colors.Border); InfoRow("모델명", model) }
+                releaseYear?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("출시연도", "${year}년") }
+                marketPrice?.let { price -> HorizontalDivider(color = Colors.Border); InfoRow("시세", "${"%,d".format(price)}원") }
             }
         }
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
