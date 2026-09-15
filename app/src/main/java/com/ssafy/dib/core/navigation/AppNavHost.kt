@@ -1472,7 +1472,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Success -> {
                         auctionBidHistory = result.value.items
                         auctionBidHistoryCursor = result.value.nextCursor
-                        auctionBidHistoryHasNext = result.value.hasNext
+                        auctionBidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                     }
                     is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 불러오지 못했어요." }
                 }
@@ -1570,7 +1570,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 is ApiResult.Success -> {
                                     auctionBidHistory = (auctionBidHistory.orEmpty() + result.value.items).distinctBy { it.bidId }
                                     auctionBidHistoryCursor = result.value.nextCursor
-                                    auctionBidHistoryHasNext = result.value.hasNext
+                                    auctionBidHistoryHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 더 불러오지 못했어요." }
                             }
