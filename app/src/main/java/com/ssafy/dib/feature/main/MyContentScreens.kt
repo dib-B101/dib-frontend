@@ -153,6 +153,7 @@ fun RegisteredProductsScreen(
             items(filtered.size) { index ->
                 val product = filtered[index]
                 val canRegisterAuction = remoteProducts != null && product.status == "REGISTERED"
+                val canEdit = remoteProducts != null && isProductEditable(product.status)
                 val canDelete = remoteProducts != null && product.status in setOf("PENDING", "REGISTERED", "REJECTED")
                 Row(Modifier.fillMaxWidth().height(84.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(56.dp))
@@ -160,9 +161,9 @@ fun RegisteredProductsScreen(
                     Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "거부" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        if (canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
-                            Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
+                        if (canEdit || canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (canEdit) Text("수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
+                            if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
                         }
                     }
                 }
@@ -189,6 +190,7 @@ fun RegisteredProductsScreen(
 
 private fun productStatusLabel(status: String) = when (status.uppercase()) { "PENDING" -> "검수 중"; "REGISTERED" -> "승인"; "REJECTED" -> "거부"; "SOLD" -> "판매 완료"; else -> status }
 private fun productStatusDescription(status: String) = when (status.uppercase()) { "PENDING" -> "AI 검수 중"; "REGISTERED" -> "경매 등록 가능"; "REJECTED" -> "검수 결과 확인 필요"; "SOLD" -> "판매가 완료된 상품"; else -> "상품 상태 확인 필요" }
+internal fun isProductEditable(status: String): Boolean = status.uppercase() in setOf("REGISTERED", "REJECTED")
 
 @Composable
 fun FavoriteAuctionsScreen(
