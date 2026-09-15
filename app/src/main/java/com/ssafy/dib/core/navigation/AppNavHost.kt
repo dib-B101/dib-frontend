@@ -3457,6 +3457,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 productId = backStackEntry.arguments?.getString("auctionId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
                 imageUrls = imageUrls,
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 onClose = navController::navigateUp
             )
         }

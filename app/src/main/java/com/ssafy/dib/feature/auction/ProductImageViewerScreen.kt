@@ -23,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.allHomeAuctions
 
@@ -33,11 +34,12 @@ fun ProductImageViewerScreen(
     productId: String,
     initialPage: Int,
     imageUrls: List<String>,
+    showSampleContent: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val product = allHomeAuctions.firstOrNull { it.id == productId } ?: allHomeAuctions.first()
-    val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
+    val sampleProduct = allHomeAuctions.firstOrNull { it.id == productId }.takeIf { showSampleContent }
+    val pageCount = imageUrls.size.takeIf { it > 0 } ?: if (sampleProduct != null) 5 else 1
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, pageCount - 1), pageCount = { pageCount })
     val background = Color(0xFF1A1A1A)
 
@@ -60,7 +62,7 @@ fun ProductImageViewerScreen(
         }
 
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) {
-            ZoomableProductImage(product.photo, imageUrls.getOrNull(it), it)
+            ZoomableProductImage(sampleProduct?.photo, imageUrls.getOrNull(it), it)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -81,7 +83,7 @@ fun ProductImageViewerScreen(
 }
 
 @Composable
-private fun ZoomableProductImage(photo: ProductPhoto, imageUrl: String?, page: Int) {
+private fun ZoomableProductImage(photo: ProductPhoto?, imageUrl: String?, page: Int) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -118,10 +120,21 @@ private fun ZoomableProductImage(photo: ProductPhoto, imageUrl: String?, page: I
             .transformable(transformState),
         contentAlignment = Alignment.Center
     ) {
-        if (imageUrl != null || page == 0) {
+        if (imageUrl != null) {
+            DibNetworkImage(
+                imageUrl = imageUrl,
+                contentDescription = "상품 이미지 ${page + 1}",
+                modifier = Modifier.fillMaxWidth().height(560.dp).graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offsetX,
+                    translationY = offsetY
+                )
+            )
+        } else if (photo != null && page == 0) {
             ProductPhoto(
                 photo,
-                imageUrl,
+                null,
                 Modifier.fillMaxWidth().height(560.dp).graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
@@ -139,7 +152,11 @@ private fun ZoomableProductImage(photo: ProductPhoto, imageUrl: String?, page: I
                 ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("확대 이미지 ${page + 1}", color = Color(0xFFB7B7B7), fontSize = 13.sp)
+                Text(
+                    if (photo != null) "확대 이미지 ${page + 1}" else "등록된 상품 이미지가 없어요",
+                    color = Color(0xFFB7B7B7),
+                    fontSize = 13.sp
+                )
             }
         }
     }

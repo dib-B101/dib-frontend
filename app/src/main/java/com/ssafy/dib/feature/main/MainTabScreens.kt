@@ -348,17 +348,22 @@ fun MyPageScreen(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(56.dp).background(Color(0xFFDDF8F0), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(profile?.nickname?.take(1)?.uppercase() ?: "d", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                            Text(profile?.nickname?.take(1)?.uppercase() ?: "?", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                            Text(profile?.nickname ?: "dib러버", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(profile?.nickname ?: "내 프로필", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(profile?.email ?: "내 계정 정보를 확인해보세요", color = Colors.Muted, fontSize = 12.sp)
                             profile?.status?.let { status -> Text(memberStatusLabel(status), color = Color(0xFF27806E), fontSize = 11.sp) }
                         }
                         OutlinedButton(onProfileEditClick, shape = RoundedCornerShape(16.dp), contentPadding = PaddingValues(horizontal = 12.dp)) { Text("프로필 수정", fontSize = 11.sp) }
                     }
                     HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Colors.Border)
-                    Text("신뢰 점수 ${profile?.score ?: 0}점", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        profile?.let { "신뢰 점수 ${it.score}점" } ?: "신뢰 점수를 불러오는 중",
+                        color = Colors.Navy,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             item { Text("바로가기", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
