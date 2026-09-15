@@ -302,10 +302,10 @@ private fun RemoteTransactionScreen(
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Text("배송 정보 등록", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("실제 발송을 완료한 뒤 송장번호를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                                Text("실제 발송을 완료한 뒤 송장번호를 입력해주세요. 택배사는 배송 조회 시 자동으로 확인해요.", color = Colors.Muted, fontSize = 12.sp)
                                 OutlinedTextField(
                                     value = trackingNumber,
-                                    onValueChange = { trackingNumber = it.filter(Char::isLetterOrDigit).take(30) },
+                                    onValueChange = { trackingNumber = it },
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text("송장번호") },
                                     singleLine = true,
@@ -315,8 +315,8 @@ private fun RemoteTransactionScreen(
                         }
                         item {
                             Button(
-                                onClick = { onRegisterShipment(trackingNumber) },
-                                enabled = trackingNumber.length >= 8 && !shipmentLoading,
+                                onClick = { onRegisterShipment(trackingNumber.trim()) },
+                                enabled = trackingNumber.isNotBlank() && !shipmentLoading,
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
