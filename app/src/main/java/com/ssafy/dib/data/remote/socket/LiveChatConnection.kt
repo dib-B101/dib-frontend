@@ -22,6 +22,7 @@ class LiveChatConnection(
     private var reconnectTask: ScheduledFuture<*>? = null
     @Volatile private var pendingBidCommand: SocketEnvelope? = null
     private val pendingChatMessages = linkedMapOf<String, SocketEnvelope>()
+    private val updateFreshness = SocketUpdateFreshnessGate()
     private var onMessage: (LiveChatMessage) -> Unit = {}
     private var onUpdate: (LiveRealtimeUpdate) -> Unit = {}
     private var onError: (String) -> Unit = {}
@@ -36,6 +37,7 @@ class LiveChatConnection(
         onState: (RealtimeConnectionState) -> Unit
     ) {
         stopSession()
+        updateFreshness.clear()
         this.liveBroadcastId = liveBroadcastId
         this.subscribedAuctionId = activeAuctionId
         this.onMessage = onMessage
@@ -56,8 +58,15 @@ class LiveChatConnection(
                 reconnectTask = null
                 reconnectAttempt = 0
                 onState(RealtimeConnectionState.Connected)
-                socket.send(SocketCommands.subscribeLive(liveBroadcastId))
-                subscribedAuctionId?.let { socket.send(SocketCommands.subscribeAuction(it)) }
+                socket.send(SocketCommands.subscribeLive(liveBroadcastId, updateFreshness.lastKnown(liveStreamKey())))
+                subscribedAuctionId?.let { auctionId ->
+                    socket.send(
+                        SocketCommands.subscribeAuction(
+                            auctionId,
+                            updateFreshness.lastKnown(auctionStreamKey(auctionId))
+                        )
+                    )
+                }
                 pendingBidCommand?.let(socket::send)
                 synchronized(this@LiveChatConnection) {
                     pendingChatMessages.values.forEach(socket::send)
@@ -113,7 +122,7 @@ class LiveChatConnection(
                         }
                     }
                 }
-                eventParser.parse(envelope)?.let { update ->
+                eventParser.parse(envelope)?.takeIf(::shouldHandleUpdate)?.let { update ->
                     when (update.eventType) {
                         SocketEventTypes.LIVE_AUCTION_OPENED -> update.auctionId?.let(::subscribeAuction)
                         SocketEventTypes.LIVE_AUCTION_CLOSED -> update.auctionId?.let(::unsubscribeAuction)
@@ -162,7 +171,12 @@ class LiveChatConnection(
         if (subscribedAuctionId == auctionId) return
         subscribedAuctionId?.takeIf { it != auctionId }?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
         subscribedAuctionId = auctionId
-        socket.send(SocketCommands.subscribeAuction(auctionId))
+        socket.send(
+            SocketCommands.subscribeAuction(
+                auctionId,
+                updateFreshness.lastKnown(auctionStreamKey(auctionId))
+            )
+        )
     }
 
     private fun unsubscribeAuction(auctionId: String) {
@@ -202,7 +216,31 @@ class LiveChatConnection(
         socket.close()
         reconnectExecutor.shutdownNow()
     }
+
+    private fun shouldHandleUpdate(update: LiveRealtimeUpdate): Boolean {
+        if (update.bidAccepted != null) return true
+        val auctionEvent = update.eventType in auctionStateEventTypes
+        val streamKey = if (auctionEvent) {
+            update.auctionId?.let(::auctionStreamKey)
+        } else {
+            (update.liveBroadcastId ?: liveBroadcastId.takeIf(String::isNotBlank))?.let { "live:$it" }
+        } ?: return true
+        return updateFreshness.shouldHandle(streamKey, update.occurredAt)
+    }
+
+    private fun liveStreamKey() = "live:$liveBroadcastId"
+    private fun auctionStreamKey(auctionId: String) = "auction:$auctionId"
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
+
+private val auctionStateEventTypes = setOf(
+    SocketEventTypes.AUCTION_SNAPSHOT,
+    SocketEventTypes.HIGHEST_BID_UPDATED,
+    SocketEventTypes.AUCTION_EXTENDED,
+    SocketEventTypes.AUCTION_ENDED,
+    SocketEventTypes.LIVE_AUCTION_OPENED,
+    SocketEventTypes.LIVE_AUCTION_STATUS_UPDATED,
+    SocketEventTypes.LIVE_AUCTION_CLOSED
+)

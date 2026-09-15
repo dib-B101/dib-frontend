@@ -98,12 +98,12 @@ class DibWebSocketClient(
         val current = socket
         socket = null
         current?.close(code, reason)
-        eventGate.clear()
     }
 
     @Synchronized
     fun close() {
         disconnect()
+        eventGate.clear()
         heartbeatExecutor.shutdownNow()
     }
 

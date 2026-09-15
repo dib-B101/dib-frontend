@@ -31,7 +31,9 @@ class AuctionRealtimeConnection(
         onUpdate: (AuctionRealtimeUpdate) -> Unit,
         onState: (RealtimeConnectionState) -> Unit
     ) {
+        val auctionChanged = this.auctionId != auctionId
         stop()
+        if (auctionChanged) lastKnownOccurredAt = null
         this.auctionId = auctionId
         this.onUpdate = onUpdate
         this.onState = onState
@@ -105,7 +107,9 @@ class AuctionRealtimeConnection(
                     if (isBidResult && update.commandId == pendingBidCommand?.commandId) {
                         clearPendingBid()
                     }
-                    if (isBidResult || isNewer(update.occurredAt)) {
+                    if (isBidResult) {
+                        onUpdate(update)
+                    } else if (isNewer(update.occurredAt)) {
                         update.occurredAt?.let { lastKnownOccurredAt = it }
                         onUpdate(update)
                     }
