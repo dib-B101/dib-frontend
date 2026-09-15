@@ -247,7 +247,7 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
         "SHIPPED" -> "배송 중"
         "DELIEVERED", "DELIVERED" -> "배송 완료"
         "CONFIRMED" -> if (isSeller) "판매 완료" else "구매 완료"
-        "CANCELLED" -> "거래 취소"
+        "CANCELLED", "CANCELED" -> "거래 취소"
         "REFUNDED" -> "환불 완료"
         else -> normalized.ifBlank { "거래 진행 중" }
     }

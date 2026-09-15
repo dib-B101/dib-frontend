@@ -108,9 +108,10 @@ internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderS
 internal fun com.ssafy.dib.data.remote.order.OrderShippingAddressResponse.toDomain(): OrderShippingAddress {
     val value = address.jsonObject
     return OrderShippingAddress(
-        name = value.stringValue("name").ifBlank { "배송지" },
-        postalCode = value.stringValue("number"),
-        address = value.stringValue("address")
+        name = value.stringValue("receiverName").ifBlank { value.stringValue("name").ifBlank { "배송지" } },
+        postalCode = value.stringValue("zip").ifBlank { value.stringValue("number") },
+        address = listOf(value.stringValue("address"), value.stringValue("detail")).filter(String::isNotBlank).joinToString(" "),
+        phoneNumber = value.stringValue("receiverPhone").takeIf(String::isNotBlank)
     )
 }
 
@@ -121,7 +122,7 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         orderId = (orderId ?: core?.orderId).idValue(),
         auctionId = (auctionId ?: core?.auctionId ?: auction?.auctionId).idValue(),
         productId = (productId ?: core?.productId ?: product?.productId ?: auction?.productId).idValue(),
-        title = product?.title ?: product?.name ?: auction?.title ?: "거래 상품",
+        title = productTitle ?: product?.title ?: product?.name ?: auction?.title ?: "거래 상품",
         finalPrice = (finalPrice ?: amount ?: core?.finalPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         status = resolvedStatus,
         updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt,

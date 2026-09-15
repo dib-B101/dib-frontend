@@ -19,6 +19,7 @@ class OrderContractTest {
         assertEquals(false, isOrderChatWritable("SHIPPED", serverReadOnly = true))
         assertEquals(false, isOrderChatWritable("CONFIRMED"))
         assertEquals(false, isOrderChatWritable("CANCELLED"))
+        assertEquals(false, isOrderChatWritable("CANCELED"))
         assertEquals(false, isOrderChatWritable("REFUNDED"))
     }
 
@@ -50,6 +51,19 @@ class OrderContractTest {
         assertEquals("SHIPPED", order.status)
         assertEquals("order-12", response.nextCursor)
         assertEquals(true, response.hasNext)
+    }
+
+    @Test
+    fun mapsCurrentFlatOrderTitle() {
+        val response = DibJson.instance.decodeFromString(
+            OrderListResponse.serializer(),
+            """{"items":[{"orderId":13,"productTitle":"백자 화병","status":"CANCELED"}]}"""
+        )
+
+        val order = response.items.single().toDomain()
+
+        assertEquals("백자 화병", order.title)
+        assertEquals("CANCELED", order.status)
     }
 
     @Test
@@ -128,5 +142,18 @@ class OrderContractTest {
         assertEquals("회사", response.name)
         assertEquals("06236", response.postalCode)
         assertEquals("서울특별시 강남구 테헤란로 212", response.address)
+    }
+
+    @Test
+    fun shippingAddressMapsCurrentBackendFields() {
+        val response = DibJson.instance.decodeFromString(
+            OrderShippingAddressResponse.serializer(),
+            """{"address":{"zip":"06236","address":"서울특별시 강남구 테헤란로 212","detail":"5층","receiverName":"김디비","receiverPhone":"010-1234-5678"}}"""
+        ).toDomain()
+
+        assertEquals("김디비", response.name)
+        assertEquals("06236", response.postalCode)
+        assertEquals("서울특별시 강남구 테헤란로 212 5층", response.address)
+        assertEquals("010-1234-5678", response.phoneNumber)
     }
 }

@@ -17,7 +17,7 @@ data class OrderSummary(
 )
 
 fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =
-    !serverReadOnly && status?.uppercase() !in setOf("CONFIRMED", "CANCELLED", "REFUNDED")
+    !serverReadOnly && status?.uppercase() !in setOf("CONFIRMED", "CANCELLED", "CANCELED", "REFUNDED")
 
 data class OrderShipment(
     val orderId: String,
@@ -48,7 +48,8 @@ data class OrderPage(
 data class OrderShippingAddress(
     val name: String,
     val postalCode: String,
-    val address: String
+    val address: String,
+    val phoneNumber: String? = null
 )
 
 interface OrderRepository {

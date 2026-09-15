@@ -248,6 +248,7 @@ private fun RemoteTransactionScreen(
                             InfoCard(
                                 listOf(
                                     "배송지 이름" to destination.name,
+                                    "연락처" to (destination.phoneNumber ?: "-"),
                                     "우편번호" to destination.postalCode.ifBlank { "-" },
                                     "주소" to destination.address.ifBlank { "주소 정보 없음" }
                                 ),
@@ -255,7 +256,7 @@ private fun RemoteTransactionScreen(
                             )
                         }
                     }
-                    if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "REFUNDED")) {
+                    if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "CANCELED", "REFUNDED")) {
                         item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
                     }
                     confirmationError?.let { message ->
@@ -425,7 +426,7 @@ private fun orderPresentation(status: String, seller: Boolean): OrderPresentatio
     "SHIPPED" -> OrderPresentation("배송 중", "✓", "상품이 배송되고 있어요", "배송 완료 후 상품 상태를 확인해주세요.", Color(0xFFF1FAF7))
     "DELIEVERED", "DELIVERED" -> OrderPresentation("배송 완료", "▣", if (seller) "구매 확정을 기다리고 있어요" else "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7))
     "CONFIRMED" -> OrderPresentation(if (seller) "판매 완료" else "구매 완료", "✓", "거래가 완료됐어요", "안전하게 거래가 마무리됐어요.", Color(0xFFE8FAF5))
-    "CANCELLED" -> OrderPresentation("거래 취소", "!", "거래가 취소됐어요", "상세 사유는 고객센터에서 확인할 수 있어요.", Color(0xFFF1F3F5))
+    "CANCELLED", "CANCELED" -> OrderPresentation("거래 취소", "!", "거래가 취소됐어요", "상세 사유는 고객센터에서 확인할 수 있어요.", Color(0xFFF1F3F5))
     "REFUNDED" -> OrderPresentation("환불 완료", "✓", "환불이 완료됐어요", "결제수단의 환불 내역을 확인해주세요.", Color(0xFFF1F3F5))
     else -> OrderPresentation(status, "▣", "거래가 진행 중이에요", "최신 거래 상태를 확인해주세요.", Color(0xFFF1F5FA))
 }
