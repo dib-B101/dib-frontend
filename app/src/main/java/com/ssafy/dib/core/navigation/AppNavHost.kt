@@ -61,6 +61,7 @@ import com.ssafy.dib.feature.main.AddressManagementScreen
 import com.ssafy.dib.feature.main.FavoriteAuctionsScreen
 import com.ssafy.dib.feature.main.InquiryHistoryScreen
 import com.ssafy.dib.feature.main.MyPageScreen
+import com.ssafy.dib.feature.main.MyAuctionManagementScreen
 import com.ssafy.dib.feature.main.MyTradesScreen
 import com.ssafy.dib.feature.main.NotificationSettingsScreen
 import com.ssafy.dib.feature.main.ProfileEditScreen
@@ -2232,6 +2233,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onTabSelected = ::navigateMain,
                 onProfileEditClick = { navController.navigate(Screen.ProfileEdit.route) },
                 onFavoritesClick = { navController.navigate(Screen.FavoriteAuctions.route) },
+                onAuctionsClick = { navController.navigate(Screen.MyAuctions.route) },
                 onRegisteredProductsClick = { navController.navigate(Screen.RegisteredProducts.route) },
                 onLiveManagementClick = { navController.navigate(Screen.LiveManagement.route) },
                 onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
@@ -2247,6 +2249,163 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
                 }
+            )
+        }
+        composable(Screen.MyAuctions.route) {
+            var sales by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.SaleHistoryItem>?>(null) }
+            var salesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var salesError by remember { mutableStateOf<String?>(null) }
+            var salesRevision by remember { mutableStateOf(0) }
+            var salesCursor by remember { mutableStateOf<String?>(null) }
+            var salesHasNext by remember { mutableStateOf(false) }
+            var salesLoadingMore by remember { mutableStateOf(false) }
+            var salesLoadMoreError by remember { mutableStateOf<String?>(null) }
+            var actionAuctionId by remember { mutableStateOf<String?>(null) }
+            var actionMessage by remember { mutableStateOf<String?>(null) }
+            var actionError by remember { mutableStateOf<String?>(null) }
+            val startKeys = remember { mutableMapOf<String, String>() }
+            val cancelKeys = remember { mutableMapOf<String, String>() }
+
+            LaunchedEffect(salesRevision, signedIn) {
+                if (!auth.networkConfig.isRestConfigured) {
+                    sales = emptyList()
+                    salesLoading = false
+                    return@LaunchedEffect
+                }
+                if (signedIn != true) {
+                    salesLoading = false
+                    salesError = "로그인 후 내 경매를 확인할 수 있어요."
+                    return@LaunchedEffect
+                }
+                salesLoading = true
+                salesError = null
+                salesLoadMoreError = null
+                salesCursor = null
+                salesHasNext = false
+                salesLoadingMore = false
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getMySales() }) {
+                    is ApiResult.Success -> {
+                        sales = result.value.items
+                        salesCursor = result.value.nextCursor
+                        salesHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, null)
+                    }
+                    is ApiResult.Failure -> {
+                        salesError = result.error.message.ifBlank { "내 경매를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                salesLoading = false
+            }
+
+            MyAuctionManagementScreen(
+                sales = sales,
+                isLoading = salesLoading,
+                errorMessage = salesError,
+                hasNext = salesHasNext,
+                isLoadingMore = salesLoadingMore,
+                loadMoreError = salesLoadMoreError,
+                actionAuctionId = actionAuctionId,
+                actionMessage = actionMessage,
+                actionError = actionError,
+                onRetry = { salesRevision++ },
+                onLoadMore = {
+                    val cursor = salesCursor
+                    if (cursor != null && salesHasNext && !salesLoadingMore) {
+                        salesLoadingMore = true
+                        salesLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.auctionRepository.getMySales(cursor = cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    sales = (sales.orEmpty() + result.value.items)
+                                        .distinctBy { it.auction.auctionId }
+                                    salesCursor = result.value.nextCursor
+                                    salesHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
+                                }
+                                is ApiResult.Failure -> {
+                                    if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
+                                        salesRevision++
+                                    } else {
+                                        salesLoadMoreError = result.error.message.ifBlank { "다음 경매를 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
+                                }
+                            }
+                            salesLoadingMore = false
+                        }
+                    }
+                },
+                onOpenAuction = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onUpdate = { auctionId, startPrice, auctionTime ->
+                    actionAuctionId = auctionId
+                    actionMessage = null
+                    actionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.updateAuction(auctionId, startPrice, auctionTime)
+                        }) {
+                            is ApiResult.Success -> {
+                                actionMessage = result.value.message.ifBlank { "경매 조건을 수정했어요." }
+                                salesRevision++
+                                auctionsRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                actionError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        actionAuctionId = null
+                    }
+                },
+                onStart = { auctionId ->
+                    actionAuctionId = auctionId
+                    actionMessage = null
+                    actionError = null
+                    val key = startKeys.getOrPut(auctionId) { java.util.UUID.randomUUID().toString() }
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.startAuction(auctionId, key)
+                        }) {
+                            is ApiResult.Success -> {
+                                startKeys.remove(auctionId)
+                                actionMessage = result.value.ifBlank { "경매를 시작했어요." }
+                                salesRevision++
+                                auctionsRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                actionError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        actionAuctionId = null
+                    }
+                },
+                onCancel = { auctionId ->
+                    actionAuctionId = auctionId
+                    actionMessage = null
+                    actionError = null
+                    val key = cancelKeys.getOrPut(auctionId) { java.util.UUID.randomUUID().toString() }
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.cancelAuction(auctionId, key)
+                        }) {
+                            is ApiResult.Success -> {
+                                cancelKeys.remove(auctionId)
+                                actionMessage = "경매를 취소했어요."
+                                salesRevision++
+                                auctionsRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                actionError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        actionAuctionId = null
+                    }
+                },
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain
             )
         }
         composable(Screen.LiveManagement.route) {

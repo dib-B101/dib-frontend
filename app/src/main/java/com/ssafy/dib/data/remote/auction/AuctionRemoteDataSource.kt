@@ -19,6 +19,17 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), AuctionListResponse.serializer())
     }
 
+    fun getMySales(auctionStatus: String?, cursor: String?, size: Int): ApiResult<SaleHistoryResponse> = configured {
+        val urlBuilder = client.urlBuilder(ApiRoutes.MEMBER_SALES)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
+        auctionStatus?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("auctionStatus", it) }
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        client.execute(
+            client.requestBuilder(ApiRoutes.MEMBER_SALES).url(urlBuilder.build()).get().build(),
+            SaleHistoryResponse.serializer()
+        )
+    }
+
     fun getGeneralAuctions(
         size: Int,
         categoryId: String? = null,

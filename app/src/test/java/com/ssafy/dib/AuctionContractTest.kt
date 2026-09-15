@@ -10,6 +10,7 @@ import com.ssafy.dib.data.remote.auction.BidHistoryListResponse
 import com.ssafy.dib.data.remote.auction.AuctionBidHistoryListResponse
 import com.ssafy.dib.data.remote.auction.AuctionRecommendationResponse
 import com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse
+import com.ssafy.dib.data.remote.auction.SaleHistoryResponse
 import com.ssafy.dib.data.repository.toDomain
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -18,6 +19,25 @@ import org.junit.Test
 import kotlinx.serialization.json.JsonPrimitive
 
 class AuctionContractTest {
+    @Test
+    fun sellerHistoryContractKeepsAuctionProductOrderAndCursor() {
+        val response = DibJson.instance.decodeFromString(
+            SaleHistoryResponse.serializer(),
+            """{"items":[{"auction":{"auctionId":3,"memberId":17,"productId":8,"startPrice":10000,"currentPrice":10000,"auctionTime":7200,"status":"SCHEDULED"},"product":{"productId":8,"title":"필름 카메라","thumbnailUrl":"https://cdn.example/camera.jpg"},"order":{"orderId":21,"status":"PENDING"}}],"nextCursor":"sale-3","hasNext":true}"""
+        )
+
+        val sale = response.items.single()
+        val auction = sale.auction.copy(product = sale.product).toDomain(Instant.EPOCH)
+
+        assertEquals("3", auction.auctionId)
+        assertEquals("필름 카메라", auction.title)
+        assertEquals(7_200L, auction.auctionTimeSeconds)
+        assertEquals("21", sale.order?.orderId.toString())
+        assertEquals("PENDING", sale.order?.status)
+        assertEquals("sale-3", response.nextCursor)
+        assertTrue(response.hasNext)
+    }
+
     @Test
     fun numericIdsAndNestedProductMapToHomeSummary() {
         val response = DibJson.instance.decodeFromString(

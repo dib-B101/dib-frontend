@@ -6,6 +6,8 @@ import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.auction.AuctionPage
+import com.ssafy.dib.domain.auction.SaleHistoryItem
+import com.ssafy.dib.domain.auction.SaleHistoryPage
 import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.BidHistoryPage
@@ -24,6 +26,25 @@ class AuctionRepositoryImpl(
     private val remote: AuctionRemoteDataSource,
     private val now: () -> Instant = Instant::now
 ) : AuctionRepository {
+    override fun getMySales(auctionStatus: String?, cursor: String?, size: Int): ApiResult<SaleHistoryPage> =
+        when (val result = remote.getMySales(auctionStatus, cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                SaleHistoryPage(
+                    items = result.value.items.map { item ->
+                        SaleHistoryItem(
+                            auction = item.auction.copy(product = item.auction.product ?: item.product).toDomain(now()),
+                            orderId = item.order?.orderId?.idValue(),
+                            orderStatus = item.order?.status
+                        )
+                    },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
     override fun getAuctions(scope: String, status: String, cursor: String?, size: Int): ApiResult<AuctionPage> =
         when (val result = remote.getAuctions(scope, status, cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
@@ -190,6 +211,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         startPrice = startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         bidCount = bidCount.coerceAtLeast(0),
+        auctionTimeSeconds = auctionTime.coerceAtLeast(0),
         remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
         status = status,
         bookmarked = bookmarked,

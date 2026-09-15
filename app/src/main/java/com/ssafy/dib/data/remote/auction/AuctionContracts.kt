@@ -13,6 +13,26 @@ data class AuctionListResponse(
 )
 
 @Serializable
+data class SaleHistoryResponse(
+    val items: List<SaleHistoryItemDto> = emptyList(),
+    val nextCursor: String? = null,
+    val hasNext: Boolean = false
+)
+
+@Serializable
+data class SaleHistoryItemDto(
+    val auction: AuctionDto,
+    val product: AuctionProductDto? = null,
+    val order: SaleOrderDto? = null
+)
+
+@Serializable
+data class SaleOrderDto(
+    val orderId: JsonElement? = null,
+    val status: String? = null
+)
+
+@Serializable
 data class AuctionRecommendationResponse(
     val liveItems: List<LiveBroadcastDto> = emptyList(),
     val generalItems: List<AuctionDto> = emptyList(),
