@@ -3820,7 +3820,28 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         detail.sellerTradeCount?.let { backStackEntry.savedStateHandle["sellerTradeCount"] = it }
                     }
                     navController.navigate(Screen.SellerProfile.createRoute(memberId))
+                },
+                onImageClick = { page ->
+                    backStackEntry.savedStateHandle["productOverviewImageUrls"] = ArrayList(product?.imageUrls?.takeIf { it.isNotEmpty() } ?: listOfNotNull(product?.thumbnailUrl))
+                    navController.navigate(Screen.ProductOverviewImages.createRoute(productId, page))
                 }
+            )
+        }
+        composable(
+            route = Screen.ProductOverviewImages.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType },
+                navArgument("initialPage") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val imageUrls = navController.previousBackStackEntry?.savedStateHandle
+                ?.get<ArrayList<String>>("productOverviewImageUrls").orEmpty()
+            ProductImageViewerScreen(
+                productId = backStackEntry.arguments?.getString("productId").orEmpty(),
+                initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
+                imageUrls = imageUrls,
+                showSampleContent = false,
+                onClose = navController::navigateUp
             )
         }
         composable(

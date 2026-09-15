@@ -46,6 +46,7 @@ fun ProductOverviewScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onSellerClick: (String) -> Unit,
+    onImageClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -73,7 +74,7 @@ fun ProductOverviewScreen(
                     Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("다시 불러오기") }
                 }
             }
-            else -> ProductOverviewContent(product, onSellerClick, Modifier.padding(padding))
+            else -> ProductOverviewContent(product, onSellerClick, onImageClick, Modifier.padding(padding))
         }
     }
 }
@@ -82,6 +83,7 @@ fun ProductOverviewScreen(
 private fun ProductOverviewContent(
     product: ProductDetail,
     onSellerClick: (String) -> Unit,
+    onImageClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val images = product.imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl) }
@@ -91,7 +93,11 @@ private fun ProductOverviewContent(
         item {
             Box(Modifier.fillMaxWidth().height(360.dp).background(Colors.Surface), contentAlignment = Alignment.Center) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                    DibNetworkImage(images.getOrNull(page), product.title, Modifier.fillMaxSize())
+                    DibNetworkImage(
+                        images.getOrNull(page),
+                        product.title,
+                        Modifier.fillMaxSize().clickable { onImageClick(page) }
+                    )
                 }
                 if (pageCount > 1) {
                     Text(
