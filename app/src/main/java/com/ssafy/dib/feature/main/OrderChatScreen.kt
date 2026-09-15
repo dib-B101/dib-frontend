@@ -142,6 +142,15 @@ fun OrderChatScreen(
                 items(orderedMessages, key = OrderMessage::chattingId) { message ->
                     val mine = message.memberId == currentMemberId
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                        if (!mine) {
+                            Text(
+                                message.memberNickname?.takeIf(String::isNotBlank) ?: "거래 상대",
+                                Modifier.padding(start = 4.dp, bottom = 3.dp),
+                                color = Colors.Muted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                         Surface(color = if (mine) Colors.Navy else Color.White, shape = RoundedCornerShape(14.dp)) {
                             Text(message.content, Modifier.padding(horizontal = 13.dp, vertical = 9.dp), color = if (mine) Color.White else Colors.Text, fontSize = 13.sp)
                         }
@@ -172,7 +181,7 @@ fun OrderChatScreen(
                 Surface(Modifier.fillMaxWidth(), color = Color(0xFFF8F9FB), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("상대 회원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text(target.memberId, color = Colors.Muted, fontSize = 10.sp)
+                        Text(target.memberNickname?.takeIf(String::isNotBlank) ?: "회원 ${target.memberId}", color = Colors.Muted, fontSize = 10.sp)
                         Text("최근 메시지 · “${target.content}”", color = Colors.Muted, fontSize = 11.sp, maxLines = 2)
                     }
                 }

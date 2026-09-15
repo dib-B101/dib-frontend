@@ -72,7 +72,7 @@ class OrderChatConnection(
                     SocketEventTypes.CHAT_MESSAGE_CREATED -> runCatching {
                         codec.decodePayload(envelope, ChatMessageCreatedPayload.serializer())
                     }.getOrNull()?.takeIf { it.orderId.idValue() == orderId }?.let { payload ->
-                        val message = OrderMessage(payload.chattingId.idValue(), payload.memberId.idValue(), payload.content, payload.time)
+                        val message = OrderMessage(payload.chattingId.idValue(), payload.memberId.idValue(), payload.content, payload.time, payload.memberNickname)
                         lastChattingId = message.chattingId
                         onMessage(message)
                     }
