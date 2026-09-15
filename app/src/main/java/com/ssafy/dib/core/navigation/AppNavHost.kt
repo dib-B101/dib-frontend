@@ -2170,6 +2170,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var chatWritable by remember(orderId) { mutableStateOf(false) }
             var chatConnectionState by remember(orderId) { mutableStateOf<RealtimeConnectionState?>(null) }
             var chatConnection by remember(orderId) { mutableStateOf<com.ssafy.dib.data.remote.socket.OrderChatConnection?>(null) }
+            var chatReportSubmitting by remember(orderId) { mutableStateOf(false) }
+            var chatReportError by remember(orderId) { mutableStateOf<String?>(null) }
+            var chatReportCompleted by remember(orderId) { mutableStateOf(false) }
 
             LaunchedEffect(orderId, chatRevision) {
                 if (!auth.networkConfig.isRestConfigured) {
@@ -2241,6 +2244,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 errorMessage = chatError,
                 connectionState = chatConnectionState,
                 canSend = chatWritable && currentMemberId.isNotBlank(),
+                reportSubmitting = chatReportSubmitting,
+                reportError = chatReportError,
+                reportCompleted = chatReportCompleted,
                 onRetry = { chatRevision++ },
                 onLoadEarlier = {
                     if (!chatLoadingEarlier && chatHasMore) {
@@ -2271,6 +2277,32 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onSend = { content ->
                     chatConnection?.updateCurrentMemberId(currentMemberId)
                     chatConnection?.send(content) == true
+                },
+                onReportParticipant = { memberId, content ->
+                    val command = "order-chat-report:$orderId:$memberId:$content"
+                    val idempotencyKey = commandKeys.keyFor(command)
+                    chatReportSubmitting = true
+                    chatReportError = null
+                    chatReportCompleted = false
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.reportRepository.reportMember(memberId, content, idempotencyKey)
+                        }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                chatReportCompleted = true
+                            }
+                            is ApiResult.Failure -> {
+                                chatReportError = reportSubmissionMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        chatReportSubmitting = false
+                    }
+                },
+                onDismissReport = {
+                    chatReportError = null
+                    chatReportCompleted = false
                 },
                 onBack = navController::navigateUp
             )
