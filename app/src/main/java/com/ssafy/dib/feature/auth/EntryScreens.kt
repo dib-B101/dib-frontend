@@ -134,9 +134,16 @@ fun LoginScreen(
             Image(painterResource(R.drawable.dib_primary_logo), "dib", Modifier.size(96.dp, 61.dp), contentScale = ContentScale.Fit)
             Text("dib 계정으로 경매를 계속해보세요", color = Colors.Muted, fontSize = 13.sp)
             Spacer(Modifier.height(26.dp))
-            LoginField("이메일", email, { email = it }, "이메일을 입력해주세요", KeyboardType.Email)
+            LoginField(
+                "이메일",
+                email,
+                { email = it },
+                "이메일을 입력해주세요",
+                KeyboardType.Email,
+                errorMessage = "올바른 이메일을 입력해주세요.".takeIf { attempted && !email.contains('@') }
+            )
             Spacer(Modifier.height(14.dp))
-            LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible) {
+            LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible, errorMessage = "비밀번호를 4자 이상 입력해주세요.".takeIf { attempted && password.length < 4 }) {
                 passwordVisible = !passwordVisible
             }
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -152,16 +159,18 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
-            if (attempted && !valid) Text("이메일과 4자 이상의 비밀번호를 확인해주세요", Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
             errorMessage?.let {
                 Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
             }
             Button(
                 onClick = { attempted = true; if (valid) onLogin(email.trim(), password) },
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp).height(56.dp),
-                enabled = valid && !isLoading,
+                enabled = !isLoading,
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (valid) Colors.Navy else Color(0xFFD6DBE3),
+                    contentColor = if (valid) Color.White else Color(0xFF8C94A1)
+                )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
@@ -183,7 +192,16 @@ fun LoginScreen(
 }
 
 @Composable
-private fun LoginField(label: String, value: String, onValueChange: (String) -> Unit, placeholder: String, keyboardType: KeyboardType, visible: Boolean = true, onVisibility: (() -> Unit)? = null) {
+private fun LoginField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    keyboardType: KeyboardType,
+    visible: Boolean = true,
+    errorMessage: String? = null,
+    onVisibility: (() -> Unit)? = null
+) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
@@ -192,11 +210,17 @@ private fun LoginField(label: String, value: String, onValueChange: (String) -> 
             modifier = Modifier.fillMaxWidth().height(56.dp),
             placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 14.sp) },
             singleLine = true,
+            isError = errorMessage != null,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (keyboardType == KeyboardType.Password && !visible) PasswordVisualTransformation() else VisualTransformation.None,
             trailingIcon = onVisibility?.let { action -> ({ Text(if (visible) "◉" else "◎", Modifier.clickable(onClick = action), color = Colors.Muted) }) },
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Colors.Navy, unfocusedBorderColor = Color(0xFFD1D6DE))
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Colors.Navy,
+                unfocusedBorderColor = Color(0xFFD1D6DE),
+                errorBorderColor = Colors.Urgent
+            )
         )
+        errorMessage?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
     }
 }
