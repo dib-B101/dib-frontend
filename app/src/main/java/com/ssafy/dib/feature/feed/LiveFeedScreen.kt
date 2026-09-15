@@ -236,7 +236,6 @@ private fun LiveFeedPage(
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
     val isHighestBidder = activeAuction?.isHighestBidder == true
-    var following by rememberSaveable { mutableStateOf(true) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
@@ -334,9 +333,6 @@ private fun LiveFeedPage(
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Surface(onClick = { if (isAuthenticated) following = !following else onLoginRequired() }, color = if (following) Color.White else Color(0xFF102342), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)) {
-                    Text(if (following) "팔로잉" else "팔로우", Modifier.padding(horizontal = 17.dp, vertical = 8.dp), color = if (following) Color(0xFF102342) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
             }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 76.dp, bottom = 230.dp), enter = fadeIn(), exit = fadeOut()) {
