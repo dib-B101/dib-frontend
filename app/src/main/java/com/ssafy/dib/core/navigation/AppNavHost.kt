@@ -79,6 +79,7 @@ import com.ssafy.dib.feature.main.WithdrawalScreen
 import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.ApiFailure
+import com.ssafy.dib.core.network.RetriableCommandKeys
 import com.ssafy.dib.core.session.SessionInactivityTracker
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
@@ -112,6 +113,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val notificationSnackbar = remember { SnackbarHostState() }
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
     val notificationPreferences = remember(context) { context.getSharedPreferences("dib_notification_preferences", 0) }
+    val commandKeys = remember { RetriableCommandKeys() }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
@@ -216,14 +218,17 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         onResult: ((bookmarked: Boolean, errorMessage: String?) -> Unit)? = null
     ) {
         if (signedIn != true) return
+        val command = "bookmark:$auctionId:$bookmarked"
+        val idempotencyKey = commandKeys.keyFor(command)
         remoteAuctions = remoteAuctions?.map { auction ->
             if (auction.id == auctionId) auction.copy(bookmarked = bookmarked) else auction
         }
         coroutineScope.launch {
             when (val result = withContext(Dispatchers.IO) {
-                auth.auctionRepository.setBookmark(auctionId, bookmarked, java.util.UUID.randomUUID().toString())
+                auth.auctionRepository.setBookmark(auctionId, bookmarked, idempotencyKey)
             }) {
                 is ApiResult.Success -> {
+                    commandKeys.complete(command)
                     remoteAuctions = remoteAuctions?.map { auction ->
                         if (auction.id == auctionId) auction.copy(bookmarked = result.value) else auction
                     }
@@ -1360,14 +1365,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     } else if (memberId == memberProfile?.memberId) {
                         liveReportError = "본인은 신고할 수 없어요."
                     } else {
+                        val command = "live-report:$liveBroadcastId:$memberId:$content"
+                        val idempotencyKey = commandKeys.keyFor(command)
                         liveReportSubmitting = true
                         liveReportError = null
                         liveReportCompleted = false
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.reportRepository.reportLiveParticipant(liveBroadcastId, memberId, content)
+                                auth.reportRepository.reportLiveParticipant(liveBroadcastId, memberId, content, idempotencyKey)
                             }) {
-                                is ApiResult.Success -> liveReportCompleted = true
+                                is ApiResult.Success -> {
+                                    commandKeys.complete(command)
+                                    liveReportCompleted = true
+                                }
                                 is ApiResult.Failure -> {
                                     liveReportError = result.error.message.ifBlank { "신고를 접수하지 못했어요." }
                                     if (result.error.requiresLogin) signedIn = false
@@ -1588,14 +1598,17 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 bookmarkLoading = bookmarkLoading,
                 bookmarkError = bookmarkError,
                 onBookmarkChange = { selected ->
+                    val command = "bookmark:$productId:$selected"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     bookmarkLoading = true
                     bookmarkError = null
                     remoteDetail = remoteDetail?.copy(bookmarked = selected)
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.auctionRepository.setBookmark(productId, selected, java.util.UUID.randomUUID().toString())
+                            auth.auctionRepository.setBookmark(productId, selected, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
+                                commandKeys.complete(command)
                                 remoteDetail = remoteDetail?.copy(bookmarked = result.value)
                                 remoteAuctions = remoteAuctions?.map { auction ->
                                     if (auction.id == productId) auction.copy(bookmarked = result.value) else auction
@@ -1732,6 +1745,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 result = productResult,
                 onRetryCategories = { categoriesRevision++ },
                 onSubmit = { form: ProductRegistrationForm ->
+                    val command = listOf(
+                        "product-create",
+                        form.title,
+                        form.description,
+                        form.categoryId,
+                        form.condition,
+                        form.modelName.orEmpty(),
+                        form.releaseYear?.toString().orEmpty(),
+                        form.marketPrice?.toString().orEmpty(),
+                        form.images.joinToString { "${it.uri}:${it.type}" }
+                    ).joinToString("\u001f")
+                    val idempotencyKey = commandKeys.keyFor(command)
                     productSubmitLoading = true
                     productSubmitError = null
                     coroutineScope.launch {
@@ -1762,10 +1787,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                             releaseYear = form.releaseYear,
                                             marketPrice = form.marketPrice,
                                             images = images
-                                        )
+                                        ),
+                                        idempotencyKey
                                     )
                                 }) {
-                                    is ApiResult.Success -> productResult = result.value
+                                    is ApiResult.Success -> {
+                                        commandKeys.complete(command)
+                                        productResult = result.value
+                                    }
                                     is ApiResult.Failure -> {
                                         productSubmitError = productSubmissionMessage(result.error)
                                         if (result.error.requiresLogin) signedIn = false
@@ -2588,12 +2617,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onCreate = { title, description, scheduledAt, streamUrl ->
+                    val command = listOf("live-create", title, description.orEmpty(), scheduledAt, streamUrl.orEmpty())
+                        .joinToString("\u001f")
+                    val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.create(title, description, scheduledAt, streamUrl) }) {
-                            is ApiResult.Success -> { liveActionRevision++; liveManagementRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.create(title, description, scheduledAt, streamUrl, idempotencyKey) }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                liveActionRevision++
+                                liveManagementRevision++
+                            }
                             is ApiResult.Failure -> {
                                 liveActionError = result.error.message.ifBlank { "Live 방송을 예약하지 못했어요." }
                                 if (result.error.requiresLogin) signedIn = false
@@ -2633,12 +2669,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onPrepareStream = { liveId ->
+                    val command = "live-prepare-stream:$liveId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.prepareStream(liveId) }) {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.prepareStream(liveId, idempotencyKey) }) {
                             is ApiResult.Success -> {
+                                commandKeys.complete(command)
                                 broadcasts = broadcasts?.map { live -> if (live.liveBroadcastId == liveId) live.copy(streamUrl = result.value.streamUrl) else live }
                                 liveActionMessage = "송출 연결 정보를 준비했어요."
                                 liveManagementRevision++
@@ -2649,36 +2688,42 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onStartLive = { liveId ->
+                    val command = "live-start:$liveId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.start(liveId) }) {
-                            is ApiResult.Success -> { liveActionMessage = "Live 방송을 시작했어요."; liveManagementRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.start(liveId, idempotencyKey) }) {
+                            is ApiResult.Success -> { commandKeys.complete(command); liveActionMessage = "Live 방송을 시작했어요."; liveManagementRevision++ }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
                     }
                 },
                 onStartAuction = { liveId, auctionId ->
+                    val command = "live-start-auction:$liveId:$auctionId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.startAuction(liveId, auctionId) }) {
-                            is ApiResult.Success -> { liveActionMessage = "Live 상품 경매를 시작했어요."; liveManagementRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.startAuction(liveId, auctionId, idempotencyKey) }) {
+                            is ApiResult.Success -> { commandKeys.complete(command); liveActionMessage = "Live 상품 경매를 시작했어요."; liveManagementRevision++ }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
                     }
                 },
                 onEndLive = { liveId ->
+                    val command = "live-end:$liveId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.end(liveId) }) {
-                            is ApiResult.Success -> { liveActionMessage = "Live 방송을 종료했어요."; liveManagementRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.end(liveId, idempotencyKey) }) {
+                            is ApiResult.Success -> { commandKeys.complete(command); liveActionMessage = "Live 방송을 종료했어요."; liveManagementRevision++ }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
@@ -3117,13 +3162,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onRemove = { auctionId ->
+                    val command = "bookmark:$auctionId:false"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     removingAuctionId = auctionId
                     favoritesError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.auctionRepository.setBookmark(auctionId, false, java.util.UUID.randomUUID().toString())
+                            auth.auctionRepository.setBookmark(auctionId, false, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
+                                commandKeys.complete(command)
                                 favorites = favorites?.filterNot { it.id == auctionId }
                                 remoteAuctions = remoteAuctions?.map { auction ->
                                     if (auction.id == auctionId) auction.copy(bookmarked = false) else auction
@@ -3215,11 +3263,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) },
                 onEditProduct = { productId -> navController.navigate(Screen.ProductEdit.createRoute(productId)) },
                 onDeleteProduct = { productId ->
+                    val command = "product-delete:$productId"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     deletingProductId = productId
                     productDeleteError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.productRepository.deleteProduct(productId) }) {
-                            is ApiResult.Success -> registeredProducts = registeredProducts?.filterNot { it.productId == productId }
+                        when (val result = withContext(Dispatchers.IO) { auth.productRepository.deleteProduct(productId, idempotencyKey) }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                registeredProducts = registeredProducts?.filterNot { it.productId == productId }
+                            }
                             is ApiResult.Failure -> {
                                 productDeleteError = when (result.error.code) {
                                     "PRODUCT_NOT_DELETABLE" -> "진행 중인 경매나 거래 이력이 있어 삭제할 수 없어요."
@@ -3698,13 +3751,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 isSubmitting = submitting,
                 errorMessage = reportError,
                 onSubmit = { content ->
+                    val command = "member-report:$memberId:$content"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     submitting = true
                     reportError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.reportRepository.reportMember(memberId, content)
+                            auth.reportRepository.reportMember(memberId, content, idempotencyKey)
                         }) {
-                            is ApiResult.Success -> submitted = true
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                submitted = true
+                            }
                             is ApiResult.Failure -> {
                                 reportError = reportSubmissionMessage(result.error)
                                 if (result.error.requiresLogin) signedIn = false
@@ -3730,13 +3788,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 isSubmitting = submitting,
                 errorMessage = reportError,
                 onSubmit = { content ->
+                    val command = "auction-report:$auctionId:$content"
+                    val idempotencyKey = commandKeys.keyFor(command)
                     submitting = true
                     reportError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.reportRepository.reportAuction(auctionId, content)
+                            auth.reportRepository.reportAuction(auctionId, content, idempotencyKey)
                         }) {
-                            is ApiResult.Success -> submitted = true
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                submitted = true
+                            }
                             is ApiResult.Failure -> {
                                 reportError = reportSubmissionMessage(result.error)
                                 if (result.error.requiresLogin) signedIn = false

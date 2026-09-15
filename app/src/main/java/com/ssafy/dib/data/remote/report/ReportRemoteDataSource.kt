@@ -4,14 +4,9 @@ import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
-import com.ssafy.dib.core.network.IdempotencyKeyProvider
-import com.ssafy.dib.core.network.UuidIdempotencyKeyProvider
 import com.ssafy.dib.data.remote.ApiRoutes
 
-class ReportRemoteDataSource(
-    private val client: DibHttpClient,
-    private val idempotencyKeys: IdempotencyKeyProvider = UuidIdempotencyKeyProvider
-) {
+class ReportRemoteDataSource(private val client: DibHttpClient) {
     fun getMyReports(cursor: String?, size: Int): ApiResult<ReportListResponse> = configured {
         val urlBuilder = client.urlBuilder(ApiRoutes.REPORTS)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
@@ -23,19 +18,19 @@ class ReportRemoteDataSource(
         )
     }
 
-    fun reportAuction(auctionId: String, content: String): ApiResult<CreateReportResponse> =
-        create("${ApiRoutes.AUCTIONS}/$auctionId/reports", CreateReportRequest(content, "AUCTION"))
+    fun reportAuction(auctionId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
+        create("${ApiRoutes.AUCTIONS}/$auctionId/reports", CreateReportRequest(content, "AUCTION"), idempotencyKey)
 
-    fun reportMember(memberId: String, content: String): ApiResult<CreateReportResponse> =
-        create("/api/v1/members/$memberId/reports", CreateReportRequest(content, "MEMBER"))
+    fun reportMember(memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
+        create("/api/v1/members/$memberId/reports", CreateReportRequest(content, "MEMBER"), idempotencyKey)
 
-    fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<CreateReportResponse> =
-        create("${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/participants/$memberId/reports", CreateReportRequest(content, "MEMBER"))
+    fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
+        create("${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/participants/$memberId/reports", CreateReportRequest(content, "MEMBER"), idempotencyKey)
 
-    private fun create(path: String, body: CreateReportRequest): ApiResult<CreateReportResponse> = configured {
+    private fun create(path: String, body: CreateReportRequest, idempotencyKey: String): ApiResult<CreateReportResponse> = configured {
         client.execute(
             client.requestBuilder(path)
-                .header("Idempotency-Key", idempotencyKeys.newKey())
+                .header("Idempotency-Key", idempotencyKey)
                 .post(client.jsonBody(body, CreateReportRequest.serializer()))
                 .build(),
             CreateReportResponse.serializer()

@@ -19,20 +19,20 @@ class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportR
             is ApiResult.Failure -> result
         }
 
-    override fun reportAuction(auctionId: String, content: String): ApiResult<String> =
-        when (val result = remote.reportAuction(auctionId, content)) {
+    override fun reportAuction(auctionId: String, content: String, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.reportAuction(auctionId, content, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
             is ApiResult.Failure -> result
         }
 
-    override fun reportMember(memberId: String, content: String): ApiResult<String> =
-        when (val result = remote.reportMember(memberId, content)) {
+    override fun reportMember(memberId: String, content: String, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.reportMember(memberId, content, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
             is ApiResult.Failure -> result
         }
 
-    override fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String): ApiResult<String> =
-        when (val result = remote.reportLiveParticipant(liveBroadcastId, memberId, content)) {
+    override fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.reportLiveParticipant(liveBroadcastId, memberId, content, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
             is ApiResult.Failure -> result
         }

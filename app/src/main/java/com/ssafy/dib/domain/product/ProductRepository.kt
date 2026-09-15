@@ -79,7 +79,7 @@ interface ProductRepository {
     fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun searchProducts(query: String, categoryId: String? = null, cursor: String? = null, size: Int = 100): ApiResult<RegisteredProductPage>
-    fun registerProduct(registration: ProductRegistration): ApiResult<ProductRegistrationResult>
+    fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductRegistrationResult>
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult>
-    fun deleteProduct(productId: String): ApiResult<Unit>
+    fun deleteProduct(productId: String, idempotencyKey: String): ApiResult<Unit>
 }

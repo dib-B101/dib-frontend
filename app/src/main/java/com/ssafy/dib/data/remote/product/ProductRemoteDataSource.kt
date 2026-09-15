@@ -5,8 +5,6 @@ import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.core.network.DibJson
-import com.ssafy.dib.core.network.IdempotencyKeyProvider
-import com.ssafy.dib.core.network.UuidIdempotencyKeyProvider
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductUpdate
@@ -16,10 +14,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class ProductRemoteDataSource(
-    private val client: DibHttpClient,
-    private val idempotencyKeys: IdempotencyKeyProvider = UuidIdempotencyKeyProvider
-) {
+class ProductRemoteDataSource(private val client: DibHttpClient) {
     fun getCategories(): ApiResult<CategoryListResponse> = configured {
         client.execute(
             client.requestBuilder(ApiRoutes.CATEGORIES).get().build(),
@@ -50,7 +45,7 @@ class ProductRemoteDataSource(
         client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
     }
 
-    fun registerProduct(registration: ProductRegistration): ApiResult<ProductCreateResponse> = configured {
+    fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductCreateResponse> = configured {
         val categoryId = registration.categoryId.toLongOrNull()?.let(::JsonPrimitive)
             ?: JsonPrimitive(registration.categoryId)
         val payload = ProductCreatePayload(
@@ -79,18 +74,18 @@ class ProductRemoteDataSource(
         }
         client.execute(
             client.requestBuilder(ApiRoutes.PRODUCTS)
-                .header("Idempotency-Key", idempotencyKeys.newKey())
+                .header("Idempotency-Key", idempotencyKey)
                 .post(multipart.build())
                 .build(),
             ProductCreateResponse.serializer()
         )
     }
 
-    fun deleteProduct(productId: String): ApiResult<Unit> = configured {
+    fun deleteProduct(productId: String, idempotencyKey: String): ApiResult<Unit> = configured {
         val path = "${ApiRoutes.PRODUCTS}/$productId"
         client.executeUnit(
             client.requestBuilder(path)
-                .header("Idempotency-Key", idempotencyKeys.newKey())
+                .header("Idempotency-Key", idempotencyKey)
                 .delete()
                 .build()
         )

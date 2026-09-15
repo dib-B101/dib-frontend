@@ -5,15 +5,10 @@ import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
-import com.ssafy.dib.core.network.IdempotencyKeyProvider
-import com.ssafy.dib.core.network.UuidIdempotencyKeyProvider
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.RequestBody
 
-class LiveRemoteDataSource(
-    private val client: DibHttpClient,
-    private val idempotencyKeys: IdempotencyKeyProvider = UuidIdempotencyKeyProvider
-) {
+class LiveRemoteDataSource(private val client: DibHttpClient) {
     fun getFeed(cursor: String?, size: Int): ApiResult<LiveFeedResponse> = configured {
         val path = "${ApiRoutes.LIVE_BROADCASTS}/feed"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 50).toString())
@@ -37,11 +32,11 @@ class LiveRemoteDataSource(
         client.execute(client.requestBuilder(path).url(url).get().build(), LiveBroadcastListResponse.serializer())
     }
 
-    fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<CreateLiveBroadcastResponse> = configured {
+    fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?, idempotencyKey: String): ApiResult<CreateLiveBroadcastResponse> = configured {
         val body = CreateLiveBroadcastRequest(title, description?.takeIf(String::isNotBlank), scheduledAt, streamUrl?.takeIf(String::isNotBlank))
         client.execute(
             client.requestBuilder(ApiRoutes.LIVE_BROADCASTS)
-                .header("Idempotency-Key", idempotencyKeys.newKey())
+                .header("Idempotency-Key", idempotencyKey)
                 .post(client.jsonBody(body, CreateLiveBroadcastRequest.serializer()))
                 .build(),
             CreateLiveBroadcastResponse.serializer()
@@ -57,29 +52,33 @@ class LiveRemoteDataSource(
         )
     }
 
-    fun prepareStream(liveBroadcastId: String): ApiResult<LiveStreamSessionResponse> = postCommand(
+    fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSessionResponse> = postCommand(
         path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/stream-session",
+        idempotencyKey = idempotencyKey,
         serializer = LiveStreamSessionResponse.serializer()
     )
 
-    fun start(liveBroadcastId: String): ApiResult<StartLiveBroadcastResponse> = postCommand(
+    fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<StartLiveBroadcastResponse> = postCommand(
         path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/start",
+        idempotencyKey = idempotencyKey,
         serializer = StartLiveBroadcastResponse.serializer()
     )
 
-    fun startAuction(liveBroadcastId: String, auctionId: String): ApiResult<StartLiveAuctionResponse> = postCommand(
+    fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<StartLiveAuctionResponse> = postCommand(
         path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/auctions/$auctionId/start",
+        idempotencyKey = idempotencyKey,
         serializer = StartLiveAuctionResponse.serializer()
     )
 
-    fun end(liveBroadcastId: String): ApiResult<EndLiveBroadcastResponse> = postCommand(
+    fun end(liveBroadcastId: String, idempotencyKey: String): ApiResult<EndLiveBroadcastResponse> = postCommand(
         path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/end",
+        idempotencyKey = idempotencyKey,
         serializer = EndLiveBroadcastResponse.serializer()
     )
 
-    private fun <T> postCommand(path: String, serializer: kotlinx.serialization.DeserializationStrategy<T>): ApiResult<T> = configured {
+    private fun <T> postCommand(path: String, idempotencyKey: String, serializer: kotlinx.serialization.DeserializationStrategy<T>): ApiResult<T> = configured {
         client.execute(
-            client.requestBuilder(path).header("Idempotency-Key", idempotencyKeys.newKey()).post(RequestBody.EMPTY).build(),
+            client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).post(RequestBody.EMPTY).build(),
             serializer
         )
     }
