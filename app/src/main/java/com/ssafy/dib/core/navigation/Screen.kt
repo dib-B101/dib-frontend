@@ -53,6 +53,9 @@ sealed class Screen(val route: String) {
     data object ProductOverview : Screen("product/{productId}") {
         fun createRoute(productId: String) = "product/$productId"
     }
+    data object ProductOverviewImages : Screen("product/{productId}/images/{initialPage}") {
+        fun createRoute(productId: String, initialPage: Int) = "product/$productId/images/$initialPage"
+    }
     data object ProductImages : Screen("auction/{auctionId}/images/{initialPage}") {
         fun createRoute(auctionId: String, initialPage: Int) = "auction/$auctionId/images/$initialPage"
     }
