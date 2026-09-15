@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalUriHandler
+import com.ssafy.dib.core.ui.ExternalPaymentReturnEffect
 import com.ssafy.dib.domain.auction.BidDeposit
 import com.ssafy.dib.feature.home.allHomeAuctions
 import com.ssafy.dib.feature.home.formatClock
@@ -63,10 +63,11 @@ fun BidDepositPaymentScreen(
         preparedDeposit != null -> DepositPaymentState.AwaitingApproval
         else -> DepositPaymentState.Form
     }
-    val uriHandler = LocalUriHandler.current
-    LaunchedEffect(preparedDeposit?.bidDepositId, preparedDeposit?.paymentUrl) {
-        preparedDeposit?.paymentUrl?.let { url -> runCatching { uriHandler.openUri(url) } }
-    }
+    ExternalPaymentReturnEffect(
+        requestKey = preparedDeposit?.bidDepositId,
+        paymentUrl = preparedDeposit?.paymentUrl,
+        onReturn = onCheckStatus
+    )
 
     BackHandler(enabled = state != DepositPaymentState.Form) {
         when (state) {
