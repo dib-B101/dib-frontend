@@ -35,6 +35,7 @@ sealed class Screen(val route: String) {
     data object NotificationSettings : Screen("my/notification-settings")
     data object ProfileEdit : Screen("my/profile-edit")
     data object FavoriteAuctions : Screen("my/favorites")
+    data object MyAuctions : Screen("my/auctions")
     data object RegisteredProducts : Screen("my/registered-products")
     data object LiveManagement : Screen("my/live-broadcasts")
     data object ProductEdit : Screen("product/{productId}/edit") {
