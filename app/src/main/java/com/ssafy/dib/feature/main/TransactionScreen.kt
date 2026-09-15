@@ -30,7 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
+import com.ssafy.dib.core.ui.ExternalPaymentReturnEffect
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
@@ -154,9 +154,11 @@ private fun RemoteTransactionScreen(
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
-    LaunchedEffect(paymentPreparation?.orderId, paymentPreparation?.paymentUrl) {
-        paymentPreparation?.paymentUrl?.let { url -> runCatching { uriHandler.openUri(url) } }
-    }
+    ExternalPaymentReturnEffect(
+        requestKey = paymentPreparation?.orderId,
+        paymentUrl = paymentPreparation?.paymentUrl,
+        onReturn = onCheckPayment
+    )
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color(0xFFFAFBFC),
