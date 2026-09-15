@@ -41,6 +41,7 @@ fun HomeScreen(
     isAuthenticated: Boolean,
     remoteAuctions: List<HomeAuction>?,
     remoteLives: List<RecommendedLive>?,
+    showSampleContent: Boolean,
     remoteLoading: Boolean,
     remoteError: String?,
     unreadNotificationCount: Int,
@@ -59,9 +60,11 @@ fun HomeScreen(
     var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
-    val displayedAuctions = remoteAuctions ?: allAuctions
-    val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4) ?: recommended
-    val highlightedDeadline = closingAuctions.firstOrNull() ?: deadlineAuction
+    val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
+    val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
+    val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4)
+        ?: if (showSampleContent) recommended else emptyList()
+    val highlightedDeadline = closingAuctions.firstOrNull() ?: if (showSampleContent) deadlineAuction else null
 
     LaunchedEffect(remoteAuctions) {
         remoteAuctions?.let { auctions ->
@@ -69,8 +72,9 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(highlightedDeadline.id) {
-        deadlineSeconds = highlightedDeadline.remainingSeconds
+    LaunchedEffect(highlightedDeadline?.id) {
+        val deadline = highlightedDeadline ?: return@LaunchedEffect
+        deadlineSeconds = deadline.remainingSeconds
         while (deadlineSeconds > 0) {
             delay(1_000)
             deadlineSeconds--
@@ -125,7 +129,7 @@ fun HomeScreen(
                     }
                 }
             }
-            if (remoteAuctions?.isEmpty() == true && !remoteLoading) {
+            if (displayedAuctions.isEmpty() && displayedLives?.isNotEmpty() != true && !remoteLoading && remoteError == null) {
                 item {
                     Column(
                         Modifier.fillMaxWidth().padding(vertical = 72.dp),
@@ -136,7 +140,7 @@ fun HomeScreen(
                         Text("상품이 등록되면 이곳에서 바로 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp)
                     }
                 }
-            } else if (closingSoon) {
+            } else if (closingSoon && highlightedDeadline != null && remoteError == null) {
                 item {
                     DeadlineSection(
                         auction = highlightedDeadline,
@@ -148,9 +152,9 @@ fun HomeScreen(
                     )
                 }
                 item { AuctionGridSection("곧 마감되는 경매", closingAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
-            } else {
-                item { HomeLiveSection(remoteLives, onLiveClick) }
-                item { AuctionGridSection(if (remoteAuctions == null) "전체 경매" else "추천 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+            } else if (remoteError == null) {
+                item { HomeLiveSection(displayedLives, onLiveClick) }
+                item { AuctionGridSection(if (showSampleContent && remoteAuctions == null) "전체 경매" else "추천 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             }
         }
     }

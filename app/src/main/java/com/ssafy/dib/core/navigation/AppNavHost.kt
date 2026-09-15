@@ -119,7 +119,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var phoneVerificationToken by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
     var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
-    var auctionsLoading by remember { mutableStateOf(false) }
+    var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
     var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
@@ -718,6 +718,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 isAuthenticated = signedIn == true,
                 remoteAuctions = remoteAuctions,
                 remoteLives = remoteHomeLives,
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
                 unreadNotificationCount = unreadNotificationCount,
