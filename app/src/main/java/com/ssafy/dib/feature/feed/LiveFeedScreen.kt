@@ -262,6 +262,8 @@ private fun LiveFeedPage(
     var bidFeedbackMessage by remember { mutableStateOf("") }
     var reportTarget by remember { mutableStateOf<LiveChatMessage?>(null) }
     var reportContent by rememberSaveable { mutableStateOf("") }
+    var memberReportReason by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf("욕설·사기 유도") }
+    var showMemberReportReasons by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     val livePulse = rememberInfiniteTransition(label = "livePulse")
     val liveDotAlpha by livePulse.animateFloat(
         initialValue = .4f,
@@ -527,6 +529,7 @@ private fun LiveFeedPage(
         }
     }
     reportAuctionId?.let { auctionId ->
+        val detailLimit = reportDetailLimit(productReportReason, null)
         ModalBottomSheet(
             onDismissRequest = {
                 if (!reportSubmitting) {
@@ -538,7 +541,8 @@ private fun LiveFeedPage(
             containerColor = Color(0xFFF8F9FB)
         ) {
             Column(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().navigationBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("상품 신고", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -570,6 +574,7 @@ private fun LiveFeedPage(
                                     Modifier.fillMaxWidth().clickable {
                                         productReportReason = reason
                                         showProductReportReasons = false
+                                        reportContent = reportContent.take(reportDetailLimit(reason, null))
                                     }.padding(horizontal = 14.dp, vertical = 11.dp),
                                     color = if (reason == productReportReason) Colors.Navy else Colors.Text,
                                     fontSize = 13.sp,
@@ -586,13 +591,13 @@ private fun LiveFeedPage(
                 } else {
                     OutlinedTextField(
                         value = reportContent,
-                        onValueChange = { reportContent = it.take(500) },
+                        onValueChange = { reportContent = it.take(detailLimit) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
                         enabled = !reportSubmitting,
                         label = { Text("상세 내용") },
                         placeholder = { Text("신고 내용을 구체적으로 입력해주세요.") },
-                        supportingText = { Text("${reportContent.length}/500") }
+                        supportingText = { Text("${reportContent.length}/$detailLimit") }
                     )
                     reportError?.let { Text(it, color = Colors.Live, fontSize = 11.sp) }
                 }
@@ -602,7 +607,7 @@ private fun LiveFeedPage(
                             reportAuctionId = null
                             onDismissReport()
                         } else {
-                            onReportAuction(auctionId, "$productReportReason: ${reportContent.trim()}")
+                            onReportAuction(auctionId, buildReportContent(productReportReason, null, reportContent))
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -676,6 +681,8 @@ private fun LiveFeedPage(
                         if (isAuthenticated) {
                             showComments = false
                             reportTarget = message
+                            memberReportReason = "욕설·사기 유도"
+                            showMemberReportReasons = false
                             reportContent = ""
                             onDismissReport()
                         } else onLoginRequired()
@@ -694,46 +701,104 @@ private fun LiveFeedPage(
         auctionKey?.let { onDepositPayment(it, submission) }
     }
     reportTarget?.let { target ->
-        AlertDialog(
+        val detailLimit = reportDetailLimit(memberReportReason, target.content)
+        ModalBottomSheet(
             onDismissRequest = {
                 if (!reportSubmitting) {
                     reportTarget = null
+                    showMemberReportReasons = false
                     onDismissReport()
                 }
             },
-            title = { Text("${target.nickname ?: target.memberId} 신고") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (reportCompleted) {
-                        Text("신고가 접수됐어요.", color = Colors.MintInk, fontWeight = FontWeight.Bold)
-                    } else {
-                        Text("신고 사유를 구체적으로 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
-                        OutlinedTextField(
-                            value = reportContent,
-                            onValueChange = { reportContent = it.take(500) },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 3,
-                            enabled = !reportSubmitting,
-                            placeholder = { Text("욕설, 사기 유도 등") }
-                        )
-                        reportError?.let { Text(it, color = Colors.Live, fontSize = 11.sp) }
+            containerColor = Color(0xFFF8F9FB)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().navigationBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("회원·채팅 신고", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("신고 대상 회원", color = Colors.Muted, fontSize = 10.sp)
+                        Text("@${target.nickname ?: target.memberId}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("라이브 채팅 참여자", color = Colors.Muted, fontSize = 10.sp)
                     }
                 }
-            },
-            confirmButton = {
-                if (reportCompleted) {
-                    TextButton(onClick = { reportTarget = null; onDismissReport() }) { Text("확인") }
-                } else {
-                    TextButton(
-                        onClick = { liveItem?.liveBroadcastId?.let { onReportParticipant(it, target.memberId, reportContent.trim()) } },
-                        enabled = reportContent.isNotBlank() && !reportSubmitting
-                    ) { Text(if (reportSubmitting) "접수 중" else "신고하기") }
+                Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("신고할 메시지", color = Colors.Muted, fontSize = 10.sp)
+                        Text("“${target.content}”", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-            },
-            dismissButton = {
-                if (!reportCompleted) TextButton(onClick = { reportTarget = null; onDismissReport() }, enabled = !reportSubmitting) { Text("취소") }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = !reportSubmitting && !reportCompleted) {
+                        showMemberReportReasons = !showMemberReportReasons
+                    },
+                    color = Color.White,
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("신고 사유", color = Colors.Muted, fontSize = 10.sp)
+                        Text("$memberReportReason  ›", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (showMemberReportReasons && !reportCompleted) {
+                    Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            memberReportReasons.forEach { reason ->
+                                Text(
+                                    reason,
+                                    Modifier.fillMaxWidth().clickable {
+                                        memberReportReason = reason
+                                        showMemberReportReasons = false
+                                        reportContent = reportContent.take(reportDetailLimit(reason, target.content))
+                                    }.padding(horizontal = 14.dp, vertical = 11.dp),
+                                    color = if (reason == memberReportReason) Colors.Navy else Colors.Text,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (reason == memberReportReason) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+                if (reportCompleted) {
+                    Surface(Modifier.fillMaxWidth(), color = Colors.Mint.copy(alpha = .22f), shape = RoundedCornerShape(14.dp)) {
+                        Text("신고가 접수됐어요.", Modifier.padding(16.dp), color = Colors.MintInk, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = reportContent,
+                        onValueChange = { reportContent = it.take(detailLimit) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                        enabled = !reportSubmitting,
+                        label = { Text("상세 내용") },
+                        placeholder = { Text("신고 내용을 구체적으로 입력해주세요.") },
+                        supportingText = { Text("${reportContent.length}/$detailLimit") }
+                    )
+                    reportError?.let { Text(it, color = Colors.Live, fontSize = 11.sp) }
+                }
+                Button(
+                    onClick = {
+                        if (reportCompleted) {
+                            reportTarget = null
+                            onDismissReport()
+                        } else {
+                            liveItem?.liveBroadcastId?.let {
+                                onReportParticipant(it, target.memberId, buildReportContent(memberReportReason, target.content, reportContent))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    enabled = reportCompleted || (reportContent.isNotBlank() && !reportSubmitting),
+                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (reportCompleted) "확인" else if (reportSubmitting) "접수 중" else "회원 신고 접수", fontWeight = FontWeight.Bold)
+                }
             }
-        )
+        }
     }
 }
 
@@ -744,6 +809,30 @@ private val productReportReasons = listOf(
     "부적절한 이미지나 설명이 있어요",
     "기타"
 )
+
+private val memberReportReasons = listOf(
+    "욕설·사기 유도",
+    "괴롭힘·혐오 표현",
+    "개인정보 노출",
+    "스팸·광고",
+    "기타"
+)
+
+private fun reportDetailLimit(reason: String, evidence: String?): Int =
+    (500 - reportContentPrefix(reason, evidence).length).coerceAtLeast(0)
+
+private fun buildReportContent(reason: String, evidence: String?, detail: String): String =
+    (reportContentPrefix(reason, evidence) + detail.trim()).take(500)
+
+private fun reportContentPrefix(reason: String, evidence: String?): String = buildString {
+    append("[신고 사유] ").append(reason).append('\n')
+    evidence?.let {
+        append("[신고할 메시지] ").append(it.take(220))
+        if (it.length > 220) append('…')
+        append('\n')
+    }
+    append("[상세 내용] ")
+}
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
