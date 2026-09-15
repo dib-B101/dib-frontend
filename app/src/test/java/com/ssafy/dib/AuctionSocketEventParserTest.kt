@@ -22,7 +22,7 @@ class AuctionSocketEventParserTest {
                     put("auctionId", 3)
                     put("currentPrice", 12_500)
                     put("bidCount", 4)
-                    put("endedAt", "2026-09-11T06:10:00Z")
+                    put("scheduledEndAt", "2026-09-11T06:10:00Z")
                     put("serverTime", "2026-09-11T06:00:00Z")
                     put("status", "ACTIVE")
                     put("myBid", buildJsonObject { put("isHighestBidder", true) })
