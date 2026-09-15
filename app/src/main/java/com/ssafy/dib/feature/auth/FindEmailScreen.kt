@@ -39,6 +39,10 @@ fun FindEmailScreen(
 ) {
     var phoneNumber by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
+    var phoneAttempted by remember { mutableStateOf(false) }
+    var codeAttempted by remember { mutableStateOf(false) }
+    val phoneValid = phoneNumber.length in 10..11
+    val codeValid = verificationCode.length == 6
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
@@ -60,11 +64,16 @@ fun FindEmailScreen(
                         label = { Text("휴대전화 번호") },
                         placeholder = { Text("01012345678") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        singleLine = true
+                        singleLine = true,
+                        isError = phoneAttempted && !phoneValid,
+                        supportingText = if (phoneAttempted && !phoneValid) ({ Text("휴대전화 번호를 확인해주세요.") }) else null
                     )
                     TextButton(
-                        onClick = { onRequestVerification(phoneNumber) },
-                        enabled = phoneNumber.length >= 10 && !isLoading
+                        onClick = {
+                            phoneAttempted = true
+                            if (phoneValid) onRequestVerification(phoneNumber)
+                        },
+                        enabled = !isLoading
                     ) { Text(if (verificationRequested) "재전송" else "인증요청") }
                 }
                 if (verificationRequested) {
@@ -74,13 +83,21 @@ fun FindEmailScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         label = { Text("인증번호") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                        singleLine = true,
+                        isError = codeAttempted && !codeValid,
+                        supportingText = if (codeAttempted && !codeValid) ({ Text("인증번호 6자리를 입력해주세요.") }) else null
                     )
                     Button(
-                        onClick = { onConfirmVerification(verificationCode) },
+                        onClick = {
+                            codeAttempted = true
+                            if (codeValid) onConfirmVerification(verificationCode)
+                        },
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp),
-                        enabled = verificationCode.length >= 4 && !isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (codeValid) Colors.Navy else Color(0xFFD6DBE3),
+                            contentColor = if (codeValid) Color.White else Color(0xFF8C94A1)
+                        )
                     ) { if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text("이메일 확인", fontWeight = FontWeight.Bold) }
                 }
             } else {
