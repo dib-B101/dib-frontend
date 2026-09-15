@@ -226,6 +226,7 @@ private fun LiveFeedPage(
 ) {
     val activeAuction = liveItem?.currentAuction
     val productAuctions = liveAuctions ?: listOfNotNull(activeAuction)
+    val isSampleContent = liveItem == null
     val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
     val hasActiveAuction = auctionKey != null && (
         liveItem == null || activeAuction?.status.equals("ACTIVE", ignoreCase = true)
@@ -240,8 +241,12 @@ private fun LiveFeedPage(
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var showBidSheet by rememberSaveable { mutableStateOf(false) }
-    var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: 34_500) }
-    var remaining by rememberSaveable(liveItem?.liveBroadcastId) { mutableIntStateOf(activeAuction?.remainingSeconds ?: 42) }
+    var currentPrice by rememberSaveable(liveItem?.liveBroadcastId) {
+        mutableIntStateOf(activeAuction?.currentPrice?.takeIf { it > 0 } ?: activeAuction?.startPrice ?: if (isSampleContent) 34_500 else 0)
+    }
+    var remaining by rememberSaveable(liveItem?.liveBroadcastId) {
+        mutableIntStateOf(activeAuction?.remainingSeconds ?: if (isSampleContent) 42 else 0)
+    }
     var comment by rememberSaveable { mutableStateOf("") }
     var showBidFeedback by remember { mutableStateOf(false) }
     var bidFeedbackAccepted by remember { mutableStateOf(true) }
@@ -295,9 +300,11 @@ private fun LiveFeedPage(
         }
         showBidFeedback = true
     }
-    LaunchedEffect(activeAuction?.currentPrice, activeAuction?.remainingSeconds) {
-        activeAuction?.currentPrice?.let { currentPrice = it }
-        activeAuction?.remainingSeconds?.let { remaining = it }
+    LaunchedEffect(activeAuction?.auctionId, activeAuction?.currentPrice, activeAuction?.remainingSeconds, isSampleContent) {
+        currentPrice = activeAuction?.currentPrice?.takeIf { it > 0 }
+            ?: activeAuction?.startPrice
+            ?: if (isSampleContent) 34_500 else 0
+        remaining = activeAuction?.remainingSeconds ?: if (isSampleContent) 42 else 0
     }
     LaunchedEffect(activeAuction?.auctionId, activeAuction?.bookmarked) {
         favorite = activeAuction?.bookmarked == true
@@ -370,7 +377,7 @@ private fun LiveFeedPage(
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 218.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LiveFavoriteAction(favorite, enabled = auctionKey !in favoriteUpdatingAuctionIds) {
+                LiveFavoriteAction(favorite, enabled = auctionKey != null && auctionKey !in favoriteUpdatingAuctionIds) {
                     when {
                         !isAuthenticated -> onLoginRequired()
                         auctionKey != null -> {
@@ -406,7 +413,7 @@ private fun LiveFeedPage(
             Surface(color = Color.White, shape = RoundedCornerShape(16.dp), shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth().height(116.dp).animateContentSize()) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
                     Text(
-                        if (activeAuction != null) "현재 경매 상품 · 전체 ${productAuctions.size.coerceAtLeast(1)}개  ↑" else "전체 상품 ${productAuctions.size}개  ↑",
+                        if (hasActiveAuction) "현재 경매 상품 · 전체 ${productAuctions.size.coerceAtLeast(1)}개  ↑" else "경매 준비 중 · 전체 ${productAuctions.size}개  ↑",
                         Modifier.clickable { showProducts = true },
                         color = Colors.Muted,
                         fontSize = 11.sp,
@@ -415,9 +422,21 @@ private fun LiveFeedPage(
                     Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(52.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(8.dp)))
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text(activeAuction?.title ?: "달빛 유약 머그컵", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("현재가 ${"%,d".format(currentPrice)}원", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Text("⚡ ${formatClock(remaining)} 남음", color = if (remaining <= 15) Colors.Live else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                activeAuction?.title ?: if (isSampleContent) "달빛 유약 머그컵" else "다음 경매를 준비하고 있어요",
+                                color = Colors.Navy,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (hasActiveAuction) "현재가 ${"%,d".format(currentPrice)}원" else "판매자가 경매를 시작하면 참여할 수 있어요",
+                                color = if (hasActiveAuction) Colors.Navy else Colors.Muted,
+                                fontSize = if (hasActiveAuction) 15.sp else 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (hasActiveAuction) {
+                                Text("⚡ ${formatClock(remaining)} 남음", color = if (remaining <= 15) Colors.Live else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
