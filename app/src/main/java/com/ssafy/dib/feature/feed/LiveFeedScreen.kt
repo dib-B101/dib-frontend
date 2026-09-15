@@ -215,7 +215,9 @@ private fun LiveFeedPage(
     val activeAuction = liveItem?.currentAuction
     val productAuctions = liveAuctions ?: listOfNotNull(activeAuction)
     val auctionKey = activeAuction?.auctionId ?: if (liveItem == null) "camera" else null
-    val hasActiveAuction = auctionKey != null
+    val hasActiveAuction = auctionKey != null && (
+        liveItem == null || activeAuction?.status.equals("ACTIVE", ignoreCase = true)
+    )
     val depositPaid = auctionKey in depositPaidAuctionIds
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
