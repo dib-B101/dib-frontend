@@ -16,6 +16,9 @@ data class ProductRegistration(
     val description: String,
     val categoryId: String,
     val condition: String,
+    val modelName: String? = null,
+    val releaseYear: Int? = null,
+    val marketPrice: Long? = null,
     val images: List<ProductImageUpload>
 )
 

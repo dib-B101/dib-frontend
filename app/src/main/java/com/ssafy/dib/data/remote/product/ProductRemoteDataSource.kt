@@ -57,7 +57,10 @@ class ProductRemoteDataSource(
             title = registration.title,
             description = registration.description,
             categoryId = categoryId,
-            condition = registration.condition
+            condition = registration.condition,
+            modelName = registration.modelName,
+            releaseYear = registration.releaseYear,
+            marketPrice = registration.marketPrice
         )
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart(

@@ -14,7 +14,10 @@ data class ProductCreatePayload(
     val title: String,
     val description: String,
     val categoryId: JsonElement,
-    val condition: String
+    val condition: String,
+    val modelName: String? = null,
+    val releaseYear: Int? = null,
+    val marketPrice: Long? = null
 )
 
 @Serializable
