@@ -426,6 +426,7 @@ fun ProductRegisterScreen(
 ) {
     var step by rememberSaveable { mutableIntStateOf(1) }
     val photoUris = remember { mutableStateListOf<Uri>() }
+    val photoTypes = remember { mutableStateListOf<String>() }
     var name by rememberSaveable { mutableStateOf("") }
     var categoryId by rememberSaveable { mutableStateOf("") }
     var condition by rememberSaveable { mutableStateOf("") }
@@ -439,6 +440,8 @@ fun ProductRegisterScreen(
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
         photoUris.clear()
         photoUris.addAll(uris.take(10))
+        photoTypes.clear()
+        photoTypes.addAll(defaultProductImageTypes(photoUris.size))
     }
 
     if (result != null) {
@@ -468,7 +471,16 @@ fun ProductRegisterScreen(
                     item { Box(Modifier.fillMaxWidth().height(88.dp).background(Colors.Surface, RoundedCornerShape(12.dp)).border(1.dp, Colors.Border, RoundedCornerShape(12.dp)).clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("+", color = Colors.Navy, fontSize = 26.sp); Text(if (photoUris.isEmpty()) "사진 선택" else "사진 다시 선택 (${photoUris.size}/10)", fontSize = 14.sp, fontWeight = FontWeight.Bold) } } }
                     if (photoUris.isNotEmpty()) item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(photoUris.size) { index -> ProductImageThumbnail(photoUris[index], index == 0) }
+                            items(photoUris.size) { index ->
+                                ProductImageThumbnail(
+                                    uri = photoUris[index],
+                                    representative = index == 0,
+                                    imageType = photoTypes[index],
+                                    onCycleType = if (index == 0) null else ({
+                                        photoTypes[index] = nextProductImageType(photoTypes[index])
+                                    })
+                                )
+                            }
                         }
                     }
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요") }
@@ -483,12 +495,12 @@ fun ProductRegisterScreen(
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · 첫 사진이 대표", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; Text(description, color = Colors.Muted, fontSize = 12.sp) } }
+                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; Text(description, color = Colors.Muted, fontSize = 12.sp) } }
                     item { Text("AI 상품 검수 요청 후 승인되면 경매를 시작할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
-            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.toList())) }, enabled = formValid && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
+            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.indices.map { ProductImageSelection(photoUris[it], photoTypes[it]) })) }, enabled = formValid && photoTypes.size == photoUris.size && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
         }
     }
     if (categoryDialog) AlertDialog(
@@ -507,20 +519,35 @@ data class ProductRegistrationForm(
     val modelName: String?,
     val releaseYear: Int?,
     val marketPrice: Long?,
-    val imageUris: List<Uri>
+    val images: List<ProductImageSelection>
 )
 
 @Composable
-private fun ProductImageThumbnail(uri: Uri, representative: Boolean) {
+private fun ProductImageThumbnail(uri: Uri, representative: Boolean, imageType: String, onCycleType: (() -> Unit)?) {
     val context = LocalContext.current
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
         value = withContext(Dispatchers.IO) {
             context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)?.asImageBitmap()
         }
     }
-    Box(Modifier.size(86.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
-        bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-        if (representative) Surface(Modifier.align(Alignment.TopStart).padding(5.dp), color = Colors.Navy, shape = RoundedCornerShape(8.dp)) { Text("대표", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), color = Color.White, fontSize = 9.sp) }
+    Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(Modifier.size(86.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
+            bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+            if (representative) Surface(Modifier.align(Alignment.TopStart).padding(5.dp), color = Colors.Navy, shape = RoundedCornerShape(8.dp)) { Text("대표", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), color = Color.White, fontSize = 9.sp) }
+        }
+        Surface(
+            modifier = Modifier.clickable(enabled = onCycleType != null) { onCycleType?.invoke() },
+            color = if (representative) Colors.Navy else Color(0xFFF1F5FA),
+            shape = RoundedCornerShape(9.dp)
+        ) {
+            Text(
+                if (representative) "정면 고정" else "${productImageTypeLabel(imageType)} ›",
+                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                color = if (representative) Color.White else Colors.Navy,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
