@@ -9,9 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -438,6 +442,7 @@ fun ProductRegisterScreen(
     var releaseYear by rememberSaveable { mutableStateOf("") }
     var marketPrice by rememberSaveable { mutableStateOf("") }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
+    var showPhotoReorder by remember { mutableStateOf(false) }
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
     val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
@@ -445,6 +450,23 @@ fun ProductRegisterScreen(
         photoUris.addAll(uris.take(10))
         photoTypes.clear()
         photoTypes.addAll(defaultProductImageTypes(photoUris.size))
+    }
+
+    if (showPhotoReorder) {
+        ProductPhotoReorderScreen(
+            images = photoUris.toList(),
+            imageTypes = photoTypes.toList(),
+            onSave = { reorderedImages, reorderedTypes ->
+                photoUris.clear()
+                photoUris.addAll(reorderedImages)
+                photoTypes.clear()
+                photoTypes.addAll(reorderedTypes)
+                showPhotoReorder = false
+            },
+            onBack = { showPhotoReorder = false },
+            modifier = modifier
+        )
+        return
     }
 
     if (result != null) {
@@ -486,6 +508,13 @@ fun ProductRegisterScreen(
                             }
                         }
                     }
+                    if (photoUris.size > 1) item {
+                        OutlinedButton(
+                            onClick = { showPhotoReorder = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("사진 순서 편집", fontWeight = FontWeight.Bold) }
+                    }
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요") }
                     item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요") { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
@@ -512,6 +541,140 @@ fun ProductRegisterScreen(
         text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
         confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
     )
+}
+
+@Composable
+private fun ProductPhotoReorderScreen(
+    images: List<Uri>,
+    imageTypes: List<String>,
+    onSave: (List<Uri>, List<String>) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val reorderedImages = remember { mutableStateListOf<Uri>().apply { addAll(images) } }
+    val reorderedTypes = remember { mutableStateListOf<String>().apply { addAll(imageTypes) } }
+    Scaffold(
+        modifier.fillMaxSize().safeDrawingPadding(),
+        containerColor = Color(0xFFF7F9FB),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
+                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).wrapContentSize(), fontSize = 24.sp)
+                Text("사진 순서 편집", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        bottomBar = {
+            Button(
+                onClick = { onSave(reorderedImages.toList(), reorderedTypes.toList()) },
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp).height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("순서 저장", fontWeight = FontWeight.Bold) }
+        }
+    ) { padding ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text("사진을 길게 눌러 순서를 바꿔보세요", color = Colors.Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("첫 번째 사진이 상품 목록과 경매의 썸네일로 사용됩니다", Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 11.sp)
+            }
+            item {
+                LazyRow(
+                    Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(reorderedImages, key = { _, uri -> uri.toString() }) { index, uri ->
+                        ReorderPhotoPreview(uri, index == 0, index + 1)
+                    }
+                }
+            }
+            itemsIndexed(reorderedImages, key = { _, uri -> uri.toString() }) { index, uri ->
+                SortableProductPhotoRow(
+                    uri = uri,
+                    index = index,
+                    count = reorderedImages.size,
+                    onMove = { direction ->
+                        val currentIndex = reorderedImages.indexOf(uri)
+                        val targetIndex = (currentIndex + direction).coerceIn(0, reorderedImages.lastIndex)
+                        moveProductImage(reorderedImages, reorderedTypes, currentIndex, targetIndex)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReorderPhotoPreview(uri: Uri, representative: Boolean, number: Int) {
+    val bitmap = rememberProductBitmap(uri)
+    Box(Modifier.size(76.dp).background(Colors.Image, RoundedCornerShape(8.dp)), contentAlignment = Alignment.BottomStart) {
+        bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        Text(
+            if (representative) "대표" else number.toString(),
+            Modifier.padding(8.dp),
+            color = if (representative) Color.White else Colors.Navy,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun SortableProductPhotoRow(uri: Uri, index: Int, count: Int, onMove: (Int) -> Unit) {
+    val bitmap = rememberProductBitmap(uri)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val threshold = with(density) { 36.dp.toPx() }
+    var dragOffset by remember(uri) { mutableFloatStateOf(0f) }
+    Surface(
+        modifier = Modifier.fillMaxWidth().graphicsLayer { translationY = dragOffset }
+            .pointerInput(uri, count) {
+                detectDragGesturesAfterLongPress(
+                    onDragEnd = { dragOffset = 0f },
+                    onDragCancel = { dragOffset = 0f }
+                ) { change, dragAmount ->
+                    change.consume()
+                    dragOffset += dragAmount.y
+                    when {
+                        dragOffset > threshold && index < count - 1 -> {
+                            onMove(1)
+                            dragOffset -= threshold * 2
+                        }
+                        dragOffset < -threshold && index > 0 -> {
+                            onMove(-1)
+                            dragOffset += threshold * 2
+                        }
+                    }
+                }
+            },
+        color = Color.White,
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border)
+    ) {
+        Row(Modifier.fillMaxWidth().height(64.dp).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).background(Colors.Image, RoundedCornerShape(8.dp))) {
+                bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+            }
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(if (index == 0) "대표 이미지" else "상품 이미지 ${index + 1}", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(if (index == 0) "첫 번째 사진" else "드래그하여 순서 변경", color = Colors.Muted, fontSize = 10.sp)
+            }
+            Text("≡", color = Colors.Muted, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun rememberProductBitmap(uri: Uri): androidx.compose.ui.graphics.ImageBitmap? {
+    val context = LocalContext.current
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)?.asImageBitmap()
+        }
+    }
+    return bitmap
 }
 
 data class ProductRegistrationForm(
