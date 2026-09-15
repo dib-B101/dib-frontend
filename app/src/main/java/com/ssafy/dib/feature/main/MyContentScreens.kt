@@ -215,7 +215,7 @@ fun FavoriteAuctionsScreen(
         )
     }
     val favorites = remoteFavorites ?: if (showSampleContent) sampleFavorites else emptyList()
-    MyListScaffold("찜한 상품", onBack, onTabSelected, modifier) { padding ->
+    MyListScaffold("찜한 경매", onBack, onTabSelected, modifier) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Text("찜한 경매 ${favorites.size}개", Modifier.padding(vertical = 16.dp), color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             if (isLoading) {
@@ -230,7 +230,7 @@ fun FavoriteAuctionsScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Image(painterResource(R.drawable.favorite_outline), null, Modifier.size(36.dp), colorFilter = ColorFilter.tint(Color(0xFFB8C0CC)))
                         Text("찜한 경매가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("관심 있는 상품의 하트를 눌러 저장해보세요", color = Colors.Muted, fontSize = 12.sp)
+                        Text("관심 있는 경매의 하트를 눌러 저장해보세요", color = Colors.Muted, fontSize = 12.sp)
                     }
                 }
             } else {

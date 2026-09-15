@@ -197,7 +197,6 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                                 Text(if(live) "● LIVE" else "예정", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Image(painterResource(R.drawable.favorite_outline), "라이브 찜하기", Modifier.align(Alignment.TopEnd).padding(10.dp).size(22.dp))
                     }
                     Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Text(product, fontSize = 13.sp, fontWeight = FontWeight.Bold)

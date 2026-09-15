@@ -260,7 +260,7 @@ private fun RemoteTransactionScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                                 ) {
                                     if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-                                    else Text("${"%,d".format(order.finalPrice)}원 결제하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                    else Text("결제 진행하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else {
