@@ -159,6 +159,7 @@ class OrderChatConnection(
 
     fun close() {
         stopSession()
+        socket.close()
         reconnectExecutor.shutdownNow()
     }
 }
