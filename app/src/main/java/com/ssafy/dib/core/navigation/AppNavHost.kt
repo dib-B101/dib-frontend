@@ -1870,7 +1870,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             shipmentLoading = true
                             when (val shipmentResult = withContext(Dispatchers.IO) { auth.orderRepository.getShipment(orderId) }) {
                                 is ApiResult.Success -> shipment = shipmentResult.value
-                                is ApiResult.Failure -> shipmentError = shipmentResult.error.message.ifBlank { "배송 정보를 불러오지 못했어요." }
+                                is ApiResult.Failure -> {
+                                    shipmentError = shipmentResult.error.message.ifBlank { "배송 정보를 불러오지 못했어요." }
+                                    if (shipmentResult.error.requiresLogin) signedIn = false
+                                }
                             }
                             shipmentLoading = false
                         }
@@ -1949,9 +1952,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     paymentPreparation = null
                                     orderDetailRevision++
                                     ordersRevision++
+                                } else {
+                                    paymentError = "아직 결제가 완료되지 않았어요. 결제 페이지에서 승인을 마친 뒤 다시 확인해주세요."
                                 }
                             }
-                            is ApiResult.Failure -> paymentError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                            is ApiResult.Failure -> {
+                                paymentError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
                         }
                         paymentLoading = false
                     }
