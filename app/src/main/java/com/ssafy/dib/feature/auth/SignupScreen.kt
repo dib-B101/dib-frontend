@@ -240,35 +240,59 @@ fun SignupScreen(
                 state.checkedEmail == email.trim() && state.emailAvailable == false -> FeedbackText("이미 사용 중인 이메일이에요.")
                 state.emailError != null -> FeedbackText(state.emailError)
             }
-            SignupField("비밀번호", password, { password = it.take(64) }, "대·소문자, 숫자, 특수문자 포함 10자 이상", KeyboardType.Password, password = true)
-            SignupField("비밀번호 확인", passwordConfirm, { passwordConfirm = it }, "비밀번호 다시 입력", KeyboardType.Password, password = true)
-            if (passwordConfirm.isNotEmpty() && !passwordMatches) FeedbackText("비밀번호가 일치하지 않아요.")
-            SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요")
-            SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자")
+            SignupField(
+                "비밀번호",
+                password,
+                { password = it.take(64) },
+                "대·소문자, 숫자, 특수문자 포함 10자 이상",
+                KeyboardType.Password,
+                password = true,
+                errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { attempted && !SignupValidator.isPasswordValid(password) }
+            )
+            SignupField(
+                "비밀번호 확인",
+                passwordConfirm,
+                { passwordConfirm = it },
+                "비밀번호 다시 입력",
+                KeyboardType.Password,
+                password = true,
+                errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (attempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
+            )
+            SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요", errorMessage = "이름은 2~30자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNameValid(name) })
+            SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자", errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNicknameValid(nickname) })
 
             Text("성별", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GenderButton("남성", "MALE", gender, { gender = it }, Modifier.weight(1f))
                 GenderButton("여성", "FEMALE", gender, { gender = it }, Modifier.weight(1f))
             }
+            if (attempted && gender !in setOf("MALE", "FEMALE")) FeedbackText("성별을 선택해주세요.")
             SignupField(
                 "생년월일",
                 birthDate,
                 { birthDate = formatBirthDate(it) },
                 "YYYY-MM-DD",
-                KeyboardType.Number
+                KeyboardType.Number,
+                errorMessage = "생년월일을 확인해주세요.".takeIf { attempted && !SignupValidator.isBirthDateValid(birthDate) }
             )
 
             if (attempted && !canSubmit) {
-                FeedbackText("휴대폰 인증, 이메일 중복 확인과 필수 입력값을 모두 확인해주세요.")
+                when {
+                    !phoneConfirmed -> FeedbackText("휴대폰 인증을 완료해주세요.")
+                    !emailConfirmed -> FeedbackText("이메일 중복 확인을 완료해주세요.")
+                    else -> FeedbackText("필수 입력값을 모두 확인해주세요.")
+                }
             }
             state.signupError?.let { FeedbackText(it) }
             Button(
                 onClick = { attempted = true; if (canSubmit) onSignUp(form) },
-                enabled = canSubmit && !state.signupLoading,
+                enabled = !state.signupLoading,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (canSubmit) Colors.Navy else Color(0xFFD6DBE3),
+                    contentColor = if (canSubmit) Color.White else Color(0xFF8C94A1)
+                )
             ) {
                 if (state.signupLoading) CircularProgressIndicator(Modifier.height(22.dp), color = Color.White, strokeWidth = 2.dp)
                 else Text("가입하고 시작하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -287,6 +311,7 @@ private fun SignupField(
     keyboardType: KeyboardType = KeyboardType.Text,
     enabled: Boolean = true,
     password: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -298,11 +323,17 @@ private fun SignupField(
             modifier = Modifier.fillMaxWidth().height(56.dp),
             placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 13.sp) },
             singleLine = true,
+            isError = errorMessage != null,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Colors.Navy, unfocusedBorderColor = Color(0xFFD1D6DE))
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Colors.Navy,
+                unfocusedBorderColor = Color(0xFFD1D6DE),
+                errorBorderColor = Colors.Urgent
+            )
         )
+        errorMessage?.let { FeedbackText(it) }
     }
 }
 
