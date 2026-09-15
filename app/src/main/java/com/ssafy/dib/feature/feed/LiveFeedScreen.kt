@@ -100,6 +100,7 @@ fun LiveFeedScreen(
     depositPaidAuctionIds: Set<String>,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
+    onDepositInvalid: (String) -> Unit,
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
@@ -154,6 +155,7 @@ fun LiveFeedScreen(
                     depositPaidAuctionIds = depositPaidAuctionIds,
                     realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
                     onRealtimeBid = onRealtimeBid,
+                    onDepositInvalid = onDepositInvalid,
                     onPaymentConsumed = onPaymentConsumed,
                     onClose = onClose,
                     onProductClick = onProductClick,
@@ -200,6 +202,7 @@ private fun LiveFeedPage(
     depositPaidAuctionIds: Set<String>,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
+    onDepositInvalid: (String) -> Unit,
     onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
@@ -273,6 +276,8 @@ private fun LiveFeedPage(
         }
         if (realtimeBidFeedback.accepted) {
             realtimeBidFeedback.currentPrice?.let { currentPrice = it }
+        } else if (realtimeBidFeedback.errorCode == "DEPOSIT_REQUIRED") {
+            auctionKey?.let(onDepositInvalid)
         }
         showBidFeedback = true
     }
