@@ -8,6 +8,8 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.core.network.GuestSessionProvider
 import com.ssafy.dib.core.network.NetworkConfig
 import com.ssafy.dib.core.network.RetryPolicy
+import com.ssafy.dib.core.network.DibJson
+import com.ssafy.dib.core.network.responsePayload
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
 import com.ssafy.dib.data.remote.auth.LoginRequest
 import com.ssafy.dib.data.remote.socket.SocketCodec
@@ -22,6 +24,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -30,6 +33,22 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class NetworkContractTest {
+    @Test
+    fun successfulResponseUnwrapsBackendDataEnvelope() {
+        val payload = DibJson.instance.responsePayload(
+            """{"message":"조회 성공","data":{"items":[{"orderId":7}]}}"""
+        )
+
+        assertEquals(7, payload.jsonObject.getValue("items").jsonArray.single().jsonObject.getValue("orderId").jsonPrimitive.content.toInt())
+    }
+
+    @Test
+    fun successfulResponseKeepsLegacyDirectPayload() {
+        val payload = DibJson.instance.responsePayload("""{"items":[{"orderId":8}]}""")
+
+        assertEquals(8, payload.jsonObject.getValue("items").jsonArray.single().jsonObject.getValue("orderId").jsonPrimitive.content.toInt())
+    }
+
     @Test
     fun socketFreshnessRejectsOlderStateAndKeepsRecoveryCursor() {
         val gate = SocketUpdateFreshnessGate()
