@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
 import com.ssafy.dib.core.ui.ExternalPaymentReturnEffect
+import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
@@ -214,7 +215,7 @@ private fun RemoteTransactionScreen(
                                 listOf(
                                     "결제 수단" to if (payment.type == "TRANSFER") "계좌이체" else "카드",
                                     "결제 금액" to "${"%,d".format(payment.amount)}원",
-                                    "결제 일시" to payment.paidAt.orEmpty().take(16).replace('T', ' ').ifBlank { "확인 중" }
+                                    "결제 일시" to (formatServerTime(payment.paidAt) ?: "확인 중")
                                 ),
                                 "결제 정보"
                             )

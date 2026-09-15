@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
+import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -118,7 +119,7 @@ fun OrderChatScreen(
                         Surface(color = if (mine) Colors.Navy else Color.White, shape = RoundedCornerShape(14.dp)) {
                             Text(message.content, Modifier.padding(horizontal = 13.dp, vertical = 9.dp), color = if (mine) Color.White else Colors.Text, fontSize = 13.sp)
                         }
-                        Text(message.time.take(16).replace('T', ' '), color = Colors.Muted, fontSize = 9.sp)
+                        Text(formatServerTime(message.time) ?: message.time.take(16).replace('T', ' '), color = Colors.Muted, fontSize = 9.sp)
                     }
                 }
             }
