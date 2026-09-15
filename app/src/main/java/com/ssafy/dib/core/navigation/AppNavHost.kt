@@ -193,14 +193,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     fun canOpenNotification(notification: DomainNotification): Boolean =
         notification.resourceType.uppercase() in setOf(
             "LIVE", "LIVE_BROADCAST", "AUCTION", "ORDER", "PAYMENT", "SHIPMENT",
-            "DELIVERY", "SETTLEMENT", "TRANSACTION"
+            "DELIVERY", "SETTLEMENT", "TRANSACTION", "PRODUCT"
         )
 
     fun openNotification(notification: DomainNotification) {
         when (notification.resourceType.uppercase()) {
             "LIVE", "LIVE_BROADCAST" -> navController.navigate(Screen.Feed.route)
             "AUCTION" -> navController.navigate(Screen.ProductDetail.createRoute(notification.resourceId))
-            "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "SETTLEMENT", "TRANSACTION" ->
+            "PRODUCT" -> navController.navigate(Screen.RegisteredProducts.route)
+            "SETTLEMENT" -> navController.navigate(Screen.SettlementDetail.createRoute(notification.resourceId))
+            "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "TRANSACTION" ->
                 navigateMain(DibMainTab.Trades)
         }
     }
@@ -1014,6 +1016,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             NotificationCenterScreen(
                 notifications = domainNotifications,
                 connectionState = notificationConnectionState,
+                isNotificationActionable = ::canOpenNotification,
                 onNotificationClick = ::openNotification,
                 onSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
                 onBack = navController::navigateUp,

@@ -160,6 +160,7 @@ fun AuctionSearchScreen(
 fun NotificationCenterScreen(
     notifications: List<DomainNotification>,
     connectionState: RealtimeConnectionState?,
+    isNotificationActionable: (DomainNotification) -> Boolean,
     onNotificationClick: (DomainNotification) -> Unit,
     onSettingsClick: () -> Unit,
     onBack: () -> Unit,
@@ -175,7 +176,7 @@ fun NotificationCenterScreen(
                 item { Text(if(connectionState == RealtimeConnectionState.Connecting) "실시간 알림에 연결하고 있어요" else "실시간 알림을 다시 연결하고 있어요", color=Colors.Muted, fontSize=11.sp) }
             }
             if (shown.isEmpty()) item { EmptyContent("새로운 알림이 없어요", "앱을 사용하는 동안 새 알림이 여기에 표시돼요") }
-            items(shown.size, key = { shown[it].eventId }){index->val item=shown[index];Row(Modifier.fillMaxWidth().heightIn(min=92.dp).border(1.dp,Colors.Border,RoundedCornerShape(14.dp)).clickable { onNotificationClick(item) }.padding(12.dp),verticalAlignment=Alignment.CenterVertically){val isLive=item.category.label=="라이브";Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold);Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text(item.body,color=Colors.Muted,fontSize=10.sp)};Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp)}}
+            items(shown.size, key = { shown[it].eventId }){index->val item=shown[index];val actionable=isNotificationActionable(item);Row(Modifier.fillMaxWidth().heightIn(min=92.dp).border(1.dp,Colors.Border,RoundedCornerShape(14.dp)).clickable(enabled=actionable) { onNotificationClick(item) }.padding(12.dp),verticalAlignment=Alignment.CenterVertically){val isLive=item.category.label=="라이브";Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold);Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text(item.body,color=Colors.Muted,fontSize=10.sp)};Column(horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(4.dp)){Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp);if(actionable)Text("›",color=Colors.Navy,fontSize=18.sp)}}}
         }
     }
 }
