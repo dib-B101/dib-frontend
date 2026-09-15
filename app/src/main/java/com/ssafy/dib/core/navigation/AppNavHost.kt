@@ -35,6 +35,7 @@ import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
 import com.ssafy.dib.feature.auction.AuctionRegisterScreen
 import com.ssafy.dib.feature.auction.ProductImageViewerScreen
+import com.ssafy.dib.feature.auction.ProductOverviewScreen
 import com.ssafy.dib.feature.auction.ProductReportScreen
 import com.ssafy.dib.feature.auction.SellerProfileScreen
 import com.ssafy.dib.feature.auction.SellerListingsScreen
@@ -1466,6 +1467,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var auctionBidHistoryCursor by remember(productId) { mutableStateOf<String?>(null) }
             var auctionBidHistoryHasNext by remember(productId) { mutableStateOf(false) }
             var auctionBidHistoryRevision by remember(productId) { mutableStateOf(0) }
+            var similarProducts by remember(productId) { mutableStateOf<List<com.ssafy.dib.domain.product.RegisteredProduct>?>(null) }
+            var similarProductsLoading by remember(productId) { mutableStateOf(false) }
+            var similarProductsError by remember(productId) { mutableStateOf<String?>(null) }
+            var similarProductsRevision by remember(productId) { mutableStateOf(0) }
             LaunchedEffect(productId, detailRevision, signedIn) {
                 if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 detailLoading = true
@@ -1486,6 +1491,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 }
                 detailLoading = false
+            }
+            LaunchedEffect(remoteProduct?.productId, signedIn, similarProductsRevision) {
+                val sourceProductId = remoteProduct?.productId ?: return@LaunchedEffect
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                similarProductsLoading = true
+                similarProductsError = null
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getSimilarProducts(sourceProductId) }) {
+                    is ApiResult.Success -> similarProducts = result.value.filterNot { it.productId == sourceProductId }
+                    is ApiResult.Failure -> {
+                        similarProductsError = result.error.message.ifBlank { "비슷한 상품을 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                similarProductsLoading = false
             }
             LaunchedEffect(productId, realtimeState == RealtimeConnectionState.Connected) {
                 if (!auth.networkConfig.isRestConfigured || realtimeState == RealtimeConnectionState.Connected) return@LaunchedEffect
@@ -1732,7 +1751,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         backStackEntry.savedStateHandle["depositRemainingSeconds"] = remoteDetail?.remainingSeconds
                         navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
                     }
-                }
+                },
+                similarProducts = similarProducts,
+                similarProductsLoading = similarProductsLoading,
+                similarProductsError = similarProductsError,
+                onSimilarProductsRetry = { similarProductsRevision++ },
+                onSimilarProductClick = { similarProductId -> navController.navigate(Screen.ProductOverview.createRoute(similarProductId)) }
             )
         }
         composable(Screen.Register.route) {
@@ -3754,6 +3778,48 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     session.edit().clear().apply()
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
+                }
+            )
+        }
+        composable(
+            route = Screen.ProductOverview.route,
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId").orEmpty()
+            var product by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
+            var loading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var errorMessage by remember(productId) { mutableStateOf<String?>(null) }
+            var revision by remember(productId) { mutableStateOf(0) }
+            LaunchedEffect(productId, revision, signedIn) {
+                if (!auth.networkConfig.isRestConfigured || signedIn != true) {
+                    loading = false
+                    if (signedIn == false) errorMessage = "로그인 후 상품 정보를 확인할 수 있어요."
+                    return@LaunchedEffect
+                }
+                loading = true
+                errorMessage = null
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getProduct(productId) }) {
+                    is ApiResult.Success -> product = result.value
+                    is ApiResult.Failure -> {
+                        errorMessage = result.error.message.ifBlank { "상품 정보를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                loading = false
+            }
+            ProductOverviewScreen(
+                product = product,
+                loading = loading,
+                errorMessage = errorMessage,
+                onRetry = { revision++ },
+                onBack = navController::navigateUp,
+                onSellerClick = { memberId ->
+                    product?.let { detail ->
+                        backStackEntry.savedStateHandle["sellerNickname"] = detail.sellerNickname
+                        detail.sellerRating?.let { backStackEntry.savedStateHandle["sellerRating"] = it }
+                        detail.sellerTradeCount?.let { backStackEntry.savedStateHandle["sellerTradeCount"] = it }
+                    }
+                    navController.navigate(Screen.SellerProfile.createRoute(memberId))
                 }
             )
         }

@@ -27,6 +27,14 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), ProductDetailResponse.serializer())
     }
 
+    fun getSimilarProducts(productId: String, size: Int): ApiResult<ProductListResponse> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/$productId/similar"
+        val url = client.urlBuilder(path)
+            .addQueryParameter("size", size.coerceIn(1, 20).toString())
+            .build()
+        client.execute(client.requestBuilder(path).url(url).get().build(), ProductListResponse.serializer())
+    }
+
     fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.MEMBERS_ME}/products"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
