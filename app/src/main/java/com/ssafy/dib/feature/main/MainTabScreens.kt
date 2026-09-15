@@ -443,6 +443,7 @@ fun ProductRegisterScreen(
     var marketPrice by rememberSaveable { mutableStateOf("") }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
     var showPhotoReorder by remember { mutableStateOf(false) }
+    var validationRequested by rememberSaveable { mutableStateOf(false) }
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
     val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
@@ -493,7 +494,32 @@ fun ProductRegisterScreen(
             when(step) {
                 1 -> {
                     item { Text("상품 사진 *  1~10장 · 첫 사진이 대표", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    item { Box(Modifier.fillMaxWidth().height(88.dp).background(Colors.Surface, RoundedCornerShape(12.dp)).border(1.dp, Colors.Border, RoundedCornerShape(12.dp)).clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("+", color = Colors.Navy, fontSize = 26.sp); Text(if (photoUris.isEmpty()) "사진 선택" else "사진 다시 선택 (${photoUris.size}/10)", fontSize = 14.sp, fontWeight = FontWeight.Bold) } } }
+                    item {
+                        val photoError = validationRequested && photoUris.isEmpty()
+                        Box(
+                            Modifier.fillMaxWidth()
+                                .height(if (photoError) 112.dp else 88.dp)
+                                .background(Colors.Surface, RoundedCornerShape(12.dp))
+                                .border(if (photoError) 2.dp else 1.dp, if (photoError) Colors.Urgent else Colors.Border, RoundedCornerShape(12.dp))
+                                .clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("+", color = if (photoError) Colors.Urgent else Colors.Navy, fontSize = 26.sp)
+                                Text(
+                                    when {
+                                        photoError -> "사진을 1장 이상 등록해주세요"
+                                        photoUris.isEmpty() -> "사진 선택"
+                                        else -> "사진 다시 선택 (${photoUris.size}/10)"
+                                    },
+                                    color = if (photoError) Colors.Urgent else Colors.Text,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (photoError) Text("첫 사진이 대표 이미지 · 최대 10장", color = Colors.Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
                     if (photoUris.isNotEmpty()) item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(photoUris.size) { index ->
@@ -515,12 +541,12 @@ fun ProductRegisterScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) { Text("사진 순서 편집", fontWeight = FontWeight.Bold) }
                     }
-                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요") }
-                    item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요") { categoryDialog = true } }
+                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }) }
+                    item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요", "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
-                    item { RegisterSelect("상품 상태 *", conditionLabel(condition)) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
-                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp) }
+                    item { RegisterSelect("상품 상태 *", conditionLabel(condition), "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
+                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
                     item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
                     item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
                     item { RegisterTextField("시세 (선택)", marketPrice, { marketPrice = it.filter(Char::isDigit).take(10) }, "원 단위로 입력", keyboardType = KeyboardType.Number) }
@@ -532,7 +558,28 @@ fun ProductRegisterScreen(
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
-            item { Button(onClick = { if(step == 1) step = 2 else onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.indices.map { ProductImageSelection(photoUris[it], photoTypes[it]) })) }, enabled = formValid && photoTypes.size == photoUris.size && !submitLoading, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp) else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold) } }
+            item {
+                val canContinue = formValid && photoTypes.size == photoUris.size
+                Button(
+                    onClick = {
+                        if (step == 1) {
+                            if (canContinue) step = 2 else validationRequested = true
+                        } else {
+                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.indices.map { ProductImageSelection(photoUris[it], photoTypes[it]) }))
+                        }
+                    },
+                    enabled = !submitLoading,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (step == 1 && !canContinue) Color(0xFFE0E0E0) else Colors.Navy,
+                        contentColor = if (step == 1 && !canContinue) Color(0xFF949494) else Color.White
+                    )
+                ) {
+                    if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp)
+                    else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
     if (categoryDialog) AlertDialog(
@@ -724,5 +771,52 @@ private fun conditionLabel(condition: String) = when (condition) {
     else -> "상 · 중 · 하"
 }
 
-@Composable private fun RegisterTextField(label:String,value:String,onChange:(String)->Unit,placeholder:String,height: androidx.compose.ui.unit.Dp = 72.dp,keyboardType: KeyboardType = KeyboardType.Text){ Column(Modifier.fillMaxWidth().height(height), verticalArrangement=Arrangement.spacedBy(6.dp)){Text(label,fontSize=12.sp,fontWeight=FontWeight.Bold); OutlinedTextField(value,onChange,Modifier.fillMaxWidth().weight(1f),placeholder={Text(placeholder,color=Color(0xFF8A9099),fontSize=13.sp)},singleLine=height<90.dp,keyboardOptions=KeyboardOptions(keyboardType=keyboardType),shape=RoundedCornerShape(12.dp),colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Colors.Navy,unfocusedBorderColor=Color(0xFFDDE1E7)))} }
-@Composable private fun RegisterSelect(label:String,value:String,onClick:()->Unit){Column(Modifier.fillMaxWidth().height(72.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(label,fontSize=12.sp,fontWeight=FontWeight.Bold);Row(Modifier.fillMaxWidth().weight(1f).background(Color.White,RoundedCornerShape(12.dp)).border(1.dp,Color(0xFFDDE1E7),RoundedCornerShape(12.dp)).clickable(onClick=onClick).padding(horizontal=14.dp),verticalAlignment=Alignment.CenterVertically){Text(value,Modifier.weight(1f),color=if(value.contains("선택")||value.contains("상 ·"))Color(0xFF8A9099)else Colors.Text,fontSize=14.sp);Text("›",color=Colors.Muted,fontSize=22.sp)}}}
+@Composable
+private fun RegisterTextField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    placeholder: String,
+    height: androidx.compose.ui.unit.Dp = 72.dp,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    errorMessage: String? = null
+) {
+    Column(
+        Modifier.fillMaxWidth().height(height + if (errorMessage != null && height >= 90.dp) 16.dp else 0.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
+            singleLine = height < 90.dp,
+            isError = errorMessage != null,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Colors.Navy,
+                unfocusedBorderColor = Color(0xFFDDE1E7),
+                errorBorderColor = Colors.Urgent
+            )
+        )
+        if (errorMessage != null && height >= 90.dp) Text(errorMessage, color = Colors.Urgent, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun RegisterSelect(label: String, value: String, errorMessage: String? = null, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().height(72.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(
+            Modifier.fillMaxWidth().weight(1f).background(Color.White, RoundedCornerShape(12.dp))
+                .border(if (errorMessage != null) 1.5.dp else 1.dp, if (errorMessage != null) Colors.Urgent else Color(0xFFDDE1E7), RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(errorMessage ?: value, Modifier.weight(1f), color = if (errorMessage != null) Colors.Urgent else if (value.contains("선택") || value.contains("상 ·")) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
+            Text("›", color = Colors.Muted, fontSize = 22.sp)
+        }
+    }
+}
