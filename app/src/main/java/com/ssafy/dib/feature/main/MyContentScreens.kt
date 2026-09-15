@@ -118,6 +118,7 @@ fun RegisteredProductsScreen(
     onRegister: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     remoteProducts: List<RegisteredProduct>?,
+    showSampleContent: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     deleteError: String?,
@@ -133,11 +134,13 @@ fun RegisteredProductsScreen(
     modifier: Modifier = Modifier
 ) {
     var deleteCandidate by remember { mutableStateOf<RegisteredProduct?>(null) }
-    val products = remoteProducts ?: listOf(
-        RegisteredProduct("sample-pending", "빈티지 필름 카메라", "NORMAL", "PENDING", null),
-        RegisteredProduct("sample-registered", "달빛 유약 머그컵", "GOOD", "REGISTERED", null),
-        RegisteredProduct("sample-rejected", "핸드메이드 가죽 지갑", "BAD", "REJECTED", null)
-    )
+    val products = remoteProducts ?: if (showSampleContent) {
+        listOf(
+            RegisteredProduct("sample-pending", "빈티지 필름 카메라", "NORMAL", "PENDING", null),
+            RegisteredProduct("sample-registered", "달빛 유약 머그컵", "GOOD", "REGISTERED", null),
+            RegisteredProduct("sample-rejected", "핸드메이드 가죽 지갑", "BAD", "REJECTED", null)
+        )
+    } else emptyList()
     var filter by rememberSaveable { mutableStateOf("전체") }
     MyListScaffold("등록 상품 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -193,6 +196,7 @@ fun FavoriteAuctionsScreen(
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     remoteFavorites: List<HomeAuction>?,
+    showSampleContent: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     removingAuctionId: String?,
@@ -210,7 +214,7 @@ fun FavoriteAuctionsScreen(
             HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", com.ssafy.dib.feature.home.ProductPhoto.Camera, bookmarked = true)
         )
     }
-    val favorites = remoteFavorites ?: sampleFavorites
+    val favorites = remoteFavorites ?: if (showSampleContent) sampleFavorites else emptyList()
     MyListScaffold("찜한 상품", onBack, onTabSelected, modifier) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Text("찜한 경매 ${favorites.size}개", Modifier.padding(vertical = 16.dp), color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -269,6 +273,7 @@ fun InquiryHistoryScreen(
     onBack: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     remoteInquiries: List<InquirySummary>?,
+    showSampleContent: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     hasNext: Boolean,
@@ -289,10 +294,12 @@ fun InquiryHistoryScreen(
 ) {
     val inquiries = remoteInquiries?.map {
         Inquiry(if (it.answeredAt != null) "답변 완료" else "답변 대기", it.title, it.createdAt.take(10), it.questionId)
-    } ?: listOf(
-        Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"),
-        Inquiry("답변 대기", "자동 결제 실패 문의", "2026.09.09")
-    )
+    } ?: if (showSampleContent) {
+        listOf(
+            Inquiry("답변 완료", "배송 상태가 갱신되지 않아요", "2026.09.08"),
+            Inquiry("답변 대기", "자동 결제 실패 문의", "2026.09.09")
+        )
+    } else emptyList()
     var formOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(submissionRevision) { if (submissionRevision > 0) formOpen = false }
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
