@@ -114,7 +114,7 @@ fun ProductDetailScreen(
             containerColor = Colors.Background,
             contentColor = Colors.Text,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = { DetailAppBar(onBack = onBack, onShare = {}) }
+            topBar = { DetailAppBar(onBack = onBack, onShare = {}, shareEnabled = false) }
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -389,14 +389,14 @@ private fun formatBidCreatedAt(value: String): String =
     formatServerTime(value) ?: value.take(16).replace('T', ' ')
 
 @Composable
-private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit) {
+private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().height(48.dp).background(Colors.Background).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
         Text("상품 상세", Modifier.weight(1f), fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = (-0.28).sp, fontWeight = FontWeight.Bold)
-        IconButton(onClick = onShare) {
+        IconButton(onClick = onShare, enabled = shareEnabled) {
             Image(painterResource(R.drawable.share), "공유", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
     }
