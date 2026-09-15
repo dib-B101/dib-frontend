@@ -25,6 +25,7 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun LiveManagementScreen(
@@ -99,7 +100,7 @@ fun LiveManagementScreen(
                             StatusBadge(live.status)
                             Spacer(Modifier.weight(1f))
                             if (live.status == "SCHEDULED") Text("수정", Modifier.clickable { editingBroadcastId = live.liveBroadcastId }.padding(horizontal = 10.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(live.scheduledAt?.replace('T', ' ')?.take(16) ?: "일정 확인 필요", color = Colors.Muted, fontSize = 11.sp)
+                            Text(formatLiveScheduledAt(live.scheduledAt), color = Colors.Muted, fontSize = 11.sp)
                         }
                         Text(live.title, color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         live.description?.let { Text(it, color = Colors.Muted, fontSize = 12.sp, maxLines = 2) }
@@ -176,6 +177,17 @@ fun LiveManagementScreen(
             onSave = { ids -> onSetItems(liveId, ids) }
         )
     }
+}
+
+internal fun formatLiveScheduledAt(
+    scheduledAt: String?,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): String {
+    if (scheduledAt.isNullOrBlank()) return "일정 확인 필요"
+    return runCatching {
+        DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")
+            .format(Instant.parse(scheduledAt).atZone(zoneId))
+    }.getOrElse { scheduledAt.replace('T', ' ').take(16) }
 }
 
 @Composable private fun EmptyLiveCard() { Column(Modifier.fillMaxWidth().padding(vertical = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("예약한 Live가 없어요", color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("새 방송에서 일정과 상품을 준비해보세요", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }

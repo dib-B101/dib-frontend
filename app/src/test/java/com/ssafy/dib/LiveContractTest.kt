@@ -9,11 +9,21 @@ import com.ssafy.dib.data.remote.live.SetLiveItemsResponse
 import com.ssafy.dib.data.remote.live.LiveStreamSessionResponse
 import com.ssafy.dib.data.remote.live.StartLiveAuctionResponse
 import com.ssafy.dib.data.remote.live.UpdateLiveBroadcastResponse
+import com.ssafy.dib.feature.live.formatLiveScheduledAt
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class LiveContractTest {
+    @Test
+    fun liveScheduleDisplaysInDeviceTimeZone() {
+        assertEquals(
+            "2026.09.20 19:00",
+            formatLiveScheduledAt("2026-09-20T10:00:00Z", ZoneId.of("Asia/Seoul"))
+        )
+    }
+
     @Test
     fun decodesLiveFeedWithCurrentAuctionAndProduct() {
         val response = DibJson.instance.decodeFromString(
