@@ -36,7 +36,10 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 auctionId = auctionId,
                 currentPrice = payload.int("currentPrice"),
                 bidCount = payload.int("bidCount"),
-                remainingSeconds = remaining(payload.string("endedAt"), payload.string("serverTime")),
+                remainingSeconds = remaining(
+                    payload.string("scheduledEndAt") ?: payload.string("endedAt"),
+                    payload.string("serverTime")
+                ),
                 status = payload.string("status"),
                 isHighestBidder = payload.obj("myBid")?.boolean("isHighestBidder"),
                 occurredAt = occurredAt

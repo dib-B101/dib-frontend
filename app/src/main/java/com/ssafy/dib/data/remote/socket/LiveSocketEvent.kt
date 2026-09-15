@@ -107,7 +107,11 @@ class LiveSocketEventParser(
                 currentPrice = payload.int("startPrice"),
                 startPrice = payload.int("startPrice"),
                 bidCount = 0,
-                remainingSeconds = remaining(payload.string("endedAt")),
+                remainingSeconds = remaining(
+                    endedAt = payload.string("endedAt"),
+                    startedAt = payload.string("startedAt"),
+                    auctionTimeSeconds = payload.int("auctionTime")
+                ),
                 status = "ACTIVE",
                 occurredAt = occurredAt
             )
@@ -152,8 +156,16 @@ class LiveSocketEventParser(
         }
     }
 
-    private fun remaining(endedAt: String?, serverTime: String? = null): Int? {
-        val end = endedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+    private fun remaining(
+        endedAt: String?,
+        serverTime: String? = null,
+        startedAt: String? = null,
+        auctionTimeSeconds: Int? = null
+    ): Int? {
+        val end = endedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?: startedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                ?.plusSeconds(auctionTimeSeconds?.toLong() ?: return null)
+            ?: return null
         val reference = serverTime?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: now()
         return Duration.between(reference, end).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
     }

@@ -76,6 +76,26 @@ class LiveSocketEventParserTest {
     }
 
     @Test
+    fun `opened auction derives countdown when endedAt is omitted`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_OPENED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 31)
+                    put("startPrice", 30_000)
+                    put("auctionTime", 60)
+                    put("startedAt", "2026-09-14T08:59:30Z")
+                }
+            )
+        )!!
+
+        assertEquals("31", update.auctionId)
+        assertEquals(30, update.remainingSeconds)
+        assertEquals("ACTIVE", update.status)
+    }
+
+    @Test
     fun `live ended identifies the broadcast to remove from feed`() {
         val update = parser.parse(
             SocketEnvelope(
