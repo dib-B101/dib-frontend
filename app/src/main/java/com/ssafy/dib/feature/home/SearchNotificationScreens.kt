@@ -84,9 +84,12 @@ fun AuctionSearchScreen(
             (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
             it.status == filters().status
     }
-    val results = if (!submitted) emptyList() else sourceAuctions.filter {
-        val keywordMatch = query.isBlank() || it.name.contains(query, true) || it.category.contains(query, true) || query.contains("카메라") && it.id == "camera"
-        keywordMatch
+    val results = when {
+        !submitted -> emptyList()
+        remoteAuctions != null -> sourceAuctions
+        else -> sourceAuctions.filter {
+            query.isBlank() || it.name.contains(query, true) || it.category.contains(query, true) || query.contains("카메라") && it.id == "camera"
+        }
     }
 
     Scaffold(
@@ -123,7 +126,7 @@ fun AuctionSearchScreen(
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text("검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
                 if (hasNext || isLoadingMore || loadMoreError != null) item(key = "search-load-more") {
-                    LaunchedEffect(results.size, hasNext, loadMoreError) {
+                    LaunchedEffect(results.size, hasNext, isLoadingMore, loadMoreError) {
                         if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
