@@ -122,7 +122,15 @@ fun SettlementDetailScreen(
                     }
                 }
                 item { DetailCard("금액", listOf("판매 금액" to money(settlement.grossAmount), "플랫폼 수수료" to "-${money(settlement.commissionFee)}", "최종 정산액" to money(settlement.netAmount))) }
-                item { DetailCard("지급 계좌", listOf("은행" to settlement.bankName, "계좌번호" to settlement.maskedAccountNumber)) }
+                item {
+                    DetailCard(
+                        "지급 계좌",
+                        listOf(
+                            "은행" to (settlement.bankName ?: "정산 처리 후 확인"),
+                            "계좌번호" to (settlement.maskedAccountNumber ?: "정산 처리 후 확인")
+                        )
+                    )
+                }
                 item { DetailCard("거래 정보", listOf("주문 번호" to settlement.orderId, "정산 번호" to settlement.settlementId)) }
             }
         }

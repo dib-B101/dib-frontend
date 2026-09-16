@@ -29,7 +29,7 @@ data class SettlementDetailResponse(
     val grossAmount: Long,
     val commisionFee: Long,
     val netAmount: Long,
-    val bankName: String,
-    val maskedAccountNumber: String,
+    val bankName: String? = null,
+    val maskedAccountNumber: String? = null,
     val payoutAt: String? = null
 )

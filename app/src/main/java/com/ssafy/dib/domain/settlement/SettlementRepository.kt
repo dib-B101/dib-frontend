@@ -17,8 +17,8 @@ data class SettlementDetail(
     val grossAmount: Long,
     val commissionFee: Long,
     val netAmount: Long,
-    val bankName: String,
-    val maskedAccountNumber: String,
+    val bankName: String?,
+    val maskedAccountNumber: String?,
     val payoutAt: String?
 )
 

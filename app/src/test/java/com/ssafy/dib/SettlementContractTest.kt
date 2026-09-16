@@ -35,6 +35,18 @@ class SettlementContractTest {
         assertEquals("20", response.orderId)
         assertEquals("1002-***-123456", response.maskedAccountNumber)
         assertEquals(47_500L, response.netAmount)
-        assertFalse(response.maskedAccountNumber.contains("000000"))
+        assertFalse(requireNotNull(response.maskedAccountNumber).contains("000000"))
+    }
+
+    @Test
+    fun pendingSettlementAllowsPayoutAccountToBeNull() {
+        val response = DibJson.instance.decodeFromString(
+            SettlementDetailResponse.serializer(),
+            """{"settlementId":"settlement-2","orderId":21,"grossAmount":50000,"commisionFee":2500,"netAmount":47500,"bankName":null,"maskedAccountNumber":null,"payoutAt":null}"""
+        ).toDomain()
+
+        assertNull(response.bankName)
+        assertNull(response.maskedAccountNumber)
+        assertNull(response.payoutAt)
     }
 }
