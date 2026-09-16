@@ -110,6 +110,13 @@ object SocketCommands {
         )
     }
 
+    fun subscribeNotifications(commandId: String = UUID.randomUUID().toString()) = SocketEnvelope(
+        eventType = SocketEventTypes.SUBSCRIBE_NOTIFICATIONS,
+        commandId = commandId,
+        occurredAt = Instant.now().toString(),
+        payload = buildJsonObject { put("commandId", commandId) }
+    )
+
     fun subscribeLive(
         liveBroadcastId: String,
         lastKnownOccurredAt: String? = null,
