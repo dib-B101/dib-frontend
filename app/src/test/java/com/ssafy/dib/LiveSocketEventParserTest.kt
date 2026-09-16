@@ -141,10 +141,10 @@ class LiveSocketEventParserTest {
                 payload = buildJsonObject {
                     put("liveBroadcastId", "live-1")
                     put("auctionId", 32)
-                    put("result", "CANCELLED")
+                    put("result", "CANCELED")
                 }
             )
         )!!
-        assertEquals("CANCELLED", cancelled.status)
+        assertEquals("CANCELED", cancelled.status)
     }
 }

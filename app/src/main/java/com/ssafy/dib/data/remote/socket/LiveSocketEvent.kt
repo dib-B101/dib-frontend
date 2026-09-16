@@ -133,7 +133,7 @@ class LiveSocketEventParser(
                     auctionId = payload.string("auctionId"),
                     currentPrice = payload.int("finalPrice"),
                     remainingSeconds = 0,
-                    status = if (result == "CANCELLED") "CANCELLED" else "ENDED",
+                    status = if (result in setOf("CANCELLED", "CANCELED")) "CANCELED" else "ENDED",
                     message = if (result == "SOLD") "Live 경매가 낙찰됐어요." else "Live 경매가 종료됐어요.",
                     occurredAt = occurredAt
                 )

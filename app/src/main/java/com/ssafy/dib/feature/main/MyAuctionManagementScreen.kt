@@ -245,14 +245,14 @@ internal fun auctionStatusLabel(status: String): String = when (status.uppercase
     "SCHEDULED" -> "경매 예정"
     "ACTIVE" -> "진행 중"
     "ENDED" -> "종료"
-    "CANCELLED" -> "취소"
+    "CANCELLED", "CANCELED" -> "취소"
     else -> status
 }
 
 private fun auctionStatusColor(status: String) = when (status.uppercase()) {
     "ACTIVE" -> Colors.Live
     "SCHEDULED" -> Colors.MintInk
-    "CANCELLED" -> Colors.Urgent
+    "CANCELLED", "CANCELED" -> Colors.Urgent
     else -> Colors.Muted
 }
 
@@ -262,7 +262,7 @@ private fun orderStatusLabel(status: String): String = when (status.uppercase())
     "SHIPPED" -> "배송 중"
     "DELIEVERED", "DELIVERED" -> "배송 완료"
     "CONFIRMED" -> "거래 확정"
-    "CANCELLED" -> "취소"
+    "CANCELLED", "CANCELED" -> "취소"
     "REFUNDED" -> "환불"
     else -> status
 }
@@ -272,5 +272,5 @@ private val auctionStatusFilters = listOf(
     "예정" to "SCHEDULED",
     "진행 중" to "ACTIVE",
     "종료" to "ENDED",
-    "취소" to "CANCELLED"
+    "취소" to "CANCELED"
 )
