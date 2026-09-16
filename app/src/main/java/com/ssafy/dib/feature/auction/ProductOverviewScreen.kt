@@ -63,7 +63,7 @@ fun ProductOverviewScreen(
                 Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) { Text("‹", color = Colors.Navy, fontSize = 34.sp) }
+                IconButton(onClick = onBack) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Navy)) }
                 Text("상품 정보", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }

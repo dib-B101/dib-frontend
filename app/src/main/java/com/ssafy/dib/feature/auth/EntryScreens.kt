@@ -64,6 +64,8 @@ fun WelcomeScreen(
     onEmailSignup: () -> Unit,
     onLogin: () -> Unit,
     onBrowse: () -> Unit,
+    showDeveloperPreview: Boolean,
+    onDeveloperPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier.fillMaxSize().safeDrawingPadding().background(Colors.Canvas)) {
@@ -97,6 +99,18 @@ fun WelcomeScreen(
             }
             Text("이미 계정이 있나요?  로그인", Modifier.clickable(onClick = onLogin).padding(6.dp), color = Colors.Mint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text("로그인 없이 둘러보기", Modifier.clickable(onClick = onBrowse).padding(6.dp), color = Color.White, fontSize = 13.sp)
+            if (showDeveloperPreview) {
+                Surface(
+                    color = Color.White.copy(alpha = .1f),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onDeveloperPreview)
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 11.dp)) {
+                        Text("개발 화면 둘러보기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("샘플 데이터로 모든 탭과 등록 화면을 확인해요", color = Color.White.copy(alpha = .72f), fontSize = 11.sp)
+                    }
+                }
+            }
         }
     }
 }

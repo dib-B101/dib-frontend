@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.feature.home.ProductPhoto
 import com.ssafy.dib.feature.home.formatClock
@@ -535,6 +536,9 @@ private fun ProductSummary(
                 DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge("마감 임박", urgent = true)
             }
             Badge("상품 상태 · ${conditionLabel(condition)}")
+        }
+        if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) {
+            AuctionUrgencyBadge(remainingSeconds)
         }
         Text(name, fontSize = 20.sp, lineHeight = 30.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

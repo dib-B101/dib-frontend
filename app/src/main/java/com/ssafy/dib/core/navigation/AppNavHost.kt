@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -30,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
@@ -117,6 +119,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val notificationPreferences = remember(context) { context.getSharedPreferences("dib_notification_preferences", 0) }
     val commandKeys = remember { RetriableCommandKeys() }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
+    var previewMode by rememberSaveable { mutableStateOf(false) }
+    val hasAppAccess = signedIn == true || previewMode
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -183,7 +187,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     }
 
     fun navigateMain(tab: DibMainTab) {
-        if (signedIn != true && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
+        if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
             navController.navigate(Screen.Login.route)
             return
         }
@@ -233,6 +237,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         bookmarked: Boolean,
         onResult: ((bookmarked: Boolean, errorMessage: String?) -> Unit)? = null
     ) {
+        if (previewMode) {
+            remoteAuctions = remoteAuctions?.map { auction ->
+                if (auction.id == auctionId) auction.copy(bookmarked = bookmarked) else auction
+            }
+            onResult?.invoke(bookmarked, null)
+            return
+        }
         if (signedIn != true) return
         val command = "bookmark:$auctionId:$bookmarked"
         val idempotencyKey = commandKeys.keyFor(command)
@@ -409,8 +420,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         notificationsLoading = false
     }
 
-    LaunchedEffect(auctionsRevision, signedIn) {
-        if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+    LaunchedEffect(auctionsRevision, signedIn, previewMode) {
+        if (previewMode || !auth.networkConfig.isRestConfigured) {
+            remoteAuctions = null
+            remoteHomeLives = null
+            auctionsLoading = false
+            auctionsError = null
+            return@LaunchedEffect
+        }
         auctionsLoading = true
         auctionsError = null
         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations() }) {
@@ -513,7 +530,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onEmailSignup = { navController.navigate(Screen.SignUp.route) },
                 onLogin = { navController.navigate(Screen.Login.route) },
                 onBrowse = {
+                    previewMode = false
                     signedIn = false
+                    navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
+                },
+                showDeveloperPreview = BuildConfig.DEBUG,
+                onDeveloperPreview = {
+                    previewMode = true
+                    signedIn = false
+                    remoteAuctions = null
+                    remoteHomeLives = null
+                    auctionsLoading = false
+                    auctionsError = null
+                    ordersLoading = false
+                    ordersError = null
+                    bidHistoryLoading = false
+                    bidHistoryError = null
                     navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                 }
             )
@@ -798,10 +830,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Home.route) {
             HomeScreen(
-                isAuthenticated = signedIn == true,
+                isAuthenticated = hasAppAccess,
                 remoteAuctions = remoteAuctions,
                 remoteLives = remoteHomeLives,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
                 unreadNotificationCount = unreadNotificationCount,
@@ -813,7 +845,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onLiveClick = { navController.navigate(Screen.Feed.route) },
                 onSearchClick = { navController.navigate(Screen.Search.route) },
                 onNotificationsClick = {
-                    if (signedIn == true) {
+                    if (hasAppAccess) {
                         unreadNotificationCount = 0
                         navController.navigate(Screen.Notifications.route)
                     }
@@ -826,7 +858,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Categories.route) {
             var categoryList by remember {
-                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured) emptyList() else null)
+                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured && !previewMode) emptyList() else null)
             }
             var categoryAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
             var categoryLoading by remember { mutableStateOf(false) }
@@ -839,7 +871,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
 
             fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false) {
                 selectedCategoryId = categoryId
-                if (!auth.networkConfig.isRestConfigured) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
                     categoryAuctions = null
                     categoryError = null
                     return
@@ -912,7 +944,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Search.route) {
             var searchCategories by remember {
-                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured) emptyList() else null)
+                mutableStateOf<List<ProductCategory>?>(if (auth.networkConfig.isRestConfigured && !previewMode) emptyList() else null)
             }
             var searchAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
             var searchLoading by remember { mutableStateOf(false) }
@@ -965,7 +997,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
 
             fun search(filters: AuctionSearchFilters, cursor: String? = null, append: Boolean = false) {
                 lastSearchFilters = filters
-                if (!auth.networkConfig.isRestConfigured) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
                     searchAuctions = null
                     searchError = null
                     return
@@ -1165,7 +1197,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             val paidBidAmount by backStackEntry.savedStateHandle
                 .getStateFlow("paidBidAmount", 0).collectAsState()
             var liveFeedItems by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveFeedItem>?>(null) }
-            var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var liveFeedError by remember { mutableStateOf<String?>(null) }
             var liveFeedRevision by remember { mutableStateOf(0) }
             var liveFeedNextCursor by remember { mutableStateOf<String?>(null) }
@@ -1190,8 +1222,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var liveReportCompleted by remember { mutableStateOf(false) }
             var liveFavoriteError by remember { mutableStateOf<String?>(null) }
             var liveFavoriteUpdatingAuctionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-            LaunchedEffect(liveFeedRevision, signedIn) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(liveFeedRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    liveFeedItems = null
+                    liveFeedLoading = false
+                    liveFeedError = null
+                    return@LaunchedEffect
+                }
                 liveFeedLoading = true
                 liveFeedError = null
                 liveFeedLoadMoreError = null
@@ -1231,9 +1268,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 }
             }
-            LaunchedEffect(activeLiveBroadcastId, liveFeedRevision) {
+            LaunchedEffect(activeLiveBroadcastId, liveFeedRevision, previewMode) {
                 val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    liveDetailLoading = false
+                    liveDetailError = null
+                    return@LaunchedEffect
+                }
                 liveDetailLoading = true
                 liveDetailError = null
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
@@ -1257,9 +1298,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
                 liveDetailLoading = false
             }
-            DisposableEffect(activeLiveBroadcastId, signedIn, auth.networkConfig.isWebSocketConfigured) {
+            DisposableEffect(activeLiveBroadcastId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
                 val liveId = activeLiveBroadcastId
-                val connection = if (liveId != null && auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (!previewMode && liveId != null && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         liveChatConnection = created
                         created.start(
@@ -1466,17 +1507,29 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onSendComment = { content ->
-                    liveChatConnection?.updateCurrentMemberId(memberProfile?.memberId)
-                    liveChatConnection?.send(content) == true
+                    if (previewMode) true else {
+                        liveChatConnection?.updateCurrentMemberId(memberProfile?.memberId)
+                        liveChatConnection?.send(content) == true
+                    }
                 },
-                isAuthenticated = signedIn == true,
+                isAuthenticated = hasAppAccess,
                 currentMemberId = memberProfile?.memberId,
                 paidBidAmount = paidBidAmount,
                 depositPaidAuctionIds = depositPaidProductIds,
-                realtimeBiddingEnabled = auth.networkConfig.isWebSocketConfigured,
+                realtimeBiddingEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
                 realtimeBidFeedback = liveBidFeedback,
                 onRealtimeBid = { auctionId, amount ->
-                    liveChatConnection?.placeBid(auctionId, amount)?.let { commandId ->
+                    if (previewMode) {
+                        liveBidFeedback = RealtimeBidFeedback(
+                            accepted = true,
+                            message = "개발 미리보기 입찰이 반영됐어요.",
+                            currentPrice = amount,
+                            minAllowedAmount = null,
+                            errorCode = null,
+                            eventKey = "preview:$auctionId:$amount"
+                        )
+                        true
+                    } else liveChatConnection?.placeBid(auctionId, amount)?.let { commandId ->
                         pendingLiveBidCommandId = commandId
                         true
                     } ?: false
@@ -1560,7 +1613,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     liveReportCompleted = false
                 },
                 onDepositPayment = { productId, submission ->
-                    if (signedIn != true) {
+                    if (!hasAppAccess) {
                         navController.navigate(Screen.Login.route)
                         return@LiveFeedScreen
                     }
@@ -1587,7 +1640,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
             }
             var remoteProduct by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
-            var detailLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var detailLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var detailError by remember(productId) { mutableStateOf<String?>(null) }
             var detailRevision by remember(productId) { mutableStateOf(0) }
             var realtimeState by remember(productId) { mutableStateOf<RealtimeConnectionState?>(null) }
@@ -1599,7 +1652,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var bookmarkLoading by remember(productId) { mutableStateOf(false) }
             var bookmarkError by remember(productId) { mutableStateOf<String?>(null) }
             var auctionBidHistory by remember(productId) { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionBidHistoryItem>?>(null) }
-            var auctionBidHistoryLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var auctionBidHistoryLoading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var auctionBidHistoryError by remember(productId) { mutableStateOf<String?>(null) }
             var auctionBidHistoryCursor by remember(productId) { mutableStateOf<String?>(null) }
             var auctionBidHistoryHasNext by remember(productId) { mutableStateOf(false) }
@@ -1608,8 +1661,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var similarProductsLoading by remember(productId) { mutableStateOf(false) }
             var similarProductsError by remember(productId) { mutableStateOf<String?>(null) }
             var similarProductsRevision by remember(productId) { mutableStateOf(0) }
-            LaunchedEffect(productId, detailRevision, signedIn) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(productId, detailRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    detailLoading = false
+                    detailError = null
+                    return@LaunchedEffect
+                }
                 detailLoading = true
                 detailError = null
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(productId) }) {
@@ -1643,8 +1700,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
                 similarProductsLoading = false
             }
-            LaunchedEffect(productId, realtimeState == RealtimeConnectionState.Connected) {
-                if (!auth.networkConfig.isRestConfigured || realtimeState == RealtimeConnectionState.Connected) return@LaunchedEffect
+            LaunchedEffect(productId, previewMode, realtimeState == RealtimeConnectionState.Connected) {
+                if (previewMode || !auth.networkConfig.isRestConfigured || realtimeState == RealtimeConnectionState.Connected) return@LaunchedEffect
                 while (true) {
                     when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBidSnapshot(productId) }) {
                         is ApiResult.Success -> {
@@ -1666,8 +1723,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     delay(15_000L)
                 }
             }
-            LaunchedEffect(productId, auctionBidHistoryRevision) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(productId, auctionBidHistoryRevision, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    auctionBidHistoryLoading = false
+                    return@LaunchedEffect
+                }
                 auctionBidHistoryLoading = true
                 auctionBidHistoryError = null
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBidHistory(productId) }) {
@@ -1695,8 +1755,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
                 }
             }
-            DisposableEffect(productId, auth.networkConfig.isWebSocketConfigured) {
-                val connection = if (auth.networkConfig.isWebSocketConfigured) {
+            DisposableEffect(productId, previewMode, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (!previewMode && auth.networkConfig.isWebSocketConfigured) {
                     auth.createAuctionRealtimeConnection().also { realtime ->
                         realtimeConnection = realtime
                         realtime.start(
@@ -1752,7 +1812,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 productId = productId,
                 remoteAuction = remoteDetail,
                 productDetail = remoteProduct,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = detailLoading,
                 remoteError = detailError,
                 onRetry = { detailRevision++ },
@@ -1816,11 +1876,21 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     RealtimeConnectionState.Disconnected, null -> null
                 },
                 realtimeNotice = realtimeNotice,
-                realtimeBiddingEnabled = auth.networkConfig.isWebSocketConfigured,
-                realtimeConnected = realtimeState == RealtimeConnectionState.Connected,
+                realtimeBiddingEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
+                realtimeConnected = previewMode || realtimeState == RealtimeConnectionState.Connected,
                 realtimeBidFeedback = realtimeBidFeedback,
                 onRealtimeBid = { amount ->
-                    realtimeConnection?.placeBid(amount)?.let { commandId ->
+                    if (previewMode) {
+                        realtimeBidFeedback = RealtimeBidFeedback(
+                            accepted = true,
+                            message = "개발 미리보기 입찰이 반영됐어요.",
+                            currentPrice = amount,
+                            minAllowedAmount = null,
+                            errorCode = null,
+                            eventKey = "preview:$productId:$amount"
+                        )
+                        true
+                    } else realtimeConnection?.placeBid(amount)?.let { commandId ->
                         pendingBidCommandId = commandId
                         true
                     } ?: false
@@ -1830,7 +1900,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     depositPaidProductIds = updatedPaidProducts
                     session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
                 },
-                isAuthenticated = signedIn == true,
+                isAuthenticated = hasAppAccess,
                 isOwnAuction = signedIn == true && memberProfile?.memberId?.let { memberId ->
                     memberId == remoteDetail?.sellerMemberId
                 } == true,
@@ -1855,7 +1925,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onReportClick = {
-                    if (signedIn == true) {
+                    if (hasAppAccess) {
                         navController.navigate(
                             Screen.ProductReport.createRoute(
                                 backStackEntry.arguments?.getString("auctionId").orEmpty()
@@ -1877,7 +1947,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 depositPaid = productId in depositPaidProductIds,
                 onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onDepositPayment = { submission ->
-                    if (signedIn != true) {
+                    if (!hasAppAccess) {
                         navController.navigate(Screen.Login.route)
                         return@ProductDetailScreen
                     }
@@ -1899,22 +1969,26 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         composable(Screen.Register.route) {
             var productCategories by remember {
                 mutableStateOf(
-                    if (auth.networkConfig.isRestConfigured) emptyList() else listOf(
+                    if (auth.networkConfig.isRestConfigured && !previewMode) emptyList() else listOf(
                         ProductCategory("1", "디지털"),
                         ProductCategory("2", "패션"),
                         ProductCategory("3", "라이프")
                     )
                 )
             }
-            var categoriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var categoriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var categoriesError by remember { mutableStateOf<String?>(null) }
             var categoriesRevision by remember { mutableStateOf(0) }
             var productSubmitLoading by remember { mutableStateOf(false) }
             var productSubmitError by remember { mutableStateOf<String?>(null) }
             var productResult by remember { mutableStateOf<ProductRegistrationResult?>(null) }
 
-            LaunchedEffect(categoriesRevision) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(categoriesRevision, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    categoriesLoading = false
+                    categoriesError = null
+                    return@LaunchedEffect
+                }
                 categoriesLoading = true
                 categoriesError = null
                 when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
@@ -1935,7 +2009,16 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 submitError = productSubmitError,
                 result = productResult,
                 onRetryCategories = { categoriesRevision++ },
-                onSubmit = { form: ProductRegistrationForm ->
+                onSubmit = submitProduct@ { form: ProductRegistrationForm ->
+                    if (previewMode) {
+                        productResult = ProductRegistrationResult(
+                            productId = "PREVIEW-001",
+                            status = "PENDING_REVIEW",
+                            thumbnailUrl = null,
+                            createdAt = java.time.Instant.now().toString()
+                        )
+                        return@submitProduct
+                    }
                     val command = listOf(
                         "product-create",
                         form.title,
@@ -2011,7 +2094,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 remotePurchaseOrders = purchaseOrders,
                 remoteSaleOrders = saleOrders,
                 remoteBids = bidHistory,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = ordersLoading,
                 remoteError = ordersError,
                 bidsLoading = bidHistoryLoading,
@@ -2117,8 +2200,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var shippingCarriersError by remember(orderId) { mutableStateOf<String?>(null) }
             var shippingCarriersRevision by remember(orderId) { mutableStateOf(0) }
 
-            LaunchedEffect(orderId, orderDetailRevision) {
-                if (orderId == "sample") return@LaunchedEffect
+            LaunchedEffect(orderId, orderDetailRevision, previewMode) {
+                if (previewMode || orderId == "sample") {
+                    orderDetailLoading = false
+                    return@LaunchedEffect
+                }
                 if (!auth.networkConfig.isRestConfigured) {
                     orderDetailLoading = false
                     orderDetailError = "개발 서버 주소가 설정되지 않았어요."
@@ -2339,7 +2425,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var chatReportError by remember(orderId) { mutableStateOf<String?>(null) }
             var chatReportCompleted by remember(orderId) { mutableStateOf(false) }
 
-            LaunchedEffect(orderId, chatRevision) {
+            LaunchedEffect(orderId, chatRevision, previewMode) {
+                if (previewMode) {
+                    chatLoading = false
+                    chatError = null
+                    return@LaunchedEffect
+                }
                 if (!auth.networkConfig.isRestConfigured) {
                     chatLoading = false
                     chatError = "개발 서버 주소가 설정되지 않았어요."
@@ -2375,8 +2466,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 chatLoading = false
             }
 
-            DisposableEffect(orderId, auth.networkConfig.isWebSocketConfigured) {
-                val connection = if (auth.networkConfig.isWebSocketConfigured) {
+            DisposableEffect(orderId, previewMode, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (!previewMode && auth.networkConfig.isWebSocketConfigured) {
                     auth.createOrderChatConnection().also { created ->
                         chatConnection = created
                         created.start(
@@ -2473,11 +2564,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.My.route) {
-            var myProfileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var myProfileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var myProfileError by remember { mutableStateOf<String?>(null) }
             var myProfileRevision by remember { mutableStateOf(0) }
-            LaunchedEffect(myProfileRevision, signedIn) {
-                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(myProfileRevision, signedIn, previewMode) {
+                if (previewMode || signedIn != true || !auth.networkConfig.isRestConfigured) {
+                    myProfileLoading = false
+                    myProfileError = null
+                    return@LaunchedEffect
+                }
                 myProfileLoading = true
                 myProfileError = null
                 when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
@@ -2510,6 +2605,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onReportsClick = { navController.navigate(Screen.ReportHistory.route) },
                 onWithdrawalClick = { navController.navigate(Screen.Withdrawal.route) },
                 onLogout = {
+                    previewMode = false
                     signedIn = false
                     coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
@@ -2518,7 +2614,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.PaymentMethods.route) {
             var paymentMethod by remember { mutableStateOf<com.ssafy.dib.domain.payment.PaymentMethod?>(null) }
-            var paymentMethodLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var paymentMethodLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var paymentMethodError by remember { mutableStateOf<String?>(null) }
             var paymentMethodActionLoading by remember { mutableStateOf(false) }
             var paymentMethodActionMessage by remember { mutableStateOf<String?>(null) }
@@ -2601,7 +2697,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.MyAuctions.route) {
             var sales by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.SaleHistoryItem>?>(null) }
-            var salesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var salesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var salesError by remember { mutableStateOf<String?>(null) }
             var salesRevision by remember { mutableStateOf(0) }
             var salesStatus by remember { mutableStateOf<String?>(null) }
@@ -2615,10 +2711,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             val startKeys = remember { mutableMapOf<String, String>() }
             val cancelKeys = remember { mutableMapOf<String, String>() }
 
-            LaunchedEffect(salesRevision, salesStatus, signedIn) {
-                if (!auth.networkConfig.isRestConfigured) {
+            LaunchedEffect(salesRevision, salesStatus, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
                     sales = emptyList()
                     salesLoading = false
+                    salesError = null
                     return@LaunchedEffect
                 }
                 if (signedIn != true) {
@@ -2780,7 +2877,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var availableLiveAuctionsHasNext by remember { mutableStateOf(false) }
             var availableLiveAuctionsLoadingMore by remember { mutableStateOf(false) }
             var availableLiveAuctionsLoadMoreError by remember { mutableStateOf<String?>(null) }
-            var liveManagementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var liveManagementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var liveManagementError by remember { mutableStateOf<String?>(null) }
             var liveManagementRevision by remember { mutableStateOf(0) }
             var liveManagementCursor by remember { mutableStateOf<String?>(null) }
@@ -3046,7 +3143,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Addresses.route) {
             var addresses by remember { mutableStateOf<List<com.ssafy.dib.domain.member.MemberAddress>?>(null) }
-            var addressesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var addressesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var addressesError by remember { mutableStateOf<String?>(null) }
             var addressesRevision by remember { mutableStateOf(0) }
             var addressActionLoading by remember { mutableStateOf(false) }
@@ -3129,7 +3226,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.SettlementAccounts.route) {
             var settlementAccount by remember { mutableStateOf<com.ssafy.dib.domain.settlement.SettlementAccount?>(null) }
-            var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var settlementError by remember { mutableStateOf<String?>(null) }
             var settlementRevision by remember { mutableStateOf(0) }
             var settlementChallengeId by remember { mutableStateOf<String?>(null) }
@@ -3230,7 +3327,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Settlements.route) {
             var settlements by remember { mutableStateOf<List<com.ssafy.dib.domain.settlement.SettlementSummary>?>(null) }
-            var settlementsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var settlementsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var settlementsError by remember { mutableStateOf<String?>(null) }
             var settlementsCursor by remember { mutableStateOf<String?>(null) }
             var settlementsHasNext by remember { mutableStateOf(false) }
@@ -3302,7 +3399,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         ) { backStackEntry ->
             val settlementId = backStackEntry.arguments?.getString("settlementId").orEmpty()
             var settlement by remember { mutableStateOf<com.ssafy.dib.domain.settlement.SettlementDetail?>(null) }
-            var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var settlementError by remember { mutableStateOf<String?>(null) }
             var settlementRevision by remember { mutableStateOf(0) }
 
@@ -3354,7 +3451,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.ProfileEdit.route) {
-            var profileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var profileLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var profileError by remember { mutableStateOf<String?>(null) }
             var profileRevision by remember { mutableStateOf(0) }
             var profileSaveLoading by remember { mutableStateOf(false) }
@@ -3405,7 +3502,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.FavoriteAuctions.route) {
             var favorites by remember { mutableStateOf<List<HomeAuction>?>(null) }
-            var favoritesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var favoritesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var favoritesError by remember { mutableStateOf<String?>(null) }
             var favoritesRevision by remember { mutableStateOf(0) }
             var removingAuctionId by remember { mutableStateOf<String?>(null) }
@@ -3437,7 +3534,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
                 onTabSelected = ::navigateMain,
                 remoteFavorites = favorites,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 isLoading = favoritesLoading,
                 errorMessage = favoritesError,
                 removingAuctionId = removingAuctionId,
@@ -3502,7 +3599,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         composable(Screen.RegisteredProducts.route) { backStackEntry ->
             val productsRefresh by backStackEntry.savedStateHandle.getStateFlow("refreshProducts", 0L).collectAsState()
             var registeredProducts by remember { mutableStateOf<List<com.ssafy.dib.domain.product.RegisteredProduct>?>(null) }
-            var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var registeredProductsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var registeredProductsError by remember { mutableStateOf<String?>(null) }
             var registeredProductsRevision by remember { mutableStateOf(0) }
             var registeredProductsCursor by remember { mutableStateOf<String?>(null) }
@@ -3512,8 +3609,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var deletingProductId by remember { mutableStateOf<String?>(null) }
             var productDeleteError by remember { mutableStateOf<String?>(null) }
 
-            LaunchedEffect(registeredProductsRevision, productsRefresh) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(registeredProductsRevision, productsRefresh, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    registeredProductsLoading = false
+                    registeredProductsError = null
+                    return@LaunchedEffect
+                }
                 registeredProductsLoading = true
                 registeredProductsError = null
                 registeredProductsLoadMoreError = null
@@ -3535,7 +3636,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onRegister = { navController.navigate(Screen.Register.route) },
                 onTabSelected = ::navigateMain,
                 remoteProducts = registeredProducts,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 isLoading = registeredProductsLoading,
                 errorMessage = registeredProductsError,
                 deleteError = productDeleteError,
@@ -3778,7 +3879,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Inquiries.route) {
             var inquiries by remember { mutableStateOf<List<InquirySummary>?>(null) }
-            var inquiriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var inquiriesLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var inquiriesError by remember { mutableStateOf<String?>(null) }
             var inquiriesRevision by remember { mutableStateOf(0) }
             var inquiriesCursor by remember { mutableStateOf<String?>(null) }
@@ -3792,8 +3893,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var inquirySubmitError by remember { mutableStateOf<String?>(null) }
             var inquirySubmissionRevision by remember { mutableStateOf(0) }
 
-            LaunchedEffect(inquiriesRevision) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(inquiriesRevision, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    inquiriesLoading = false
+                    inquiriesError = null
+                    return@LaunchedEffect
+                }
                 inquiriesLoading = true
                 inquiriesError = null
                 inquiriesLoadMoreError = null
@@ -3815,7 +3920,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain,
                 remoteInquiries = inquiries,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 isLoading = inquiriesLoading,
                 errorMessage = inquiriesError,
                 hasNext = inquiriesHasNext,
@@ -3905,15 +4010,19 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.ReportHistory.route) {
             var reports by remember { mutableStateOf<List<ReportSummary>?>(null) }
-            var reportsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var reportsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var reportsError by remember { mutableStateOf<String?>(null) }
             var reportsRevision by remember { mutableStateOf(0) }
             var reportsCursor by remember { mutableStateOf<String?>(null) }
             var reportsHasNext by remember { mutableStateOf(false) }
             var reportsLoadingMore by remember { mutableStateOf(false) }
             var reportsLoadMoreError by remember { mutableStateOf<String?>(null) }
-            LaunchedEffect(reportsRevision) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
+            LaunchedEffect(reportsRevision, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    reportsLoading = false
+                    reportsError = null
+                    return@LaunchedEffect
+                }
                 reportsLoading = true
                 reportsError = null
                 reportsLoadMoreError = null
@@ -3933,7 +4042,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             ReportHistoryScreen(
                 onBack = navController::navigateUp,
                 reports = reports,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 isLoading = reportsLoading,
                 errorMessage = reportsError,
                 hasNext = reportsHasNext,
@@ -4016,7 +4125,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         ) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId").orEmpty()
             var product by remember(productId) { mutableStateOf<com.ssafy.dib.domain.product.ProductDetail?>(null) }
-            var loading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var loading by remember(productId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var errorMessage by remember(productId) { mutableStateOf<String?>(null) }
             var revision by remember(productId) { mutableStateOf(0) }
             LaunchedEffect(productId, revision, signedIn) {
@@ -4086,7 +4195,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 productId = backStackEntry.arguments?.getString("auctionId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
                 imageUrls = imageUrls,
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 onClose = navController::navigateUp
             )
         }
@@ -4100,7 +4209,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 sellerNickname = sourceState?.get<String>("sellerNickname"),
                 sellerRating = sourceState?.get<Double>("sellerRating"),
                 sellerTradeCount = sourceState?.get<Int>("sellerTradeCount"),
-                showSampleContent = !auth.networkConfig.isRestConfigured,
+                showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 onBack = navController::navigateUp,
                 onReviewsClick = { navController.navigate(Screen.SellerReviews.createRoute(memberId)) },
                 onListingsClick = { navController.navigate(Screen.SellerListings.createRoute(memberId)) },
@@ -4215,6 +4324,17 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var depositStatusMessage by remember { mutableStateOf<String?>(null) }
 
             fun prepareDeposit(paymentMethod: String) {
+                if (previewMode) {
+                    preparedDeposit = com.ssafy.dib.domain.auction.BidDeposit(
+                        bidDepositId = "preview-$auctionId-$paymentMethod",
+                        auctionId = auctionId,
+                        amount = 1_000L,
+                        status = "PAID"
+                    )
+                    depositError = null
+                    depositStatusMessage = "개발 미리보기 결제예요. 실제 결제는 발생하지 않았어요."
+                    return
+                }
                 val command = "deposit-prepare:$auctionId:$bidAmount:$paymentMethod"
                 val idempotencyKey = commandKeys.keyFor(command)
                 depositProcessing = true

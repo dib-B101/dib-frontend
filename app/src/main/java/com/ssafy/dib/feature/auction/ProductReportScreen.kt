@@ -1,5 +1,6 @@
 package com.ssafy.dib.feature.auction
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,9 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.R
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 /** Figma 01_Wireframe / 03L1_Product_Report and selected/success states. */
@@ -73,7 +77,7 @@ internal fun ReportFormScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(Modifier.size(56.dp).background(Colors.Mint, CircleShape), contentAlignment = Alignment.Center) {
-                    Text("✓", color = Colors.MintInk, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Image(painterResource(R.drawable.check_circle), null, Modifier.size(34.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
                 }
                 Text("신고가 접수됐어요", Modifier.padding(top = 20.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("검토 후 필요한 조치를 진행할게요.", Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 13.sp)
