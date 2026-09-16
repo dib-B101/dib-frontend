@@ -32,11 +32,13 @@ git switch develop
 ```properties
 DIB_API_BASE_URL=https://your-api-host
 DIB_WS_URL=wss://your-websocket-host
+DIB_TOSS_CLIENT_KEY=test_ck_your_toss_billing_client_key
 DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 ```
 
 - `DIB_API_BASE_URL`: REST API 호스트입니다. 앱이 `/api/v1/...` 경로를 붙여 요청하므로 경로 없이 호스트까지만 입력합니다.
 - `DIB_WS_URL`: 백엔드 WebSocket 명세에서 사용하는 접속 URL을 입력합니다.
+- `DIB_TOSS_CLIENT_KEY`: 백엔드 `TOSS_SECRET_KEY`와 짝이 맞는 토스페이먼츠 자동결제(빌링) 공개 클라이언트 키입니다. 카드 등록 화면에서만 사용하며 시크릿 키는 앱에 넣지 않습니다.
 - `DIB_SESSION_IDLE_TIMEOUT_MINUTES`: 사용자 입력이 없을 때 자동 로그아웃할 시간입니다. 생략하면 30분입니다.
 
 명령줄에서 일회성으로 실행할 때는 같은 값을 Gradle `-P` 옵션으로 전달할 수 있습니다.

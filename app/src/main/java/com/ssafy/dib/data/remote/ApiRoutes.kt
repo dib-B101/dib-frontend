@@ -20,6 +20,7 @@ object ApiRoutes {
     const val ORDERS = "/api/v1/orders"
     const val CARRIERS = "/api/v1/carriers"
     const val PAYMENTS = "/api/v1/payments"
+    const val PAYMENT_METHODS = "/api/v1/members/me/payment-methods"
     const val QUESTIONS = "/api/v1/questions"
     const val REPORTS = "/api/v1/reports"
     const val LIVE_BROADCASTS = "/api/v1/live-broadcasts"

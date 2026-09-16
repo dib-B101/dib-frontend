@@ -44,14 +44,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
-import com.ssafy.dib.core.ui.ExternalPaymentReturnEffect
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
 import com.ssafy.dib.domain.order.ShippingCarrier
-import com.ssafy.dib.domain.payment.PaymentPreparation
 import com.ssafy.dib.domain.payment.Payment
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
@@ -65,7 +63,6 @@ fun TransactionScreen(
     errorMessage: String?,
     confirmationLoading: Boolean,
     confirmationError: String?,
-    paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
     completedPayment: Payment?,
@@ -80,9 +77,8 @@ fun TransactionScreen(
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
-    onPreparePayment: (String) -> Unit,
-    onCheckPayment: () -> Unit,
-    onResetPayment: () -> Unit,
+    onRetryPayment: () -> Unit,
+    onManagePaymentMethod: () -> Unit,
     onRegisterShipment: (String, String) -> Unit,
     onShippingCarriersRetry: () -> Unit,
     onRefreshShipment: () -> Unit,
@@ -100,7 +96,6 @@ fun TransactionScreen(
             errorMessage = errorMessage,
             confirmationLoading = confirmationLoading,
             confirmationError = confirmationError,
-            paymentPreparation = paymentPreparation,
             paymentLoading = paymentLoading,
             paymentError = paymentError,
             completedPayment = completedPayment,
@@ -115,9 +110,8 @@ fun TransactionScreen(
             shippingCarriers = shippingCarriers,
             shippingCarriersLoading = shippingCarriersLoading,
             shippingCarriersError = shippingCarriersError,
-            onPreparePayment = onPreparePayment,
-            onCheckPayment = onCheckPayment,
-            onResetPayment = onResetPayment,
+            onRetryPayment = onRetryPayment,
+            onManagePaymentMethod = onManagePaymentMethod,
             onRegisterShipment = onRegisterShipment,
             onShippingCarriersRetry = onShippingCarriersRetry,
             onRefreshShipment = onRefreshShipment,
@@ -140,7 +134,6 @@ private fun RemoteTransactionScreen(
     errorMessage: String?,
     confirmationLoading: Boolean,
     confirmationError: String?,
-    paymentPreparation: PaymentPreparation?,
     paymentLoading: Boolean,
     paymentError: String?,
     completedPayment: Payment?,
@@ -155,9 +148,8 @@ private fun RemoteTransactionScreen(
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
-    onPreparePayment: (String) -> Unit,
-    onCheckPayment: () -> Unit,
-    onResetPayment: () -> Unit,
+    onRetryPayment: () -> Unit,
+    onManagePaymentMethod: () -> Unit,
     onRegisterShipment: (String, String) -> Unit,
     onShippingCarriersRetry: () -> Unit,
     onRefreshShipment: () -> Unit,
@@ -170,13 +162,7 @@ private fun RemoteTransactionScreen(
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     var selectedCarrier by rememberSaveable(order?.orderId) { mutableStateOf("") }
-    var paymentType by rememberSaveable(order?.orderId) { mutableStateOf("CARD") }
     val uriHandler = LocalUriHandler.current
-    ExternalPaymentReturnEffect(
-        requestKey = paymentPreparation?.orderId,
-        paymentUrl = paymentPreparation?.paymentUrl,
-        onReturn = onCheckPayment
-    )
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color(0xFFFAFBFC),
@@ -269,36 +255,29 @@ private fun RemoteTransactionScreen(
                         paymentError?.let { message ->
                             item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
                         }
-                        if (paymentPreparation == null) {
-                            item { PaymentTypeSelector(paymentType, { paymentType = it }) }
-                            item {
-                                Button(
-                                    onClick = { onPreparePayment(paymentType) },
-                                    enabled = !paymentLoading,
-                                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
-                                ) {
-                                    if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-                                    else Text("결제 진행하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                }
+                        item {
+                            Column(
+                                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
+                                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("자동결제를 완료하지 못했어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("등록한 카드 상태를 확인한 뒤 낙찰 금액 결제를 다시 요청해주세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                             }
-                        } else {
-                            item {
-                                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("결제 승인을 기다리고 있어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    Text("결제 금액 ${"%,d".format(paymentPreparation.amount)}원", color = Colors.Muted, fontSize = 12.sp)
-                                    Text(if (paymentPreparation.paymentUrl != null) "열린 결제 페이지에서 결제를 마쳐주세요." else "결제 페이지 주소가 없어 PG 설정 확인이 필요해요.", color = Colors.Muted, fontSize = 12.sp)
-                                }
-                            }
-                            item {
-                                Button(onClick = onCheckPayment, enabled = !paymentLoading, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
-                                    if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-                                    else Text("결제 상태 확인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            item { TextButton(onClick = onResetPayment, modifier = Modifier.fillMaxWidth()) { Text("결제수단 다시 선택", color = Colors.Navy) } }
                         }
+                        item {
+                            Button(
+                                onClick = onRetryPayment,
+                                enabled = !paymentLoading,
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                            ) {
+                                if (paymentLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                else Text("등록 카드로 재결제", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        item { TextButton(onClick = onManagePaymentMethod, modifier = Modifier.fillMaxWidth()) { Text("결제수단 관리", color = Colors.Navy) } }
                     }
                     if (role != "seller" && order.status.uppercase() in setOf("DELIEVERED", "DELIVERED")) {
                         item {
@@ -432,40 +411,12 @@ private fun orderPresentation(status: String, seller: Boolean): OrderPresentatio
 }
 
 @Composable
-private fun PaymentTypeSelector(selected: String, onSelect: (String) -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text("결제 방식", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("CARD" to "카드", "TRANSFER" to "계좌이체").forEach { (value, label) ->
-                OutlinedButton(
-                    onClick = { onSelect(value) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (selected == value) Color(0xFFE8FAF5) else Color.White,
-                        contentColor = Colors.Navy
-                    )
-                ) {
-                    Text(if (selected == value) "✓ $label" else label, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        Text("선택한 방식으로 TossPayments 결제 페이지를 열어요.", color = Colors.Muted, fontSize = 12.sp)
-    }
-}
-
-@Composable
 private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (role == "seller") {
         SellerTransactionScreen(onBack, modifier)
         return
     }
     var step by rememberSaveable { mutableStateOf(TransactionStep.PaymentRequired) }
-    var paymentType by rememberSaveable { mutableStateOf("CARD") }
-    var tossRetried by rememberSaveable { mutableStateOf(false) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     val amount = 58_000
     Scaffold(
@@ -487,29 +438,29 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
             when (step) {
                 TransactionStep.PaymentRequired -> {
                     item { StateHeader("재결제 필요", 1) }
-                    item { StatusHero("!", "자동 결제를 완료하지 못했어요", "결제 방식을 선택해 기한 내 다시 결제해주세요.", Color(0xFFFFEEE8)) }
+                    item { StatusHero("!", "자동 결제를 완료하지 못했어요", "등록한 카드를 확인한 뒤 기한 내 다시 결제해주세요.", Color(0xFFFFEEE8)) }
                     item { ProductSummary(amount) }
                     item {
                         InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "자동 결제" to "승인 실패"))
                     }
-                    item { PrimaryButton("결제 방식 선택·재결제") { step = TransactionStep.Paying } }
+                    item { PrimaryButton("등록 카드로 재결제") { step = TransactionStep.Paying } }
                 }
                 TransactionStep.Paying -> {
                     item { Text("낙찰을 축하해요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                     item { Text("결제가 완료되면 판매자와의 거래 채팅이 활성화돼요.", color = Colors.Muted, fontSize = 11.sp) }
                     item { ProductSummary(amount) }
-                    item { PaymentTypeSelector(paymentType, { paymentType = it }) }
-                    item { PrimaryButton("${"%,d".format(amount)}원 재결제하기") { step = if (paymentType == "TRANSFER" && !tossRetried) TransactionStep.PaymentFailed else TransactionStep.PaymentSuccess } }
+                    item { InfoCard(listOf("결제수단" to "등록 카드", "결제 금액" to "${"%,d".format(amount)}원")) }
+                    item { PrimaryButton("${"%,d".format(amount)}원 재결제하기") { step = TransactionStep.PaymentSuccess } }
                 }
                 TransactionStep.PaymentFailed -> {
                     item { StatusHero("!", "결제를 완료하지 못했어요", "결제 승인 중 문제가 발생했어요. 결제 수단을 확인한 뒤 다시 시도해주세요.", Color(0xFFFFE9E9)) }
                     item { InfoCard(listOf("실패 사유" to "카드 승인 실패", "결제 상태" to "결제되지 않음")) }
-                    item { PrimaryButton("다시 결제하기") { tossRetried = true; step = TransactionStep.Paying } }
-                    item { TextButton({ paymentType = "CARD"; step = TransactionStep.Paying }, Modifier.fillMaxWidth()) { Text("다른 결제 방식 선택", color = Colors.Navy) } }
+                    item { PrimaryButton("다시 결제하기") { step = TransactionStep.Paying } }
+                    item { TextButton({ step = TransactionStep.PaymentRequired }, Modifier.fillMaxWidth()) { Text("결제수단 관리", color = Colors.Navy) } }
                 }
                 TransactionStep.PaymentSuccess -> {
                     item { StatusHero("✓", "결제가 완료됐어요", "판매자와의 거래 채팅이 열렸어요. 배송·수령 방법을 협의해주세요.", Color(0xFFE8FAF5)) }
-                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to if (paymentType == "TRANSFER") "계좌이체" else "카드")) }
+                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to "등록 카드")) }
                     item { PrimaryButton("거래 시작") { step = TransactionStep.Preparing } }
                 }
                 TransactionStep.Preparing -> {
@@ -541,7 +492,7 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
                     item { StatusHero("✓", "거래가 완료됐어요", "상품 후기를 남기면 다른 사용자에게 도움이 돼요.", Color(0xFFE8FAF5)) }
                     item { ProductSummary(amount) }
                     item { ProgressCard(3) }
-                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to if (paymentType == "TRANSFER") "계좌이체" else "카드", "거래 상태" to "구매 확정"), "거래 정보") }
+                    item { InfoCard(listOf("결제 금액" to "58,000원", "결제 방식" to "등록 카드", "거래 상태" to "구매 확정"), "거래 정보") }
                     item { PrimaryButton("내 거래로 돌아가기", onBack) }
                 }
             }

@@ -232,7 +232,7 @@ fun NotificationSettingsScreen(
     }
 }
 
-@Composable private fun SettingsScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) {
+@Composable internal fun SettingsScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) {
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F9FB),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),

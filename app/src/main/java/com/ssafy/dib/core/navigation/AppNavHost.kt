@@ -65,6 +65,7 @@ import com.ssafy.dib.feature.main.MyPageScreen
 import com.ssafy.dib.feature.main.MyAuctionManagementScreen
 import com.ssafy.dib.feature.main.MyTradesScreen
 import com.ssafy.dib.feature.main.NotificationSettingsScreen
+import com.ssafy.dib.feature.main.PaymentMethodsScreen
 import com.ssafy.dib.feature.main.ProfileEditScreen
 import com.ssafy.dib.feature.main.ProductRegisterScreen
 import com.ssafy.dib.feature.main.ProductEditScreen
@@ -1964,7 +1965,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var orderDetailRevision by remember(orderId) { mutableStateOf(0) }
             var confirmationLoading by remember(orderId) { mutableStateOf(false) }
             var confirmationError by remember(orderId) { mutableStateOf<String?>(null) }
-            var paymentPreparation by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.PaymentPreparation?>(null) }
             var paymentLoading by remember(orderId) { mutableStateOf(false) }
             var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
             var completedPayment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.Payment?>(null) }
@@ -2072,7 +2072,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 errorMessage = orderDetailError,
                 confirmationLoading = confirmationLoading,
                 confirmationError = confirmationError,
-                paymentPreparation = paymentPreparation,
                 paymentLoading = paymentLoading,
                 paymentError = paymentError,
                 completedPayment = completedPayment,
@@ -2087,54 +2086,30 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 shippingCarriers = shippingCarriers,
                 shippingCarriersLoading = shippingCarriersLoading,
                 shippingCarriersError = shippingCarriersError,
-                onPreparePayment = { paymentType ->
-                    val command = "payment-prepare:$orderId:$paymentType"
-                    val idempotencyKey = commandKeys.keyFor(command)
+                onRetryPayment = {
                     paymentLoading = true
                     paymentError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.paymentRepository.prepare(orderId, paymentType, idempotencyKey)
+                            auth.paymentRepository.retryPayment(orderId)
                         }) {
                             is ApiResult.Success -> {
-                                commandKeys.complete(command)
-                                paymentPreparation = result.value
+                                completedPayment = result.value
+                                orderDetailRevision++
+                                ordersRevision++
                             }
                             is ApiResult.Failure -> {
-                                paymentError = result.error.message.ifBlank { "결제를 준비하지 못했어요." }
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                        paymentLoading = false
-                    }
-                },
-                onCheckPayment = {
-                    paymentLoading = true
-                    paymentError = null
-                    coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) }) {
-                            is ApiResult.Success -> {
-                                remoteOrder = result.value
-                                if (result.value.status.uppercase() != "PENDING") {
-                                    paymentPreparation = null
-                                    orderDetailRevision++
-                                    ordersRevision++
-                                } else {
-                                    paymentError = "아직 결제가 완료되지 않았어요. 결제 페이지에서 승인을 마친 뒤 다시 확인해주세요."
+                                paymentError = when (result.error.code) {
+                                    "PAYMENT_METHOD_NOT_FOUND" -> "등록된 결제 카드가 없어요. 결제수단을 먼저 등록해주세요."
+                                    else -> result.error.message.ifBlank { "재결제를 완료하지 못했어요." }
                                 }
-                            }
-                            is ApiResult.Failure -> {
-                                paymentError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
                                 if (result.error.requiresLogin) signedIn = false
                             }
                         }
                         paymentLoading = false
                     }
                 },
-                onResetPayment = {
-                    paymentPreparation = null
-                    paymentError = null
-                },
+                onManagePaymentMethod = { navController.navigate(Screen.PaymentMethods.route) },
                 onRegisterShipment = { carrier, trackingNumber ->
                     val command = "shipment:$orderId:$carrier:$trackingNumber"
                     val idempotencyKey = commandKeys.keyFor(command)
@@ -2392,6 +2367,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
                 onInquiriesClick = { navController.navigate(Screen.Inquiries.route) },
                 onAddressesClick = { navController.navigate(Screen.Addresses.route) },
+                onPaymentMethodsClick = { navController.navigate(Screen.PaymentMethods.route) },
                 onAccountsClick = { navController.navigate(Screen.SettlementAccounts.route) },
                 onSettlementsClick = { navController.navigate(Screen.Settlements.route) },
                 onNotificationSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
@@ -2402,6 +2378,89 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
                     navController.navigate(Screen.Welcome.route) { popUpTo(Screen.Home.route) { inclusive = true } }
                 }
+            )
+        }
+        composable(Screen.PaymentMethods.route) {
+            var paymentMethod by remember { mutableStateOf<com.ssafy.dib.domain.payment.PaymentMethod?>(null) }
+            var paymentMethodLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
+            var paymentMethodError by remember { mutableStateOf<String?>(null) }
+            var paymentMethodActionLoading by remember { mutableStateOf(false) }
+            var paymentMethodActionMessage by remember { mutableStateOf<String?>(null) }
+            var paymentMethodActionError by remember { mutableStateOf<String?>(null) }
+            var paymentMethodRevision by remember { mutableStateOf(0) }
+
+            LaunchedEffect(paymentMethodRevision, signedIn) {
+                if (signedIn != true || !auth.networkConfig.isRestConfigured) {
+                    paymentMethodLoading = false
+                    if (!auth.networkConfig.isRestConfigured) paymentMethodError = "개발 서버 주소가 설정되지 않았어요."
+                    return@LaunchedEffect
+                }
+                paymentMethodLoading = true
+                paymentMethodError = null
+                when (val result = withContext(Dispatchers.IO) { auth.paymentRepository.getPaymentMethod() }) {
+                    is ApiResult.Success -> paymentMethod = result.value
+                    is ApiResult.Failure -> {
+                        if (result.error.code == "PAYMENT_METHOD_NOT_FOUND" || result.error.status == 404) {
+                            paymentMethod = null
+                        } else {
+                            paymentMethodError = result.error.message.ifBlank { "결제수단을 불러오지 못했어요." }
+                        }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                paymentMethodLoading = false
+            }
+
+            PaymentMethodsScreen(
+                paymentMethod = paymentMethod,
+                isLoading = paymentMethodLoading,
+                errorMessage = paymentMethodError,
+                actionLoading = paymentMethodActionLoading,
+                actionMessage = paymentMethodActionMessage,
+                actionError = paymentMethodActionError,
+                tossClientKey = com.ssafy.dib.BuildConfig.TOSS_CLIENT_KEY,
+                customerKey = auth.paymentCustomerKey(),
+                onRetry = { paymentMethodRevision++ },
+                onRegister = { authKey, customerKey ->
+                    paymentMethodActionLoading = true
+                    paymentMethodActionMessage = null
+                    paymentMethodActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.paymentRepository.registerPaymentMethod(authKey, customerKey)
+                        }) {
+                            is ApiResult.Success -> {
+                                paymentMethod = result.value
+                                paymentMethodActionMessage = "자동결제 카드가 등록됐어요."
+                            }
+                            is ApiResult.Failure -> {
+                                paymentMethodActionError = result.error.message.ifBlank { "카드를 등록하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        paymentMethodActionLoading = false
+                    }
+                },
+                onDelete = {
+                    paymentMethodActionLoading = true
+                    paymentMethodActionMessage = null
+                    paymentMethodActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.paymentRepository.deletePaymentMethod() }) {
+                            is ApiResult.Success -> {
+                                paymentMethod = null
+                                paymentMethodActionMessage = "등록 카드가 삭제됐어요."
+                            }
+                            is ApiResult.Failure -> {
+                                paymentMethodActionError = result.error.message.ifBlank { "등록 카드를 삭제하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        paymentMethodActionLoading = false
+                    }
+                },
+                onBack = navController::navigateUp,
+                onTabSelected = ::navigateMain
             )
         }
         composable(Screen.MyAuctions.route) {

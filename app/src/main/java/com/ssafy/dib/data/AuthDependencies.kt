@@ -59,6 +59,7 @@ class AuthDependencies(context: Context) {
     private val sessionStore = SecureAuthSessionStore(appContext)
     private val deviceStore = DeviceIdentityStore(appContext)
     private val guestPreferences = appContext.getSharedPreferences("dib_guest", Context.MODE_PRIVATE)
+    private val paymentPreferences = appContext.getSharedPreferences("dib_payment", Context.MODE_PRIVATE)
 
     val networkConfig: NetworkConfig = NetworkConfig.fromBuildConfig()
     val deviceId: String = deviceStore.getOrCreate()
@@ -114,6 +115,15 @@ class AuthDependencies(context: Context) {
         guestPreferences.getString(KEY_GUEST_SESSION_ID, null)?.let { return it }
         return UUID.randomUUID().toString().also { generated ->
             guestPreferences.edit().putString(KEY_GUEST_SESSION_ID, generated).apply()
+        }
+    }
+
+    fun paymentCustomerKey(): String {
+        val memberId = sessionStore.read()?.memberId ?: return ""
+        val preferenceKey = "customer_key_$memberId"
+        paymentPreferences.getString(preferenceKey, null)?.let { return it }
+        return UUID.randomUUID().toString().also { generated ->
+            paymentPreferences.edit().putString(preferenceKey, generated).apply()
         }
     }
 

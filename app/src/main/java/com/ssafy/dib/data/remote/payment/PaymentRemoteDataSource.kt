@@ -5,17 +5,30 @@ import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class PaymentRemoteDataSource(private val client: DibHttpClient) {
-    fun prepare(orderId: String, paymentType: String, idempotencyKey: String): ApiResult<PaymentPreparationResponse> = configured {
-        val path = "${ApiRoutes.ORDERS}/$orderId/payments/prepare"
-        val request = PreparePaymentRequest(paymentType)
-        client.execute(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).post(client.jsonBody(request, PreparePaymentRequest.serializer())).build(), PaymentPreparationResponse.serializer())
+    fun getPaymentMethod(): ApiResult<PaymentMethodResponse> = configured {
+        client.execute(client.requestBuilder(ApiRoutes.PAYMENT_METHODS).get().build(), PaymentMethodResponse.serializer())
     }
 
-    fun confirm(orderId: String, request: ConfirmPaymentRequest, idempotencyKey: String): ApiResult<PaymentResponse> = configured {
-        val path = "${ApiRoutes.ORDERS}/$orderId/payments/confirm"
-        client.execute(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).post(client.jsonBody(request, ConfirmPaymentRequest.serializer())).build(), PaymentResponse.serializer())
+    fun registerPaymentMethod(authKey: String, customerKey: String): ApiResult<PaymentMethodResponse> = configured {
+        val request = RegisterPaymentMethodRequest(authKey, customerKey)
+        client.execute(
+            client.requestBuilder(ApiRoutes.PAYMENT_METHODS)
+                .post(client.jsonBody(request, RegisterPaymentMethodRequest.serializer()))
+                .build(),
+            PaymentMethodResponse.serializer()
+        )
+    }
+
+    fun deletePaymentMethod(): ApiResult<Unit> = configured {
+        client.executeUnit(client.requestBuilder(ApiRoutes.PAYMENT_METHODS).delete().build())
+    }
+
+    fun retryPayment(orderId: String): ApiResult<PaymentResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/payments/retry"
+        client.execute(client.requestBuilder(path).post("".toRequestBody(null)).build(), PaymentResponse.serializer())
     }
 
     fun getPayment(paymentId: String): ApiResult<PaymentResponse> = configured {
