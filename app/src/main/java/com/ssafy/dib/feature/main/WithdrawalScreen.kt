@@ -93,7 +93,7 @@ fun WithdrawalScreen(
                 }
                 WithdrawalState.Requested -> {
                     Spacer(Modifier.height(80.dp))
-                    Box(Modifier.size(88.dp).background(Color(0xFFE8FAF5), CircleShape), contentAlignment = Alignment.Center) { Text("✓", color = Color(0xFF27806E), fontSize = 42.sp, fontWeight = FontWeight.Bold) }
+                    Box(Modifier.size(88.dp).background(Color(0xFFE8FAF5), CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(48.dp), colorFilter = ColorFilter.tint(Color(0xFF27806E))) }
                     Text("탈퇴 신청이 접수됐어요", Modifier.padding(top = 28.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text("예정 시각까지 계정 삭제가 유예됩니다.", Modifier.padding(top = 12.dp), color = Colors.Muted, fontSize = 13.sp)
                     withdrawal?.let { result ->

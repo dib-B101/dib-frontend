@@ -32,6 +32,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.auction.RecommendedLive
 import java.time.Instant
@@ -441,20 +442,7 @@ private fun DeadlineSection(
                 DibWishlistButton(favorite, onFavorite, auction.name, Modifier.align(Alignment.TopEnd))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Surface(
-                    modifier = Modifier.height(24.dp),
-                    color = Colors.UrgentBackground,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        "${remainingTimeLabel(deadlineSeconds)} 남음",
-                        Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                        color = Colors.Urgent,
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                AuctionUrgencyBadge(deadlineSeconds, compact = true)
                 Text(auction.name, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
                 Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
                 Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
@@ -462,10 +450,10 @@ private fun DeadlineSection(
                     onClick = onProductClick,
                     modifier = Modifier.fillMaxWidth().height(30.dp),
                     shape = RoundedCornerShape(9.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (deadlineSeconds <= 15) Colors.Live else Colors.Navy),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("바로 입찰하기", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (deadlineSeconds <= 15) "지금 입찰" else "바로 입찰하기", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -168,7 +168,11 @@ fun BidDepositPaymentScreen(
                             .clickable { selectedPaymentMethodCode = method.code; showMethodSheet = false }.padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (selectedPaymentMethodCode == method.code) "●" else "○", color = Colors.Navy, fontSize = 18.sp)
+                        RadioButton(
+                            selected = selectedPaymentMethodCode == method.code,
+                            onClick = { selectedPaymentMethodCode = method.code; showMethodSheet = false },
+                            colors = RadioButtonDefaults.colors(selectedColor = Colors.Navy)
+                        )
                         Column(Modifier.padding(start = 14.dp)) {
                             Text(method.label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text(method.description, color = Colors.Muted, fontSize = 11.sp)

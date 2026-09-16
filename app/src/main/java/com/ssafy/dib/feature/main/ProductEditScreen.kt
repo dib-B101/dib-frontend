@@ -67,7 +67,7 @@ fun ProductEditScreen(
     if (result != null) {
         Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Box(Modifier.size(72.dp).background(Colors.MintSoft, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) { Text("✓", color = Colors.MintInk, fontSize = 36.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(72.dp).background(Colors.MintSoft, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(40.dp), colorFilter = ColorFilter.tint(Colors.MintInk)) }
                 Text("상품 수정을 완료했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("변경된 상품은 다시 AI 검수를 진행해요.", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
                 Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }

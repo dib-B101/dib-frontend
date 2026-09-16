@@ -56,6 +56,7 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -351,13 +352,13 @@ private fun LiveFeedPage(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Colors.Live, shape = RoundedCornerShape(14.dp)) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("●", Modifier.graphicsLayer(alpha = liveDotAlpha), color = Color.White, fontSize = 9.sp)
+                        Box(Modifier.size(8.dp).graphicsLayer(alpha = liveDotAlpha).background(Color.White, CircleShape))
                         Text("LIVE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Text("시청 ${"%,d".format(liveItem?.viewCount ?: 1_248)}", Modifier.padding(start = 10.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Text("×", Modifier.size(44.dp).clickable(onClick = onClose).wrapContentSize(), color = Color.White, fontSize = 27.sp)
+                Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
@@ -467,20 +468,7 @@ private fun LiveFeedPage(
                                 fontSize = if (hasActiveAuction) 15.sp else 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            if (hasActiveAuction) {
-                                Surface(
-                                    color = if (remaining <= 15) Colors.Live.copy(alpha = .12f) else Colors.UrgentBackground,
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        "${formatClock(remaining)} 남음",
-                                        Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                        color = if (remaining <= 15) Colors.Live else Colors.Urgent,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                            if (hasActiveAuction) AuctionUrgencyBadge(remaining, compact = true)
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
@@ -497,6 +485,7 @@ private fun LiveFeedPage(
                                     !hasActiveAuction -> "대기 중"
                                     !realtimeBiddingEnabled -> "연결 필요"
                                     paidBidAmount > 0 -> "접속 중"
+                                    remaining <= 15 -> "지금\n입찰"
                                     else -> "입찰"
                                 },
                                 fontSize = 13.sp,
@@ -510,7 +499,9 @@ private fun LiveFeedPage(
             if (isAuthenticated && chatConnectionState != RealtimeConnectionState.Connected) Text(chatError ?: "Live 채팅 연결 중", color = Color.White.copy(.75f), fontSize = 9.sp)
             Row(Modifier.fillMaxWidth().height(46.dp).background(Color.Black.copy(.48f), RoundedCornerShape(23.dp)).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(value = comment, onValueChange = { comment = it.take(500) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
-                Text("↑", Modifier.size(34.dp).background(if (comment.isNotBlank()) Colors.Mint else Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank() && onSendComment(comment)) comment = "" }.wrapContentSize(), color = Colors.Navy, fontWeight = FontWeight.Bold)
+                Box(Modifier.size(34.dp).background(if (comment.isNotBlank()) Colors.Mint else Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank() && onSendComment(comment)) comment = "" }, contentAlignment = Alignment.Center) {
+                    Image(painterResource(R.drawable.send), "댓글 전송", Modifier.size(17.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                }
             }
         }
         AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center), enter = fadeIn() + scaleIn(initialScale = .7f), exit = fadeOut() + scaleOut(targetScale = .82f)) {
