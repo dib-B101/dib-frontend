@@ -26,13 +26,14 @@ private val LightColorScheme = lightColorScheme(
     primary = WireframeColors.Navy,
     secondary = WireframeColors.MintInk,
     tertiary = WireframeColors.Urgent,
-    background = WireframeColors.Background,
+    background = WireframeColors.Canvas,
     surface = WireframeColors.Background,
     surfaceVariant = WireframeColors.Surface,
     onPrimary = WireframeColors.Background,
     onBackground = WireframeColors.Text,
     onSurface = WireframeColors.Text,
-    outline = WireframeColors.Border
+    outline = WireframeColors.Border,
+    error = WireframeColors.Live
 
     /* Other default colors to override
     onPrimary = Color.White,

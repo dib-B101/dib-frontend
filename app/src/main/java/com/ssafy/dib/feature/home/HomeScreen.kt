@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.home
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -95,7 +96,7 @@ fun HomeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -112,8 +113,8 @@ fun HomeScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item { SearchField(onSearchClick) }
 
@@ -165,20 +166,20 @@ fun HomeScreen(
 
 @Composable
 private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit, onClosing: () -> Unit, onCategory: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.weight(1f).fillMaxHeight().background(Color(0xFFF6F7F9), RoundedCornerShape(20.dp)).padding(4.dp)) {
+    Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.weight(1f).fillMaxHeight().background(Colors.Surface, RoundedCornerShape(14.dp)).padding(4.dp)) {
             listOf("일반" to false, "마감임박" to true).forEach { (label, value) ->
                 val selected = selectedClosing == value
                 Surface(
                     onClick = if(value) onClosing else onGeneral,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     color = if(selected) Color.White else Color.Transparent,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(11.dp),
                     shadowElevation = if(selected) 2.dp else 0.dp
                 ) { Box(contentAlignment = Alignment.Center) { Text(label, color = if(selected) Colors.Navy else Colors.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold) } }
             }
         }
-        OutlinedButton(onClick = onCategory, Modifier.width(64.dp).fillMaxHeight(), shape = RoundedCornerShape(20.dp), contentPadding = PaddingValues(0.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border)) { Text("카테고리", color = Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        OutlinedButton(onClick = onCategory, Modifier.width(76.dp).fillMaxHeight(), shape = RoundedCornerShape(14.dp), contentPadding = PaddingValues(0.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border), colors = ButtonDefaults.outlinedButtonColors(containerColor = Colors.Background)) { Text("카테고리", color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -200,10 +201,24 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
         )
         if (cards.isEmpty()) {
             Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
-        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             cards.forEach { card ->
-                Column(Modifier.weight(1f).height(176.dp).clickable(onClick = onLiveClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Box(Modifier.fillMaxWidth().height(100.dp).background(Colors.Image, RoundedCornerShape(10.dp))) {
+                Surface(
+                    onClick = onLiveClick,
+                    modifier = Modifier.weight(1f).height(188.dp),
+                    color = Colors.Background,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Colors.Border),
+                    shadowElevation = 1.dp
+                ) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.fillMaxWidth().height(96.dp).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft, RoundedCornerShape(12.dp))) {
+                        Image(
+                            painterResource(R.drawable.live_video),
+                            null,
+                            Modifier.align(Alignment.Center).size(38.dp),
+                            colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
+                        )
                         Surface(Modifier.padding(8.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
                             Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
@@ -211,9 +226,10 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                             }
                         }
                     }
-                    Text(card.title, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(card.description, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(card.footer, color = Colors.Muted, fontSize = 9.sp)
+                    Text(card.title, color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text(card.description, maxLines = 1, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(card.footer, color = Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -237,11 +253,11 @@ internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.syste
 @Composable
 private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(52.dp).background(Colors.Background).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().height(60.dp).background(Colors.Background).padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(42.dp, 27.dp))
+        Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(48.dp, 31.dp))
         Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
             Image(
                 painterResource(R.drawable.notification),
@@ -265,15 +281,15 @@ private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () ->
 @Composable
 private fun SearchField(onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(44.dp)
-            .background(Colors.Search, RoundedCornerShape(12.dp))
-            .border(1.dp, Colors.SearchBorder, RoundedCornerShape(12.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxWidth().height(50.dp)
+            .background(Colors.Search, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Image(painterResource(R.drawable.search_full), null, Modifier.size(19.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
-        Text("상품을 검색해보세요", color = Colors.Muted, fontSize = 13.sp)
+        Text("어떤 상품을 찾고 있나요?", color = Colors.Muted, fontSize = 14.sp)
     }
 }
 
@@ -305,7 +321,7 @@ private fun AuctionGridSection(
     onFavorite: (String, Boolean) -> Unit,
     onProductClick: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             DibViewModeToggle(viewMode, onViewModeChange)
@@ -347,9 +363,9 @@ private fun AuctionListCard(
     onClick: () -> Unit
 ) {
     Row(
-        Modifier.fillMaxWidth().height(112.dp)
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().height(116.dp)
+            .background(Color.White, RoundedCornerShape(16.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick).padding(10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -373,10 +389,18 @@ private fun AuctionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        color = Colors.Background,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Colors.Border),
+        shadowElevation = 1.dp
+    ) {
+    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             Modifier.fillMaxWidth().height(imageHeight.dp)
-                .background(Colors.Image, RoundedCornerShape(10.dp))
+                .background(Colors.Image, RoundedCornerShape(12.dp))
         ) {
             ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
             DibWishlistButton(
@@ -387,10 +411,11 @@ private fun AuctionCard(
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(auction.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
-            Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
-            Text(auction.meta, color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
+            Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            Text(auction.meta, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
+    }
     }
 }
 
@@ -406,7 +431,8 @@ private fun DeadlineSection(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeader("마감 임박", "피드 보기", onFeedClick)
         Row(
-            Modifier.fillMaxWidth().height(146.dp).background(Colors.Surface, RoundedCornerShape(14.dp))
+            Modifier.fillMaxWidth().height(154.dp).background(Colors.Background, RoundedCornerShape(18.dp))
+                .border(1.dp, Colors.Border, RoundedCornerShape(18.dp))
                 .clickable(onClick = onProductClick).padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -421,7 +447,7 @@ private fun DeadlineSection(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        "♧ ${remainingTimeLabel(deadlineSeconds)} 남음",
+                        "${remainingTimeLabel(deadlineSeconds)} 남음",
                         Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                         color = Colors.Urgent,
                         fontSize = 10.sp,
