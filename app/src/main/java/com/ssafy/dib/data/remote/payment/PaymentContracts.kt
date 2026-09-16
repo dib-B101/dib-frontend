@@ -3,14 +3,15 @@ package com.ssafy.dib.data.remote.payment
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-@Serializable data class PreparePaymentRequest(val paymentType: String)
-@Serializable data class ConfirmPaymentRequest(val paymentKey: String, val amount: Long, val type: String)
+@Serializable data class RegisterPaymentMethodRequest(val authKey: String, val customerKey: String)
 
 @Serializable
-data class PaymentPreparationResponse(
-    val orderId: JsonElement,
-    val amount: Long,
-    val paymentRequest: JsonElement? = null
+data class PaymentMethodResponse(
+    val paymentMethodId: JsonElement,
+    val type: String,
+    val cardCompany: String? = null,
+    val cardNumber: String? = null,
+    val createdAt: String? = null
 )
 
 @Serializable
