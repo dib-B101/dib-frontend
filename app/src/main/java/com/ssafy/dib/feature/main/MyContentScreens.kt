@@ -33,6 +33,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -313,12 +315,12 @@ fun InquiryHistoryScreen(
     var formOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(submissionRevision) { if (submissionRevision > 0) formOpen = false }
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("문의 답변은 등록한 이메일로도 알려드려요", color = Colors.Muted, fontSize = 12.sp) }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item { Text("문의 답변은 등록한 이메일로도 알려드려요",Modifier.fillMaxWidth().background(Colors.NavySoft,RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
             if (isLoading) item { Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
             else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }
-            else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(104.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Color(0xFF61D1B2) else Color(0xFFF26B47), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
+            else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(108.dp).background(Colors.Background, RoundedCornerShape(16.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Colors.MintInk else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "inquiry-load-more") {
                 LaunchedEffect(inquiries.size, hasNext, isLoadingMore, loadMoreError) {
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
@@ -413,27 +415,25 @@ fun ReportHistoryScreen(
 private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modifier) {
     LazyColumn(
         modifier,
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             Column(
-                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(Modifier.fillMaxWidth()) {
                     Text(reportTypeLabel(report.type), Modifier.weight(1f), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text(reportStatusLabel(report.status), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                Text(report.targetLabel, color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(report.targetLabel, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(reportContentDetail(report.content), color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
         item {
             Column(
-                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("처리 상태", color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -493,10 +493,10 @@ private fun reportContentDetail(content: String): String = content
     .replace("[거래 채팅 메시지] ", "거래 메시지 · ")
     .replace("[상세 내용] ", "상세 내용 · ")
 
-@Composable private fun HistoryCard(type: String, target: String, reason: String, status: String, onClick: () -> Unit) { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Color(0xFF41AA8E), fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }
+@Composable private fun HistoryCard(type: String, target: String, reason: String, status: String, onClick: () -> Unit) { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Colors.MintInk, fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }
 
 @Composable private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) { Text(label, Modifier.height(32.dp).background(if (selected) Colors.Navy else Color.White, RoundedCornerShape(16.dp)).border(1.dp, if (selected) Colors.Navy else Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 7.dp), color = if (selected) Color.White else Colors.Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
 
-@Composable private fun MyListScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F9FB), contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }, content = content) }
-@Composable private fun SimpleHeaderScaffold(title: String, onBack: () -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F9FB), contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, content = content) }
-@Composable private fun Header(title: String, onBack: () -> Unit) { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.height(48.dp).clickable(onClick = onBack).padding(14.dp, 8.dp), fontSize = 22.sp); Text(title, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold) } }
+@Composable private fun MyListScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }, content = content) }
+@Composable private fun SimpleHeaderScaffold(title: String, onBack: () -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, content = content) }
+@Composable private fun Header(title: String, onBack: () -> Unit) { Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title, color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border)} }
