@@ -69,7 +69,7 @@ fun ProductEditScreen(
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Box(Modifier.size(72.dp).background(Colors.MintSoft, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(40.dp), colorFilter = ColorFilter.tint(Colors.MintInk)) }
                 Text("상품 수정을 완료했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("변경된 상품은 다시 AI 검수를 진행해요.", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+                Text("수정한 상품은 다시 검수 대기 상태로 전환돼요.", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
                 Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }
             }
         }
@@ -176,7 +176,7 @@ private fun ProductEditForm(
         item { EditField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
         item { EditField("시세 (선택)", marketPrice, { marketPrice = it.filter(Char::isDigit).take(10) }, KeyboardType.Number) }
         submitError?.let { item { Text(it, color = Colors.Urgent, fontSize = 12.sp) } }
-        item { Button({ onSubmit(ProductUpdate(title.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull()), replacementUris.indices.map { ProductImageSelection(replacementUris[it], replacementTypes[it]) }.takeIf { it.isNotEmpty() }) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && replacementTypes.size == replacementUris.size && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정하고 다시 검수 요청", fontWeight = FontWeight.Bold) } }
+        item { Button({ onSubmit(ProductUpdate(title.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull()), replacementUris.indices.map { ProductImageSelection(replacementUris[it], replacementTypes[it]) }.takeIf { it.isNotEmpty() }) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && replacementTypes.size == replacementUris.size && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정 내용 등록", fontWeight = FontWeight.Bold) } }
     }
     if (showCategories) AlertDialog(onDismissRequest = { showCategories = false }, title = { Text("카테고리 선택") }, text = { LazyColumn { items(categories) { category -> Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp)) } } }, confirmButton = { TextButton({ showCategories = false }) { Text("닫기") } })
 }
