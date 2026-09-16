@@ -520,7 +520,12 @@ fun ProductRegisterScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("+", color = if (photoError) Colors.Urgent else Colors.Navy, fontSize = 26.sp)
+                                Image(
+                                    painterResource(R.drawable.add),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(26.dp),
+                                    colorFilter = ColorFilter.tint(if (photoError) Colors.Urgent else Colors.Navy)
+                                )
                                 Text(
                                     when {
                                         photoError -> "사진을 1장 이상 등록해주세요"

@@ -194,7 +194,10 @@ fun SettlementAccountsScreen(
                     OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.weight(1f), label = { Text("인증번호") }, singleLine = true)
                     TextButton({ onConfirmVerification(code) }, enabled = code.length >= 4 && !actionLoading) { Text("확인") }
                 }
-                if (verificationConfirmed) Text("✓ 휴대전화 본인 인증 완료", color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (verificationConfirmed) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Image(painterResource(R.drawable.check_circle), null, Modifier.size(17.dp), colorFilter = ColorFilter.tint(Color(0xFF27806E)))
+                    Text("휴대전화 본인 인증 완료", color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
                 actionError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
             } },
             confirmButton = { TextButton({ onSave(bank.trim(), number, holder.trim()) }, enabled = verificationConfirmed && bank.isNotBlank() && number.length >= 8 && holder.isNotBlank() && !actionLoading) { if (actionLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -95,7 +96,7 @@ private fun ProductOverviewContent(
     val pagerState = rememberPagerState(pageCount = { pageCount })
     LazyColumn(modifier.fillMaxSize()) {
         item {
-            Box(Modifier.fillMaxWidth().height(360.dp).background(Colors.Surface), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).background(Colors.Surface), contentAlignment = Alignment.Center) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                     DibNetworkImage(
                         images.getOrNull(page),
