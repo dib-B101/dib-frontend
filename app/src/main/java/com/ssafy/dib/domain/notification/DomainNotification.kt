@@ -7,8 +7,12 @@ data class DomainNotification(
     val resourceId: String,
     val title: String,
     val body: String,
-    val occurredAt: String
+    val occurredAt: String,
+    val isRead: Boolean = false
 ) {
+    val isRunnerUpOffer: Boolean
+        get() = type.equals("AUCTION_WON", ignoreCase = true) && title == "차순위 낙찰 안내"
+
     val category: NotificationCategory
         get() {
             val key = "$type $resourceType".uppercase()
@@ -20,6 +24,12 @@ data class DomainNotification(
             }
         }
 }
+
+data class NotificationPage(
+    val items: List<DomainNotification>,
+    val nextCursor: String?,
+    val hasNext: Boolean
+)
 
 enum class NotificationCategory(val label: String) {
     Live("라이브"),

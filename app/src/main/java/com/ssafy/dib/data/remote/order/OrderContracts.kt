@@ -71,6 +71,12 @@ data class OrderConfirmationResponse(
 )
 
 @Serializable
+data class OrderOfferAcceptanceResponse(
+    val order: OrderSummaryDto,
+    val paymentResult: String
+)
+
+@Serializable
 data class ShipmentRegistrationRequest(val carrier: String, val trackingNumber: String)
 
 @Serializable

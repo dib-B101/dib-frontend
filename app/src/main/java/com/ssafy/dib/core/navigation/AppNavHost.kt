@@ -153,6 +153,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
     var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
     var unreadNotificationCount by remember { mutableStateOf(0) }
+    var notificationsLoading by remember { mutableStateOf(false) }
+    var notificationsError by remember { mutableStateOf<String?>(null) }
+    var notificationsCursor by remember { mutableStateOf<String?>(null) }
+    var notificationsHasNext by remember { mutableStateOf(false) }
+    var notificationsLoadingMore by remember { mutableStateOf(false) }
+    var notificationsLoadMoreError by remember { mutableStateOf<String?>(null) }
+    var notificationActionId by remember { mutableStateOf<String?>(null) }
+    var notificationActionError by remember { mutableStateOf<String?>(null) }
+    var notificationsRevision by remember { mutableStateOf(0) }
     var tradeNotificationsEnabled by remember {
         mutableStateOf(notificationPreferences.getBoolean("trade_enabled", true))
     }
@@ -197,6 +206,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             "LIVE", "LIVE_BROADCAST", "AUCTION", "ORDER", "PAYMENT", "SHIPMENT",
             "DELIVERY", "SETTLEMENT", "TRANSACTION", "PRODUCT"
         )
+
+    fun mergeNotifications(first: List<DomainNotification>, second: List<DomainNotification>): List<DomainNotification> =
+        (first + second).distinctBy(DomainNotification::eventId).sortedByDescending(DomainNotification::occurredAt).take(100)
 
     fun openNotification(notification: DomainNotification) {
         when (notification.resourceType.uppercase()) {
@@ -287,6 +299,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             memberProfile = null
             domainNotifications = emptyList()
             unreadNotificationCount = 0
+            notificationsCursor = null
+            notificationsHasNext = false
+            notificationsError = null
+            notificationsLoadMoreError = null
+            notificationActionError = null
             purchaseOrders = null
             saleOrders = null
             purchaseOrdersCursor = null
@@ -337,8 +354,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     onNotification = { notification ->
                         coroutineScope.launch {
                             if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
-                                domainNotifications = (listOf(notification) + domainNotifications).take(100)
-                                unreadNotificationCount = (unreadNotificationCount + 1).coerceAtMost(100)
+                                domainNotifications = mergeNotifications(listOf(notification), domainNotifications)
+                                unreadNotificationCount = domainNotifications.count { !it.isRead }
                                 val result = notificationSnackbar.showSnackbar(
                                     message = listOf(notification.title, notification.body)
                                         .filter(String::isNotBlank)
@@ -363,6 +380,26 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             connection?.close()
             notificationConnectionState = null
         }
+    }
+
+    LaunchedEffect(notificationsRevision, signedIn) {
+        if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        notificationsLoading = true
+        notificationsError = null
+        notificationsLoadMoreError = null
+        when (val result = withContext(Dispatchers.IO) { auth.notificationRepository.getNotifications() }) {
+            is ApiResult.Success -> {
+                domainNotifications = mergeNotifications(result.value.items, domainNotifications)
+                notificationsCursor = result.value.nextCursor
+                notificationsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
+                unreadNotificationCount = domainNotifications.count { !it.isRead }
+            }
+            is ApiResult.Failure -> {
+                notificationsError = result.error.message.ifBlank { "알림을 불러오지 못했어요." }
+                if (result.error.requiresLogin) signedIn = false
+            }
+        }
+        notificationsLoading = false
     }
 
     LaunchedEffect(auctionsRevision, signedIn) {
@@ -1014,12 +1051,105 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.Notifications.route) {
-            LaunchedEffect(Unit) { unreadNotificationCount = 0 }
             NotificationCenterScreen(
                 notifications = domainNotifications,
                 connectionState = notificationConnectionState,
+                isLoading = notificationsLoading,
+                errorMessage = notificationsError,
+                hasNext = notificationsHasNext,
+                isLoadingMore = notificationsLoadingMore,
+                loadMoreError = notificationsLoadMoreError,
+                actionNotificationId = notificationActionId,
+                actionError = notificationActionError,
                 isNotificationActionable = ::canOpenNotification,
                 onNotificationClick = ::openNotification,
+                onMarkRead = { notification ->
+                    if (!notification.isRead) {
+                        domainNotifications = domainNotifications.map { item ->
+                            if (item.eventId == notification.eventId) item.copy(isRead = true) else item
+                        }
+                        unreadNotificationCount = domainNotifications.count { !it.isRead }
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) { auth.notificationRepository.markRead(notification.eventId) }) {
+                                is ApiResult.Success -> Unit
+                                is ApiResult.Failure -> {
+                                    notificationActionError = result.error.message.ifBlank { "알림을 읽음 처리하지 못했어요." }
+                                    notificationsRevision++
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                        }
+                    }
+                },
+                onMarkAllRead = {
+                    notificationActionId = "read-all"
+                    notificationActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.notificationRepository.markAllRead() }) {
+                            is ApiResult.Success -> {
+                                domainNotifications = domainNotifications.map { it.copy(isRead = true) }
+                                unreadNotificationCount = 0
+                            }
+                            is ApiResult.Failure -> {
+                                notificationActionError = result.error.message.ifBlank { "알림을 모두 읽음 처리하지 못했어요." }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        notificationActionId = null
+                    }
+                },
+                onAcceptOffer = { notification ->
+                    notificationActionId = notification.eventId
+                    notificationActionError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.orderRepository.acceptRunnerUpOffer(notification.resourceId)
+                        }) {
+                            is ApiResult.Success -> {
+                                ordersRevision++
+                                val paymentFailed = result.value.paymentResult != "PAID"
+                                if (paymentFailed) {
+                                    notificationSnackbar.showSnackbar("구매 제안을 수락했지만 자동결제에 실패했어요. 거래 상세에서 다시 결제해주세요.")
+                                }
+                                navController.navigate(Screen.Transaction.createRoute("buyer", result.value.order.orderId))
+                            }
+                            is ApiResult.Failure -> {
+                                notificationActionError = when (result.error.code) {
+                                    "OFFER_EXPIRED" -> "구매 제안의 24시간 응답 기한이 지났어요."
+                                    "FORBIDDEN" -> "현재 수락할 수 있는 구매 제안이 아니에요."
+                                    else -> result.error.message.ifBlank { "구매 제안을 수락하지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        notificationActionId = null
+                    }
+                },
+                onRetry = { notificationsRevision++ },
+                onLoadMore = {
+                    val cursor = notificationsCursor
+                    if (cursor != null && notificationsHasNext && !notificationsLoadingMore) {
+                        notificationsLoadingMore = true
+                        notificationsLoadMoreError = null
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) {
+                                auth.notificationRepository.getNotifications(cursor)
+                            }) {
+                                is ApiResult.Success -> {
+                                    domainNotifications = mergeNotifications(domainNotifications, result.value.items)
+                                    notificationsCursor = result.value.nextCursor
+                                    notificationsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank() && result.value.nextCursor != cursor
+                                    unreadNotificationCount = domainNotifications.count { !it.isRead }
+                                }
+                                is ApiResult.Failure -> {
+                                    notificationsLoadMoreError = result.error.message.ifBlank { "다음 알림을 불러오지 못했어요." }
+                                    if (result.error.requiresLogin) signedIn = false
+                                }
+                            }
+                            notificationsLoadingMore = false
+                        }
+                    }
+                },
                 onSettingsClick = { navController.navigate(Screen.NotificationSettings.route) },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain

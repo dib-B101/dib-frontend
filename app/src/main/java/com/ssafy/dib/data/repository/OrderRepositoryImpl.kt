@@ -11,6 +11,7 @@ import com.ssafy.dib.domain.order.OrderMessagePage
 import com.ssafy.dib.domain.order.OrderPage
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
+import com.ssafy.dib.domain.order.OrderOfferAcceptance
 import com.ssafy.dib.domain.order.ShippingCarrier
 import com.ssafy.dib.domain.order.isOrderChatWritable
 import kotlinx.serialization.json.JsonPrimitive
@@ -87,6 +88,15 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
     override fun confirmPurchase(orderId: String): ApiResult<String> =
         when (val result = remote.confirmPurchase(orderId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptance> =
+        when (val result = remote.acceptRunnerUpOffer(auctionId)) {
+            is ApiResult.Success -> ApiResult.Success(
+                OrderOfferAcceptance(result.value.order.toDomain(), result.value.paymentResult),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 }
