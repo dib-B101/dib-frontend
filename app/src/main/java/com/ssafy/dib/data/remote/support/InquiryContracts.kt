@@ -6,7 +6,8 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 data class InquiryListResponse(
     val items: List<InquirySummaryDto> = emptyList(),
-    val nextCursor: String? = null
+    val nextCursor: String? = null,
+    val hasNext: Boolean = false
 )
 
 @Serializable

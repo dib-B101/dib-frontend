@@ -13,7 +13,7 @@ class InquiryContractTest {
     fun mapsInquiryListAndAnswerState() {
         val response = DibJson.instance.decodeFromString(
             InquiryListResponse.serializer(),
-            """{"items":[{"questionId":7,"title":"배송 문의","createdAt":"2026-09-11T01:00:00Z","answeredAt":null}],"nextCursor":"question-7"}"""
+            """{"items":[{"questionId":7,"title":"배송 문의","createdAt":"2026-09-11T01:00:00Z","answeredAt":null}],"nextCursor":"question-7","hasNext":true}"""
         )
 
         val inquiry = response.items.single().toDomain()
@@ -22,6 +22,7 @@ class InquiryContractTest {
         assertEquals("배송 문의", inquiry.title)
         assertNull(inquiry.answeredAt)
         assertEquals("question-7", response.nextCursor)
+        assertEquals(true, response.hasNext)
     }
 
     @Test

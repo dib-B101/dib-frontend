@@ -13,7 +13,11 @@ class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportR
     override fun getMyReports(cursor: String?, size: Int): ApiResult<ReportPage> =
         when (val result = remote.getMyReports(cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
-                ReportPage(result.value.items.map(ReportDto::toDomain), result.value.nextCursor),
+                ReportPage(
+                    result.value.items.map(ReportDto::toDomain),
+                    result.value.nextCursor,
+                    result.value.hasNext || !result.value.nextCursor.isNullOrBlank()
+                ),
                 result.status
             )
             is ApiResult.Failure -> result
@@ -48,6 +52,12 @@ internal fun ReportDto.toDomain() = ReportSummary(
         targetMemberId != null -> "회원 ${targetMemberId.idValue()}"
         orderId != null -> "주문 ${orderId.idValue()}"
         chattingId != null -> "채팅 ${chattingId.idValue()}"
+        reportTargetId != null -> when (type.uppercase()) {
+            "MEMBER" -> "회원 ${reportTargetId.idValue()}"
+            "AUCTION" -> "경매 ${reportTargetId.idValue()}"
+            "ORDER", "CHATTING" -> "주문 ${reportTargetId.idValue()}"
+            else -> "신고 대상 ${reportTargetId.idValue()}"
+        }
         else -> "신고 대상"
     },
     createdAt = createdAt

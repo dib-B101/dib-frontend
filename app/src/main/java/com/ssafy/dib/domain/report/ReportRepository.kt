@@ -11,7 +11,7 @@ data class ReportSummary(
     val createdAt: String?
 )
 
-data class ReportPage(val items: List<ReportSummary>, val nextCursor: String?)
+data class ReportPage(val items: List<ReportSummary>, val nextCursor: String?, val hasNext: Boolean)
 
 interface ReportRepository {
     fun getMyReports(cursor: String? = null, size: Int = 30): ApiResult<ReportPage>
