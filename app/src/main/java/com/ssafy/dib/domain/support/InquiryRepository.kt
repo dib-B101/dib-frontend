@@ -18,7 +18,7 @@ data class InquiryDetail(
     val answeredAt: String?
 )
 
-data class InquiryPage(val items: List<InquirySummary>, val nextCursor: String?)
+data class InquiryPage(val items: List<InquirySummary>, val nextCursor: String?, val hasNext: Boolean)
 
 interface InquiryRepository {
     fun getInquiries(cursor: String? = null, size: Int = 30): ApiResult<InquiryPage>

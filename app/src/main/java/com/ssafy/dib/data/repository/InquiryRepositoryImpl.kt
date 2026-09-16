@@ -16,7 +16,11 @@ class InquiryRepositoryImpl(private val remote: InquiryRemoteDataSource) : Inqui
     override fun getInquiries(cursor: String?, size: Int): ApiResult<InquiryPage> =
         when (val result = remote.getInquiries(cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
-                InquiryPage(result.value.items.map(InquirySummaryDto::toDomain), result.value.nextCursor),
+                InquiryPage(
+                    result.value.items.map(InquirySummaryDto::toDomain),
+                    result.value.nextCursor,
+                    result.value.hasNext || !result.value.nextCursor.isNullOrBlank()
+                ),
                 result.status
             )
             is ApiResult.Failure -> result

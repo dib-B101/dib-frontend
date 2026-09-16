@@ -3587,6 +3587,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var inquiriesError by remember { mutableStateOf<String?>(null) }
             var inquiriesRevision by remember { mutableStateOf(0) }
             var inquiriesCursor by remember { mutableStateOf<String?>(null) }
+            var inquiriesHasNext by remember { mutableStateOf(false) }
             var inquiriesLoadingMore by remember { mutableStateOf(false) }
             var inquiriesLoadMoreError by remember { mutableStateOf<String?>(null) }
             var selectedInquiry by remember { mutableStateOf<InquiryDetail?>(null) }
@@ -3605,6 +3606,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Success -> {
                         inquiries = result.value.items
                         inquiriesCursor = result.value.nextCursor
+                        inquiriesHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                     }
                     is ApiResult.Failure -> {
                         inquiriesError = result.error.message.ifBlank { "문의 내역을 불러오지 못했어요." }
@@ -3621,7 +3623,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 showSampleContent = !auth.networkConfig.isRestConfigured,
                 isLoading = inquiriesLoading,
                 errorMessage = inquiriesError,
-                hasNext = !inquiriesCursor.isNullOrBlank(),
+                hasNext = inquiriesHasNext,
                 isLoadingMore = inquiriesLoadingMore,
                 loadMoreError = inquiriesLoadMoreError,
                 selectedInquiry = selectedInquiry,
@@ -3643,8 +3645,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 is ApiResult.Success -> {
                                     inquiries = (inquiries.orEmpty() + result.value.items).distinctBy { it.questionId }
                                     inquiriesCursor = result.value.nextCursor.takeIf {
-                                        hasUsableNextCursor(true, it, cursor)
+                                        hasUsableNextCursor(result.value.hasNext, it, cursor)
                                     }
+                                    inquiriesHasNext = !inquiriesCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {
@@ -3711,6 +3714,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var reportsError by remember { mutableStateOf<String?>(null) }
             var reportsRevision by remember { mutableStateOf(0) }
             var reportsCursor by remember { mutableStateOf<String?>(null) }
+            var reportsHasNext by remember { mutableStateOf(false) }
             var reportsLoadingMore by remember { mutableStateOf(false) }
             var reportsLoadMoreError by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(reportsRevision) {
@@ -3722,6 +3726,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Success -> {
                         reports = result.value.items
                         reportsCursor = result.value.nextCursor
+                        reportsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                     }
                     is ApiResult.Failure -> {
                         reportsError = result.error.message.ifBlank { "신고 내역을 불러오지 못했어요." }
@@ -3735,7 +3740,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 reports = reports,
                 isLoading = reportsLoading,
                 errorMessage = reportsError,
-                hasNext = !reportsCursor.isNullOrBlank(),
+                hasNext = reportsHasNext,
                 isLoadingMore = reportsLoadingMore,
                 loadMoreError = reportsLoadMoreError,
                 onRetry = { reportsRevision++ },
@@ -3751,8 +3756,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 is ApiResult.Success -> {
                                     reports = (reports.orEmpty() + result.value.items).distinctBy { it.reportId }
                                     reportsCursor = result.value.nextCursor.takeIf {
-                                        hasUsableNextCursor(true, it, cursor)
+                                        hasUsableNextCursor(result.value.hasNext, it, cursor)
                                     }
+                                    reportsHasNext = !reportsCursor.isNullOrBlank()
                                 }
                                 is ApiResult.Failure -> {
                                     if (result.error.code == ApiErrorCodes.INVALID_CURSOR) {

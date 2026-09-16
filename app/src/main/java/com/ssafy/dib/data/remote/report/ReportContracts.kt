@@ -6,7 +6,8 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 data class ReportListResponse(
     val items: List<ReportDto> = emptyList(),
-    val nextCursor: String? = null
+    val nextCursor: String? = null,
+    val hasNext: Boolean = false
 )
 
 @Serializable
@@ -19,6 +20,7 @@ data class ReportDto(
     val orderId: JsonElement? = null,
     val chattingId: JsonElement? = null,
     val targetMemberId: JsonElement? = null,
+    val reportTargetId: JsonElement? = null,
     val createdAt: String? = null
 )
 
