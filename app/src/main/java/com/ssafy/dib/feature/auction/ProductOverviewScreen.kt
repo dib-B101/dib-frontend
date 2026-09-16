@@ -159,8 +159,9 @@ private fun ProductAttribute(label: String, value: String) {
 private fun productConditionLabel(condition: String): String = when (condition.uppercase()) {
     "NEW" -> "새 상품"
     "LIKE_NEW" -> "거의 새 상품"
-    "GOOD" -> "사용감 적음"
-    "FAIR" -> "사용감 있음"
+    "GOOD" -> "좋음"
+    "NORMAL" -> "보통"
+    "BAD", "FAIR" -> "사용감 있음"
     else -> condition.ifBlank { "상태 미정" }
 }
 

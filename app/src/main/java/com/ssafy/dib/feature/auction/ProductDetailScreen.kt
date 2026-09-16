@@ -49,7 +49,7 @@ internal enum class DetailAuctionState { Active, HighestBidder, Scheduled, Cance
 internal fun detailAuctionState(status: String, remainingSeconds: Int, isHighestBidder: Boolean): DetailAuctionState =
     when (status.uppercase()) {
         "SCHEDULED" -> DetailAuctionState.Scheduled
-        "CANCELLED" -> DetailAuctionState.Cancelled
+        "CANCELLED", "CANCELED" -> DetailAuctionState.Cancelled
         "ACTIVE" -> when {
             remainingSeconds > 0 && isHighestBidder -> DetailAuctionState.HighestBidder
             remainingSeconds > 0 -> DetailAuctionState.Active
@@ -395,8 +395,9 @@ private fun SimilarProductsSection(
 private fun productConditionLabelForCard(condition: String): String = when (condition.uppercase()) {
     "NEW" -> "새 상품"
     "LIKE_NEW" -> "거의 새 상품"
-    "GOOD" -> "사용감 적음"
-    "FAIR" -> "사용감 있음"
+    "GOOD" -> "좋음"
+    "NORMAL" -> "보통"
+    "BAD", "FAIR" -> "사용감 있음"
     else -> condition
 }
 
@@ -681,9 +682,11 @@ private fun ProductInformation(
 }
 
 private fun conditionLabel(condition: String?): String = when (condition?.uppercase()) {
+    "NEW" -> "새 상품"
+    "LIKE_NEW" -> "거의 새 상품"
     "GOOD" -> "좋음"
     "NORMAL" -> "보통"
-    "BAD" -> "사용감 있음"
+    "BAD", "FAIR" -> "사용감 있음"
     else -> "정보 없음"
 }
 
