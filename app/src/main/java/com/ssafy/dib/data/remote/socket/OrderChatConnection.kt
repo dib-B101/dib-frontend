@@ -102,7 +102,7 @@ class OrderChatConnection(
                     SocketEventTypes.ERROR -> runCatching {
                         codec.decodePayload(envelope, SocketErrorPayload.serializer())
                     }.getOrNull()?.let { error ->
-                        if (error.code == "CHAT_CLOSED") {
+                        if (error.code == "CHAT_CLOSED" || error.code == "CHATTING_CLOSED") {
                             chatWritable = false
                             synchronized(this@OrderChatConnection) { pendingMessages.clear() }
                             onWritableChanged(false)
