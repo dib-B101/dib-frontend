@@ -23,15 +23,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
@@ -126,10 +129,10 @@ fun MyTradesScreen(
         TradeTab.Bid -> null
     }
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
             Column(Modifier.background(Color.White)) {
-                Text("내 거래", Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp, vertical = 13.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("내 거래", Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Row(Modifier.fillMaxWidth().height(45.dp).padding(horizontal = 16.dp)) {
                     TradeTab.entries.forEach { tab ->
                         Column(Modifier.weight(1f).fillMaxHeight().clickable { selected = tab }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
@@ -144,7 +147,7 @@ fun MyTradesScreen(
         },
         bottomBar = { DibBottomNavigation(DibMainTab.Trades, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column { Text("${selected.label} 현황", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("${items.size}건", color = Colors.Muted, fontSize = 11.sp) }
@@ -283,8 +286,8 @@ private fun openTradeItem(
 @Composable private fun TradeCard(item: TradeItem, onClick: () -> Unit) {
     val chip = when(item.tone){ TradeTone.Urgent -> Color(0xFFFFF0EA); TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Color(0xFFE56F49); TradeTone.Positive -> Color(0xFF27806E); TradeTone.Neutral -> Color(0xFF6B7280) }
-    Row(Modifier.fillMaxWidth().height(136.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(88.dp).background(Color(0xFFECECEC), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text("상품 이미지", color = Color(0xFF858B94), fontSize = 10.sp) }
+    Row(Modifier.fillMaxWidth().height(136.dp).background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(88.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Text(item.title.take(1), color = Colors.Navy.copy(alpha = .5f), fontSize = 28.sp, fontWeight = FontWeight.Bold) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -299,12 +302,12 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
     val chip = when(item.tone){ TradeTone.Urgent -> Colors.UrgentBackground; TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Colors.Urgent; TradeTone.Positive -> Colors.MintInk; TradeTone.Neutral -> Colors.Muted }
     Column(
-        modifier.height(232.dp).background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(10.dp),
+        modifier.height(232.dp).background(Color.White, RoundedCornerShape(18.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.Image, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            Text("상품 이미지", color = Colors.Muted, fontSize = 10.sp)
+        Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+            Text(item.title.take(1), color = Colors.Navy.copy(alpha = .5f), fontSize = 28.sp, fontWeight = FontWeight.Bold)
         }
         Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -339,13 +342,13 @@ fun MyPageScreen(
 ) {
     var confirmation by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F8FA), contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { Text("마이", Modifier.fillMaxWidth().height(56.dp).background(Color.White).padding(horizontal = 16.dp, vertical = 13.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold) },
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
+        topBar = { Text("마이", Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold) },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item {
-                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE1E5EA), RoundedCornerShape(14.dp)).padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(20.dp)).border(1.dp, Colors.Border, RoundedCornerShape(20.dp)).padding(18.dp)) {
                     if (profileLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp), color = Colors.Mint)
                     profileError?.let { message ->
                         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -354,7 +357,7 @@ fun MyPageScreen(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(56.dp).background(Color(0xFFDDF8F0), CircleShape), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(58.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) {
                             Text(profile?.nickname?.take(1)?.uppercase() ?: "?", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(Modifier.weight(1f).padding(start = 16.dp)) {
@@ -373,17 +376,27 @@ fun MyPageScreen(
                     )
                 }
             }
-            item { Text("바로가기", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            item { Text("바로가기", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf("♡" to "찜한 경매", "▣" to "등록 상품", "♧" to "알림", "◉" to "문의 내역").forEach { (icon,label) ->
-                        Column(Modifier.width(76.dp).clickable { when(label) { "찜한 경매" -> onFavoritesClick(); "등록 상품" -> onRegisteredProductsClick(); "알림" -> onNotificationsClick(); else -> onInquiriesClick() } }, horizontalAlignment = Alignment.CenterHorizontally) { Box(Modifier.size(40.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) { Text(icon, color = Colors.Navy, fontSize = 22.sp) }; Text(label, Modifier.padding(top = 5.dp), color = Colors.Muted, fontSize = 11.sp) }
+                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceAround) {
+                    listOf(
+                        Triple(R.drawable.favorite_outline, "찜한 경매", onFavoritesClick),
+                        Triple(R.drawable.nav_register_full, "등록 상품", onRegisteredProductsClick),
+                        Triple(R.drawable.notification, "알림", onNotificationsClick),
+                        Triple(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick)
+                    ).forEach { (icon, label, action) ->
+                        Column(Modifier.width(76.dp).clickable(onClick = action), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(42.dp).background(Colors.NavySoft, CircleShape), contentAlignment = Alignment.Center) {
+                                Image(painterResource(icon), label, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                            }
+                            Text(label, Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }
-            item { Text("내 정보 · 설정", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            item { Text("내 정보 · 설정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
-                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE1E5EA), RoundedCornerShape(14.dp))) {
+                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp))) {
                     MenuRow("내 경매 관리", onClick = onAuctionsClick)
                     MenuRow("배송지 관리", onClick = onAddressesClick)
                     MenuRow("결제수단 관리", onClick = onPaymentMethodsClick)

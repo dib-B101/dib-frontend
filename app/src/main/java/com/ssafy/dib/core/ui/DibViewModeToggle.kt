@@ -1,12 +1,12 @@
 package com.ssafy.dib.core.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,16 +33,20 @@ fun DibViewModeToggle(
     ) {
         DibContentView.entries.forEach { mode ->
             val active = mode == selected
-            Text(
-                text = if (mode == DibContentView.Grid) "▦ 카드" else "☰ 목록",
-                modifier = Modifier
-                    .background(if (active) Color.White else Color.Transparent, RoundedCornerShape(8.dp))
-                    .clickable { onSelected(mode) }
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
-                color = if (active) Colors.Navy else Colors.Muted,
-                fontSize = 11.sp,
-                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-            )
+            Surface(
+                onClick = { onSelected(mode) },
+                color = if (active) Color.White else Color.Transparent,
+                shape = RoundedCornerShape(8.dp),
+                shadowElevation = if (active) 1.dp else 0.dp
+            ) {
+                Text(
+                    text = if (mode == DibContentView.Grid) "카드" else "목록",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    color = if (active) Colors.Navy else Colors.Muted,
+                    fontSize = 11.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                )
+            }
         }
     }
 }

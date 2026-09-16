@@ -6,7 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,16 +35,26 @@ enum class DibMainTab(val label: String, @param:DrawableRes val icon: Int) {
 fun DibBottomNavigation(selectedTab: DibMainTab, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.background(WireframeColors.Background)) {
         HorizontalDivider(color = WireframeColors.Border, thickness = 1.dp)
-        Row(Modifier.fillMaxWidth().height(63.dp).padding(horizontal = 12.dp, vertical = 4.dp).selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 8.dp, vertical = 5.dp).selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
             DibMainTab.entries.forEach { tab ->
                 val selected = selectedTab == tab
-                val color = if (selected) WireframeColors.Navy else WireframeColors.Muted
-                Column(Modifier.weight(1f).height(56.dp).selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) }),
+                val color = animateColorAsState(
+                    if (selected) WireframeColors.Navy else WireframeColors.Muted,
+                    label = "bottomNavColor"
+                ).value
+                Column(Modifier.weight(1f).height(58.dp).selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Image(painterResource(tab.icon), null, Modifier.size(22.dp, 24.dp), colorFilter = ColorFilter.tint(color))
-                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        color = if (selected) WireframeColors.NavySoft else androidx.compose.ui.graphics.Color.Transparent,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    ) {
+                        Box(Modifier.size(40.dp, 30.dp), contentAlignment = Alignment.Center) {
+                            Image(painterResource(tab.icon), tab.label, Modifier.size(20.dp, 22.dp), colorFilter = ColorFilter.tint(color))
+                        }
+                    }
+                    Spacer(Modifier.height(2.dp))
                     Text(tab.label, color = color, fontSize = 11.sp, lineHeight = 16.sp,
-                        fontWeight = FontWeight.Medium, letterSpacing = (-0.22).sp)
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, letterSpacing = (-0.22).sp)
                 }
             }
         }
