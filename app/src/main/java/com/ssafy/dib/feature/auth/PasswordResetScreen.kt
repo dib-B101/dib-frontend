@@ -54,43 +54,22 @@ fun PasswordResetScreen(
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFFCFBF7),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Row(
-                Modifier.fillMaxWidth().height(48.dp).background(Color.White),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(14.dp, 8.dp), fontSize = 22.sp)
-                Text("비밀번호 재설정", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        topBar = { AuthTopBar("비밀번호 재설정", onBack) }
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                if (isComplete) "비밀번호를 변경했어요" else "새 비밀번호를 입력해주세요",
-                color = Colors.Navy,
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                if (isComplete) "새 비밀번호로 다시 로그인해주세요." else "대·소문자, 숫자, 특수문자를 포함해 10~64자로 설정해주세요.",
-                Modifier.padding(top = 8.dp),
-                color = Colors.Muted,
-                fontSize = 13.sp
+            AuthPageTitle(
+                if (isComplete) "비밀번호를 변경했어요" else "새 비밀번호를\n입력해주세요",
+                if (isComplete) "새 비밀번호로 다시 로그인해주세요." else "대·소문자, 숫자, 특수문자를 포함해 10~64자로 설정해주세요."
             )
             Spacer(Modifier.height(28.dp))
 
             if (isComplete) {
-                Button(
-                    onClick = onLogin,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("로그인으로 돌아가기", fontWeight = FontWeight.Bold) }
+                AuthPrimaryButton("로그인으로 돌아가기", true, false, onLogin)
             } else {
                 OutlinedTextField(
                     value = password,
@@ -100,6 +79,7 @@ fun PasswordResetScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(15.dp),
                     isError = attempted && !validPassword,
                     supportingText = if (attempted && !validPassword) ({ Text("비밀번호 조건을 확인해주세요.") }) else null
                 )
@@ -111,28 +91,23 @@ fun PasswordResetScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(15.dp),
                     isError = (attempted || confirmation.isNotEmpty()) && !matches,
                     supportingText = if ((attempted || confirmation.isNotEmpty()) && !matches) ({ Text("비밀번호가 일치하지 않아요.") }) else null
                 )
                 errorMessage?.let {
                     Text(it, Modifier.fillMaxWidth().padding(top = 10.dp), color = Colors.Urgent, fontSize = 12.sp)
                 }
-                Button(
+                AuthPrimaryButton(
+                    text = "비밀번호 변경",
+                    enabled = validPassword && matches,
+                    loading = isLoading,
                     onClick = {
                         attempted = true
                         if (validPassword && matches) onSubmit(password)
                     },
-                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(52.dp),
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (validPassword && matches) Colors.Navy else Color(0xFFD6DBE3),
-                        contentColor = if (validPassword && matches) Color.White else Color(0xFF8C94A1)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    else Text("비밀번호 변경", fontWeight = FontWeight.Bold)
-                }
+                    modifier = Modifier.padding(top = 20.dp)
+                )
             }
         }
     }

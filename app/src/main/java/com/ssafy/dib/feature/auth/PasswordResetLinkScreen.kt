@@ -49,15 +49,14 @@ fun PasswordResetLinkScreen(
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFFCFBF7),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(14.dp, 8.dp), fontSize = 22.sp); Text("비밀번호 찾기", fontSize = 16.sp, fontWeight = FontWeight.Bold) } }
+        topBar = { AuthTopBar("비밀번호 찾기", onBack) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), verticalArrangement = Arrangement.Center) {
-            Text(if (linkSent) "재설정 링크를 보냈어요" else "비밀번호를 다시 설정해요", color = Colors.Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-            Text(
-                if (linkSent) "메일함에서 30분 안에 링크를 열어주세요." else "가입 이메일과 인증한 휴대전화 번호를 확인할게요.",
-                Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 13.sp
+            AuthPageTitle(
+                if (linkSent) "재설정 링크를\n보냈어요" else "비밀번호를\n다시 설정해요",
+                if (linkSent) "메일함에서 30분 안에 링크를 열어주세요." else "가입 이메일과 인증한 휴대전화 번호를 확인할게요."
             )
             Spacer(Modifier.height(28.dp))
 
@@ -69,6 +68,7 @@ fun PasswordResetLinkScreen(
                     label = { Text("가입 이메일") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
+                    shape = RoundedCornerShape(15.dp),
                     isError = linkAttempted && !emailValid,
                     supportingText = if (linkAttempted && !emailValid) ({ Text("올바른 이메일을 입력해주세요.") }) else null
                 )
@@ -80,6 +80,7 @@ fun PasswordResetLinkScreen(
                         label = { Text("휴대전화 번호") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
+                        shape = RoundedCornerShape(15.dp),
                         isError = phoneAttempted && !phoneValid,
                         supportingText = if (phoneAttempted && !phoneValid) ({ Text("휴대전화 번호를 확인해주세요.") }) else null
                     )
@@ -99,29 +100,27 @@ fun PasswordResetLinkScreen(
                         label = { Text("인증번호") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
+                        shape = RoundedCornerShape(15.dp),
                         isError = linkAttempted && !codeValid,
                         supportingText = if (linkAttempted && !codeValid) ({ Text("인증번호 6자리를 입력해주세요.") }) else null
                     )
-                    Button(
+                    AuthPrimaryButton(
+                        text = "재설정 링크 받기",
+                        enabled = emailValid && codeValid,
+                        loading = isLoading,
                         onClick = {
                             linkAttempted = true
                             if (emailValid && codeValid) onRequestResetLink(email.trim(), verificationCode)
                         },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp),
-                        enabled = !isLoading,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (emailValid && codeValid) Colors.Navy else Color(0xFFD6DBE3),
-                            contentColor = if (emailValid && codeValid) Color.White else Color(0xFF8C94A1)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text("재설정 링크 받기", fontWeight = FontWeight.Bold) }
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
                 }
             } else {
-                Column(Modifier.fillMaxWidth().background(Color(0xFFEAF8F4), RoundedCornerShape(14.dp)).padding(18.dp)) {
+                Column(Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(18.dp)).padding(20.dp)) {
                     Text("메일이 보이지 않나요?", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text("스팸 메일함을 확인하고 입력한 이메일 주소가 맞는지 확인해주세요.", Modifier.padding(top = 6.dp), color = Colors.Muted, fontSize = 12.sp)
                 }
-                Button(onLogin, Modifier.fillMaxWidth().padding(top = 20.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("로그인으로 돌아가기", fontWeight = FontWeight.Bold) }
+                AuthPrimaryButton("로그인으로 돌아가기", true, false, onLogin, Modifier.padding(top = 20.dp))
             }
             errorMessage?.let { Text(it, Modifier.fillMaxWidth().padding(top = 12.dp), color = Colors.Urgent, fontSize = 12.sp) }
         }
