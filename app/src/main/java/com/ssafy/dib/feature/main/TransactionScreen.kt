@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,10 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
@@ -165,18 +170,15 @@ private fun RemoteTransactionScreen(
     val uriHandler = LocalUriHandler.current
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFFAFBFC),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
-                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(start = 14.dp, top = 8.dp), fontSize = 22.sp)
-                Text(if (role == "seller") "판매 거래 상세" else "구매 거래 상세", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+            TransactionAppBar(if (role == "seller") "판매 거래 상세" else "구매 거래 상세", onBack)
         }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when {
@@ -187,8 +189,7 @@ private fun RemoteTransactionScreen(
                 }
                 errorMessage != null -> item {
                     Column(
-                        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-                            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(20.dp),
+                        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -257,11 +258,10 @@ private fun RemoteTransactionScreen(
                         }
                         item {
                             Column(
-                                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-                                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                                Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("자동결제를 완료하지 못했어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("자동결제를 완료하지 못했어요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Text("등록한 카드 상태를 확인한 뒤 낙찰 금액 결제를 다시 요청해주세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                             }
                         }
@@ -296,11 +296,10 @@ private fun RemoteTransactionScreen(
                     if (role == "seller" && order.status.uppercase() in setOf("PAID", "PREPARING")) {
                         item {
                             Column(
-                                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp))
-                                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp),
+                                Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text("배송 정보 등록", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("배송 정보 등록", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Text("실제 발송을 완료한 뒤 택배사와 송장번호를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
                                 Text("택배사", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 when {
@@ -421,14 +420,9 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
     val amount = 58_000
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFFAFBFC),
+        containerColor = Colors.Canvas,
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
-                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(start = 14.dp, top = 8.dp), fontSize = 22.sp)
-                Text(if (step in listOf(TransactionStep.Paying, TransactionStep.PaymentFailed, TransactionStep.PaymentSuccess)) "낙찰 결제" else "거래 상세", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        topBar = { TransactionAppBar(if (step in listOf(TransactionStep.Paying, TransactionStep.PaymentFailed, TransactionStep.PaymentSuccess)) "낙찰 결제" else "거래 상세", onBack) }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
@@ -516,7 +510,7 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFFAFBFC),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.size(48.dp).clickable(onClick = onBack).padding(start = 14.dp, top = 8.dp), fontSize = 22.sp); Text(if (step == SellerStep.TrackingInput) "배송 정보 입력" else if (step == SellerStep.Settlement) "정산 상세" else "판매 거래 상세", fontSize = 18.sp, fontWeight = FontWeight.Bold) } }
+        topBar = { TransactionAppBar(if (step == SellerStep.TrackingInput) "배송 정보 입력" else if (step == SellerStep.Settlement) "정산 상세" else "판매 거래 상세", onBack) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (step) {
@@ -563,14 +557,14 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
 
 @Composable private fun StatusHero(icon: String, title: String, body: String, color: Color) {
     Column(
-        Modifier.fillMaxWidth().height(182.dp).background(color, RoundedCornerShape(18.dp)),
+        Modifier.fillMaxWidth().height(184.dp).background(color, RoundedCornerShape(20.dp)).padding(horizontal=24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(icon, color = Colors.Navy, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(14.dp))
-        Text(title, color = Colors.Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-        Text(body, Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 12.sp)
+        Box(Modifier.size(52.dp).background(Colors.Background.copy(alpha=.82f),CircleShape),contentAlignment=Alignment.Center){Text(icon, color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)}
+        Spacer(Modifier.height(16.dp))
+        Text(title, color = Colors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Text(body, Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 12.sp,lineHeight=18.sp)
     }
 }
 
@@ -580,12 +574,12 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
     orderId: String = "2026-0903"
 ) {
     Row(
-        Modifier.fillMaxWidth().height(92.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFE6E9EE), RoundedCornerShape(14.dp)).padding(12.dp),
+        Modifier.fillMaxWidth().height(96.dp).background(Colors.Background, RoundedCornerShape(16.dp)).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(68.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text("상품 이미지", color = Colors.Muted, fontSize = 9.sp) }
         Column(Modifier.padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text("낙찰가 ${"%,d".format(amount)}원 · 주문 $orderId", color = Colors.Muted, fontSize = 11.sp)
         }
     }
@@ -608,11 +602,13 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
 }
 
 @Composable private fun InfoCard(rows: List<Pair<String, String>>, title: String? = null) {
-    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (title != null) { Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold); HorizontalDivider(color = Color(0xFFECEEF1)) }
-        rows.forEach { (label, value) -> Row(Modifier.fillMaxWidth()) { Text(label, Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp); Text(value, color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+    Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        if (title != null) { Text(title,color=Colors.Text,fontSize = 15.sp, fontWeight = FontWeight.Bold); HorizontalDivider(color = Colors.Border) }
+        rows.forEach { (label, value) -> Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top) { Text(label, Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp); Text(value,Modifier.weight(1.35f), color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) } }
     }
 }
+
+@Composable private fun TransactionAppBar(title:String,onBack:()->Unit){Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title,color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold)};HorizontalDivider(color=Colors.Border)}}
 
 @Composable private fun PrimaryButton(label: String, onClick: () -> Unit) {
     Button(onClick, Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
