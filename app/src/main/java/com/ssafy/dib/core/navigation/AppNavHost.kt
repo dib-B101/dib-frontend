@@ -2870,9 +2870,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             )
         }
         composable(Screen.LiveManagement.route) {
-            var broadcasts by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveBroadcastSummary>?>(null) }
-            var assignedAuctions by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
-            var availableLiveAuctions by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionSummary>>(emptyList()) }
+            val previewLiveAuctions = remember { previewLiveAuctions() }
+            var broadcasts by remember(previewMode) {
+                mutableStateOf<List<com.ssafy.dib.domain.live.LiveBroadcastSummary>?>(
+                    if (previewMode) listOf(previewLiveBroadcast()) else null
+                )
+            }
+            var assignedAuctions by remember(previewMode) {
+                mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(
+                    if (previewMode) mapOf("preview-live" to previewLiveAuctions.take(1)) else emptyMap()
+                )
+            }
+            var availableLiveAuctions by remember(previewMode) {
+                mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionSummary>>(
+                    if (previewMode) previewLiveAuctions else emptyList()
+                )
+            }
             var availableLiveAuctionsCursor by remember { mutableStateOf<String?>(null) }
             var availableLiveAuctionsHasNext by remember { mutableStateOf(false) }
             var availableLiveAuctionsLoadingMore by remember { mutableStateOf(false) }
@@ -2889,7 +2902,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var liveActionMessage by remember { mutableStateOf<String?>(null) }
             var liveActionRevision by remember { mutableStateOf(0) }
 
-            LaunchedEffect(liveManagementRevision, signedIn) {
+            LaunchedEffect(liveManagementRevision, signedIn, previewMode) {
+                if (previewMode) {
+                    liveManagementLoading = false
+                    liveManagementError = null
+                    return@LaunchedEffect
+                }
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 liveManagementLoading = true
                 liveManagementError = null
@@ -3025,7 +3043,23 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         }
                     }
                 },
-                onCreate = { title, description, scheduledAt, streamUrl ->
+                onCreate = createLive@ { title, description, scheduledAt, streamUrl ->
+                    if (previewMode) {
+                        val liveId = "preview-live-${broadcasts.orEmpty().size + 1}"
+                        broadcasts = broadcasts.orEmpty() + com.ssafy.dib.domain.live.LiveBroadcastSummary(
+                            liveBroadcastId = liveId,
+                            title = title,
+                            description = description,
+                            status = "SCHEDULED",
+                            streamUrl = streamUrl ?: "preview://stream",
+                            scheduledAt = scheduledAt,
+                            viewCount = 0
+                        )
+                        assignedAuctions = assignedAuctions + (liveId to emptyList<com.ssafy.dib.domain.auction.AuctionSummary>())
+                        liveActionMessage = "개발 미리보기 방송을 예약했어요."
+                        liveActionRevision++
+                        return@createLive
+                    }
                     val command = listOf("live-create", title, description.orEmpty(), scheduledAt, streamUrl.orEmpty())
                         .joinToString("\u001f")
                     val idempotencyKey = commandKeys.keyFor(command)
@@ -3047,7 +3081,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onUpdate = { liveId, title, description, scheduledAt, streamUrl ->
+                onUpdate = updateLive@ { liveId, title, description, scheduledAt, streamUrl ->
+                    if (previewMode) {
+                        broadcasts = broadcasts?.map { live ->
+                            if (live.liveBroadcastId == liveId) live.copy(title = title, description = description, scheduledAt = scheduledAt, streamUrl = streamUrl ?: live.streamUrl) else live
+                        }
+                        liveActionMessage = "개발 미리보기 방송 정보를 수정했어요."
+                        liveActionRevision++
+                        return@updateLive
+                    }
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
@@ -3062,7 +3104,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onSetItems = { liveId, auctionIds ->
+                onSetItems = setLiveItems@ { liveId, auctionIds ->
+                    if (previewMode) {
+                        assignedAuctions = assignedAuctions + (liveId to previewLiveAuctions.filter { it.auctionId in auctionIds })
+                        liveActionMessage = "개발 미리보기 상품 편성을 저장했어요."
+                        liveActionRevision++
+                        return@setLiveItems
+                    }
                     liveActionLoading = true
                     liveActionError = null
                     liveActionMessage = null
@@ -3077,7 +3125,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onPrepareStream = { liveId ->
+                onPrepareStream = prepareLive@ { liveId ->
+                    if (previewMode) {
+                        broadcasts = broadcasts?.map { live -> if (live.liveBroadcastId == liveId) live.copy(streamUrl = "preview://stream/$liveId") else live }
+                        liveActionMessage = "개발 미리보기 송출 준비가 완료됐어요."
+                        return@prepareLive
+                    }
                     val command = "live-prepare-stream:$liveId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
@@ -3096,7 +3149,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onStartLive = { liveId ->
+                onStartLive = startLive@ { liveId ->
+                    if (previewMode) {
+                        broadcasts = broadcasts?.map { live -> if (live.liveBroadcastId == liveId) live.copy(status = "LIVE", viewCount = 128) else live }
+                        liveActionMessage = "개발 미리보기 Live를 시작했어요."
+                        return@startLive
+                    }
                     val command = "live-start:$liveId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
@@ -3110,7 +3168,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onStartAuction = { liveId, auctionId ->
+                onStartAuction = startLiveAuction@ { liveId, auctionId ->
+                    if (previewMode) {
+                        assignedAuctions = assignedAuctions + (liveId to assignedAuctions[liveId].orEmpty().map { auction ->
+                            if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE", remainingSeconds = 300) else auction
+                        })
+                        liveActionMessage = "개발 미리보기 상품 경매를 시작했어요."
+                        return@startLiveAuction
+                    }
                     val command = "live-start-auction:$liveId:$auctionId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
@@ -3124,7 +3189,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onEndLive = { liveId ->
+                onEndLive = endLive@ { liveId ->
+                    if (previewMode) {
+                        broadcasts = broadcasts?.map { live -> if (live.liveBroadcastId == liveId) live.copy(status = "ENDED") else live }
+                        liveActionMessage = "개발 미리보기 Live를 종료했어요."
+                        return@endLive
+                    }
                     val command = "live-end:$liveId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     liveActionLoading = true
@@ -4437,6 +4507,47 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         )
     }
 }
+
+private fun previewLiveBroadcast() = com.ssafy.dib.domain.live.LiveBroadcastSummary(
+    liveBroadcastId = "preview-live",
+    title = "오늘의 빈티지 컬렉션",
+    description = "개발 미리보기에서 송출 준비와 Live 시작을 확인할 수 있어요.",
+    status = "SCHEDULED",
+    streamUrl = "preview://stream",
+    scheduledAt = java.time.Instant.now().plusSeconds(3_600).toString(),
+    viewCount = 0
+)
+
+private fun previewLiveAuctions() = listOf(
+    com.ssafy.dib.domain.auction.AuctionSummary(
+        auctionId = "preview-live-auction-1",
+        sellerMemberId = "preview-member",
+        productId = "preview-product-1",
+        title = "빈티지 필름 카메라",
+        categoryName = "디지털",
+        currentPrice = 34_500,
+        startPrice = 30_000,
+        bidCount = 4,
+        auctionTimeSeconds = 300,
+        remainingSeconds = 300,
+        status = "SCHEDULED",
+        bookmarked = false
+    ),
+    com.ssafy.dib.domain.auction.AuctionSummary(
+        auctionId = "preview-live-auction-2",
+        sellerMemberId = "preview-member",
+        productId = "preview-product-2",
+        title = "수제 가죽 크로스백",
+        categoryName = "패션",
+        currentPrice = 28_000,
+        startPrice = 28_000,
+        bidCount = 0,
+        auctionTimeSeconds = 600,
+        remainingSeconds = 600,
+        status = "SCHEDULED",
+        bookmarked = false
+    )
+)
 
 internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 연결 설정을 확인해주세요."

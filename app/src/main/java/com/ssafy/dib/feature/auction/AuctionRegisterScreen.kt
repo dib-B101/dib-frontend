@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.core.ui.DibDurationWheelPicker
 import com.ssafy.dib.domain.auction.AuctionCommandResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -42,6 +43,7 @@ fun AuctionRegisterScreen(
     var validationRequested by rememberSaveable { mutableStateOf(false) }
     val startPrice = startPriceText.toLongOrNull() ?: 0L
     val startPriceValid = isValidAuctionStartPrice(startPrice)
+    val auctionTimeValid = auctionTime >= 300L
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
@@ -64,10 +66,9 @@ fun AuctionRegisterScreen(
                     Text("등록 직후에는 예정 상태이며 판매자가 직접 시작할 수 있어요.", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
                     if (editingCreatedAuction) {
                         OutlinedTextField(startPriceText, { startPriceText = it.filter(Char::isDigit).take(10) }, Modifier.fillMaxWidth().padding(top = 18.dp), label = { Text("시작가") }, suffix = { Text("원") }, supportingText = { Text("최소 1,000원") }, isError = startPriceText.isNotBlank() && !startPriceValid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            auctionDurationOptions.forEach { (seconds, label) -> FilterChip(selected = auctionTime == seconds, onClick = { auctionTime = seconds }, label = { Text(label) }) }
-                        }
-                        Button({ onUpdate(startPrice, auctionTime); editingCreatedAuction = false }, Modifier.fillMaxWidth().padding(top = 10.dp).height(48.dp), enabled = startPriceValid && !isLoading, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("변경사항 저장", fontWeight = FontWeight.Bold) }
+                        DibDurationWheelPicker(auctionTime, { auctionTime = it }, Modifier.padding(top = 8.dp))
+                        if (!auctionTimeValid) Text("경매 시간은 5분 이상 설정해주세요.", color = Colors.Urgent, fontSize = 11.sp)
+                        Button({ onUpdate(startPrice, auctionTime); editingCreatedAuction = false }, Modifier.fillMaxWidth().padding(top = 10.dp).height(48.dp), enabled = startPriceValid && auctionTimeValid && !isLoading, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("변경사항 저장", fontWeight = FontWeight.Bold) }
                     }
                     Button(onStart, Modifier.fillMaxWidth().padding(top = 24.dp).height(54.dp), enabled = !isLoading, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(15.dp)) {
                         if (isLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("지금 경매 시작", fontWeight = FontWeight.Bold)
@@ -102,22 +103,19 @@ fun AuctionRegisterScreen(
                     )
                 )
                 Text("경매 진행 시간", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    auctionDurationOptions.forEach { (seconds, label) ->
-                        FilterChip(selected = auctionTime == seconds, onClick = { auctionTime = seconds }, label = { Text(label) })
-                    }
-                }
+                DibDurationWheelPicker(auctionTime, { auctionTime = it })
+                if (validationRequested && !auctionTimeValid) Text("경매 시간은 5분 이상 설정해주세요.", color = Colors.Urgent, fontSize = 11.sp)
                 Text("등록된 경매는 예정 상태로 생성돼요. 시작 전까지 조건을 수정하거나 취소할 수 있어요.", Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(15.dp)).padding(16.dp), color = Colors.Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 errorMessage?.let { Text(it, color = Colors.Urgent, fontSize = 12.sp) }
                 Spacer(Modifier.weight(1f))
                 Button(
-                    onClick = { if (startPriceValid) onCreate(startPrice, auctionTime) else validationRequested = true },
+                    onClick = { if (startPriceValid && auctionTimeValid) onCreate(startPrice, auctionTime) else validationRequested = true },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(15.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (startPriceValid) Colors.Navy else Colors.Border,
-                        contentColor = if (startPriceValid) Color.White else Colors.Muted
+                        containerColor = if (startPriceValid && auctionTimeValid) Colors.Navy else Colors.Border,
+                        contentColor = if (startPriceValid && auctionTimeValid) Color.White else Colors.Muted
                     )
                 ) {
                     if (isLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("경매 등록", fontWeight = FontWeight.Bold)
@@ -148,11 +146,5 @@ private fun AuctionResultBadge(label: String, success: Boolean) {
         }
     }
 }
-
-private val auctionDurationOptions = listOf(
-    300L to "5분",
-    600L to "10분",
-    1_800L to "30분"
-)
 
 internal fun isValidAuctionStartPrice(startPrice: Long): Boolean = startPrice >= 1_000L
