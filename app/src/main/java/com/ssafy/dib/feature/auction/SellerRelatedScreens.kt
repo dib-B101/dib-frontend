@@ -44,12 +44,12 @@ fun SellerReviewsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매 후기", onBack) }
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -78,12 +78,12 @@ fun SellerListingsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, m
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매 내역", onBack) }
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -143,14 +143,14 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun ReviewItem(review: SellerReview) {
-    Row(Modifier.fillMaxWidth().height(88.dp).padding(top = 6.dp)) {
-        Box(Modifier.size(36.dp).background(Colors.Surface, CircleShape))
+    Row(Modifier.fillMaxWidth().background(Colors.Background,RoundedCornerShape(16.dp)).padding(16.dp)) {
+        Box(Modifier.size(38.dp).background(Colors.NavySoft, CircleShape))
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 Text(review.buyer, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(review.age, color = Colors.Muted, fontSize = 11.sp)
             }
-            Text("★★★★★", fontSize = 12.sp)
+            Text("★★★★★",color=Colors.Urgent, fontSize = 12.sp)
             Text(review.body, color = Colors.Muted, fontSize = 13.sp, lineHeight = 20.sp)
         }
     }
@@ -159,10 +159,9 @@ private fun ReviewItem(review: SellerReview) {
 @Composable
 private fun SellerListingCard(listing: SellerListing, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(116.dp)
-            .border(1.dp, Colors.Border, RoundedCornerShape(12.dp))
+        Modifier.fillMaxWidth().height(118.dp).background(Colors.Background,RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(11.dp),
+            .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(92.dp).background(Colors.Border, RoundedCornerShape(8.dp)))

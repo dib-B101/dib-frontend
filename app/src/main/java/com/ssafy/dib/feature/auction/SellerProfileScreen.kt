@@ -36,24 +36,24 @@ fun SellerProfileScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매자 프로필", onBack) }
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp),
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(top = 20.dp, bottom = 28.dp)
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Box(Modifier.size(64.dp).background(Colors.Surface, CircleShape), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(68.dp).background(Colors.NavySoft, CircleShape), contentAlignment = Alignment.Center) {
                         Image(painterResource(R.drawable.seller), null, Modifier.size(34.dp), colorFilter = ColorFilter.tint(Colors.Muted))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             if (showSampleContent) "seller01" else sellerNickname?.takeIf(String::isNotBlank) ?: "판매자",
-                            fontSize = 20.sp,
+                            color=Colors.Text,fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
                         val sellerMeta = if (showSampleContent) {
@@ -72,7 +72,7 @@ fun SellerProfileScreen(
                 item { SectionTitle("판매 후기") }
                 item {
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0xFFF9F9F9), RoundedCornerShape(12.dp)).clickable(onClick = onReviewsClick).padding(16.dp),
+                        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).clickable(onClick = onReviewsClick).padding(18.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -97,7 +97,7 @@ fun SellerProfileScreen(
             } else {
                 item {
                     Column(
-                        Modifier.fillMaxWidth().background(Color(0xFFF9F9F9), RoundedCornerShape(12.dp)).padding(16.dp),
+                        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text("판매 활동", fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -120,7 +120,7 @@ fun SellerProfileScreen(
 
 @Composable
 internal fun AuctionSubAppBar(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(48.dp).background(Colors.Background).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(56.dp).background(Colors.Background).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
@@ -136,7 +136,7 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SaleCard(status: String, modifier: Modifier = Modifier) {
-    Column(modifier.border(1.dp, Colors.Border, RoundedCornerShape(12.dp)).background(Colors.Background, RoundedCornerShape(12.dp))) {
+    Column(modifier.background(Colors.Background, RoundedCornerShape(14.dp))) {
         Box(Modifier.fillMaxWidth().height(94.dp).background(Colors.Surface, RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))) {
             Surface(color = if (status == "판매중") Color(0xFFEDF2FA) else Colors.Surface, shape = RoundedCornerShape(12.dp), modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Text(status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
