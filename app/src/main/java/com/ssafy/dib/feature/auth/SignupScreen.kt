@@ -150,17 +150,9 @@ fun SignupScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFFCFBF7),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Row(
-                Modifier.fillMaxWidth().height(52.dp).background(Color.White),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("←", Modifier.clickable(onClick = onBack).padding(16.dp), fontSize = 24.sp)
-                Text("이메일 회원가입", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        topBar = { AuthTopBar("이메일 회원가입", onBack) }
     ) { contentPadding ->
         Column(
             Modifier.fillMaxSize()
@@ -170,7 +162,7 @@ fun SignupScreen(
                 .padding(horizontal = 16.dp, vertical = 22.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("휴대폰 인증", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("휴대폰 인증", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("본인 명의의 휴대폰 번호를 인증해주세요.", color = Colors.Muted, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                 SignupField(
@@ -216,7 +208,7 @@ fun SignupScreen(
             state.phoneError?.let { FeedbackText(it) }
 
             Spacer(Modifier.height(8.dp))
-            Text("계정 정보", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("계정 정보", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                 SignupField(
                     label = "이메일",
@@ -284,19 +276,12 @@ fun SignupScreen(
                 }
             }
             state.signupError?.let { FeedbackText(it) }
-            Button(
-                onClick = { attempted = true; if (canSubmit) onSignUp(form) },
-                enabled = !state.signupLoading,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (canSubmit) Colors.Navy else Color(0xFFD6DBE3),
-                    contentColor = if (canSubmit) Color.White else Color(0xFF8C94A1)
-                )
-            ) {
-                if (state.signupLoading) CircularProgressIndicator(Modifier.height(22.dp), color = Color.White, strokeWidth = 2.dp)
-                else Text("가입하고 시작하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
+            AuthPrimaryButton(
+                text = "가입하고 시작하기",
+                enabled = canSubmit,
+                loading = state.signupLoading,
+                onClick = { attempted = true; if (canSubmit) onSignUp(form) }
+            )
             Spacer(Modifier.height(18.dp))
         }
     }
@@ -326,10 +311,12 @@ private fun SignupField(
             isError = errorMessage != null,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(15.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Colors.Navy,
-                unfocusedBorderColor = Color(0xFFD1D6DE),
+                unfocusedBorderColor = Colors.Border,
+                focusedContainerColor = Colors.Background,
+                unfocusedContainerColor = Colors.Background,
                 errorBorderColor = Colors.Urgent
             )
         )
@@ -351,7 +338,8 @@ private fun GenderButton(
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (selected == value) Colors.Navy else Color.Transparent,
             contentColor = if (selected == value) Color.White else Colors.Navy
-        )
+        ),
+        shape = RoundedCornerShape(14.dp)
     ) { Text(label, fontWeight = FontWeight.Bold) }
 }
 
