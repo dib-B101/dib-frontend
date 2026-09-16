@@ -355,6 +355,7 @@ fun InquiryHistoryScreen(
 fun ReportHistoryScreen(
     onBack: () -> Unit,
     reports: List<ReportSummary>?,
+    showSampleContent: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     hasNext: Boolean,
@@ -371,7 +372,7 @@ fun ReportHistoryScreen(
             ReportSummary("sample-member", "MEMBER", "부적절한 메시지를 받았어요", "PENDING", "seller01", "2026-09-09T09:00:00Z")
         )
     }
-    val displayedReports = reports ?: sampleReports
+    val displayedReports = reports ?: if (showSampleContent) sampleReports else emptyList()
     BackHandler(enabled = selectedReport != null) { selectedReport = null }
     SimpleHeaderScaffold(
         if (selectedReport == null) "신고 내역" else "신고 상세",
@@ -386,7 +387,7 @@ fun ReportHistoryScreen(
             when {
                 isLoading -> item { Row(Modifier.fillMaxWidth().padding(40.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null -> item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
-                reports != null && reports.isEmpty() -> item { Text("접수한 신고가 없어요.", Modifier.fillMaxWidth().padding(vertical = 40.dp), color = Colors.Muted, fontSize = 13.sp) }
+                displayedReports.isEmpty() -> item { Text("접수한 신고가 없어요.", Modifier.fillMaxWidth().padding(vertical = 40.dp), color = Colors.Muted, fontSize = 13.sp) }
                 else -> items(displayedReports.size, key = { displayedReports[it].reportId }) { index ->
                     val report = displayedReports[index]
                     HistoryCard(

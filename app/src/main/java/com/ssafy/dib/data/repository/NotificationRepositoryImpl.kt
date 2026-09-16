@@ -21,6 +21,10 @@ class NotificationRepositoryImpl(private val remote: NotificationRemoteDataSourc
         }
 
     override fun markRead(notificationId: String): ApiResult<Unit> = remote.markRead(notificationId)
+    override fun getUnreadCount(): ApiResult<Int> = when (val result = remote.getUnreadCount()) {
+        is ApiResult.Success -> ApiResult.Success(result.value.unreadCount.coerceAtLeast(0), result.status)
+        is ApiResult.Failure -> result
+    }
     override fun markAllRead(): ApiResult<Unit> = remote.markAllRead()
 }
 

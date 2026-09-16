@@ -19,6 +19,11 @@ class NotificationRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun getUnreadCount(): ApiResult<NotificationUnreadCountResponse> = configured {
+        val path = "${ApiRoutes.NOTIFICATIONS}/unread-count"
+        client.execute(client.requestBuilder(path).get().build(), NotificationUnreadCountResponse.serializer())
+    }
+
     fun markRead(notificationId: String): ApiResult<Unit> = configured {
         val path = "${ApiRoutes.NOTIFICATIONS}/$notificationId/read"
         client.executeUnit(client.requestBuilder(path).patch("".toRequestBody(null)).build())

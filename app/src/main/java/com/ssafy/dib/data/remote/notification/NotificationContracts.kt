@@ -11,6 +11,8 @@ data class NotificationPageResponse(
     val hasNext: Boolean = false
 )
 
+@Serializable data class NotificationUnreadCountResponse(val unreadCount: Int = 0)
+
 @Serializable
 data class NotificationDto(
     val notificationId: JsonElement,
