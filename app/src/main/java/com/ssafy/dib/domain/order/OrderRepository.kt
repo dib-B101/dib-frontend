@@ -51,6 +51,8 @@ data class OrderPage(
     val hasNext: Boolean
 )
 
+data class OrderOfferAcceptance(val order: OrderSummary, val paymentResult: String)
+
 data class OrderShippingAddress(
     val name: String,
     val postalCode: String,
@@ -67,4 +69,5 @@ interface OrderRepository {
     fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
     fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<OrderMessagePage>
     fun confirmPurchase(orderId: String): ApiResult<String>
+    fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptance>
 }

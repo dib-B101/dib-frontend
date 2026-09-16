@@ -2,6 +2,7 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.order.OrderListResponse
+import com.ssafy.dib.data.remote.order.OrderOfferAcceptanceResponse
 import com.ssafy.dib.data.remote.order.ShipmentRegistrationRequest
 import com.ssafy.dib.data.remote.order.ShipmentResponse
 import com.ssafy.dib.data.remote.order.OrderMessageListResponse
@@ -13,6 +14,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class OrderContractTest {
+    @Test
+    fun mapsRunnerUpOfferAcceptanceAndPaymentResult() {
+        val response = DibJson.instance.decodeFromString(
+            OrderOfferAcceptanceResponse.serializer(),
+            """{"order":{"orderId":44,"auctionId":31,"productId":9,"productTitle":"필름 카메라","finalPrice":58000,"status":"PENDING"},"paymentResult":"PAYMENT_METHOD_NOT_FOUND"}"""
+        )
+
+        val order = response.order.toDomain()
+
+        assertEquals("44", order.orderId)
+        assertEquals("31", order.auctionId)
+        assertEquals("필름 카메라", order.title)
+        assertEquals("PAYMENT_METHOD_NOT_FOUND", response.paymentResult)
+    }
     @Test
     fun terminalOrdersDisableChatSending() {
         assertEquals(true, isOrderChatWritable("SHIPPED"))

@@ -76,6 +76,14 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptanceResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/orders/accept"
+        client.execute(
+            client.requestBuilder(path).post(okhttp3.RequestBody.EMPTY).build(),
+            OrderOfferAcceptanceResponse.serializer()
+        )
+    }
+
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =
         try {
             block()

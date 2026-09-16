@@ -14,7 +14,7 @@ class DomainNotificationParser {
         fun value(name: String): String? =
             (payload[name] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
 
-        val eventId = envelope.eventId ?: value("eventId") ?: return null
+        val eventId = value("notificationId") ?: envelope.eventId ?: value("eventId") ?: return null
         return DomainNotification(
             eventId = eventId,
             type = value("type") ?: return null,
@@ -22,7 +22,8 @@ class DomainNotificationParser {
             resourceId = value("resourceId") ?: return null,
             title = value("title") ?: return null,
             body = value("body") ?: return null,
-            occurredAt = envelope.occurredAt ?: value("occurredAt") ?: return null
+            occurredAt = envelope.occurredAt ?: value("occurredAt") ?: return null,
+            isRead = value("isRead")?.toBooleanStrictOrNull() ?: false
         )
     }
 }

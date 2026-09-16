@@ -28,6 +28,8 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 data class AuctionSearchFilters(
     val query: String,
@@ -160,24 +162,103 @@ fun AuctionSearchScreen(
 fun NotificationCenterScreen(
     notifications: List<DomainNotification>,
     connectionState: RealtimeConnectionState?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    hasNext: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    actionNotificationId: String?,
+    actionError: String?,
     isNotificationActionable: (DomainNotification) -> Boolean,
     onNotificationClick: (DomainNotification) -> Unit,
+    onMarkRead: (DomainNotification) -> Unit,
+    onMarkAllRead: () -> Unit,
+    onAcceptOffer: (DomainNotification) -> Unit,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     onSettingsClick: () -> Unit,
     onBack: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
 ){
     var filter by rememberSaveable{mutableStateOf("전체")}
+    var offerToConfirm by remember { mutableStateOf<DomainNotification?>(null) }
     val shown = if (filter == "전체") notifications else notifications.filter { it.category.label == filter }
     Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=androidx.compose.ui.graphics.Color.White,contentWindowInsets=WindowInsets(0,0,0,0),topBar={SimpleAppBar("알림",onBack,"설정",onSettingsClick)},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
             item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{FilterChip(filter==it,{filter=it},{Text(it)})}}}
+            if (notifications.any { !it.isRead }) {
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onMarkAllRead, enabled = actionNotificationId == null) { Text("모두 읽음", color = Colors.Navy) } } }
+            }
+            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFFFFEEF0), RoundedCornerShape(12.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 11.sp) } }
             if (connectionState == RealtimeConnectionState.Connecting || connectionState == RealtimeConnectionState.Reconnecting) {
                 item { Text(if(connectionState == RealtimeConnectionState.Connecting) "실시간 알림에 연결하고 있어요" else "실시간 알림을 다시 연결하고 있어요", color=Colors.Muted, fontSize=11.sp) }
             }
-            if (shown.isEmpty()) item { EmptyContent("새로운 알림이 없어요", "앱을 사용하는 동안 새 알림이 여기에 표시돼요") }
-            items(shown.size, key = { shown[it].eventId }){index->val item=shown[index];val actionable=isNotificationActionable(item);Row(Modifier.fillMaxWidth().heightIn(min=92.dp).border(1.dp,Colors.Border,RoundedCornerShape(14.dp)).clickable(enabled=actionable) { onNotificationClick(item) }.padding(12.dp),verticalAlignment=Alignment.CenterVertically){val isLive=item.category.label=="라이브";Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold);Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text(item.body,color=Colors.Muted,fontSize=10.sp)};Column(horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(4.dp)){Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp);if(actionable)Text("›",color=Colors.Navy,fontSize=18.sp)}}}
+            when {
+                isLoading && notifications.isEmpty() -> item { LoadingContent("알림을 불러오고 있어요") }
+                errorMessage != null && notifications.isEmpty() -> item { NetworkErrorContent(onRetry) }
+                shown.isEmpty() -> item { EmptyContent("새로운 알림이 없어요", "새 알림과 거래 안내가 여기에 표시돼요") }
+            }
+            items(shown.size, key = { shown[it].eventId }) { index ->
+                val item = shown[index]
+                val actionable = isNotificationActionable(item)
+                Column(
+                    Modifier.fillMaxWidth()
+                        .background(if (item.isRead) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFFF5FBF9), RoundedCornerShape(14.dp))
+                        .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                        .clickable(enabled = actionable) { onMarkRead(item); onNotificationClick(item) }
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val isLive = item.category.label == "라이브"
+                        Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)}
+                        Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){
+                            Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold)
+                            Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold)
+                            Text(item.body,color=Colors.Muted,fontSize=10.sp, lineHeight = 15.sp)
+                        }
+                        Column(horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(4.dp)){
+                            Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp)
+                            if (!item.isRead) Text("새 알림", color=androidx.compose.ui.graphics.Color(0xFF27806E),fontSize=9.sp,fontWeight=FontWeight.Bold)
+                            else if(actionable) Text("›",color=Colors.Navy,fontSize=18.sp)
+                        }
+                    }
+                    if (item.isRunnerUpOffer) {
+                        Button(
+                            onClick = { offerToConfirm = item },
+                            enabled = actionNotificationId == null,
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                        ) {
+                            if (actionNotificationId == item.eventId) CircularProgressIndicator(Modifier.size(20.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
+                            else Text("차순위 구매 제안 수락", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            if (hasNext || isLoadingMore || loadMoreError != null) item(key = "notification-load-more") {
+                LaunchedEffect(notifications.size, hasNext, isLoadingMore, loadMoreError) {
+                    if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
+                }
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    when {
+                        isLoadingMore -> CircularProgressIndicator(Modifier.size(24.dp), color = Colors.Navy, strokeWidth = 2.dp)
+                        loadMoreError != null -> { Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp); TextButton(onClick = onLoadMore) { Text("더 불러오기") } }
+                    }
+                }
+            }
         }
+    }
+    offerToConfirm?.let { offer ->
+        AlertDialog(
+            onDismissRequest = { offerToConfirm = null },
+            title = { Text("차순위 구매 제안을 수락할까요?") },
+            text = { Text("수락하면 주문이 생성되고 등록 카드로 즉시 자동결제를 요청합니다. 제안은 알림 생성 후 24시간 동안 유효해요.") },
+            confirmButton = { TextButton({ offerToConfirm = null; onMarkRead(offer); onAcceptOffer(offer) }) { Text("수락하고 결제", color = Colors.Navy, fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton({ offerToConfirm = null }) { Text("나중에") } }
+        )
     }
 }
 
@@ -185,7 +266,10 @@ fun NotificationCenterScreen(
 @Composable private fun EmptyContent(title: String, body: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(title, color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 12.sp) } }
 @Composable private fun NetworkErrorContent(onRetry: () -> Unit) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("연결이 원활하지 않아요", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("네트워크를 확인하고 다시 시도해주세요", color = Colors.Muted, fontSize = 12.sp); Button(onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("다시 시도") } } }
 private fun notificationTimeLabel(occurredAt: String): String = runCatching {
-    val seconds = Duration.between(Instant.parse(occurredAt), Instant.now()).seconds.coerceAtLeast(0)
+    val occurredInstant = runCatching { Instant.parse(occurredAt) }.getOrElse {
+        LocalDateTime.parse(occurredAt).atZone(ZoneId.systemDefault()).toInstant()
+    }
+    val seconds = Duration.between(occurredInstant, Instant.now()).seconds.coerceAtLeast(0)
     when {
         seconds < 60 -> "방금"
         seconds < 3_600 -> "${seconds / 60}분 전"

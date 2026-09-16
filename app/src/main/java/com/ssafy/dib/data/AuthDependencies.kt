@@ -20,6 +20,7 @@ import com.ssafy.dib.data.remote.member.AddressRemoteDataSource
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
 import com.ssafy.dib.data.remote.settlement.SettlementAccountRemoteDataSource
 import com.ssafy.dib.data.remote.settlement.SettlementRemoteDataSource
+import com.ssafy.dib.data.remote.notification.NotificationRemoteDataSource
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.DibWebSocketClient
 import com.ssafy.dib.data.remote.socket.OrderChatConnection
@@ -38,6 +39,7 @@ import com.ssafy.dib.data.repository.AddressRepositoryImpl
 import com.ssafy.dib.data.repository.LiveRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementAccountRepositoryImpl
 import com.ssafy.dib.data.repository.SettlementRepositoryImpl
+import com.ssafy.dib.data.repository.NotificationRepositoryImpl
 import com.ssafy.dib.data.repository.SessionTokenRefresher
 import com.ssafy.dib.domain.auction.AuctionRepository
 import com.ssafy.dib.domain.auction.BidDepositRepository
@@ -52,6 +54,7 @@ import com.ssafy.dib.domain.member.AddressRepository
 import com.ssafy.dib.domain.live.LiveRepository
 import com.ssafy.dib.domain.settlement.SettlementAccountRepository
 import com.ssafy.dib.domain.settlement.SettlementRepository
+import com.ssafy.dib.domain.notification.NotificationRepository
 import java.util.UUID
 
 class AuthDependencies(context: Context) {
@@ -76,6 +79,7 @@ class AuthDependencies(context: Context) {
     val liveRepository: LiveRepository
     val settlementAccountRepository: SettlementAccountRepository
     val settlementRepository: SettlementRepository
+    val notificationRepository: NotificationRepository
 
     init {
         val refreshRemote = AuthRemoteDataSource(
@@ -109,6 +113,7 @@ class AuthDependencies(context: Context) {
         liveRepository = LiveRepositoryImpl(LiveRemoteDataSource(client))
         settlementAccountRepository = SettlementAccountRepositoryImpl(SettlementAccountRemoteDataSource(client))
         settlementRepository = SettlementRepositoryImpl(SettlementRemoteDataSource(client))
+        notificationRepository = NotificationRepositoryImpl(NotificationRemoteDataSource(client))
     }
 
     private fun guestSessionId(): String {
