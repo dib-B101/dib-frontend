@@ -3,6 +3,7 @@ package com.ssafy.dib.feature.main
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,11 +43,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.settlement.SettlementAccount
@@ -69,9 +75,9 @@ fun AddressManagementScreen(
     var editingAddress by remember { mutableStateOf<MemberAddress?>(null) }
     var deletingAddress by remember { mutableStateOf<MemberAddress?>(null) }
     SettingsScaffold("배송지 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            actionMessage?.let { message -> item { Text("✓ $message", Modifier.fillMaxWidth().background(Color(0xFFE8FAF5), RoundedCornerShape(12.dp)).padding(14.dp), color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
-            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFEEF0), RoundedCornerShape(12.dp)).padding(14.dp), color = Colors.Urgent, fontSize = 12.sp) } }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            actionMessage?.let { message -> item { Text("완료 · $message", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             when {
                 isLoading && addresses == null -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null && addresses == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
@@ -80,15 +86,15 @@ fun AddressManagementScreen(
             items(addresses?.size ?: 0) { index ->
                 val address = addresses.orEmpty()[index]
                 Column(
-                    Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp))
-                        .clickable(enabled = !actionLoading) { editingAddress = address }.padding(15.dp),
+                    Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp))
+                        .clickable(enabled = !actionLoading) { editingAddress = address }.padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(Modifier.fillMaxWidth()) {
                         Text("배송지", Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text("수정", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text(address.name, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(address.name, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     if (address.postalCode.isNotBlank()) Text("우편번호 ${address.postalCode}", color = Colors.Muted, fontSize = 11.sp)
                     Text(address.address, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
@@ -151,20 +157,20 @@ fun SettlementAccountsScreen(
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(actionRevision) { if (actionRevision > 0) editorOpen = false }
     SettingsScaffold("정산 계좌 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             when {
                 isLoading -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null && account == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
                 account != null -> item {
-                    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Text("▣  ${account.bankName}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)){Box(Modifier.background(Colors.NavySoft,RoundedCornerShape(9.dp)).padding(horizontal=8.dp,vertical=5.dp)){Text("정산",color=Colors.Navy,fontSize=10.sp,fontWeight=FontWeight.Bold)};Text(account.bankName, color = Colors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)}
                         Text(account.maskedAccountNumber, color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text("예금주 ${account.accountHolder} · 확인 완료", color = Colors.Muted, fontSize = 12.sp)
                     }
                 }
                 else -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 정산 계좌가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("판매 대금을 받을 본인 계좌를 등록해주세요", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
             }
-            item { Text("✓  계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Color(0xFFE0F7F0), RoundedCornerShape(12.dp)).padding(16.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+            item { Text("안전 확인 · 계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(16.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             item { Button({ onResetVerification(); editorOpen = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경", fontWeight = FontWeight.Bold) } }
         }
     }
@@ -211,10 +217,10 @@ fun NotificationSettingsScreen(
 ) {
     val context = LocalContext.current
     SettingsScaffold("알림 설정", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { Column(Modifier.fillMaxWidth().background(Color(0xFFF1F5FA), RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("알림은 휴대전화 설정에서 관리해요", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text("허용 여부와 소리·진동은 Android 시스템 설정에서 변경할 수 있어요.", color = Colors.Muted, fontSize = 12.sp) } }
-            item { Text("dib에서 보내는 알림", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
-            item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Color(0xFFE3E8EF), RoundedCornerShape(16.dp))) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { Column(Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("알림은 휴대전화 설정에서 관리해요", color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text("허용 여부와 소리·진동은 Android 시스템 설정에서 변경할 수 있어요.", color = Colors.Muted, fontSize = 12.sp) } }
+            item { Text("dib에서 보내는 알림", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp))) {
                 NotificationToggle("입찰·거래 상태", "상회 입찰, 낙찰, 결제와 배송 상태", tradeEnabled, onTradeEnabledChange)
                 NotificationToggle("Live 방송", "예약 Live 시작과 방송 상태 알림", liveEnabled, onLiveEnabledChange)
                 NotificationToggle("찜한 경매", "찜한 경매의 시작·마감 임박 알림", wishlistEnabled, onWishlistEnabledChange)
@@ -227,16 +233,16 @@ fun NotificationSettingsScreen(
 
 @Composable private fun NotificationToggle(title: String, body: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().height(76.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 11.sp) }
-        Switch(checked, onChecked, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF61D1B2)))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 11.sp) }
+        Switch(checked, onChecked, colors = SwitchDefaults.colors(checkedTrackColor = Colors.MintInk))
     }
 }
 
 @Composable internal fun SettingsScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) {
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Color(0xFFF7F9FB),
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas,
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.height(48.dp).clickable(onClick = onBack).padding(14.dp, 8.dp), fontSize = 22.sp); Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold) } },
+        topBar = { Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title,color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold)};HorizontalDivider(color=Colors.Border)} },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) },
         content = content
     )
