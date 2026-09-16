@@ -1,6 +1,7 @@
 package com.ssafy.dib.data.remote.auth
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 enum class PhoneVerificationPurpose {
@@ -58,7 +59,7 @@ data class SignUpRequest(
 
 @Serializable
 data class SignUpResponse(
-    val memberId: String,
+    val memberId: JsonElement,
     val email: String,
     val nickname: String,
     val status: String,
@@ -77,7 +78,7 @@ data class LoginRequest(
 
 @Serializable
 data class MemberDto(
-    val memberId: String = "",
+    val memberId: JsonElement? = null,
     val email: String = "",
     val nickname: String = "",
     val status: String = "",

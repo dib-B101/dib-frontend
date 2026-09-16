@@ -17,6 +17,9 @@ import com.ssafy.dib.domain.auth.AuthSessionStore
 import com.ssafy.dib.domain.auth.PhoneVerificationChallenge
 import com.ssafy.dib.domain.auth.PhoneVerificationConfirmation
 import com.ssafy.dib.domain.auth.SignUpCommand
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 class AuthRepositoryImpl(
     private val remote: AuthRemoteDataSource,
@@ -103,7 +106,7 @@ class AuthRepositoryImpl(
         )) {
             is ApiResult.Success -> {
                 val session = AuthSession(
-                    memberId = result.value.memberId,
+                    memberId = result.value.memberId.idValue(),
                     email = result.value.email,
                     nickname = result.value.nickname,
                     accessToken = result.value.accessToken,
@@ -120,7 +123,7 @@ class AuthRepositoryImpl(
         when (val result = remote.login(LoginRequest(email, password, deviceId))) {
             is ApiResult.Success -> {
                 val session = AuthSession(
-                    memberId = result.value.member.memberId,
+                    memberId = result.value.member.memberId.idValue(),
                     email = result.value.member.email,
                     nickname = result.value.member.nickname,
                     accessToken = result.value.accessToken,
@@ -164,3 +167,6 @@ class AuthRepositoryImpl(
         return result
     }
 }
+
+private fun JsonElement?.idValue(): String =
+    (this as? JsonPrimitive)?.contentOrNull ?: this?.toString()?.trim('"').orEmpty()
