@@ -35,6 +35,7 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.feature.auction.BidDepositStatusNotice
+import com.ssafy.dib.feature.auction.FIXED_AUCTION_DEPOSIT_AMOUNT
 import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -464,9 +465,9 @@ private fun FeedBidSheet(
                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 shape = RoundedCornerShape(12.dp)
             )
-            BidDepositStatusNotice(depositPaid = false, depositAmount = maxOf(1_000, amount / 10))
+            BidDepositStatusNotice(depositPaid = false)
             Text(
-                if (valid) "첫 입찰 보증금 ${"%,d".format(maxOf(1_000, amount / 10))}원이 필요해요" else "현재가보다 큰 금액을 입력해주세요",
+                if (valid) "입찰 금액과 관계없이 보증금 ${"%,d".format(FIXED_AUCTION_DEPOSIT_AMOUNT)}원이 필요해요" else "현재가보다 큰 금액을 입력해주세요",
                 color = if (valid) Color(0xFF6B6B6B) else Color(0xFFB34821),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium

@@ -140,7 +140,7 @@ fun BidDepositPaymentScreen(
             DepositPaymentState.Success -> DepositPaymentSuccess(
                 productName = displayedProductName,
                 bidAmount = bidAmount,
-                depositAmount = preparedDeposit?.amount ?: maxOf(1_000L, bidAmount.toLong() / 10L),
+                depositAmount = preparedDeposit?.amount ?: FIXED_AUCTION_DEPOSIT_AMOUNT.toLong(),
                 onReturn = onReturnToAuction,
                 modifier = Modifier.padding(padding)
             )
@@ -198,8 +198,8 @@ private fun DepositPaymentForm(
         }
         Column(Modifier.fillMaxWidth().height(112.dp).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text("이번 경매 보증금", color = Colors.Muted, fontSize = 12.sp, lineHeight = 14.sp)
-            Text("${"%,d".format(maxOf(1_000L, bidAmount.toLong() / 10L))}원", fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-            Text("최초 입찰가의 10% · 최소 1,000원", color = Colors.Muted, fontSize = 11.sp, lineHeight = 13.sp)
+            Text("${"%,d".format(FIXED_AUCTION_DEPOSIT_AMOUNT)}원", fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+            Text("입찰 금액과 관계없이 경매당 한 번", color = Colors.Muted, fontSize = 11.sp, lineHeight = 13.sp)
         }
         Text("결제수단", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Row(
