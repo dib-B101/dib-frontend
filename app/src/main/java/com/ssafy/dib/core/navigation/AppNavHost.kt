@@ -355,7 +355,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         coroutineScope.launch {
                             if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = mergeNotifications(listOf(notification), domainNotifications)
-                                unreadNotificationCount = domainNotifications.count { !it.isRead }
+                                unreadNotificationCount = if (unreadNotificationCount < Int.MAX_VALUE) {
+                                    unreadNotificationCount + 1
+                                } else {
+                                    Int.MAX_VALUE
+                                }
                                 val result = notificationSnackbar.showSnackbar(
                                     message = listOf(notification.title, notification.body)
                                         .filter(String::isNotBlank)
@@ -387,12 +391,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         notificationsLoading = true
         notificationsError = null
         notificationsLoadMoreError = null
-        when (val result = withContext(Dispatchers.IO) { auth.notificationRepository.getNotifications() }) {
+        val result = withContext(Dispatchers.IO) { auth.notificationRepository.getNotifications() }
+        val unreadResult = withContext(Dispatchers.IO) { auth.notificationRepository.getUnreadCount() }
+        if (unreadResult is ApiResult.Success) unreadNotificationCount = unreadResult.value
+        when (result) {
             is ApiResult.Success -> {
                 domainNotifications = mergeNotifications(result.value.items, domainNotifications)
                 notificationsCursor = result.value.nextCursor
                 notificationsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
-                unreadNotificationCount = domainNotifications.count { !it.isRead }
+                if (unreadResult is ApiResult.Failure) unreadNotificationCount = domainNotifications.count { !it.isRead }
             }
             is ApiResult.Failure -> {
                 notificationsError = result.error.message.ifBlank { "알림을 불러오지 못했어요." }
@@ -1068,7 +1075,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         domainNotifications = domainNotifications.map { item ->
                             if (item.eventId == notification.eventId) item.copy(isRead = true) else item
                         }
-                        unreadNotificationCount = domainNotifications.count { !it.isRead }
+                        unreadNotificationCount = (unreadNotificationCount - 1).coerceAtLeast(0)
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) { auth.notificationRepository.markRead(notification.eventId) }) {
                                 is ApiResult.Success -> Unit
@@ -1139,7 +1146,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     domainNotifications = mergeNotifications(domainNotifications, result.value.items)
                                     notificationsCursor = result.value.nextCursor
                                     notificationsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank() && result.value.nextCursor != cursor
-                                    unreadNotificationCount = domainNotifications.count { !it.isRead }
                                 }
                                 is ApiResult.Failure -> {
                                     notificationsLoadMoreError = result.error.message.ifBlank { "다음 알림을 불러오지 못했어요." }
@@ -3927,6 +3933,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             ReportHistoryScreen(
                 onBack = navController::navigateUp,
                 reports = reports,
+                showSampleContent = !auth.networkConfig.isRestConfigured,
                 isLoading = reportsLoading,
                 errorMessage = reportsError,
                 hasNext = reportsHasNext,

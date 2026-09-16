@@ -23,4 +23,12 @@ class ServerTimeFormatterTest {
         assertNull(formatServerTime(null))
         assertNull(formatServerTime("not-an-instant"))
     }
+
+    @Test
+    fun formatsBackendLocalDateTimeWithoutDroppingIt() {
+        assertEquals(
+            "2026.09.16 10:30",
+            formatServerTime("2026-09-16T10:30:00", zoneId = ZoneId.of("Asia/Seoul"))
+        )
+    }
 }

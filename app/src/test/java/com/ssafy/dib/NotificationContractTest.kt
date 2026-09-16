@@ -2,12 +2,23 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.notification.NotificationPageResponse
+import com.ssafy.dib.data.remote.notification.NotificationUnreadCountResponse
 import com.ssafy.dib.data.repository.toDomain
 import com.ssafy.dib.domain.notification.NotificationCategory
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class NotificationContractTest {
+    @Test
+    fun decodesServerUnreadCount() {
+        val response = DibJson.instance.decodeFromString(
+            NotificationUnreadCountResponse.serializer(),
+            """{"unreadCount":42}"""
+        )
+
+        assertEquals(42, response.unreadCount)
+    }
+
     @Test
     fun mapsPersistedRunnerUpOffer() {
         val page = DibJson.instance.decodeFromString(
