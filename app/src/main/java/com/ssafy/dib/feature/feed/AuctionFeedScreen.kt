@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.feature.auction.BidDepositStatusNotice
 import com.ssafy.dib.feature.auction.FIXED_AUCTION_DEPOSIT_AMOUNT
 import com.ssafy.dib.feature.auction.BidSubmission
@@ -371,23 +372,15 @@ private fun FeedPage(
             }
         }
 
-        Column(
-            Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 139.dp).size(44.dp, 52.dp)
-                .clickable {
-                    if (!favorite) showFavoriteFeedback = true
-                    onFavoriteChange(!favorite)
-                },
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Image(
-                painter = painterResource(if (favorite) R.drawable.favorite_selected else R.drawable.favorite_outline),
-                contentDescription = if (favorite) "찜 해제" else "찜하기",
-                modifier = Modifier.size(28.dp),
-                colorFilter = ColorFilter.tint(if (favorite) Colors.Favorite else Color.White)
-            )
-            Text("찜", color = Color.White, fontSize = 10.sp)
-        }
+        DibWishlistButton(
+            selected = favorite,
+            onSelectedChange = { selected ->
+                if (selected) showFavoriteFeedback = true
+                onFavoriteChange(selected)
+            },
+            productName = auction.name,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 139.dp)
+        )
     }
 }
 

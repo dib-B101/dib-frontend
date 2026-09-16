@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.live
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,11 +15,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.R
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -72,10 +76,7 @@ fun LiveManagementScreen(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Surface,
         topBar = {
-            Row(Modifier.fillMaxWidth().height(52.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
-                Text("←", Modifier.size(52.dp).clickable(onClick = onBack).wrapContentSize(), fontSize = 24.sp)
-                Text("Live 방송 관리", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+            Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text("Live 방송 관리", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border)}
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { showCreate = true }, containerColor = Colors.Navy, contentColor = Color.White) {

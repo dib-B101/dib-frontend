@@ -17,10 +17,17 @@ import com.ssafy.dib.ui.theme.WireframeColors
 
 /** Figma wishlist: 28 dp visual control within a 44 dp touch target. */
 @Composable
-fun DibWishlistButton(selected: Boolean, onSelectedChange: (Boolean) -> Unit, productName: String, modifier: Modifier = Modifier) {
+fun DibWishlistButton(
+    selected: Boolean,
+    onSelectedChange: (Boolean) -> Unit,
+    productName: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
     IconToggleButton(
         checked = selected,
         onCheckedChange = onSelectedChange,
+        enabled = enabled,
         modifier = modifier.size(44.dp)
     ) {
         Surface(
