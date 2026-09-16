@@ -486,14 +486,14 @@ fun ProductRegisterScreen(
     }
 
     if (result != null) {
-        Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface) { padding ->
+        Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas) { padding ->
             Column(
                 Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("✓", color = Colors.MintInk, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-                Text("상품 검수를 요청했어요", Modifier.padding(top = 16.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Box(Modifier.size(72.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) { Text("✓", color = Colors.MintInk, fontSize = 36.sp, fontWeight = FontWeight.Bold) }
+                Text("상품 검수를 요청했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("승인되면 경매를 등록할 수 있어요.\n상품 번호 ${result.productId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
                 Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }
             }
@@ -501,11 +501,11 @@ fun ProductRegisterScreen(
         return
     }
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Surface, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.size(48.dp).clickable { if(step > 1) step-- else onBack() }.wrapContentSize(), fontSize = 24.sp); Text("상품 등록", fontSize = 16.sp, fontWeight = FontWeight.Bold) } }
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
+        topBar = { Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { if(step > 1) step-- else onBack() }) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter=ColorFilter.tint(Colors.Text)) }; Text("상품 등록", color=Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }; HorizontalDivider(color=Colors.Border) } }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(if(step == 1) "상품 정보" else "등록 확인", fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("$step / 2", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 2f }, Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp), color = Colors.Navy, trackColor = Colors.Border) }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(if(step == 1) "상품 정보" else "등록 확인", color=Colors.Text,fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("$step / 2", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 2f }, Modifier.fillMaxWidth().padding(top = 10.dp).height(5.dp), color = Colors.Navy, trackColor = Colors.Border) }
             when(step) {
                 1 -> {
                     item { Text("상품 사진 *  1~10장 · 첫 사진이 대표", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
@@ -514,7 +514,7 @@ fun ProductRegisterScreen(
                         Box(
                             Modifier.fillMaxWidth()
                                 .height(if (photoError) 112.dp else 88.dp)
-                                .background(Colors.Surface, RoundedCornerShape(12.dp))
+                                .background(Colors.Background, RoundedCornerShape(16.dp))
                                 .border(if (photoError) 2.dp else 1.dp, if (photoError) Colors.Urgent else Colors.Border, RoundedCornerShape(12.dp))
                                 .clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                             contentAlignment = Alignment.Center
@@ -568,7 +568,7 @@ fun ProductRegisterScreen(
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    item { Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; Text(description, color = Colors.Muted, fontSize = 12.sp) } }
+                    item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, color=Colors.Text,fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; HorizontalDivider(color=Colors.Border);Text(description, color = Colors.Muted, fontSize = 12.sp,lineHeight=18.sp) } }
                     item { Text("AI 상품 검수 요청 후 승인되면 경매를 시작할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
@@ -617,13 +617,10 @@ internal fun ProductPhotoReorderScreen(
     val reorderedTypes = remember { mutableStateListOf<String>().apply { addAll(imageTypes) } }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFF7F9FB),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(Modifier.fillMaxWidth().height(48.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
-                Text("←", Modifier.size(48.dp).clickable(onClick = onBack).wrapContentSize(), fontSize = 24.sp)
-                Text("사진 순서 편집", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
+            Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text("사진 순서 편집", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border) }
         },
         bottomBar = {
             Button(
@@ -636,16 +633,16 @@ internal fun ProductPhotoReorderScreen(
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(start=18.dp,end=18.dp,top=20.dp,bottom=24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Text("사진을 길게 눌러 순서를 바꿔보세요", color = Colors.Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("사진을 길게 눌러 순서를 바꿔보세요", color = Colors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Text("첫 번째 사진이 상품 목록과 경매의 썸네일로 사용됩니다", Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 11.sp)
             }
             item {
                 LazyRow(
-                    Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(12.dp),
+                    Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(reorderedImages, key = { _, uri -> uri.toString() }) { index, uri ->
