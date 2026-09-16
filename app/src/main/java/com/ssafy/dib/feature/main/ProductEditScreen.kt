@@ -21,14 +21,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductDetail
 import com.ssafy.dib.domain.product.ProductUpdate
 import com.ssafy.dib.domain.product.ProductUpdateResult
@@ -62,10 +65,10 @@ fun ProductEditScreen(
         replacementTypes.addAll(defaultProductImageTypes(replacementUris.size))
     }
     if (result != null) {
-        Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Background) { padding ->
+        Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("✓", color = Colors.MintInk, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-                Text("상품 수정을 완료했어요", Modifier.padding(top = 16.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Box(Modifier.size(72.dp).background(Colors.MintSoft, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) { Text("✓", color = Colors.MintInk, fontSize = 36.sp, fontWeight = FontWeight.Bold) }
+                Text("상품 수정을 완료했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("변경된 상품은 다시 AI 검수를 진행해요.", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
                 Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }
             }
@@ -90,9 +93,9 @@ fun ProductEditScreen(
     }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { Row(Modifier.fillMaxWidth().height(52.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) { Text("←", Modifier.size(52.dp).clickable(onClick = onBack).wrapContentSize(), fontSize = 24.sp); Text("상품 수정", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold) } }
+        topBar = { Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text)) }; Text("상품 수정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }; HorizontalDivider(color = Colors.Border) } }
     ) { padding ->
         when {
             isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
@@ -135,10 +138,10 @@ private fun ProductEditForm(
     var marketPrice by rememberSaveable(detail.productId) { mutableStateOf(detail.marketPrice?.toString().orEmpty()) }
     var showCategories by rememberSaveable { mutableStateOf(false) }
     val valid = title.isNotBlank() && description.isNotBlank() && categoryId.isNotBlank() && condition in setOf("GOOD", "NORMAL", "BAD")
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("상품 이미지", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("상품 이미지", color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 if (replacementUris.isEmpty()) {
                     DibNetworkImage(detail.thumbnailUrl, detail.title, Modifier.size(88.dp))
                     Text("새 사진을 선택하지 않으면 기존 이미지를 유지해요.", color = Colors.Muted, fontSize = 11.sp)
@@ -208,7 +211,7 @@ private fun EditImageThumbnail(uri: Uri, representative: Boolean, imageType: Str
 @Composable
 private fun EditField(label: String, value: String, onChange: (String) -> Unit, keyboardType: KeyboardType, singleLine: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), singleLine = singleLine, minLines = if (singleLine) 1 else 4, keyboardOptions = KeyboardOptions(keyboardType = keyboardType), shape = RoundedCornerShape(12.dp))
+        Text(label, color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), singleLine = singleLine, minLines = if (singleLine) 1 else 4, keyboardOptions = KeyboardOptions(keyboardType = keyboardType), shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor=Colors.Navy,unfocusedBorderColor=Colors.Border,focusedContainerColor=Colors.Background,unfocusedContainerColor=Colors.Background))
     }
 }
