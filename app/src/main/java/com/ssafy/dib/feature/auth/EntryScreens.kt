@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -199,7 +200,7 @@ private fun LoginField(
             isError = errorMessage != null,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (keyboardType == KeyboardType.Password && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-            trailingIcon = onVisibility?.let { action -> ({ Text(if (visible) "◉" else "◎", Modifier.clickable(onClick = action), color = Colors.Muted) }) },
+            trailingIcon = onVisibility?.let { action -> ({ IconButton(onClick = action) { Image(painterResource(if (visible) R.drawable.visibility else R.drawable.visibility_off), if (visible) "비밀번호 숨기기" else "비밀번호 보기", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Muted)) } }) },
             shape = RoundedCornerShape(15.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Colors.Navy,

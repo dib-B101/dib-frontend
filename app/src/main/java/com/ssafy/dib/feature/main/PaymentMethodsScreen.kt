@@ -117,7 +117,7 @@ fun PaymentMethodsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(46.dp).background(Color(0xFFDDF8F0), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                                Text("▣", color = Colors.Navy, fontSize = 22.sp)
+                                Text("CARD", color = Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                             Column(Modifier.padding(start = 12.dp)) {
                                 Text(paymentMethod.cardCompany ?: "등록 카드", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)

@@ -399,14 +399,14 @@ private data class OrderPresentation(
 )
 
 private fun orderPresentation(status: String, seller: Boolean): OrderPresentation = when (status.uppercase()) {
-    "PENDING" -> OrderPresentation("결제 대기", "!", if (seller) "구매자의 결제를 기다리고 있어요" else "결제가 필요해요", "결제가 완료되면 거래가 시작돼요.", Color(0xFFFFEEE8))
-    "PAID", "PREPARING" -> OrderPresentation("발송 준비 중", "▣", if (seller) "상품을 발송해주세요" else "판매자가 상품을 준비 중이에요", "배송 정보가 등록되면 바로 알려드릴게요.", Color(0xFFF1F5FA))
+    "PENDING" -> OrderPresentation("결제 대기", "결제", if (seller) "구매자의 결제를 기다리고 있어요" else "결제가 필요해요", "결제가 완료되면 거래가 시작돼요.", Color(0xFFFFEEE8))
+    "PAID", "PREPARING" -> OrderPresentation("발송 준비 중", "준비", if (seller) "상품을 발송해주세요" else "판매자가 상품을 준비 중이에요", "배송 정보가 등록되면 바로 알려드릴게요.", Color(0xFFF1F5FA))
     "SHIPPED" -> OrderPresentation("배송 중", "✓", "상품이 배송되고 있어요", "배송 완료 후 상품 상태를 확인해주세요.", Color(0xFFF1FAF7))
-    "DELIEVERED", "DELIVERED" -> OrderPresentation("배송 완료", "▣", if (seller) "구매 확정을 기다리고 있어요" else "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7))
+    "DELIEVERED", "DELIVERED" -> OrderPresentation("배송 완료", "도착", if (seller) "구매 확정을 기다리고 있어요" else "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7))
     "CONFIRMED" -> OrderPresentation(if (seller) "판매 완료" else "구매 완료", "✓", "거래가 완료됐어요", "안전하게 거래가 마무리됐어요.", Color(0xFFE8FAF5))
     "CANCELLED", "CANCELED" -> OrderPresentation("거래 취소", "!", "거래가 취소됐어요", "상세 사유는 고객센터에서 확인할 수 있어요.", Color(0xFFF1F3F5))
     "REFUNDED" -> OrderPresentation("환불 완료", "✓", "환불이 완료됐어요", "결제수단의 환불 내역을 확인해주세요.", Color(0xFFF1F3F5))
-    else -> OrderPresentation(status, "▣", "거래가 진행 중이에요", "최신 거래 상태를 확인해주세요.", Color(0xFFF1F5FA))
+    else -> OrderPresentation(status, "거래", "거래가 진행 중이에요", "최신 거래 상태를 확인해주세요.", Color(0xFFF1F5FA))
 }
 
 @Composable
@@ -459,7 +459,7 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
                 }
                 TransactionStep.Preparing -> {
                     item { StateHeader("발송 준비 중", 1) }
-                    item { StatusHero("▣", "판매자가 상품을 준비 중이에요", "발송되면 운송장과 배송 현황을 알려드릴게요.", Color(0xFFF1F5FA)) }
+                    item { StatusHero("준비", "판매자가 상품을 준비 중이에요", "발송되면 운송장과 배송 현황을 알려드릴게요.", Color(0xFFF1F5FA)) }
                     item { ProductSummary(amount) }
                     item { InfoCard(listOf("거래 상대" to "dib_user24", "배송지" to "서울 마포구 ·•••", "결제" to "58,000원 승인")) }
                     item { PrimaryButton("발송 알림 확인") { step = TransactionStep.Shipping } }
@@ -475,7 +475,7 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
                 }
                 TransactionStep.Delivered -> {
                     item { StateHeader("배송 완료", 2) }
-                    item { StatusHero("▣", "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7)) }
+                    item { StatusHero("도착", "상품을 받으셨나요?", "상품 상태를 확인한 뒤 구매를 확정해주세요.", Color(0xFFF1FAF7)) }
                     item { ProductSummary(amount) }
                     item { ProgressCard(2) }
                     item { InfoCard(listOf("상품 인수" to "09.09 14:20", "이동 중" to "09.10 08:10", "배송 출발" to "09.10 12:30", "배송 완료" to "09.10 16:42"), "배송 진행") }
@@ -516,7 +516,7 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
             when (step) {
                 SellerStep.ShippingRequired -> {
                     item { StateHeader("발송 필요", 1) }
-                    item { StatusHero("▣", "구매자가 결제를 완료했어요", "상품을 포장하고 배송 정보를 등록해주세요.", Color(0xFFFFEEE8)) }
+                    item { StatusHero("준비", "구매자가 결제를 완료했어요", "상품을 포장하고 배송 정보를 등록해주세요.", Color(0xFFFFEEE8)) }
                     item { ProductSummary(35_000) }
                     item { InfoCard(listOf("구매자" to "dib_user24", "배송지" to "서울 마포구 ·•••", "발송 기한" to "1일 남음")) }
                     item { PrimaryButton("배송 정보 입력하기") { step = SellerStep.TrackingInput } }

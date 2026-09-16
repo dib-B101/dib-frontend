@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,11 +43,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.domain.auction.SaleHistoryItem
@@ -234,8 +239,8 @@ private fun AuctionEditDialog(
 private fun MyAuctionHeader(onBack: () -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth().height(52.dp).background(Colors.Background).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("←", Modifier.size(44.dp).clickable(onClick = onBack).padding(top = 7.dp), fontSize = 24.sp)
-            Text("내 경매 관리", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))}
+            Text("내 경매 관리", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Colors.Border)
     }

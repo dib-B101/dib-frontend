@@ -30,6 +30,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -54,6 +55,7 @@ import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -410,8 +412,8 @@ private fun LiveFeedPage(
                         }
                     }
                 }
-                LiveAction("▦", "상품", Color.White) { showProducts = true }
-                LiveAction("!", "신고", Color.White) {
+                LiveAction(R.drawable.product_outline, "상품") { showProducts = true }
+                LiveAction(R.drawable.report_outline, "신고") {
                     if (isAuthenticated) showReportTypes = true else onLoginRequired()
                 }
             }
@@ -1004,35 +1006,25 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
 }
 
 @Composable
-private fun LiveAction(icon: String, label: String, color: Color, onClick: () -> Unit) {
+private fun LiveAction(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
     Column(
         Modifier.size(48.dp, 58.dp).background(Color.Black.copy(.32f), RoundedCornerShape(24.dp)).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(icon, color = color, fontSize = 20.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
+        Image(painterResource(icon), label, Modifier.size(21.dp), colorFilter = ColorFilter.tint(Color.White))
         Text(label, color = Color.White, fontSize = 9.sp)
     }
 }
 
 @Composable
 private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier.size(48.dp, 58.dp)
-            .graphicsLayer(alpha = if (enabled) 1f else .6f)
-            .background(Color.Black.copy(.28f), RoundedCornerShape(24.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Image(
-            painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
-            contentDescription = if (selected) "찜 해제" else "찜하기",
-            Modifier.size(25.dp),
-            colorFilter = ColorFilter.tint(if (selected) Colors.Favorite else Color.White)
-        )
-        Text("찜", color = Color.White, fontSize = 9.sp)
-    }
+    DibWishlistButton(
+        selected = selected,
+        onSelectedChange = { onClick() },
+        productName = "라이브 상품",
+        enabled = enabled
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
