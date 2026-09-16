@@ -1,12 +1,14 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -15,10 +17,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
+import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -62,14 +67,13 @@ fun OrderChatScreen(
     }
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Color(0xFFF7F9FB),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(Modifier.fillMaxWidth().height(52.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
-                Text("←", Modifier.size(52.dp).clickable(onClick = onBack).padding(start = 15.dp, top = 9.dp), fontSize = 22.sp)
-                Text("거래 채팅", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Text(connectionLabel(connectionState), color = Colors.Muted, fontSize = 10.sp)
+            Column(Modifier.background(Colors.Background)) {
+            Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))}
+                Column(Modifier.weight(1f)) { Text("거래 채팅", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold);Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){Box(Modifier.size(6.dp).background(if(connectionState==RealtimeConnectionState.Connected)Colors.MintInk else Colors.Muted,CircleShape));Text(connectionLabel(connectionState), color = Colors.Muted, fontSize = 10.sp)} }
                 Text(
                     "신고",
                     Modifier.clickable(enabled = latestParticipantMessage != null) {
@@ -83,9 +87,11 @@ fun OrderChatScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+            HorizontalDivider(color=Colors.Border)
+            }
         },
         bottomBar = {
-            Row(Modifier.fillMaxWidth().imePadding().background(Color.White).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().imePadding().background(Colors.Background)) { HorizontalDivider(color=Colors.Border);Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     input,
                     { input = it.take(500) },
@@ -93,7 +99,8 @@ fun OrderChatScreen(
                     enabled = canSend,
                     placeholder = { Text(if (canSend) "메시지를 입력하세요" else "종료된 거래에서는 채팅할 수 없어요") },
                     singleLine = true,
-                    shape = RoundedCornerShape(22.dp)
+                    shape = RoundedCornerShape(24.dp),
+                    colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Colors.Navy,unfocusedBorderColor=Colors.Border,focusedContainerColor=Colors.Surface,unfocusedContainerColor=Colors.Surface)
                 )
                 Button(
                     onClick = { if (onSend(input)) input = "" },
@@ -102,7 +109,7 @@ fun OrderChatScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                 ) { Text("전송", fontWeight = FontWeight.Bold) }
-            }
+            }}
         }
     ) { padding ->
         when {
@@ -114,8 +121,8 @@ fun OrderChatScreen(
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(horizontal=16.dp,vertical=18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (hasMore || isLoadingEarlier || loadEarlierError != null) {
                     item(key = "load-earlier") {
@@ -151,10 +158,10 @@ fun OrderChatScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        Surface(color = if (mine) Colors.Navy else Color.White, shape = RoundedCornerShape(14.dp)) {
-                            Text(message.content, Modifier.padding(horizontal = 13.dp, vertical = 9.dp), color = if (mine) Color.White else Colors.Text, fontSize = 13.sp)
+                        Surface(color = if (mine) Colors.Navy else Colors.Background, shape = if(mine)RoundedCornerShape(16.dp,4.dp,16.dp,16.dp) else RoundedCornerShape(4.dp,16.dp,16.dp,16.dp)) {
+                            Text(message.content, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), color = if (mine) Color.White else Colors.Text, fontSize = 14.sp,lineHeight=20.sp)
                         }
-                        Text(formatServerTime(message.time) ?: message.time.take(16).replace('T', ' '), color = Colors.Muted, fontSize = 9.sp)
+                        Text(formatServerTime(message.time) ?: message.time.take(16).replace('T', ' '),Modifier.padding(top=3.dp), color = Colors.Muted, fontSize = 9.sp)
                     }
                 }
             }
