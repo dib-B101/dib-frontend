@@ -174,12 +174,18 @@ fun MyTradesScreen(
                 }
             } else if (items.isEmpty()) {
                 item {
-                    Text(
-                        "아직 ${selected.label} 거래가 없어요.",
-                        Modifier.fillMaxWidth().padding(vertical = 40.dp),
-                        color = Colors.Muted,
-                        fontSize = 13.sp
-                    )
+                    Column(
+                        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))
+                            .border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).padding(vertical = 42.dp, horizontal = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(Modifier.size(48.dp).background(Colors.NavySoft, CircleShape), contentAlignment = Alignment.Center) {
+                            Image(painterResource(R.drawable.product_outline), null, Modifier.size(23.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                        }
+                        Text("아직 ${selected.label} 거래가 없어요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("경매에 참여하면 진행 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp)
+                    }
                 }
             }
             if (!selectedLoading && selectedError == null && contentView == DibContentView.List) {
@@ -292,7 +298,10 @@ private fun openTradeItem(
             Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(item.meta, color = Color(0xFF6B7280), fontSize = 11.sp)
-            Text(item.action, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.action.removeSuffix(" →"), color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(if(item.tone == TradeTone.Urgent) ink else Colors.Navy))
+            }
         }
     }
 }
@@ -312,7 +321,10 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
         Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text(item.meta, maxLines = 2, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
-        Text(item.action, maxLines = 1, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(item.action.removeSuffix(" →"), maxLines = 1, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(if(item.tone == TradeTone.Urgent) ink else Colors.Navy))
+        }
     }
 }
 
