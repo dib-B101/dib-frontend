@@ -124,6 +124,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val hasAppAccess = signedIn == true || previewMode
     var showCreateMenu by rememberSaveable { mutableStateOf(false) }
     var productSelectionPurpose by rememberSaveable { mutableStateOf<String?>(null) }
+    var browseAllAuctions by rememberSaveable { mutableStateOf(false) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -851,7 +852,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
                 onLiveClick = { navController.navigate(Screen.Feed.route) },
-                onSearchClick = { navController.navigate(Screen.Search.route) },
+                onSearchClick = {
+                    browseAllAuctions = false
+                    navController.navigate(Screen.Search.route)
+                },
+                onViewAllAuctions = {
+                    browseAllAuctions = true
+                    navController.navigate(Screen.Search.route)
+                },
                 onNotificationsClick = {
                     if (hasAppAccess) {
                         unreadNotificationCount = 0
@@ -1071,6 +1079,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
             }
             AuctionSearchScreen(
+                browseOnOpen = browseAllAuctions,
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,

@@ -55,6 +55,7 @@ fun HomeScreen(
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onViewAllAuctions: () -> Unit,
     onNotificationsClick: () -> Unit,
     onCategoryClick: () -> Unit,
     onLoginRequired: () -> Unit,
@@ -66,6 +67,7 @@ fun HomeScreen(
     var closingSoon by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
+    val homeRecommendations = displayedAuctions.take(4)
     val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
     val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4)
         ?: if (showSampleContent) recommended else emptyList()
@@ -159,7 +161,20 @@ fun HomeScreen(
                 item { AuctionGridSection("곧 마감되는 경매", closingAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
             } else if (remoteError == null) {
                 item { HomeLiveSection(displayedLives, onLiveClick) }
-                item { AuctionGridSection(if (showSampleContent && remoteAuctions == null) "전체 경매" else "추천 경매", displayedAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+                item {
+                    AuctionGridSection(
+                        title = "추천 경매",
+                        auctions = homeRecommendations,
+                        imageHeight = 100,
+                        favoriteIds = favoriteIds,
+                        viewMode = contentView,
+                        onViewModeChange = { contentView = it },
+                        onFavorite = ::updateFavorite,
+                        onProductClick = onProductClick,
+                        actionLabel = "전체보기",
+                        onAction = onViewAllAuctions
+                    )
+                }
             }
         }
     }
@@ -320,12 +335,19 @@ private fun AuctionGridSection(
     viewMode: DibContentView,
     onViewModeChange: (DibContentView) -> Unit,
     onFavorite: (String, Boolean) -> Unit,
-    onProductClick: (String) -> Unit
+    onProductClick: (String) -> Unit,
+    actionLabel: String? = null,
+    onAction: () -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            DibViewModeToggle(viewMode, onViewModeChange)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                actionLabel?.let { label ->
+                    Text(label, Modifier.clickable(onClick = onAction).padding(horizontal = 4.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                DibViewModeToggle(viewMode, onViewModeChange)
+            }
         }
         if (viewMode == DibContentView.Grid) {
             auctions.chunked(2).forEach { row ->

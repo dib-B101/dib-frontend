@@ -48,6 +48,7 @@ data class AuctionSearchFilters(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuctionSearchScreen(
+    browseOnOpen: Boolean,
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
@@ -64,7 +65,7 @@ fun AuctionSearchScreen(
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf(false) }
+    var submitted by rememberSaveable(browseOnOpen) { mutableStateOf(browseOnOpen) }
     var recent by rememberSaveable { mutableStateOf(listOf("필름 카메라", "머그컵", "작가 핸드메이드")) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("전체") }
@@ -87,6 +88,9 @@ fun AuctionSearchScreen(
         if (query.isNotBlank()) recent = (listOf(query.trim()) + recent).distinct().take(5)
         onSearch(filters())
     }
+    LaunchedEffect(browseOnOpen) {
+        if (browseOnOpen) submit()
+    }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
         (category == "전체" || it.category.contains(category.removeSuffix("기기"))) &&
             (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
@@ -102,7 +106,7 @@ fun AuctionSearchScreen(
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { DiscoveryAppBar("검색", onBack) },
+        topBar = { DiscoveryAppBar(if (browseOnOpen) "전체 경매" else "검색", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
