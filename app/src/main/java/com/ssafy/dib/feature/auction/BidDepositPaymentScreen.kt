@@ -2,6 +2,7 @@ package com.ssafy.dib.feature.auction
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,9 +14,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.ExternalPaymentReturnEffect
 import com.ssafy.dib.domain.auction.BidDeposit
 import com.ssafy.dib.feature.home.allHomeAuctions
@@ -79,7 +83,7 @@ fun BidDepositPaymentScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = if (state == DepositPaymentState.Form) Colors.Background else Color(0xFFFAFBFC),
+        containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AuctionSubAppBar("입찰 보증금 결제") {
@@ -93,12 +97,12 @@ fun BidDepositPaymentScreen(
         },
         bottomBar = {
             if (state == DepositPaymentState.Form) {
-                Column(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Column(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 18.dp, vertical = 12.dp)) {
                     Button(
                         onClick = { selectedPaymentMethod?.let { onPrepare(it.code) } },
                         enabled = selectedPaymentMethod != null && agreed,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(15.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                     ) {
                         Text(
@@ -187,34 +191,38 @@ private fun DepositPaymentForm(
     onAgreementChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.fillMaxWidth().height(92.dp).background(Colors.Surface, RoundedCornerShape(14.dp)).padding(12.dp)) {
-            Box(Modifier.size(68.dp).background(Colors.Border, RoundedCornerShape(10.dp)))
+    Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().height(96.dp).background(Colors.Background, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).padding(12.dp)) {
+            Box(Modifier.size(70.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                Text(productName.take(1), color = Colors.Navy.copy(alpha = .5f), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            }
             Column(Modifier.fillMaxHeight().padding(start = 14.dp), verticalArrangement = Arrangement.SpaceBetween) {
                 Text(productName, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold)
                 Text("입찰 금액 ${"%,d".format(bidAmount)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 15.sp)
                 Text("마감까지 ${formatClock(remainingSeconds)}", color = Colors.Urgent, fontSize = 11.sp, lineHeight = 14.sp)
             }
         }
-        Column(Modifier.fillMaxWidth().height(112.dp).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.fillMaxWidth().height(116.dp).background(Colors.Background, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text("이번 경매 보증금", color = Colors.Muted, fontSize = 12.sp, lineHeight = 14.sp)
             Text("${"%,d".format(FIXED_AUCTION_DEPOSIT_AMOUNT)}원", fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
             Text("입찰 금액과 관계없이 경매당 한 번", color = Colors.Muted, fontSize = 11.sp, lineHeight = 13.sp)
         }
         Text("결제수단", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Row(
-            Modifier.fillMaxWidth().height(64.dp).border(1.dp, Colors.Border, RoundedCornerShape(12.dp))
+            Modifier.fillMaxWidth().height(66.dp).background(Colors.Background, RoundedCornerShape(15.dp)).border(1.dp, Colors.Border, RoundedCornerShape(15.dp))
                 .clickable(onClick = onMethodClick).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("▣", color = if (paymentMethod.isNotBlank()) Colors.Navy else Colors.Muted, fontSize = 22.sp)
+            Surface(color = Colors.NavySoft, shape = RoundedCornerShape(10.dp)) {
+                Text("결제", Modifier.padding(horizontal = 8.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(paymentMethod.ifBlank { "결제수단을 선택해주세요" }, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(if (paymentMethod.isNotBlank()) "결제수단 변경 가능" else "카드 · 계좌이체", color = Colors.Muted, fontSize = 10.sp)
             }
-            Text("›", color = Colors.Muted, fontSize = 24.sp)
+            Image(painterResource(R.drawable.chevron_right), "결제수단 선택", Modifier.size(18.dp), colorFilter = ColorFilter.tint(Colors.Muted))
         }
-        Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(15.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("보증금은 이렇게 처리돼요", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("• 첫 입찰 시 한 번만 결제해요\n• 재입찰에는 추가 보증금이 없어요\n• 패찰 시 경매 종료 후 자동 반환돼요\n• 낙찰 시 거래·취소 정책에 따라 처리돼요", color = Colors.Muted, fontSize = 11.sp, lineHeight = 20.sp)
         }
@@ -263,9 +271,7 @@ private fun DepositPaymentAwaitingApproval(
 private fun DepositPaymentFailure(method: String, reason: String, onRetry: () -> Unit, onChangeMethod: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(104.dp))
-        Box(Modifier.size(88.dp).background(Color(0xFFFFE9E9), CircleShape), contentAlignment = Alignment.Center) {
-            Text("!", color = Color(0xFFF5636E), fontSize = 44.sp, fontWeight = FontWeight.Bold)
-        }
+        DepositResultBadge("확인 필요", success = false)
         Text("결제를 완료하지 못했어요", Modifier.padding(top = 28.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(reason.ifBlank { "결제 요청을 처리하지 못했습니다.\n결제수단을 확인한 뒤 다시 시도해주세요." }, Modifier.padding(top = 14.dp), color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
         Column(Modifier.fillMaxWidth().padding(top = 36.dp).background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -283,9 +289,7 @@ private fun DepositPaymentFailure(method: String, reason: String, onRetry: () ->
 private fun DepositPaymentSuccess(productName: String, bidAmount: Int, depositAmount: Long, onReturn: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(120.dp))
-        Box(Modifier.size(88.dp).background(Colors.Mint, CircleShape), contentAlignment = Alignment.Center) {
-            Text("✓", color = Colors.MintInk, fontSize = 44.sp, fontWeight = FontWeight.Bold)
-        }
+        DepositResultBadge("결제 완료", success = true)
         Text("보증금 결제가 완료됐어요", Modifier.padding(top = 28.dp), color = Colors.Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("보증금 ${"%,d".format(depositAmount)}원 결제가 완료됐어요.\n경매로 돌아가면 ${"%,d".format(bidAmount)}원 입찰을 자동으로 요청해요.", Modifier.padding(top = 14.dp), color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
         Column(Modifier.fillMaxWidth().padding(top = 48.dp).background(Color(0xFFF2F6FB), RoundedCornerShape(12.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -297,5 +301,18 @@ private fun DepositPaymentSuccess(productName: String, bidAmount: Int, depositAm
             Text("경매로 돌아가기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun DepositResultBadge(label: String, success: Boolean) {
+    Surface(
+        modifier = Modifier.size(88.dp),
+        color = if (success) Colors.MintSoft else Colors.UrgentBackground,
+        shape = CircleShape
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(label, color = if (success) Colors.MintInk else Colors.Urgent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

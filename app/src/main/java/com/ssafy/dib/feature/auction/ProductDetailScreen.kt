@@ -232,7 +232,7 @@ fun ProductDetailScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Background,
+        containerColor = Colors.Canvas,
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -452,16 +452,17 @@ private fun formatBidCreatedAt(value: String): String =
 
 @Composable
 private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
-    Row(Modifier.fillMaxWidth().height(48.dp).background(Colors.Background).padding(horizontal = 8.dp),
+    Row(Modifier.fillMaxWidth().height(60.dp).background(Colors.Background).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
-        Text("상품 상세", Modifier.weight(1f), fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = (-0.28).sp, fontWeight = FontWeight.Bold)
+        Text("상품 상세", Modifier.weight(1f), color = Colors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
         IconButton(onClick = onShare, enabled = shareEnabled) {
             Image(painterResource(R.drawable.share), "공유", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
     }
+    HorizontalDivider(color = Colors.Border)
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -469,7 +470,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImageClick: (Int) -> Unit) {
     val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
     val pagerState = rememberPagerState(pageCount = { pageCount })
-    Box(Modifier.fillMaxWidth().height(236.dp).background(Colors.Image)) {
+    Box(Modifier.fillMaxWidth().height(300.dp).background(Colors.Image)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             Box(
                 Modifier.fillMaxSize().clickable { onImageClick(page) },
@@ -524,7 +525,7 @@ private fun ProductSummary(
     state: DetailAuctionState,
     condition: String?
 ) {
-    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when (state) {
                 DetailAuctionState.Scheduled -> Badge("경매 예정")
@@ -571,7 +572,7 @@ private fun ProductSummary(
             Text("${bidCount}회 입찰", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (state == DetailAuctionState.Active) {
-            Row(Modifier.fillMaxWidth().background(Colors.Mint, RoundedCornerShape(12.dp)).padding(12.dp),
+            Row(Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Image(painterResource(R.drawable.trending_up), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
                 Text("현재가보다 큰 금액을 자유롭게 입력할 수 있어요", color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
@@ -718,7 +719,7 @@ private fun StickyBidAction(
     onBid: () -> Unit,
     onTransaction: () -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().height(76.dp).background(Colors.Background).padding(horizontal = 20.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxWidth().height(78.dp).background(Colors.Background).padding(horizontal = 20.dp, vertical = 12.dp)) {
         if (state in setOf(DetailAuctionState.Lost, DetailAuctionState.Scheduled, DetailAuctionState.Cancelled)) {
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                 Text(
@@ -759,7 +760,7 @@ private fun StickyBidAction(
                 Text(
                     when {
                         isOwnAuction -> "내 경매에는 입찰할 수 없어요"
-                        state == DetailAuctionState.HighestBidder -> "✓ 현재 최고 입찰 중이에요"
+                        state == DetailAuctionState.HighestBidder -> "현재 최고 입찰 중이에요"
                         !biddingAvailable -> "실시간 입찰 연결이 필요해요"
                         submitting -> "입찰 결과 확인 중"
                         else -> "%,d원 입찰하기".format(price)
@@ -810,7 +811,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                 supportingText = if (amountText.isNotEmpty() && amount < minimum) {{ Text("현재가보다 큰 금액을 입력해주세요") }} else null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = LocalTextStyle.current.copy(color = Colors.Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(15.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Colors.Navy, unfocusedBorderColor = Colors.Navy)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -826,7 +827,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
             BidDepositStatusNotice(depositPaid)
             Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
+                shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
                 Text(if (depositPaid) "${"%,d".format(amount)}원 입찰하기" else "보증금 결제로 계속", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
