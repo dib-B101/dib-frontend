@@ -3,6 +3,7 @@ package com.ssafy.dib.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.horizontalScroll
@@ -16,12 +17,17 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.notification.DomainNotification
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
@@ -95,36 +101,44 @@ fun AuctionSearchScreen(
     }
 
     Scaffold(
-        modifier.fillMaxSize().safeDrawingPadding(), containerColor = androidx.compose.ui.graphics.Color(0xFFF7F9FB), contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { SimpleAppBar("검색", onBack) },
+        modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
+        topBar = { DiscoveryAppBar("검색", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             item {
-                OutlinedTextField(
+                TextField(
                     value = query, onValueChange = { query = it; submitted = false },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                     placeholder = { Text("상품과 작가를 검색해보세요", color = Colors.Muted, fontSize = 14.sp) },
-                    leadingIcon = { Text("⌕", fontSize = 23.sp) },
-                    trailingIcon = if(query.isNotBlank()) ({ Text("×", Modifier.clickable { query=""; submitted=false }, fontSize = 20.sp) }) else null,
+                    leadingIcon = { Image(painterResource(R.drawable.search_full), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Muted)) },
+                    trailingIcon = if(query.isNotBlank()) ({ IconButton(onClick = { query=""; submitted=false }) { Image(painterResource(R.drawable.close), "검색어 지우기", Modifier.size(18.dp), colorFilter = ColorFilter.tint(Colors.Muted)) } }) else null,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { submit() }),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Colors.Search,
+                        unfocusedContainerColor = Colors.Search,
+                        disabledContainerColor = Colors.Search,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    )
                 )
             }
             if (!submitted) {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("최근 검색어", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("전체 삭제", Modifier.clickable { recent = emptyList() }, color = Colors.Muted, fontSize = 12.sp) } }
-                if (recent.isNotEmpty()) item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { recent.take(3).forEach { word -> FilterChip(selected=false,onClick={query=word; submit()},label={Text(word,fontSize=12.sp)}) } } }
-                item { Text("인기 검색어", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-                items(5) { index -> val word=listOf("빈티지 카메라","핸드메이드 도자기","한정판 스니커즈","원화 작품","레트로 게임기")[index]; Row(Modifier.fillMaxWidth().height(32.dp).clickable { query=word; submit() }, verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) androidx.compose.ui.graphics.Color(0xFFF5634F) else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,fontSize=14.sp,fontWeight=if(index<3)FontWeight.Bold else FontWeight.Normal) } }
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("최근 검색어"); Text("전체 삭제", Modifier.clickable { recent = emptyList() }.padding(8.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium) } }
+                if (recent.isNotEmpty()) item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { recent.forEach { word -> DiscoveryFilterChip(selected=false,onClick={query=word; submit()},label=word) } } }
+                else item { Text("최근 검색어가 없어요", color = Colors.Muted, fontSize = 13.sp) }
+                item { SectionTitle("인기 검색어") }
+                items(5) { index -> val word=listOf("빈티지 카메라","핸드메이드 도자기","한정판 스니커즈","원화 작품","레트로 게임기")[index]; Row(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).clickable { query=word; submit() }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) Colors.Live else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,Modifier.weight(1f),color=Colors.Text,fontSize=14.sp,fontWeight=if(index<3)FontWeight.SemiBold else FontWeight.Normal);Image(painterResource(R.drawable.chevron_right),null,Modifier.size(16.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
             } else if (isLoading) {
                 item { LoadingContent("경매를 불러오고 있어요") }
             } else if (errorMessage != null) {
                 item { NetworkErrorContent(onRetry) }
             } else {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("검색 결과 ${results.size}개", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("조건에 맞는 경매", color = Colors.Muted, fontSize = 12.sp) } }
-                item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(true,{}, {Text(status)}); FilterChip(category!="전체",{}, {Text(category)}); FilterChip(price!="전체",{}, {Text(price)}); FilterChip(false,{showFilters=true},{Text("필터")}) } }
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("검색 결과 ${results.size}개"); Text("조건에 맞는 경매", color = Colors.Muted, fontSize = 12.sp) } }
+                item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DiscoveryFilterChip(true,{showFilters=true},status); DiscoveryFilterChip(category!="전체",{showFilters=true},category); DiscoveryFilterChip(price!="전체",{showFilters=true},price); DiscoveryFilterChip(false,{showFilters=true},"필터 설정") } }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text("검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
                 if (hasNext || isLoadingMore || loadMoreError != null) item(key = "search-load-more") {
@@ -144,19 +158,19 @@ fun AuctionSearchScreen(
             }
         }
     }
-    if(showFilters) ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=androidx.compose.ui.graphics.Color.White){
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("×",Modifier.clickable{showFilters=false},fontSize=22.sp)}
+    if(showFilters) ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=Colors.Background){
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);IconButton(onClick={showFilters=false}){Image(painterResource(R.drawable.close),"닫기",Modifier.size(20.dp),colorFilter=ColorFilter.tint(Colors.Text))}}
             FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
             FilterGroup("가격 범위",listOf("전체","5만원 이하","5~10만원"),price){price=it}
             FilterGroup("경매 상태",listOf("진행 중","예정","종료"),status){status=it}
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"},color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(48.dp),shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }
     }
 }
 
-@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clickable(onClick=onClick),verticalArrangement=Arrangement.spacedBy(5.dp)){Box(Modifier.fillMaxWidth().height(122.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=Colors.Navy,shape=RoundedCornerShape(12.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=androidx.compose.ui.graphics.Color.White,fontSize=9.sp)}};Text(auction.name,fontSize=12.sp,fontWeight=FontWeight.Bold);Text("${auction.pricePrefix} ${auction.priceLabel}",color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}회",color=Colors.Muted,fontSize=9.sp)}}
-@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(6.dp)){Text(title,fontSize=13.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{FilterChip(selected=selected==it,onClick={onSelect(it)},label={Text(it,fontSize=12.sp)})}}}}
+@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clip(RoundedCornerShape(14.dp)).background(Colors.Background).clickable(onClick=onClick).padding(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.fillMaxWidth().height(132.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=if(auction.status=="SCHEDULED")Colors.NavySoft else if(auction.status=="ENDED")Colors.Surface else Colors.MintSoft,shape=RoundedCornerShape(10.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=if(auction.status=="SCHEDULED")Colors.Navy else if(auction.status=="ENDED")Colors.Muted else Colors.MintInk,fontSize=10.sp,fontWeight=FontWeight.Bold)}};Text(auction.name,Modifier.padding(horizontal=10.dp),color=Colors.Text,fontSize=13.sp,fontWeight=FontWeight.Bold,maxLines=1);Text("${auction.pricePrefix} ${auction.priceLabel}",Modifier.padding(horizontal=10.dp),color=Colors.Navy,fontSize=14.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}회",Modifier.padding(horizontal=10.dp),color=Colors.Muted,fontSize=10.sp)}}
+@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
 
 @Composable
 fun NotificationCenterScreen(
@@ -184,15 +198,15 @@ fun NotificationCenterScreen(
     var filter by rememberSaveable{mutableStateOf("전체")}
     var offerToConfirm by remember { mutableStateOf<DomainNotification?>(null) }
     val shown = if (filter == "전체") notifications else notifications.filter { it.category.label == filter }
-    Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=androidx.compose.ui.graphics.Color.White,contentWindowInsets=WindowInsets(0,0,0,0),topBar={SimpleAppBar("알림",onBack,"설정",onSettingsClick)},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
-            item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{FilterChip(filter==it,{filter=it},{Text(it)})}}}
+    Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=Colors.Canvas,contentWindowInsets=WindowInsets(0,0,0,0),topBar={DiscoveryAppBar("알림",onBack,"설정",onSettingsClick)},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
+        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=14.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+            item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{DiscoveryFilterChip(filter==it,{filter=it},it)}}}
             if (notifications.any { !it.isRead }) {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onMarkAllRead, enabled = actionNotificationId == null) { Text("모두 읽음", color = Colors.Navy) } } }
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) { Text("읽지 않은 알림 ${notifications.count { !it.isRead }}개",color=Colors.Muted,fontSize=12.sp); TextButton(onClick = onMarkAllRead, enabled = actionNotificationId == null) { Text("모두 읽음", color = Colors.Navy,fontWeight=FontWeight.SemiBold) } } }
             }
-            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFFFFEEF0), RoundedCornerShape(12.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 11.sp) } }
+            actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(12.dp)).padding(14.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             if (connectionState == RealtimeConnectionState.Connecting || connectionState == RealtimeConnectionState.Reconnecting) {
-                item { Text(if(connectionState == RealtimeConnectionState.Connecting) "실시간 알림에 연결하고 있어요" else "실시간 알림을 다시 연결하고 있어요", color=Colors.Muted, fontSize=11.sp) }
+                item { Row(Modifier.fillMaxWidth().background(Colors.NavySoft,RoundedCornerShape(12.dp)).padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){CircularProgressIndicator(Modifier.size(16.dp),color=Colors.Navy,strokeWidth=2.dp);Text(if(connectionState == RealtimeConnectionState.Connecting) "실시간 알림에 연결하고 있어요" else "실시간 알림을 다시 연결하고 있어요", color=Colors.Muted, fontSize=12.sp) } }
             }
             when {
                 isLoading && notifications.isEmpty() -> item { LoadingContent("알림을 불러오고 있어요") }
@@ -204,32 +218,33 @@ fun NotificationCenterScreen(
                 val actionable = isNotificationActionable(item)
                 Column(
                     Modifier.fillMaxWidth()
-                        .background(if (item.isRead) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFFF5FBF9), RoundedCornerShape(14.dp))
-                        .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
-                        .clickable(enabled = actionable) { onMarkRead(item); onNotificationClick(item) }
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (item.isRead) Colors.Background else Colors.MintSoft)
+                        .border(1.dp, if(item.isRead) Colors.Border else Colors.Mint.copy(alpha=.45f), RoundedCornerShape(16.dp))
+                        .clickable { onMarkRead(item); if(actionable) onNotificationClick(item) }
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.Top) {
                         val isLive = item.category.label == "라이브"
-                        Box(Modifier.size(44.dp).background(if(isLive)androidx.compose.ui.graphics.Color(0xFFFFE4E9)else androidx.compose.ui.graphics.Color(0xFFE8FAF5),CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"●" else "d",color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontWeight=FontWeight.Bold)}
-                        Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){
-                            Text(item.category.label,color=if(isLive)androidx.compose.ui.graphics.Color(0xFFEF596B)else Colors.Navy,fontSize=9.sp,fontWeight=FontWeight.Bold)
-                            Text(item.title,color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.Bold)
-                            Text(item.body,color=Colors.Muted,fontSize=10.sp, lineHeight = 15.sp)
+                        Box(Modifier.size(42.dp).background(if(isLive)Color(0xFFFFE8EA)else Colors.NavySoft,CircleShape),contentAlignment=Alignment.Center){Text(if(isLive)"LIVE" else item.category.label.take(1),color=if(isLive)Colors.Live else Colors.Navy,fontSize=if(isLive)9.sp else 15.sp,fontWeight=FontWeight.Bold)}
+                        Column(Modifier.weight(1f).padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                            Text(item.category.label,color=if(isLive)Colors.Live else Colors.MintInk,fontSize=10.sp,fontWeight=FontWeight.Bold)
+                            Text(item.title,color=Colors.Text,fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.Bold)
+                            Text(item.body,color=Colors.Muted,fontSize=12.sp, lineHeight = 18.sp)
                         }
                         Column(horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(4.dp)){
-                            Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=9.sp)
-                            if (!item.isRead) Text("새 알림", color=androidx.compose.ui.graphics.Color(0xFF27806E),fontSize=9.sp,fontWeight=FontWeight.Bold)
-                            else if(actionable) Text("›",color=Colors.Navy,fontSize=18.sp)
+                            Text(notificationTimeLabel(item.occurredAt),color=Colors.Muted,fontSize=10.sp)
+                            if (!item.isRead) Box(Modifier.size(7.dp).background(Colors.MintInk,CircleShape))
+                            else if(actionable) Image(painterResource(R.drawable.chevron_right),null,Modifier.size(16.dp),colorFilter=ColorFilter.tint(Colors.Muted))
                         }
                     }
                     if (item.isRunnerUpOffer) {
                         Button(
                             onClick = { offerToConfirm = item },
                             enabled = actionNotificationId == null,
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                         ) {
                             if (actionNotificationId == item.eventId) CircularProgressIndicator(Modifier.size(20.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
@@ -263,7 +278,7 @@ fun NotificationCenterScreen(
 }
 
 @Composable private fun LoadingContent(label: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) { CircularProgressIndicator(color = Colors.Navy); Text(label, color = Colors.Muted, fontSize = 13.sp) } }
-@Composable private fun EmptyContent(title: String, body: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(title, color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 12.sp) } }
+@Composable private fun EmptyContent(title: String, body: String) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Box(Modifier.size(54.dp).background(Colors.NavySoft,CircleShape),contentAlignment=Alignment.Center){Image(painterResource(R.drawable.notification),null,Modifier.size(24.dp),colorFilter=ColorFilter.tint(Colors.Navy))};Text(title, color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(body, color = Colors.Muted, fontSize = 12.sp) } }
 @Composable private fun NetworkErrorContent(onRetry: () -> Unit) { Column(Modifier.fillMaxWidth().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("연결이 원활하지 않아요", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("네트워크를 확인하고 다시 시도해주세요", color = Colors.Muted, fontSize = 12.sp); Button(onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(12.dp)) { Text("다시 시도") } } }
 private fun notificationTimeLabel(occurredAt: String): String = runCatching {
     val occurredInstant = runCatching { Instant.parse(occurredAt) }.getOrElse {
@@ -278,4 +293,8 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
     }
 }.getOrDefault(occurredAt)
 
-@Composable private fun SimpleAppBar(title:String,onBack:()->Unit,action:String="",onActionClick:(()->Unit)?=null){Row(Modifier.fillMaxWidth().height(48.dp).background(androidx.compose.ui.graphics.Color.White),verticalAlignment=Alignment.CenterVertically){Text("←",Modifier.size(48.dp).clickable(onClick=onBack).wrapContentSize(),fontSize=24.sp);Text(title,Modifier.weight(1f),fontSize=16.sp,fontWeight=FontWeight.Bold);if(action.isNotBlank())Text(action,Modifier.clickable(enabled=onActionClick!=null){onActionClick?.invoke()}.padding(horizontal=16.dp,vertical=14.dp),color=Colors.Muted,fontSize=12.sp)}}
+@Composable private fun DiscoveryAppBar(title:String,onBack:()->Unit,action:String="",onActionClick:(()->Unit)?=null){Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title,Modifier.weight(1f),color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold);if(action.isNotBlank())Text(action,Modifier.clickable(enabled=onActionClick!=null){onActionClick?.invoke()}.padding(horizontal=12.dp,vertical=14.dp),color=Colors.Navy,fontSize=13.sp,fontWeight=FontWeight.SemiBold)};HorizontalDivider(color=Colors.Border)}}
+
+@Composable private fun SectionTitle(text:String){Text(text,color=Colors.Text,fontSize=18.sp,fontWeight=FontWeight.Bold)}
+
+@Composable private fun DiscoveryFilterChip(selected:Boolean,onClick:()->Unit,label:String){FilterChip(selected=selected,onClick=onClick,label={Text(label,fontSize=12.sp,fontWeight=if(selected)FontWeight.Bold else FontWeight.Medium)},shape=RoundedCornerShape(12.dp),border=FilterChipDefaults.filterChipBorder(enabled=true,selected=selected,borderColor=Colors.Border,selectedBorderColor=Colors.Navy),colors=FilterChipDefaults.filterChipColors(containerColor=Colors.Background,labelColor=Colors.Muted,selectedContainerColor=Colors.Navy,selectedLabelColor=Color.White))}
