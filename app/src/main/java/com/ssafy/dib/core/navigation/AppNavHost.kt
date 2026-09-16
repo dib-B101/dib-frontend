@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibCreateMenuSheet
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
@@ -121,6 +122,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hasAppAccess = signedIn == true || previewMode
+    var showCreateMenu by rememberSaveable { mutableStateOf(false) }
+    var productSelectionPurpose by rememberSaveable { mutableStateOf<String?>(null) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -191,6 +194,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             navController.navigate(Screen.Login.route)
             return
         }
+        if (tab == DibMainTab.Register) {
+            showCreateMenu = true
+            return
+        }
+        productSelectionPurpose = null
         val route = when (tab) {
             DibMainTab.Home -> Screen.Home.route
             DibMainTab.Feed -> Screen.Feed.route
@@ -2080,7 +2088,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         productSubmitLoading = false
                     }
                 },
-                onComplete = { navController.navigateUp() },
+                onComplete = {
+                    navController.navigate(Screen.RegisteredProducts.route) {
+                        popUpTo(Screen.Register.route) { inclusive = true }
+                    }
+                },
                 onBack = navController::navigateUp
             )
         }
@@ -3702,7 +3714,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 registeredProductsLoading = false
             }
             RegisteredProductsScreen(
-                onBack = navController::navigateUp,
+                selectionPurpose = productSelectionPurpose,
+                onBack = {
+                    productSelectionPurpose = null
+                    navController.navigateUp()
+                },
                 onRegister = { navController.navigate(Screen.Register.route) },
                 onTabSelected = ::navigateMain,
                 remoteProducts = registeredProducts,
@@ -3743,7 +3759,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         }
                     }
                 },
-                onAuctionRegister = { productId -> navController.navigate(Screen.AuctionRegister.createRoute(productId)) },
+                onAuctionRegister = { productId ->
+                    productSelectionPurpose = null
+                    navController.navigate(Screen.AuctionRegister.createRoute(productId))
+                },
                 onEditProduct = { productId -> navController.navigate(Screen.ProductEdit.createRoute(productId)) },
                 onDeleteProduct = { productId ->
                     val command = "product-delete:$productId"
@@ -3875,6 +3894,13 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 isLoading = commandLoading,
                 errorMessage = commandError,
                 onCreate = { startPrice, auctionTime ->
+                    if (previewMode) {
+                        createResult = com.ssafy.dib.domain.auction.AuctionCommandResult(
+                            auctionId = "preview-auction-$productId",
+                            message = "개발 미리보기 경매가 등록됐어요."
+                        )
+                        return@AuctionRegisterScreen
+                    }
                     val command = "auction-create:$productId:$startPrice:$auctionTime"
                     val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
@@ -3895,6 +3921,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onUpdate = { startPrice, auctionTime ->
                     val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    if (previewMode) {
+                        createResult = createResult?.copy(message = "개발 미리보기 경매 조건을 수정했어요.")
+                        return@AuctionRegisterScreen
+                    }
                     commandLoading = true
                     commandError = null
                     coroutineScope.launch {
@@ -3910,6 +3940,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onCancel = {
                     val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    if (previewMode) {
+                        auctionCancelled = true
+                        return@AuctionRegisterScreen
+                    }
                     val command = "auction-cancel:$auctionId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
@@ -3927,6 +3961,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 onStart = {
                     val auctionId = createResult?.auctionId ?: return@AuctionRegisterScreen
+                    if (previewMode) {
+                        auctionStarted = true
+                        return@AuctionRegisterScreen
+                    }
                     val command = "auction-start:$auctionId"
                     val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
@@ -4505,6 +4543,24 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 76.dp)
         )
+        if (showCreateMenu) {
+            DibCreateMenuSheet(
+                onDismiss = { showCreateMenu = false },
+                onProductRegister = {
+                    showCreateMenu = false
+                    navController.navigate(Screen.Register.route)
+                },
+                onAuctionRegister = {
+                    showCreateMenu = false
+                    productSelectionPurpose = "auction"
+                    navController.navigate(Screen.RegisteredProducts.route)
+                },
+                onLivePrepare = {
+                    showCreateMenu = false
+                    navController.navigate(Screen.LiveManagement.route)
+                }
+            )
+        }
     }
 }
 

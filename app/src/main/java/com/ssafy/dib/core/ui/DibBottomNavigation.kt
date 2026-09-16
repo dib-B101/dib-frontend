@@ -45,11 +45,16 @@ fun DibBottomNavigation(selectedTab: DibMainTab, onTabSelected: (DibMainTab) -> 
                 Column(Modifier.weight(1f).height(58.dp).selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Surface(
-                        color = if (selected) WireframeColors.NavySoft else androidx.compose.ui.graphics.Color.Transparent,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        color = when {
+                            tab == DibMainTab.Register -> WireframeColors.Navy
+                            selected -> WireframeColors.NavySoft
+                            else -> androidx.compose.ui.graphics.Color.Transparent
+                        },
+                        shape = if (tab == DibMainTab.Register) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        shadowElevation = if (tab == DibMainTab.Register) 5.dp else 0.dp
                     ) {
-                        Box(Modifier.size(40.dp, 30.dp), contentAlignment = Alignment.Center) {
-                            Image(painterResource(tab.icon), tab.label, Modifier.size(20.dp, 22.dp), colorFilter = ColorFilter.tint(color))
+                        Box(Modifier.size(40.dp, if (tab == DibMainTab.Register) 40.dp else 30.dp), contentAlignment = Alignment.Center) {
+                            Image(painterResource(tab.icon), tab.label, Modifier.size(20.dp, 22.dp), colorFilter = ColorFilter.tint(if (tab == DibMainTab.Register) WireframeColors.Background else color))
                         }
                     }
                     Spacer(Modifier.height(2.dp))

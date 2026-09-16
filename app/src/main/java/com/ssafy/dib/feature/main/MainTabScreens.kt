@@ -493,9 +493,9 @@ fun ProductRegisterScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(Modifier.size(72.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(40.dp), colorFilter = ColorFilter.tint(Colors.MintInk)) }
-                Text("상품 검수를 요청했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("승인되면 경매를 등록할 수 있어요.\n상품 번호 ${result.productId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
-                Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("확인", fontWeight = FontWeight.Bold) }
+                Text("상품 등록이 완료됐어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n상품 번호 ${result.productId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+                Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("등록 상품에서 상태 보기", fontWeight = FontWeight.Bold) }
             }
         }
         return
@@ -569,7 +569,7 @@ fun ProductRegisterScreen(
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                     item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, color=Colors.Text,fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; HorizontalDivider(color=Colors.Border);Text(description, color = Colors.Muted, fontSize = 12.sp,lineHeight=18.sp) } }
-                    item { Text("AI 상품 검수 요청 후 승인되면 경매를 시작할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
+                    item { Text("등록 후에는 검수 대기 상태가 표시돼요. 승인된 상품만 경매와 Live에 사용할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
@@ -592,7 +592,7 @@ fun ProductRegisterScreen(
                     )
                 ) {
                     if (submitLoading) CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp)
-                    else Text(if(step == 1) "등록 내용 확인" else "AI 검수 요청", fontWeight = FontWeight.Bold)
+                    else Text(if(step == 1) "등록 내용 확인" else "상품 등록", fontWeight = FontWeight.Bold)
                 }
             }
         }
