@@ -671,7 +671,7 @@ private fun ProductInformation(
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("입찰 전, 확인해주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 첫 입찰 전에 입찰가의 10%를 보증금으로 결제해요(최소 1,000원)\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
+            Text("• 첫 입찰 전에 고정 보증금 1,000원을 결제해요\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (canReport) {
@@ -778,7 +778,6 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
     val minimum = currentPrice + 1
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
     val amount = amountText.toIntOrNull() ?: 0
-    val depositAmount = maxOf(1_000, amount / 10)
     val valid = amount >= minimum
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -824,7 +823,7 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                     }
                 }
             }
-            BidDepositStatusNotice(depositPaid, depositAmount)
+            BidDepositStatusNotice(depositPaid)
             Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
