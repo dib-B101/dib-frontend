@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,18 +125,19 @@ private fun ZoomableProductImage(photo: ProductPhoto?, imageUrl: String?, page: 
             DibNetworkImage(
                 imageUrl = imageUrl,
                 contentDescription = "상품 이미지 ${page + 1}",
-                modifier = Modifier.fillMaxWidth().height(560.dp).graphicsLayer(
+                modifier = Modifier.fillMaxSize().graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
                     translationX = offsetX,
                     translationY = offsetY
-                )
+                ),
+                contentScale = ContentScale.Fit
             )
         } else if (photo != null && page == 0) {
             ProductPhoto(
                 photo,
                 null,
-                Modifier.fillMaxWidth().height(560.dp).graphicsLayer(
+                Modifier.fillMaxSize().graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
                     translationX = offsetX,
@@ -144,7 +146,7 @@ private fun ZoomableProductImage(photo: ProductPhoto?, imageUrl: String?, page: 
             )
         } else {
             Box(
-                Modifier.fillMaxWidth().height(560.dp).background(Color(0xFF333333)).graphicsLayer(
+                Modifier.fillMaxSize().background(Color(0xFF333333)).graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
                     translationX = offsetX,

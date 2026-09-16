@@ -535,7 +535,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
         composable(Screen.Welcome.route) {
             WelcomeScreen(
-                onKakaoStart = { navController.navigate(Screen.Login.route) },
                 onEmailSignup = { navController.navigate(Screen.SignUp.route) },
                 onLogin = { navController.navigate(Screen.Login.route) },
                 onBrowse = {

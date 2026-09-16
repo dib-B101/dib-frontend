@@ -80,7 +80,9 @@ fun LiveManagementScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { showCreate = true }, containerColor = Colors.Navy, contentColor = Color.White) {
-                Text("+ 새 방송", fontWeight = FontWeight.Bold)
+                Image(painterResource(R.drawable.add), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Color.White))
+                Spacer(Modifier.width(7.dp))
+                Text("새 방송", fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->

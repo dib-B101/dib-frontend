@@ -471,7 +471,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImageClick: (Int) -> Unit) {
     val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
     val pagerState = rememberPagerState(pageCount = { pageCount })
-    Box(Modifier.fillMaxWidth().height(300.dp).background(Colors.Image)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(1.2f).background(Colors.Image)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             Box(
                 Modifier.fillMaxSize().clickable { onImageClick(page) },
