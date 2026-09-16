@@ -154,7 +154,7 @@ private fun SettlementCard(item: SettlementSummary, onClick: () -> Unit) {
             Text(money(item.netAmount), color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text("주문 ${item.orderId} · ${formatSettlementDate(item.payoutAt)}", color = Colors.Muted, fontSize = 11.sp, maxLines = 1)
         }
-        Text("›", color = Colors.Muted, fontSize = 24.sp)
+        Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
     }
 }
 

@@ -79,13 +79,13 @@ fun SellerProfileScreen(
                             Text("후기 목록", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text("전체 후기 보기", color = Colors.Navy, fontSize = 12.sp)
                         }
-                        Text("›", color = Colors.Muted, fontSize = 24.sp)
+                        Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
                     }
                 }
                 item {
                     Row(Modifier.fillMaxWidth().clickable(onClick = onListingsClick), verticalAlignment = Alignment.CenterVertically) {
                         SectionTitle("판매 내역", Modifier.weight(1f))
-                        Text("전체보기 ›", color = Colors.Navy, fontSize = 12.sp)
+                        Row(verticalAlignment=Alignment.CenterVertically){Text("전체보기", color = Colors.Navy, fontSize = 12.sp);Image(painterResource(R.drawable.chevron_right),null,Modifier.size(14.dp),colorFilter=ColorFilter.tint(Colors.Navy))}
                     }
                 }
                 item {
