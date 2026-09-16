@@ -429,7 +429,7 @@ private fun memberStatusLabel(status: String): String = when (status) {
     else -> status
 }
 
-@Composable private fun MenuRow(label: String, color: Color = Colors.Text, onClick: () -> Unit) { Row(Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Text(label, Modifier.weight(1f), color = color, fontSize = 14.sp); Text("›", color = Colors.Muted, fontSize = 20.sp) } }
+@Composable private fun MenuRow(label: String, color: Color = Colors.Text, onClick: () -> Unit) { Row(Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Text(label, Modifier.weight(1f), color = color, fontSize = 14.sp); Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -720,7 +720,7 @@ private fun SortableProductPhotoRow(uri: Uri, index: Int, count: Int, onMove: (I
                 Text(if (index == 0) "대표 이미지" else "상품 이미지 ${index + 1}", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(if (index == 0) "첫 번째 사진" else "드래그하여 순서 변경", color = Colors.Muted, fontSize = 10.sp)
             }
-            Text("≡", color = Colors.Muted, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Image(painterResource(R.drawable.drag_handle),"순서 변경",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Muted))
         }
     }
 }
@@ -828,7 +828,7 @@ private fun RegisterSelect(label: String, value: String, errorMessage: String? =
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(errorMessage ?: value, Modifier.weight(1f), color = if (errorMessage != null) Colors.Urgent else if (value.contains("선택") || value.contains("상 ·")) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
-            Text("›", color = Colors.Muted, fontSize = 22.sp)
+            Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
         }
     }
 }

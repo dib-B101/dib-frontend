@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.auction
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,10 +31,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductDetail
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -140,7 +144,7 @@ private fun ProductOverviewContent(
                         Text(product.sellerNickname ?: "판매자", fontWeight = FontWeight.Bold)
                         Text(listOfNotNull(product.sellerRating?.let { "평점 $it" }, product.sellerTradeCount?.let { "거래 ${it}회" }).joinToString(" · ").ifBlank { "판매자 정보 보기" }, color = Colors.Muted, fontSize = 11.sp)
                     }
-                    Text("›", color = Colors.Muted, fontSize = 24.sp)
+                    Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
                 }
             }
         }
