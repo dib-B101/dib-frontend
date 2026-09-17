@@ -333,11 +333,11 @@ private fun LiveFeedPage(
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text((liveItem?.title ?: "하루공방").take(1), color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
-        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 76.dp, bottom = 230.dp), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 82.dp, bottom = 244.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (liveItem == null) {
                     listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?").forEach { message ->
@@ -373,7 +373,7 @@ private fun LiveFeedPage(
                 }
             }
         }
-        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 218.dp), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 236.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LiveFavoriteAction(favorite, enabled = auctionKey != null && auctionKey !in favoriteUpdatingAuctionIds) {
                     when {
@@ -437,11 +437,20 @@ private fun LiveFeedPage(
                         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(15.dp), colorFilter = ColorFilter.tint(Colors.Muted))
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        DibNetworkImage(
-                            activeAuction?.imageUrls?.firstOrNull(),
-                            activeAuction?.title,
-                            Modifier.size(62.dp).clip(RoundedCornerShape(12.dp))
-                        )
+                        if (isSampleContent) {
+                            Image(
+                                painterResource(R.drawable.product_photo),
+                                contentDescription = activeAuction?.title ?: "달빛 유약 머그컵",
+                                modifier = Modifier.size(62.dp).clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            DibNetworkImage(
+                                activeAuction?.imageUrls?.firstOrNull(),
+                                activeAuction?.title,
+                                Modifier.size(62.dp).clip(RoundedCornerShape(12.dp))
+                            )
+                        }
                         Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 activeAuction?.title ?: if (isSampleContent) "달빛 유약 머그컵" else "다음 경매를 준비하고 있어요",
@@ -942,6 +951,13 @@ private fun LiveVideoBackground(
     } else {
         if (!fallbackImageUrl.isNullOrBlank()) {
             DibNetworkImage(fallbackImageUrl, fallbackTitle, Modifier.fillMaxSize())
+        } else if (!streamExpected) {
+            Image(
+                painterResource(R.drawable.product_photo),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
         } else {
             Image(
                 painterResource(R.drawable.live_video),
