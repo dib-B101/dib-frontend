@@ -18,6 +18,8 @@ import com.ssafy.dib.domain.auction.RecommendedLive
 import com.ssafy.dib.domain.auction.AuctionBidSnapshot
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -49,7 +51,10 @@ class AuctionRepositoryImpl(
         when (val result = remote.getAuctions(scope, status, cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
                 AuctionPage(
-                    items = result.value.items.map { it.toDomain(now()) },
+                    items = result.value.items
+                        .filterForBackendContract(scope = scope, status = status)
+                        .take(size)
+                        .map { it.toDomain(now()) },
                     nextCursor = result.value.nextCursor,
                     hasNext = result.value.hasNext
                 ),
@@ -70,7 +75,23 @@ class AuctionRepositoryImpl(
         when (val result = remote.getGeneralAuctions(size, categoryId, status, minPrice, maxPrice, sort, cursor)) {
             is ApiResult.Success -> ApiResult.Success(
                 AuctionPage(
-                    items = result.value.items.map { it.toDomain(now()) },
+                    items = result.value.items.asSequence()
+                        .filter { it.liveBroadcastId == null }
+                        .filter { status.isBlank() || it.status.equals(status, ignoreCase = true) }
+                        .filter { categoryId.isNullOrBlank() || it.categoryId?.idValue() == categoryId }
+                        .filter { minPrice == null || it.currentPrice >= minPrice }
+                        .filter { maxPrice == null || it.currentPrice <= maxPrice }
+                        .let { items ->
+                            when (sort?.uppercase()) {
+                                "PRICE_ASC" -> items.sortedBy(AuctionDto::currentPrice)
+                                "PRICE_DESC" -> items.sortedByDescending(AuctionDto::currentPrice)
+                                "ENDING_SOON" -> items.sortedBy { it.endedAt.orEmpty() }
+                                else -> items
+                            }
+                        }
+                        .take(size)
+                        .map { it.toDomain(now()) }
+                        .toList(),
                     nextCursor = result.value.nextCursor,
                     hasNext = result.value.hasNext
                 ),
@@ -98,7 +119,7 @@ class AuctionRepositoryImpl(
                             scheduledAt = live.scheduledAt
                         )
                     },
-                    generalItems = result.value.generalItems.map { it.toDomain(now()) }
+                    generalItems = result.value.generalItems.take(size).map { it.toDomain(now()) }
                 ),
                 result.status
             )
@@ -247,4 +268,17 @@ internal fun com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse.toDoma
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
 
-private fun String?.toInstantOrNull(): Instant? = this?.let { runCatching { Instant.parse(it) }.getOrNull() }
+private fun List<AuctionDto>.filterForBackendContract(scope: String, status: String): List<AuctionDto> = filter { auction ->
+    val scopeMatches = when (scope.uppercase()) {
+        "GENERAL" -> auction.liveBroadcastId == null
+        "LIVE" -> auction.liveBroadcastId != null
+        else -> true
+    }
+    scopeMatches && (status.isBlank() || auction.status.equals(status, ignoreCase = true))
+}
+
+private fun String?.toInstantOrNull(): Instant? = this?.let { value ->
+    runCatching { Instant.parse(value) }.getOrElse {
+        runCatching { LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
+    }
+}
