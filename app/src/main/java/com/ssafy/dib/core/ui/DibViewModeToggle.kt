@@ -33,7 +33,7 @@ fun DibViewModeToggle(
     Row(
         modifier = modifier
             .background(Colors.Surface, RoundedCornerShape(10.dp))
-            .padding(3.dp),
+            .padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -44,23 +44,23 @@ fun DibViewModeToggle(
                 color = if (active) Color.White else Color.Transparent,
                 shape = RoundedCornerShape(8.dp),
                 shadowElevation = if (active) 1.dp else 0.dp,
-                modifier = Modifier.defaultMinSize(minHeight = 42.dp)
+                modifier = Modifier.defaultMinSize(minHeight = 34.dp)
             ) {
                 Row(
-                    Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Image(
                         painterResource(if (mode == DibContentView.Grid) R.drawable.grid_view else R.drawable.list_view),
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                         colorFilter = ColorFilter.tint(if (active) Colors.Navy else Colors.Muted)
                     )
                     Text(
                         text = if (mode == DibContentView.Grid) "카드" else "목록",
                         color = if (active) Colors.Navy else Colors.Muted,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
                     )
                 }

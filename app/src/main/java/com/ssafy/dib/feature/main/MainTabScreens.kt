@@ -337,9 +337,7 @@ fun MyPageScreen(
     onTabSelected: (DibMainTab) -> Unit,
     onProfileEditClick: () -> Unit,
     onFavoritesClick: () -> Unit,
-    onAuctionsClick: () -> Unit,
     onRegisteredProductsClick: () -> Unit,
-    onLiveManagementClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onInquiriesClick: () -> Unit,
     onAddressesClick: () -> Unit,
@@ -409,12 +407,10 @@ fun MyPageScreen(
             item { Text("내 정보 · 설정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp))) {
-                    MenuRow("내 경매 관리", onClick = onAuctionsClick)
                     MenuRow("배송지 관리", onClick = onAddressesClick)
                     MenuRow("결제수단 관리", onClick = onPaymentMethodsClick)
                     MenuRow("정산 계좌 관리", onClick = onAccountsClick)
                     MenuRow("정산 내역", onClick = onSettlementsClick)
-                    MenuRow("Live 방송 관리", onClick = onLiveManagementClick)
                     MenuRow("알림 설정", onClick = onNotificationSettingsClick)
                     MenuRow("신고 내역", onClick = onReportsClick)
                     MenuRow("회원 탈퇴", onClick = onWithdrawalClick)
