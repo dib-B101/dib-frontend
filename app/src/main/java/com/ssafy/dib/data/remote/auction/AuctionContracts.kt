@@ -89,6 +89,8 @@ data class AuctionProductDto(
 @Serializable data class UpdateAuctionRequest(val startPrice: Long, val auctionTime: Long, val liveBroadcastId: JsonElement? = null)
 @Serializable data class AuctionCommandResponse(val auctionId: JsonElement? = null, val message: String = "")
 @Serializable data class StartAuctionResponse(val message: String = "")
+@Serializable data class BookmarkListResponse(val items: List<BookmarkItemDto> = emptyList())
+@Serializable data class BookmarkItemDto(val productId: JsonElement)
 @Serializable data class BookmarkResponse(val bookmarked: Boolean)
 
 @Serializable

@@ -75,7 +75,7 @@ interface AuctionRepository {
     fun getMyBids(cursor: String? = null, size: Int = 30): ApiResult<BidHistoryPage>
     fun getBidHistory(auctionId: String, cursor: String? = null, size: Int = 20): ApiResult<AuctionBidHistoryPage>
     fun getBidSnapshot(auctionId: String): ApiResult<AuctionBidSnapshot>
-    fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean>
+    fun setBookmark(productId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean>
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
     fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>
     fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit>

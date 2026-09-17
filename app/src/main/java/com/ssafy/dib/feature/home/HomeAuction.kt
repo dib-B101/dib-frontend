@@ -13,6 +13,7 @@ data class HomeAuction(
     val remainingSeconds: Int,
     val category: String,
     val photo: ProductPhoto,
+    val productId: String = id,
     val pricePrefix: String = "현재가",
     val status: String = "ACTIVE",
     val isHighestBidder: Boolean? = null,
@@ -35,30 +36,31 @@ data class HomeAuction(
 }
 
 internal val recommended = listOf(
-    HomeAuction("headphones", "무선 헤드폰", 52_000, 7, 1_080, "디지털", ProductPhoto.Headphones),
-    HomeAuction("sneakers", "빈티지 스니커즈", 81_000, 4, 4_320, "패션", ProductPhoto.Placeholder)
+    HomeAuction(id = "headphones", name = "무선 헤드폰", price = 52_000, bidCount = 7, remainingSeconds = 1_080, category = "디지털", photo = ProductPhoto.Headphones),
+    HomeAuction(id = "sneakers", name = "빈티지 스니커즈", price = 81_000, bidCount = 4, remainingSeconds = 4_320, category = "패션", photo = ProductPhoto.Placeholder)
 )
 
 internal val deadlineAuction =
-    HomeAuction("camera", "빈티지 필름 카메라", 34_500, 5, 204, "라이프", ProductPhoto.Camera, startPrice = 20_000)
+    HomeAuction(id = "camera", name = "빈티지 필름 카메라", price = 34_500, bidCount = 5, remainingSeconds = 204, category = "라이프", photo = ProductPhoto.Camera, startPrice = 20_000)
 
 internal val popularAuctions = listOf(
-    HomeAuction("keyboard", "기계식 키보드", 48_000, 12, 7_200, "디지털", ProductPhoto.Placeholder),
+    HomeAuction(id = "keyboard", name = "기계식 키보드", price = 48_000, bidCount = 12, remainingSeconds = 7_200, category = "디지털", photo = ProductPhoto.Placeholder),
     recommended[1],
     recommended[0]
 )
 
 internal val allAuctions = listOf(
-    HomeAuction("retro-console", "레트로 게임기", 63_000, 9, 1_440, "디지털", ProductPhoto.Placeholder),
-    HomeAuction("projector", "미니 빔프로젝터", 45_000, 0, 7_200, "디지털", ProductPhoto.Placeholder, "시작가"),
-    HomeAuction("cross-bag", "가죽 크로스백", 28_500, 6, 2_760, "패션", ProductPhoto.Placeholder),
-    HomeAuction("lp-player", "LP 플레이어", 91_000, 11, 10_800, "라이프", ProductPhoto.Placeholder)
+    HomeAuction(id = "retro-console", name = "레트로 게임기", price = 63_000, bidCount = 9, remainingSeconds = 1_440, category = "디지털", photo = ProductPhoto.Placeholder),
+    HomeAuction(id = "projector", name = "미니 빔프로젝터", price = 45_000, bidCount = 0, remainingSeconds = 7_200, category = "디지털", photo = ProductPhoto.Placeholder, pricePrefix = "시작가"),
+    HomeAuction(id = "cross-bag", name = "가죽 크로스백", price = 28_500, bidCount = 6, remainingSeconds = 2_760, category = "패션", photo = ProductPhoto.Placeholder),
+    HomeAuction(id = "lp-player", name = "LP 플레이어", price = 91_000, bidCount = 11, remainingSeconds = 10_800, category = "라이프", photo = ProductPhoto.Placeholder)
 )
 
 internal val allHomeAuctions = recommended + deadlineAuction + popularAuctions + allAuctions
 
 internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     id = auctionId,
+    productId = productId,
     name = title,
     price = currentPrice.takeIf { it > 0 } ?: startPrice,
     bidCount = bidCount,
