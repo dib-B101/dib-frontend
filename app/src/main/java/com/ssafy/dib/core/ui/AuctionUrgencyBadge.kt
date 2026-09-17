@@ -76,6 +76,9 @@ fun AuctionUrgencyBadge(
             text = "$label  ${formatUrgencyClock(safeSeconds)}",
             color = foreground,
             fontSize = if (compact) 11.sp else 13.sp,
+            lineHeight = if (compact) 15.sp else 18.sp,
+            maxLines = 1,
+            softWrap = false,
             fontWeight = FontWeight.ExtraBold
         )
     }
