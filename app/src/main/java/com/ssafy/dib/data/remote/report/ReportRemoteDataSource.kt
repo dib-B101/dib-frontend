@@ -19,13 +19,17 @@ class ReportRemoteDataSource(private val client: DibHttpClient) {
     }
 
     fun reportAuction(auctionId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
-        create("${ApiRoutes.AUCTIONS}/$auctionId/reports", CreateReportRequest(content, "AUCTION"), idempotencyKey)
+        create("${ApiRoutes.AUCTIONS}/$auctionId/reports", CreateReportRequest(content), idempotencyKey)
 
     fun reportMember(memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
-        create("/api/v1/members/$memberId/reports", CreateReportRequest(content, "MEMBER"), idempotencyKey)
+        create("/api/v1/members/$memberId/reports", CreateReportRequest(content), idempotencyKey)
 
+    // 백엔드에 라이브 전용 신고 경로가 없어, 관리자가 판단 근거로 볼 수 있도록 방송 id를 회원 신고 본문 끝에 덧붙여 보낸다.
     fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
-        create("${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/participants/$memberId/reports", CreateReportRequest(content, "MEMBER"), idempotencyKey)
+        create("/api/v1/members/$memberId/reports", CreateReportRequest(withLiveBroadcast(content, liveBroadcastId)), idempotencyKey)
+
+    private fun withLiveBroadcast(content: String, liveBroadcastId: String): String =
+        if (liveBroadcastId.isBlank()) content else content.trimEnd() + "\n[라이브 방송] " + liveBroadcastId
 
     private fun create(path: String, body: CreateReportRequest, idempotencyKey: String): ApiResult<CreateReportResponse> = configured {
         client.execute(

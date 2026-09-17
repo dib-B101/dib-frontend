@@ -34,6 +34,6 @@ class ReportContractTest {
         )
 
         assertEquals("회원 19", response.items[0].toDomain().targetLabel)
-        assertEquals("주문 order-8", response.items[1].toDomain().targetLabel)
+        assertEquals("채팅 order-8", response.items[1].toDomain().targetLabel)
     }
 }

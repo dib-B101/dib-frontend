@@ -5,8 +5,8 @@ import com.ssafy.dib.data.remote.product.CategoryListResponse
 import com.ssafy.dib.data.remote.product.ProductCreatePayload
 import com.ssafy.dib.data.remote.product.ProductDetailResponse
 import com.ssafy.dib.data.remote.product.ProductListResponse
-import com.ssafy.dib.data.remote.product.ProductUpdateImageItem
 import com.ssafy.dib.data.remote.product.ProductUpdatePayload
+import com.ssafy.dib.data.remote.product.decodeProductDetail
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -33,7 +33,9 @@ class ProductContractTest {
             condition = "GOOD",
             modelName = "FM2",
             releaseYear = 1982,
-            marketPrice = 120_000
+            marketPrice = 120_000,
+            startPrice = 30_000,
+            auctionTime = 300
         )
 
         val encoded = DibJson.instance.encodeToString(ProductCreatePayload.serializer(), payload)
@@ -43,6 +45,8 @@ class ProductContractTest {
         assertTrue(encoded.contains("\"modelName\":\"FM2\""))
         assertTrue(encoded.contains("\"releaseYear\":1982"))
         assertTrue(encoded.contains("\"marketPrice\":120000"))
+        assertTrue(encoded.contains("\"startPrice\":30000"))
+        assertTrue(encoded.contains("\"auctionTime\":300"))
     }
 
     @Test
@@ -66,10 +70,25 @@ class ProductContractTest {
     }
 
     @Test
+    fun productDetailAcceptsFlatBackendResponse() {
+        val response = decodeProductDetail(
+            DibJson.instance.parseToJsonElement(
+                """{"productId":8,"memberId":17,"categoryId":3,"title":"빈티지 카메라","description":"정상 작동","condition":"GOOD","modelName":"FM2","releaseYear":1982,"marketPrice":120000,"thumbnailUrl":"https://cdn.example/thumb.jpg","status":"REGISTERED","nickname":"필름상점"}"""
+            )
+        )
+
+        val product = response.toDomain()
+
+        assertEquals("8", product.productId)
+        assertEquals("17", product.memberId)
+        assertEquals("필름상점", product.sellerNickname)
+    }
+
+    @Test
     fun myProductCardMapsModerationState() {
         val response = DibJson.instance.decodeFromString(
             ProductListResponse.serializer(),
-            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","status":"REGISTERED","thumbnailUrl":"https://cdn.example/mug.jpg"}],"nextCursor":"product-12","hasNext":true}"""
+            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","status":"REGISTERED","thumbnailUrl":"https://cdn.example/mug.jpg","auctionId":31,"startPrice":30000,"auctionTime":300,"auctionStatus":"SCHEDULED"}],"nextCursor":"product-12","hasNext":true}"""
         )
 
         val product = response.items.single().toDomain()
@@ -78,8 +97,22 @@ class ProductContractTest {
         assertEquals("달빛 유약 머그컵", product.title)
         assertEquals("REGISTERED", product.status)
         assertEquals("https://cdn.example/mug.jpg", product.thumbnailUrl)
+        assertEquals("31", product.auctionId)
+        assertEquals(30_000L, product.startPrice)
+        assertEquals(300L, product.auctionTimeSeconds)
+        assertEquals("SCHEDULED", product.auctionStatus)
         assertEquals("product-12", response.nextCursor)
         assertTrue(response.hasNext)
+    }
+
+    @Test
+    fun myProductCardUsesBackendProductStatusField() {
+        val response = DibJson.instance.decodeFromString(
+            ProductListResponse.serializer(),
+            """{"items":[{"productId":12,"title":"달빛 유약 머그컵","condition":"GOOD","productStatus":"APPROVED"}]}"""
+        )
+
+        assertEquals("APPROVED", response.items.single().toDomain().status)
     }
 
     @Test
@@ -117,21 +150,4 @@ class ProductContractTest {
         assertTrue(!encoded.contains("modelName"))
     }
 
-    @Test
-    fun productUpdatePayloadMapsReplacementImagesByMultipartIndex() {
-        val payload = ProductUpdatePayload(
-            imageItems = listOf(
-                ProductUpdateImageItem(newFileIndex = 0, type = "FRONT"),
-                ProductUpdateImageItem(newFileIndex = 1, type = "LEFT")
-            )
-        )
-
-        val encoded = DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload)
-
-        assertTrue(encoded.contains("\"newFileIndex\":0"))
-        assertTrue(encoded.contains("\"type\":\"FRONT\""))
-        assertTrue(encoded.contains("\"newFileIndex\":1"))
-        assertTrue(encoded.contains("\"type\":\"LEFT\""))
-        assertTrue(!encoded.contains("productImageId"))
-    }
 }

@@ -19,6 +19,8 @@ data class ProductRegistration(
     val modelName: String? = null,
     val releaseYear: Int? = null,
     val marketPrice: Long? = null,
+    val startPrice: Long,
+    val auctionTime: Int,
     val images: List<ProductImageUpload>
 )
 
@@ -37,10 +39,12 @@ data class ProductUpdate(
     val modelName: String?,
     val releaseYear: Int?,
     val marketPrice: Long?,
-    val replacementImages: List<ProductImageUpload>? = null
+    // 경매가 SCHEDULED 일 때만 서버가 갱신을 허용한다. 그 외에는 null 로 보내 경매를 건드리지 않는다
+    val startPrice: Long? = null,
+    val auctionTime: Int? = null
 )
 
-data class ProductUpdateResult(val productId: String, val status: String, val thumbnailUrl: String?, val updatedAt: String)
+data class ProductUpdateResult(val productId: String, val status: String, val thumbnailUrl: String?, val updatedAt: String?)
 
 data class ProductDetail(
     val productId: String,
@@ -65,7 +69,11 @@ data class RegisteredProduct(
     val title: String,
     val condition: String,
     val status: String,
-    val thumbnailUrl: String?
+    val thumbnailUrl: String?,
+    val auctionId: String? = null,
+    val startPrice: Long? = null,
+    val auctionTimeSeconds: Long? = null,
+    val auctionStatus: String? = null
 )
 
 data class RegisteredProductPage(
@@ -78,6 +86,7 @@ interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
     fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
+    fun getSellerProducts(memberId: String): ApiResult<List<RegisteredProduct>>
     fun getSimilarProducts(productId: String, size: Int = 20): ApiResult<List<RegisteredProduct>>
     fun searchProducts(query: String, categoryId: String? = null, cursor: String? = null, size: Int = 100): ApiResult<RegisteredProductPage>
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductRegistrationResult>

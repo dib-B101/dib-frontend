@@ -59,6 +59,7 @@ data class AuctionDto(
     val status: String = "",
     val bookmarked: Boolean = false,
     val myBid: MyBidDto? = null,
+    val myOrderId: JsonElement? = null,
     val product: AuctionProductDto? = null,
     val sellerSummary: ProductSellerSummaryDto? = null,
     val liveBroadcastId: JsonElement? = null
@@ -89,8 +90,6 @@ data class AuctionProductDto(
 @Serializable data class UpdateAuctionRequest(val startPrice: Long, val auctionTime: Long, val liveBroadcastId: JsonElement? = null)
 @Serializable data class AuctionCommandResponse(val auctionId: JsonElement? = null, val message: String = "")
 @Serializable data class StartAuctionResponse(val message: String = "")
-@Serializable data class BookmarkListResponse(val items: List<BookmarkItemDto> = emptyList())
-@Serializable data class BookmarkItemDto(val productId: JsonElement)
 @Serializable data class BookmarkResponse(val bookmarked: Boolean)
 
 @Serializable
@@ -134,4 +133,16 @@ data class AuctionBidSnapshotResponse(
     val bidderCount: Int = 0,
     val isHighestBidder: Boolean = false,
     val serverTime: String? = null
+)
+
+@Serializable
+data class SellerAuctionDto(
+    val auctionId: JsonElement,
+    val productId: JsonElement? = null,
+    val startPrice: Long = 0,
+    val currentPrice: Long = 0,
+    val auctionTime: Long = 0,
+    val status: String = "",
+    val bidCount: Int = 0,
+    val bidderCount: Int = 0
 )

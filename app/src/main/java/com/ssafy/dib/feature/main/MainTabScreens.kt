@@ -38,7 +38,9 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
+import com.ssafy.dib.core.ui.DibDurationWheelPicker
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.domain.order.OrderSummary
@@ -60,7 +62,8 @@ private data class TradeItem(
     val action: String,
     val tone: TradeTone,
     val orderId: String = "sample",
-    val auctionId: String = "sample"
+    val auctionId: String = "sample",
+    val thumbnailUrl: String? = null
 )
 
 @Composable
@@ -273,7 +276,8 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
         meta = listOfNotNull(price, updatedAt?.let { formatServerTime(it, "yyyy.MM.dd") ?: it.take(10) }).joinToString(" · "),
         action = "거래 상세 보기 →",
         tone = tone,
-        orderId = orderId
+        orderId = orderId,
+        thumbnailUrl = thumbnailUrl
     )
 }
 
@@ -294,8 +298,12 @@ private fun openTradeItem(
     val chip = when(item.tone){ TradeTone.Urgent -> Color(0xFFFFF0EA); TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Color(0xFFE56F49); TradeTone.Positive -> Color(0xFF27806E); TradeTone.Neutral -> Color(0xFF6B7280) }
     Row(Modifier.fillMaxWidth().heightIn(min = 148.dp).background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.size(86.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.product_outline), null, Modifier.size(30.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+        if (item.thumbnailUrl.isNullOrBlank()) {
+            Box(Modifier.size(86.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                Image(painterResource(R.drawable.product_outline), null, Modifier.size(30.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+            }
+        } else {
+            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.size(86.dp), placeholderText = item.title.take(1))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold) }
@@ -318,8 +326,12 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
             .border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+        if (item.thumbnailUrl.isNullOrBlank()) {
+            Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+            }
+        } else {
+            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxWidth().height(92.dp), placeholderText = item.title.take(1))
         }
         Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -467,16 +479,28 @@ fun ProductRegisterScreen(
     var modelName by rememberSaveable { mutableStateOf("") }
     var releaseYear by rememberSaveable { mutableStateOf("") }
     var marketPrice by rememberSaveable { mutableStateOf("") }
+    var startPrice by rememberSaveable { mutableStateOf("") }
+    var auctionTime by rememberSaveable { mutableLongStateOf(300L) }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
+    var imageValidationMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showPhotoReorder by remember { mutableStateOf(false) }
     var validationRequested by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
-    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
+    val validStartPrice = (startPrice.toLongOrNull() ?: 0L) >= 1_000L
+    val validAuctionTime = auctionTime >= 300L
+    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank() && validStartPrice && validAuctionTime
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
-        photoUris.clear()
-        photoUris.addAll(uris.take(10))
-        photoTypes.clear()
-        photoTypes.addAll(defaultProductImageTypes(photoUris.size))
+        val selectedUris = uris.take(10)
+        val validationMessage = productImageValidationMessage(context.contentResolver, selectedUris)
+        if (validationMessage != null) {
+            imageValidationMessage = validationMessage
+        } else {
+            photoUris.clear()
+            photoUris.addAll(selectedUris)
+            photoTypes.clear()
+            photoTypes.addAll(defaultProductImageTypes(photoUris.size))
+        }
     }
 
     if (showPhotoReorder) {
@@ -506,14 +530,14 @@ fun ProductRegisterScreen(
                 Box(Modifier.size(72.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(40.dp), colorFilter = ColorFilter.tint(Colors.MintInk)) }
                 Text("상품 등록이 완료됐어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    if (result.productId.startsWith("PREVIEW-")) "현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n개발 미리보기 상품으로 등록됐어요."
-                    else "현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n상품 번호 ${result.productId}",
+                    if (result.productId.startsWith("PREVIEW-")) "개발 미리보기 상품으로 등록됐어요."
+                    else "AI 검수를 통과했고 경매가 준비됐어요.\n등록한 조건으로 바로 시작할 수 있어요. · 상품 번호 ${result.productId}",
                     Modifier.padding(top = 10.dp),
                     color = Colors.Muted,
                     fontSize = 13.sp,
                     lineHeight = 20.sp
                 )
-                Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("등록 상품에서 상태 보기", fontWeight = FontWeight.Bold) }
+                Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("경매 시작 준비", fontWeight = FontWeight.Bold) }
             }
         }
         return
@@ -526,7 +550,7 @@ fun ProductRegisterScreen(
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(if(step == 1) "상품 정보" else "등록 확인", color=Colors.Text,fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("$step / 2", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 2f }, Modifier.fillMaxWidth().padding(top = 10.dp).height(5.dp), color = Colors.Navy, trackColor = Colors.Border) }
             when(step) {
                 1 -> {
-                    item { Text("상품 사진 *  1~10장 · 첫 사진이 대표", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                    item { Text("상품 사진 *  1~10장 · 첫 사진이 대표\n$PRODUCT_IMAGE_POLICY_LABEL", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     item {
                         val photoError = validationRequested && photoUris.isEmpty()
                         Box(
@@ -588,11 +612,19 @@ fun ProductRegisterScreen(
                     item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
                     item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
                     item { RegisterTextField("시세 (선택)", marketPrice, { marketPrice = it.filter(Char::isDigit).take(10) }, "원 단위로 입력", keyboardType = KeyboardType.Number) }
+                    item { RegisterTextField("경매 시작가 *", startPrice, { startPrice = it.filter(Char::isDigit).take(10) }, "최소 1,000원", keyboardType = KeyboardType.Number, errorMessage = "시작가는 1,000원 이상 입력해주세요".takeIf { validationRequested && !validStartPrice }) }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("경매 진행 시간 *", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            DibDurationWheelPicker(auctionTime, { auctionTime = it })
+                            if (validationRequested && !validAuctionTime) Text("경매 시간은 5분 이상 설정해주세요.", color = Colors.Urgent, fontSize = 11.sp)
+                        }
+                    }
                 }
                 else -> {
                     item { Text("등록 내용을 확인해주세요", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, color=Colors.Text,fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; HorizontalDivider(color=Colors.Border);Text(description, color = Colors.Muted, fontSize = 12.sp,lineHeight=18.sp) } }
-                    item { Text("등록 후에는 검수 대기 상태가 표시돼요. 승인된 상품만 경매와 Live에 사용할 수 있어요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
+                    item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(name, color=Colors.Text,fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("${selectedCategory?.name} · ${conditionLabel(condition)}", color = Colors.Muted); Text("사진 ${photoUris.size}장 · ${photoTypes.joinToString { productImageTypeLabel(it) }}", color = Colors.Navy, fontWeight = FontWeight.Bold); modelName.takeIf(String::isNotBlank)?.let { Text("모델명 $it", color = Colors.Muted, fontSize = 12.sp) }; releaseYear.toIntOrNull()?.let { Text("출시연도 ${it}년", color = Colors.Muted, fontSize = 12.sp) }; marketPrice.toLongOrNull()?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 12.sp) }; Text("경매 시작가 ${"%,d".format(startPrice.toLong())}원 · ${auctionTime / 60}분", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); HorizontalDivider(color=Colors.Border);Text(description, color = Colors.Muted, fontSize = 12.sp,lineHeight=18.sp) } }
+                    item { Text("상품과 경매 조건이 함께 등록돼요. AI 검수는 현재 자동 승인되며, 같은 조건으로 예정 경매가 한 번만 생성돼요.", Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(16.dp), color = Color(0xFFE56F49), fontSize = 12.sp) }
                     submitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                 }
             }
@@ -603,7 +635,7 @@ fun ProductRegisterScreen(
                         if (step == 1) {
                             if (canContinue) step = 2 else validationRequested = true
                         } else {
-                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), photoUris.indices.map { ProductImageSelection(photoUris[it], photoTypes[it]) }))
+                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), marketPrice.toLongOrNull(), startPrice.toLong(), auctionTime.toInt(), photoUris.indices.map { ProductImageSelection(photoUris[it], photoTypes[it]) }))
                         }
                     },
                     enabled = !submitLoading,
@@ -626,6 +658,14 @@ fun ProductRegisterScreen(
         text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
         confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
     )
+    imageValidationMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { imageValidationMessage = null },
+            title = { Text("사진을 올릴 수 없어요") },
+            text = { Text(message) },
+            confirmButton = { TextButton({ imageValidationMessage = null }) { Text("확인") } }
+        )
+    }
 }
 
 @Composable
@@ -767,6 +807,8 @@ data class ProductRegistrationForm(
     val modelName: String?,
     val releaseYear: Int?,
     val marketPrice: Long?,
+    val startPrice: Long,
+    val auctionTime: Int,
     val images: List<ProductImageSelection>
 )
 

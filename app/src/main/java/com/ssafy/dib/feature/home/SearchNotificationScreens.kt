@@ -44,7 +44,18 @@ data class AuctionSearchFilters(
     val categoryId: String?,
     val minPrice: Long?,
     val maxPrice: Long?,
-    val status: String
+    val status: String,
+    val sort: String = "LATEST"
+)
+
+// 서버 sort 파라미터 값과 화면 라벨. 순서가 곧 칩 노출 순서다
+val auctionSortOptions = listOf(
+    "LATEST" to "최신순",
+    "ENDING_SOON" to "마감임박순",
+    "POPULAR" to "인기순",
+    "PRICE_ASC" to "낮은가격순",
+    "PRICE_DESC" to "높은가격순",
+    "BID_COUNT" to "입찰많은순"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +85,7 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
+    var sort by rememberSaveable { mutableStateOf("LATEST") }
     val fallbackCategories = remember {
         listOf(ProductCategory("1", "디지털기기"), ProductCategory("8", "예술·창작"))
     }
@@ -84,7 +96,8 @@ fun AuctionSearchScreen(
         categoryId = selectedCategoryId,
         minPrice = if (price == "5~10만원") 50_000 else null,
         maxPrice = when (price) { "5만원 이하" -> 50_000; "5~10만원" -> 100_000; else -> null },
-        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" }
+        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" },
+        sort = sort
     )
     fun submit() {
         submitted = true
@@ -159,6 +172,14 @@ fun AuctionSearchScreen(
                     }
                 }
                 item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DiscoveryFilterChip(true,{showFilters=true},status); DiscoveryFilterChip(category!="전체",{showFilters=true},category); DiscoveryFilterChip(price!="전체",{showFilters=true},price); DiscoveryFilterChip(false,{showFilters=true},"필터 설정") } }
+                // 정렬을 바꾸면 submit()이 커서를 초기화하고 첫 페이지부터 다시 받는다.
+                item {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        auctionSortOptions.forEach { (value, label) ->
+                            DiscoveryFilterChip(sort == value, { if (sort != value) { sort = value; submit() } }, label)
+                        }
+                    }
+                }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 if (contentView == DibContentView.Grid) {
                     items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }

@@ -9,6 +9,7 @@ import com.ssafy.dib.domain.auction.AuctionPage
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.auction.SaleHistoryPage
 import com.ssafy.dib.domain.auction.AuctionCommandResult
+import com.ssafy.dib.domain.auction.SellerAuction
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.BidHistoryPage
 import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
@@ -106,6 +107,25 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun getSellerAuctions(sellerId: String): ApiResult<List<SellerAuction>> =
+        when (val result = remote.getSellerAuctions(sellerId)) {
+            is ApiResult.Success -> ApiResult.Success(
+                result.value.map { dto ->
+                    SellerAuction(
+                        auctionId = dto.auctionId.idValue(),
+                        productId = dto.productId?.idValue().orEmpty(),
+                        startPrice = dto.startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        currentPrice = dto.currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        bidCount = dto.bidCount.coerceAtLeast(0),
+                        status = dto.status,
+                        auctionTimeSeconds = dto.auctionTime.coerceAtLeast(0)
+                    )
+                },
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
     override fun getRecommendations(size: Int): ApiResult<HomeRecommendations> =
         when (val result = remote.getRecommendations(size)) {
             is ApiResult.Success -> ApiResult.Success(
@@ -127,26 +147,16 @@ class AuctionRepositoryImpl(
         }
 
     override fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionPage> =
-        when (val bookmarks = remote.getBookmarks()) {
-            is ApiResult.Success -> {
-                val productIds = bookmarks.value.items.map { it.productId.idValue() }.toSet()
-                when (val auctions = remote.getAuctions(scope = "", status = "", cursor = null, size = 100)) {
-                    is ApiResult.Success -> ApiResult.Success(
-                        AuctionPage(
-                            items = auctions.value.items.asSequence()
-                                .filter { it.productId?.idValue() in productIds }
-                                .take(size)
-                                .map { it.copy(bookmarked = true).toDomain(now()) }
-                                .toList(),
-                            nextCursor = null,
-                            hasNext = false
-                        ),
-                        bookmarks.status
-                    )
-                    is ApiResult.Failure -> auctions
-                }
-            }
-            is ApiResult.Failure -> bookmarks
+        when (val result = remote.getBookmarks(cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionPage(
+                    items = result.value.items.map { it.copy(bookmarked = true).toDomain(now()) },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
+            is ApiResult.Failure -> result
         }
 
     override fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryPage> =
@@ -248,6 +258,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         bookmarked = bookmarked,
         isHighestBidder = myBid?.isHighestBidder,
         myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
+        myOrderId = myOrderId?.idValue()?.takeIf { it.isNotBlank() && it != "null" },
         imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname,
         sellerRating = sellerSummary?.rating,

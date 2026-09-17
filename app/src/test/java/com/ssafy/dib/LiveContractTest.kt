@@ -86,14 +86,14 @@ class LiveContractTest {
     fun decodesStreamSessionAndLiveAuctionStart() {
         val stream = DibJson.instance.decodeFromString(
             LiveStreamSessionResponse.serializer(),
-            """{"liveBroadcastId":9,"streamUrl":"https://stream.example/live.m3u8","expiresAt":"2026-09-20T12:00:00Z","provider":"TBD"}"""
+            """{"serverUrl":"wss://livekit.example","token":"token-value","roomName":"live-9","participantName":"member-17"}"""
         )
         val auction = DibJson.instance.decodeFromString(
             StartLiveAuctionResponse.serializer(),
             """{"liveBroadcastId":9,"auctionId":31,"status":"ACTIVE","startedAt":"2026-09-20T10:00:00Z","auctionTime":300,"scheduledEndAt":"2026-09-20T10:05:00Z"}"""
         )
 
-        assertEquals("https://stream.example/live.m3u8", stream.streamUrl)
+        assertEquals("wss://livekit.example", stream.serverUrl)
         assertEquals("31", auction.auctionId.toString())
         assertEquals("ACTIVE", auction.status)
     }

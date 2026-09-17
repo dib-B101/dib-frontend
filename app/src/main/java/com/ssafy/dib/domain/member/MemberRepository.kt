@@ -12,7 +12,7 @@ data class MemberProfile(
     val birthDate: String,
     val status: String,
     val role: String,
-    val score: Int
+    val score: Double
 )
 
 data class MemberProfileUpdate(val memberId: String, val nickname: String, val updatedAt: String)

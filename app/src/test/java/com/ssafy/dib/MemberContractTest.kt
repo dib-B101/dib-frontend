@@ -16,7 +16,7 @@ class MemberContractTest {
     fun mapsMyProfileWithNumericMemberId() {
         val response = DibJson.instance.decodeFromString(
             MemberProfileResponse.serializer(),
-            """{"memberId":17,"email":"dib@example.com","name":"김띱","phoneNumber":"01012345678","nickname":"dib러버","gender":"FEMALE","birthDate":"2000-01-01","status":"ACTIVE","role":"USER","score":100}"""
+            """{"memberId":17,"email":"dib@example.com","name":"김띱","phoneNumber":"01012345678","nickname":"dib러버","gender":"FEMALE","birthDate":"2000-01-01","status":"ACTIVE","role":"USER","score":36.5}"""
         )
 
         val profile = response.toDomain()
@@ -24,7 +24,7 @@ class MemberContractTest {
         assertEquals("17", profile.memberId)
         assertEquals("dib@example.com", profile.email)
         assertEquals("dib러버", profile.nickname)
-        assertEquals(100, profile.score)
+        assertEquals(36.5, profile.score, 0.0)
     }
 
     @Test

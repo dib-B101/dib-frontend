@@ -40,7 +40,11 @@ data class EmailAvailabilityResponse(val available: Boolean)
 data class MaskedEmailResponse(val maskedEmail: String)
 
 @Serializable
-data class PasswordResetLinkRequest(val email: String, val phoneVerificationToken: String)
+data class PasswordResetLinkRequest(
+    val email: String,
+    val phoneNumber: String,
+    val phoneVerificationToken: String
+)
 
 @Serializable
 data class PasswordResetRequest(val resetToken: String, val newPassword: String)
@@ -54,7 +58,8 @@ data class SignUpRequest(
     val gender: String,
     val birthDate: String,
     val phoneNumber: String,
-    val phoneVerificationToken: String
+    val phoneVerificationToken: String,
+    val deviceId: String
 )
 
 @Serializable

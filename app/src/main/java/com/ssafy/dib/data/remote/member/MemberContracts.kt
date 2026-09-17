@@ -14,7 +14,7 @@ data class MemberProfileResponse(
     val birthDate: String,
     val status: String,
     val role: String,
-    val score: Int = 0
+    val score: Double = 0.0
 )
 
 @Serializable data class MemberProfileUpdateRequest(val nickname: String)

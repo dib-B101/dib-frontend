@@ -59,6 +59,11 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
             .decodeAuctionPayload(::decodeAuctionList)
     }
 
+    fun getSellerAuctions(sellerId: String): ApiResult<List<SellerAuctionDto>> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/sellers/$sellerId"
+        client.execute(client.requestBuilder(path).get().build(), ListSerializer(SellerAuctionDto.serializer()))
+    }
+
     fun getAuction(auctionId: String): ApiResult<AuctionDto> = configured {
         val path = "${ApiRoutes.AUCTIONS}/$auctionId"
         client.execute(client.requestBuilder(path).get().build(), AuctionDto.serializer())
@@ -71,10 +76,14 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
             .decodeAuctionPayload(::decodeAuctionRecommendations)
     }
 
-    fun getBookmarks(): ApiResult<BookmarkListResponse> = configured {
+    // 서버가 찜 상품의 경매 카드를 페이지로 내려주므로 최근 경매 목록과 다시 교집합하지 않는다.
+    fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionListResponse> = configured {
         val path = "${ApiRoutes.BOOKMARKS}/me"
-        client.execute(client.requestBuilder(path).get().build(), JsonElement.serializer())
-            .decodeAuctionPayload(::decodeBookmarkList)
+        val urlBuilder = client.urlBuilder(path)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
+        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
+            .decodeAuctionPayload(::decodeAuctionList)
     }
 
     fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryListResponse> = configured {
@@ -153,11 +162,6 @@ internal fun decodeAuctionList(payload: JsonElement): AuctionListResponse = when
 internal fun decodeAuctionRecommendations(payload: JsonElement): AuctionRecommendationResponse = when (payload) {
     is JsonArray -> AuctionRecommendationResponse(generalItems = DibJson.instance.decodeFromJsonElement(ListSerializer(AuctionDto.serializer()), payload))
     else -> DibJson.instance.decodeFromJsonElement(AuctionRecommendationResponse.serializer(), payload)
-}
-
-internal fun decodeBookmarkList(payload: JsonElement): BookmarkListResponse = when (payload) {
-    is JsonArray -> BookmarkListResponse(DibJson.instance.decodeFromJsonElement(ListSerializer(BookmarkItemDto.serializer()), payload))
-    else -> DibJson.instance.decodeFromJsonElement(BookmarkListResponse.serializer(), payload)
 }
 
 private inline fun <T, R> ApiResult<T>.decodeAuctionPayload(transform: (T) -> R): ApiResult<R> = when (this) {

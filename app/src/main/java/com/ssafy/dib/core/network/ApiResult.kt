@@ -17,13 +17,13 @@ data class ApiFailure(
     val fieldErrors: JsonElement? = null,
     val cause: Throwable? = null
 ) {
+    // DEVICE_MISMATCH 는 서버에서 400 BAD_REQUEST 라 재로그인 대상이 아니고,
+    // ACCESS_TOKEN_EXPIRED 는 서버 ErrorCode 에 아예 없는 코드라 둘 다 제외한다
     val requiresLogin: Boolean
         get() = code in setOf(
             "UNAUTHORIZED",
-            "ACCESS_TOKEN_EXPIRED",
             "REFRESH_TOKEN_EXPIRED",
-            "SESSION_REVOKED",
-            "DEVICE_MISMATCH"
+            "SESSION_REVOKED"
         )
 }
 
@@ -32,4 +32,5 @@ object ApiErrorCodes {
     const val INVALID_RESPONSE = "INVALID_RESPONSE"
     const val CLIENT_NOT_CONFIGURED = "CLIENT_NOT_CONFIGURED"
     const val INVALID_CURSOR = "INVALID_CURSOR"
+    const val BACKEND_NOT_IMPLEMENTED = "BACKEND_NOT_IMPLEMENTED"
 }

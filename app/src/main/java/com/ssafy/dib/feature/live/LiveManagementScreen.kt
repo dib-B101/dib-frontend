@@ -209,16 +209,18 @@ internal fun formatLiveScheduledAt(
 @Composable
 private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, error: String?, onDismiss: () -> Unit, onSubmit: (String, String?, String, String?) -> Unit) {
     val initialDateTime = remember(initial?.liveBroadcastId, initial?.scheduledAt) {
-        initial?.scheduledAt?.let { runCatching { LocalDateTime.ofInstant(Instant.parse(it), ZoneId.systemDefault()) }.getOrNull() }
+        initial?.scheduledAt?.let { value ->
+            runCatching { LocalDateTime.ofInstant(Instant.parse(value), ZoneId.systemDefault()) }.getOrNull()
+                ?: runCatching { LocalDateTime.parse(value) }.getOrNull()
+        }
             ?: LocalDateTime.now().plusDays(1).withSecond(0).withNano(0)
     }
     var title by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.title.orEmpty()) }
     var description by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.description.orEmpty()) }
     var date by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalDate().toString()) }
     var time by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalTime().toString().take(5)) }
-    var streamUrl by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initial?.streamUrl.orEmpty()) }
-    val scheduledInstant = runCatching { LocalDateTime.parse("${date}T${time}").atZone(ZoneId.systemDefault()).toInstant() }.getOrNull()
-    val scheduledAt = scheduledInstant?.takeIf { it.isAfter(Instant.now()) }?.toString()
+    val scheduledLocalDateTime = runCatching { LocalDateTime.parse("${date}T${time}") }.getOrNull()
+    val scheduledAt = scheduledLocalDateTime?.takeIf { it.isAfter(LocalDateTime.now()) }?.toString()
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
         title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정") },
@@ -229,11 +231,10 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
                 OutlinedTextField(date, { date = it.take(10) }, Modifier.weight(1.2f), label = { Text("날짜") }, placeholder = { Text("2026-09-14") }, singleLine = true)
                 OutlinedTextField(time, { time = it.filter { char -> char.isDigit() || char == ':' }.take(5) }, Modifier.weight(.8f), label = { Text("시간") }, placeholder = { Text("19:30") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
-            OutlinedTextField(streamUrl, { streamUrl = it }, Modifier.fillMaxWidth(), label = { Text("스트림 URL (선택)") }, singleLine = true)
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { TextButton({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, streamUrl.trim().ifBlank { null }) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
+        confirmButton = { TextButton({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, null) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
         dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
     )
 }

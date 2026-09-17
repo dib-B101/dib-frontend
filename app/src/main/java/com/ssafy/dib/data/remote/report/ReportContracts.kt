@@ -21,11 +21,13 @@ data class ReportDto(
     val chattingId: JsonElement? = null,
     val targetMemberId: JsonElement? = null,
     val reportTargetId: JsonElement? = null,
-    val createdAt: String? = null
+    val reportTargetNickname: String? = null,
+    val createdAt: String? = null,
+    val processedAt: String? = null
 )
 
 @Serializable
-data class CreateReportRequest(val content: String, val type: String)
+data class CreateReportRequest(val content: String)
 
 @Serializable
 data class CreateReportResponse(val reportId: JsonElement, val status: String)

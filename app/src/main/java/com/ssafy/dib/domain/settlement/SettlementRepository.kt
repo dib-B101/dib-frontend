@@ -8,7 +8,8 @@ data class SettlementSummary(
     val grossAmount: Long,
     val commissionFee: Long,
     val netAmount: Long,
-    val payoutAt: String?
+    val payoutAt: String?,
+    val productTitle: String? = null
 )
 
 data class SettlementDetail(
@@ -19,7 +20,8 @@ data class SettlementDetail(
     val netAmount: Long,
     val bankName: String?,
     val maskedAccountNumber: String?,
-    val payoutAt: String?
+    val payoutAt: String?,
+    val productTitle: String? = null
 )
 
 data class SettlementPage(

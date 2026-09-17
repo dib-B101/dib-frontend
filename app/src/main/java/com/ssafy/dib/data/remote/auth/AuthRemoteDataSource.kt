@@ -39,9 +39,10 @@ class AuthRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
-    fun findEmail(verificationToken: String): ApiResult<MaskedEmailResponse> = configured {
+    fun findEmail(verificationToken: String, phoneNumber: String): ApiResult<MaskedEmailResponse> = configured {
         val url = client.urlBuilder(ApiRoutes.AUTH_EMAIL)
             .addQueryParameter("verificationToken", verificationToken)
+            .addQueryParameter("phoneNumber", phoneNumber)
             .build()
         client.execute(
             client.requestBuilder(ApiRoutes.AUTH_EMAIL).url(url).get().build(),

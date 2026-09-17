@@ -2,12 +2,32 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auth.LoginResponse
+import com.ssafy.dib.data.remote.auth.SignUpRequest
 import com.ssafy.dib.data.remote.auth.SignUpResponse
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AuthContractTest {
+    @Test
+    fun signupRequestIncludesBackendRequiredDeviceId() {
+        val request = SignUpRequest(
+            email = "dib@example.com",
+            password = "password",
+            name = "디비",
+            nickname = "디비",
+            gender = "FEMALE",
+            birthDate = "2000-01-01",
+            phoneNumber = "01012345678",
+            phoneVerificationToken = "verified",
+            deviceId = "android-device"
+        )
+
+        val encoded = DibJson.instance.encodeToString(SignUpRequest.serializer(), request)
+
+        org.junit.Assert.assertTrue(encoded.contains("\"deviceId\":\"android-device\""))
+    }
+
     @Test
     fun signupAcceptsNumericMemberId() {
         val response = DibJson.instance.decodeFromString(

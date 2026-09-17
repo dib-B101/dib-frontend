@@ -79,6 +79,10 @@ fun TransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    addressSubmitting: Boolean,
+    addressSubmitError: String?,
+    savedAddresses: List<com.ssafy.dib.domain.member.MemberAddress>,
+    onSubmitShippingAddress: (com.ssafy.dib.domain.order.OrderAddressInput) -> Unit,
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
@@ -112,6 +116,10 @@ fun TransactionScreen(
             shippingAddress = shippingAddress,
             shippingAddressLoading = shippingAddressLoading,
             shippingAddressError = shippingAddressError,
+            addressSubmitting = addressSubmitting,
+            addressSubmitError = addressSubmitError,
+            savedAddresses = savedAddresses,
+            onSubmitShippingAddress = onSubmitShippingAddress,
             shippingCarriers = shippingCarriers,
             shippingCarriersLoading = shippingCarriersLoading,
             shippingCarriersError = shippingCarriersError,
@@ -150,6 +158,10 @@ private fun RemoteTransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    addressSubmitting: Boolean,
+    addressSubmitError: String?,
+    savedAddresses: List<com.ssafy.dib.domain.member.MemberAddress>,
+    onSubmitShippingAddress: (com.ssafy.dib.domain.order.OrderAddressInput) -> Unit,
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
@@ -165,6 +177,7 @@ private fun RemoteTransactionScreen(
     modifier: Modifier
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
+    var showAddressInput by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     var selectedCarrier by rememberSaveable(order?.orderId) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
@@ -230,17 +243,54 @@ private fun RemoteTransactionScreen(
                     }
                     if (shippingAddressLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
                     shippingAddressError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
-                    shippingAddress?.let { destination ->
+                    shippingAddress?.takeIf { it.isRegistered }?.let { destination ->
                         item {
                             InfoCard(
                                 listOf(
-                                    "배송지 이름" to destination.name,
+                                    "받는 사람" to destination.name,
                                     "연락처" to (destination.phoneNumber ?: "-"),
                                     "우편번호" to destination.postalCode.ifBlank { "-" },
-                                    "주소" to destination.address.ifBlank { "주소 정보 없음" }
+                                    "주소" to destination.address
                                 ),
                                 "배송지"
                             )
+                        }
+                    }
+                    // 배송지는 결제(PAID) 된 뒤 구매자가 한 번 입력한다. 이게 없으면 판매자가 송장을 못 넣는다
+                    if (order.status.uppercase() == "PAID" && shippingAddress?.isRegistered != true && !shippingAddressLoading) {
+                        if (role == "seller") {
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("구매자가 배송지를 입력하기 전이에요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("배송지가 등록되어야 송장을 넣을 수 있어요. 거래 채팅으로 안내해보세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                }
+                            }
+                        } else {
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("배송지를 입력해주세요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("배송지를 등록해야 판매자가 상품을 발송할 수 있어요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                }
+                            }
+                            item {
+                                Button(
+                                    onClick = { showAddressInput = true },
+                                    enabled = !addressSubmitting,
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) {
+                                    if (addressSubmitting) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                    else Text("배송지 입력", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            addressSubmitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                         }
                     }
                     if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "CANCELED", "REFUNDED")) {
@@ -263,6 +313,10 @@ private fun RemoteTransactionScreen(
                             ) {
                                 Text("자동결제를 완료하지 못했어요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Text("등록한 카드 상태를 확인한 뒤 낙찰 금액 결제를 다시 요청해주세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                // 기한이 지나면 주문이 자동 취소되므로 마감 시각을 그대로 노출한다
+                                formatServerTime(order.paymentDue)?.let { deadline ->
+                                    Text("결제 기한: $deadline", color = Colors.Urgent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                         item {
@@ -366,9 +420,31 @@ private fun RemoteTransactionScreen(
                             }
                         }
                     }
+                    // 서버는 구매 확정 전까지 settlement 블록을 null 로 준다
+                    val settlement = order.settlement
+                    if (role == "seller" && settlement != null) {
+                        item {
+                            InfoCard(
+                                listOf(
+                                    "정산 예정 금액" to (settlement.netAmount?.let { amount -> "${"%,d".format(amount)}원" } ?: "정산 준비 중"),
+                                    "지급 예정일" to (formatServerTime(settlement.payoutAt) ?: "지급 일정 확인 중")
+                                ),
+                                "정산 정보"
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+    if (showAddressInput) {
+        OrderAddressDialog(
+            submitting = addressSubmitting,
+            errorMessage = addressSubmitError,
+            savedAddresses = savedAddresses,
+            onSubmit = { input -> showAddressInput = false; onSubmitShippingAddress(input) },
+            onDismiss = { showAddressInput = false }
+        )
     }
     if (showConfirm) {
         AlertDialog(

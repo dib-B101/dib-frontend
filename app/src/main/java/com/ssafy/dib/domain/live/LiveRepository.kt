@@ -60,7 +60,13 @@ data class LiveBroadcastPage(
     val hasNext: Boolean
 )
 
-data class LiveStreamSession(val streamUrl: String, val expiresAt: String?, val provider: String?)
+data class LiveStreamSession(
+    val serverUrl: String,
+    val token: String,
+    val roomName: String,
+    val participantName: String,
+    val provider: String = "LIVEKIT"
+)
 
 interface LiveRepository {
     fun getFeed(cursor: String? = null, size: Int = 20): ApiResult<LiveFeedPage>

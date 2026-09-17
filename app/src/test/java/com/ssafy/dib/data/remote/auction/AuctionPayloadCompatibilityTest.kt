@@ -41,14 +41,4 @@ class AuctionPayloadCompatibilityTest {
         assertEquals(true, result.hasNext)
     }
 
-    @Test
-    fun `backend bookmark array keeps product id`() {
-        val payload = DibJson.instance.parseToJsonElement(
-            """[{"bookmarkId":9,"memberId":2,"productId":3,"createdAt":"2026-09-17T10:00:00"}]"""
-        )
-
-        val result = decodeBookmarkList(payload)
-
-        assertEquals("3", result.items.single().productId.toString())
-    }
 }

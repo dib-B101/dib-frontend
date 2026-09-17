@@ -55,6 +55,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.settlement.SettlementAccount
 import com.ssafy.dib.domain.member.MemberAddress
+import com.ssafy.dib.domain.member.NewAddress
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +68,7 @@ fun AddressManagementScreen(
     actionMessage: String?,
     onRetry: () -> Unit,
     onUpdate: (MemberAddress) -> Unit,
+    onCreate: (NewAddress) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
@@ -74,6 +76,7 @@ fun AddressManagementScreen(
 ) {
     var editingAddress by remember { mutableStateOf<MemberAddress?>(null) }
     var deletingAddress by remember { mutableStateOf<MemberAddress?>(null) }
+    var addingAddress by remember { mutableStateOf(false) }
     SettingsScaffold("배송지 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             actionMessage?.let { message -> item { Text("완료 · $message", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
@@ -81,7 +84,7 @@ fun AddressManagementScreen(
             when {
                 isLoading && addresses == null -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null && addresses == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
-                addresses.isNullOrEmpty() -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 배송지가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("주소 검색 연동 후 새 배송지를 등록할 수 있어요.", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
+                addresses.isNullOrEmpty() -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 배송지가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("아래 버튼으로 새 배송지를 등록해보세요.", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
             }
             items(addresses?.size ?: 0) { index ->
                 val address = addresses.orEmpty()[index]
@@ -99,8 +102,15 @@ fun AddressManagementScreen(
                     Text(address.address, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
             }
-            item { OutlinedButton({}, Modifier.fillMaxWidth().height(48.dp), enabled = false, shape = RoundedCornerShape(12.dp)) { Text("주소 검색 API 연결 후 새 배송지 추가", fontWeight = FontWeight.Bold) } }
+            item { OutlinedButton({ addingAddress = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) { Text("새 배송지 추가", fontWeight = FontWeight.Bold) } }
         }
+    }
+    if (addingAddress) {
+        AddressCreator(
+            actionLoading = actionLoading,
+            onDismiss = { if (!actionLoading) addingAddress = false },
+            onSave = { value -> addingAddress = false; onCreate(value) }
+        )
     }
     editingAddress?.let { selected ->
         AddressEditor(
@@ -114,6 +124,53 @@ fun AddressManagementScreen(
     deletingAddress?.let { selected ->
         AlertDialog(onDismissRequest = { if (!actionLoading) deletingAddress = null }, title = { Text("배송지를 삭제할까요?") }, text = { Text("‘${selected.name}’ 배송지를 삭제하면 주문 시 선택할 수 없습니다.") }, confirmButton = { TextButton({ deletingAddress = null; onDelete(selected.addressId) }, enabled = !actionLoading) { Text("삭제", color = Color(0xFFEF596B)) } }, dismissButton = { TextButton({ deletingAddress = null }, enabled = !actionLoading) { Text("취소") } })
     }
+}
+
+// 카카오(다음) 우편번호 서비스에서 고른 주소로 회원 배송지를 새로 만든다.
+// 서버가 apiAddressId 를 필수로 받으므로 직접 입력이 아니라 반드시 검색을 거쳐야 한다
+@Composable private fun AddressCreator(actionLoading: Boolean, onDismiss: () -> Unit, onSave: (NewAddress) -> Unit) {
+    var label by rememberSaveable { mutableStateOf("") }
+    var postalCode by rememberSaveable { mutableStateOf("") }
+    var address by rememberSaveable { mutableStateOf("") }
+    var detail by rememberSaveable { mutableStateOf("") }
+    var apiAddressId by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    if (searching) {
+        PostcodeSearchDialog(
+            onSelected = { selectedZip, selectedAddress, buildingCode ->
+                postalCode = selectedZip
+                address = selectedAddress
+                apiAddressId = buildingCode.ifBlank { selectedAddress }
+                searching = false
+            },
+            onDismiss = { searching = false }
+        )
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("새 배송지") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton({ searching = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) {
+                Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
+            }
+            if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
+            OutlinedTextField(detail, { detail = it }, label = { Text("상세주소 (동/호수)") }, singleLine = true)
+            OutlinedTextField(label, { label = it }, label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true)
+        } },
+        confirmButton = {
+            TextButton({
+                onSave(
+                    NewAddress(
+                        postalCode = postalCode,
+                        address = listOf(address, detail.trim()).filter(String::isNotBlank).joinToString(" "),
+                        name = label.trim(),
+                        apiAddressId = apiAddressId
+                    )
+                )
+            }, enabled = label.isNotBlank() && address.isNotBlank() && apiAddressId.isNotBlank() && !actionLoading) { Text("등록") }
+        },
+        dismissButton = { TextButton(onDismiss, enabled = !actionLoading) { Text("취소") } }
+    )
 }
 
 @Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit, onDelete: () -> Unit) {

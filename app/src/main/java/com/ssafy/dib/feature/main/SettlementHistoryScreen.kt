@@ -136,7 +136,16 @@ fun SettlementDetailScreen(
                         )
                     )
                 }
-                item { DetailCard("거래 정보", listOf("주문 번호" to settlement.orderId, "정산 번호" to settlement.settlementId)) }
+                item {
+                    DetailCard(
+                        "거래 정보",
+                        listOfNotNull(
+                            settlement.productTitle?.let { title -> "상품" to title },
+                            "주문 번호" to settlement.orderId,
+                            "정산 번호" to settlement.settlementId
+                        )
+                    )
+                }
             }
         }
     }
@@ -149,10 +158,11 @@ private fun SettlementCard(item: SettlementSummary, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(42.dp).background(Color(0xFFEAF8F4), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Text("₩", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        val label = item.productTitle?.takeIf(String::isNotBlank) ?: "주문 ${item.orderId}"
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(if (item.payoutAt == null) "정산 처리 중" else "정산 완료", color = if (item.payoutAt == null) Colors.Urgent else Color(0xFF27806E), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(money(item.netAmount), color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("주문 ${item.orderId} · ${formatSettlementDate(item.payoutAt)}", color = Colors.Muted, fontSize = 11.sp, maxLines = 1)
+            Text("$label · ${formatSettlementDate(item.payoutAt)}", color = Colors.Muted, fontSize = 11.sp, maxLines = 1)
         }
         Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
     }

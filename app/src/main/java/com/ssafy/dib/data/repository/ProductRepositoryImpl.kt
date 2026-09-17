@@ -31,6 +31,12 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
+    override fun getSellerProducts(memberId: String): ApiResult<List<RegisteredProduct>> =
+        when (val result = remote.getSellerProducts(memberId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.map(ProductCardDto::toDomain), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun getSimilarProducts(productId: String, size: Int): ApiResult<List<RegisteredProduct>> =
         when (val result = remote.getSimilarProducts(productId, size)) {
             is ApiResult.Success -> ApiResult.Success(result.value.items.map(ProductCardDto::toDomain), result.status)
@@ -82,13 +88,23 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
 
     override fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult> =
         when (val result = remote.updateProduct(productId, update)) {
-            is ApiResult.Success -> ApiResult.Success(ProductUpdateResult(result.value.productId.idValue(), result.value.status, result.value.thumbnailUrl, result.value.updatedAt), result.status)
+            is ApiResult.Success -> ApiResult.Success(ProductUpdateResult(result.value.productId?.idValue().orEmpty(), result.value.status.orEmpty(), result.value.thumbnailUrl, result.value.updatedAt), result.status)
             is ApiResult.Failure -> result
         }
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
-internal fun ProductCardDto.toDomain() = RegisteredProduct(productId.idValue(), title ?: name ?: "등록 상품", condition, status.ifBlank { productStatus.orEmpty() }, thumbnailUrl)
+internal fun ProductCardDto.toDomain() = RegisteredProduct(
+    productId = productId.idValue(),
+    title = title ?: name ?: "등록 상품",
+    condition = condition,
+    status = productStatus ?: status,
+    thumbnailUrl = thumbnailUrl,
+    auctionId = auctionId?.idValue(),
+    startPrice = startPrice,
+    auctionTimeSeconds = auctionTime,
+    auctionStatus = auctionStatus
+)
 
 internal fun ProductDetailResponse.toDomain(): ProductDetail {
     val imageUrls = product.images.mapNotNull { image ->

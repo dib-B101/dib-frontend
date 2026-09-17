@@ -4,6 +4,13 @@ import com.ssafy.dib.core.network.ApiResult
 
 enum class OrderRole { BUYER, SELLER }
 
+// 주문 상세 응답의 settlement 블록을 화면용으로 줄인 요약
+data class OrderSettlementSummary(
+    val settlementId: String? = null,
+    val netAmount: Long? = null,
+    val payoutAt: String? = null
+)
+
 data class OrderSummary(
     val orderId: String,
     val auctionId: String,
@@ -13,7 +20,10 @@ data class OrderSummary(
     val status: String,
     val updatedAt: String?,
     val paymentId: String? = null,
-    val chattingReadOnly: Boolean = false
+    val chattingReadOnly: Boolean = false,
+    val thumbnailUrl: String? = null,
+    val paymentDue: String? = null,
+    val settlement: OrderSettlementSummary? = null
 )
 
 fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =
@@ -58,6 +68,18 @@ data class OrderShippingAddress(
     val postalCode: String,
     val address: String,
     val phoneNumber: String? = null
+) {
+    // 서버는 배송지 미입력 주문에 address: null 을 주고, 그걸 빈 값으로 매핑한다
+    val isRegistered: Boolean get() = address.isNotBlank()
+}
+
+// 구매자가 결제(PAID) 후 한 번 입력하는 주문 배송지
+data class OrderAddressInput(
+    val zip: String,
+    val address: String,
+    val detail: String?,
+    val receiverName: String,
+    val receiverPhone: String
 )
 
 interface OrderRepository {
@@ -65,6 +87,7 @@ interface OrderRepository {
     fun getOrder(orderId: String): ApiResult<OrderSummary>
     fun getShipment(orderId: String): ApiResult<OrderShipment>
     fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress>
+    fun updateShippingAddress(orderId: String, input: OrderAddressInput): ApiResult<OrderShippingAddress>
     fun getShippingCarriers(): ApiResult<List<ShippingCarrier>>
     fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
     fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<OrderMessagePage>

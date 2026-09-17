@@ -8,7 +8,8 @@ data class ReportSummary(
     val content: String,
     val status: String,
     val targetLabel: String,
-    val createdAt: String?
+    val createdAt: String?,
+    val processedAt: String? = null
 )
 
 data class ReportPage(val items: List<ReportSummary>, val nextCursor: String?, val hasNext: Boolean)

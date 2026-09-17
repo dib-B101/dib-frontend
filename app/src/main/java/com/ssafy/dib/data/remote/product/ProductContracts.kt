@@ -17,7 +17,9 @@ data class ProductCreatePayload(
     val condition: String,
     val modelName: String? = null,
     val releaseYear: Int? = null,
-    val marketPrice: Long? = null
+    val marketPrice: Long? = null,
+    val startPrice: Long,
+    val auctionTime: Int
 )
 
 @Serializable
@@ -37,26 +39,24 @@ data class ProductUpdatePayload(
     val modelName: String? = null,
     val releaseYear: Int? = null,
     val marketPrice: Long? = null,
-    val imageItems: List<ProductUpdateImageItem>? = null
-)
-
-@Serializable
-data class ProductUpdateImageItem(
-    val productImageId: JsonElement? = null,
-    val newFileIndex: Int? = null,
-    val type: String
+    val startPrice: Long? = null,
+    val auctionTime: Int? = null
 )
 
 @Serializable
 data class ProductUpdateResponse(
-    val productId: JsonElement,
-    val status: String,
+    // 바뀐 필드가 없으면 서버가 updatedAt 을 채우지 않는다. non-null 로 받으면 "아무것도 안 바꾸고 저장" 이 파싱 실패로 죽는다
+    val productId: JsonElement? = null,
+    val status: String? = null,
     val thumbnailUrl: String? = null,
-    val updatedAt: String
+    val updatedAt: String? = null
 )
 
 @Serializable
-data class ProductDetailResponse(val product: ProductDetailDto, val sellerSummary: ProductSellerSummaryDto? = null)
+data class ProductDetailResponse(
+    val product: ProductDetailDto,
+    val sellerSummary: ProductSellerSummaryDto? = null
+)
 
 @Serializable
 data class ProductDetailDto(
@@ -88,10 +88,23 @@ data class ProductSellerSummaryDto(
 @Serializable
 data class ProductCardDto(
     val productId: JsonElement,
+    val categoryId: JsonElement? = null,
     val title: String? = null,
     val name: String? = null,
     val condition: String = "",
     val status: String = "",
     val productStatus: String? = null,
-    val thumbnailUrl: String? = null
+    val thumbnailUrl: String? = null,
+    val auctionId: JsonElement? = null,
+    val startPrice: Long? = null,
+    val auctionTime: Long? = null,
+    val auctionStatus: String? = null
+)
+
+@Serializable
+data class ProductImageDto(
+    val productImageId: JsonElement? = null,
+    val productId: JsonElement? = null,
+    val imageUrl: String,
+    val sequence: Int = 0
 )

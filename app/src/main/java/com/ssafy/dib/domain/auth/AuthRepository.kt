@@ -53,8 +53,8 @@ interface AuthRepository {
         code: String
     ): ApiResult<PhoneVerificationConfirmation>
     fun checkEmailAvailability(email: String): ApiResult<Boolean>
-    fun findEmail(phoneVerificationToken: String): ApiResult<String>
-    fun requestPasswordResetLink(email: String, phoneVerificationToken: String): ApiResult<Unit>
+    fun findEmail(phoneVerificationToken: String, phoneNumber: String): ApiResult<String>
+    fun requestPasswordResetLink(email: String, phoneNumber: String, phoneVerificationToken: String): ApiResult<Unit>
     fun resetPassword(resetToken: String, newPassword: String): ApiResult<Unit>
     fun signUp(command: SignUpCommand): ApiResult<AuthSession>
     fun login(email: String, password: String, deviceId: String): ApiResult<AuthSession>

@@ -20,12 +20,14 @@ data class OrderSummaryDto(
     val status: String? = null,
     val productTitle: String? = null,
     val thumbnailUrl: String? = null,
+    val paymentDue: String? = null,
     val updatedAt: String? = null,
     val createdAt: String? = null,
     val order: OrderCoreDto? = null,
     val auction: OrderAuctionDto? = null,
     val product: OrderProductDto? = null,
     val payment: OrderPaymentDto? = null,
+    val settlement: OrderSettlementDto? = null,
     val chattingReadOnly: Boolean? = null
 )
 
@@ -46,8 +48,17 @@ data class OrderCoreDto(
     val productId: JsonElement? = null,
     val finalPrice: Long? = null,
     val status: String? = null,
+    val paymentDue: String? = null,
     val updatedAt: String? = null,
     val createdAt: String? = null
+)
+
+// 주문 상세 응답의 settlement 블록. 확정(CONFIRMED) 전에는 서버가 null 을 준다
+@Serializable
+data class OrderSettlementDto(
+    val settlementId: JsonElement? = null,
+    val netAmount: Long? = null,
+    val payoutAt: String? = null
 )
 
 @Serializable
@@ -61,7 +72,8 @@ data class OrderAuctionDto(
 data class OrderProductDto(
     val productId: JsonElement? = null,
     val title: String? = null,
-    val name: String? = null
+    val name: String? = null,
+    val thumbnailUrl: String? = null
 )
 
 @Serializable
@@ -78,6 +90,16 @@ data class OrderOfferAcceptanceResponse(
 
 @Serializable
 data class ShipmentRegistrationRequest(val carrier: String, val trackingNumber: String)
+
+// PATCH /orders/{orderId}/address - detail 을 뺀 나머지는 서버에서 @NotBlank
+@Serializable
+data class UpdateOrderAddressRequest(
+    val zip: String,
+    val address: String,
+    val detail: String? = null,
+    val receiverName: String,
+    val receiverPhone: String
+)
 
 @Serializable
 data class CarrierDto(val code: String, val name: String? = null)
