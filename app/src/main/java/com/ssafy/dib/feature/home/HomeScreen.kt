@@ -171,7 +171,7 @@ fun HomeScreen(
                         onViewModeChange = { contentView = it },
                         onFavorite = ::updateFavorite,
                         onProductClick = onProductClick,
-                        actionLabel = "전체보기",
+                        actionLabel = "전체 경매",
                         onAction = onViewAllAuctions
                     )
                 }
@@ -202,7 +202,7 @@ private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit,
 @Composable
 private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader("지금 LIVE", "라이브 보기", onLiveClick)
+        SectionHeader("지금 LIVE", "모두 보기", onLiveClick)
         val cards = remoteLives?.take(2)?.map { item ->
             val isLive = item.status.equals("LIVE", ignoreCase = true)
             HomeLiveCard(
@@ -221,29 +221,29 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f).height(188.dp),
+                    modifier = Modifier.weight(1f).height(172.dp),
                     color = Colors.Background,
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Colors.Border),
                     shadowElevation = 1.dp
                 ) {
-                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Box(Modifier.fillMaxWidth().height(96.dp).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft, RoundedCornerShape(12.dp))) {
+                    Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Box(Modifier.fillMaxWidth().height(86.dp).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft, RoundedCornerShape(12.dp))) {
                         Image(
                             painterResource(R.drawable.live_video),
                             null,
                             Modifier.align(Alignment.Center).size(38.dp),
                             colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
                         )
-                        Surface(Modifier.padding(8.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(14.dp)) {
-                            Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Surface(Modifier.padding(7.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(9.dp)) {
+                            Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
-                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                    Text(card.title, color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    Text(card.description, maxLines = 1, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(card.title, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    Text(card.description, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text(card.footer, color = Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -273,7 +273,7 @@ private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () ->
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(48.dp, 31.dp))
+        Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(64.dp, 40.dp), contentScale = ContentScale.Fit)
         Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
             Image(
                 painterResource(R.drawable.notification),
@@ -317,12 +317,13 @@ private fun SectionHeader(title: String, action: String, onClick: () -> Unit = {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(
-            action,
-            Modifier.clickable(onClick = onClick).padding(vertical = 4.dp),
-            color = Colors.Navy.copy(alpha = .76f),
-            fontSize = 11.sp
-        )
+        Row(
+            Modifier.clickable(onClick = onClick).padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(action, color = Colors.Navy.copy(alpha = .76f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .66f)))
+        }
     }
 }
 
@@ -342,12 +343,17 @@ private fun AuctionGridSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                actionLabel?.let { label ->
-                    Text(label, Modifier.clickable(onClick = onAction).padding(horizontal = 4.dp, vertical = 6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            actionLabel?.let { label ->
+                Row(Modifier.clickable(onClick = onAction).padding(start = 8.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Colors.Navy))
                 }
-                DibViewModeToggle(viewMode, onViewModeChange)
             }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Text("보기 방식", color = Colors.Muted, fontSize = 10.sp)
+            Spacer(Modifier.width(8.dp))
+            DibViewModeToggle(viewMode, onViewModeChange)
         }
         if (viewMode == DibContentView.Grid) {
             auctions.chunked(2).forEach { row ->

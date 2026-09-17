@@ -458,7 +458,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
         IconButton(onClick = onBack) {
             Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
-        Text("상품 상세", Modifier.weight(1f), color = Colors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+        Text("경매 상세", Modifier.weight(1f), color = Colors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
         IconButton(onClick = onShare, enabled = shareEnabled) {
             Image(painterResource(R.drawable.share), "공유", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
@@ -469,7 +469,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImageClick: (Int) -> Unit) {
-    val pageCount = imageUrls.size.takeIf { it > 0 } ?: 5
+    val pageCount = imageUrls.size.takeIf { it > 0 } ?: 1
     val pagerState = rememberPagerState(pageCount = { pageCount })
     Box(Modifier.fillMaxWidth().aspectRatio(1.2f).background(Colors.Image)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
@@ -479,12 +479,8 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImage
             ) {
                 if (imageUrls.isNotEmpty()) {
                     ProductPhoto(photo, imageUrls[page], Modifier.fillMaxSize())
-                } else if (page == 0) {
-                    ProductPhoto(photo, modifier = Modifier.fillMaxSize())
                 } else {
-                    Box(Modifier.fillMaxSize().background(Colors.Image), contentAlignment = Alignment.Center) {
-                        Text("상품 이미지 ${page + 1}", color = Colors.Muted, fontSize = 12.sp)
-                    }
+                    ProductPhoto(photo, modifier = Modifier.fillMaxSize())
                 }
             }
         }
@@ -527,7 +523,7 @@ private fun ProductSummary(
     condition: String?
 ) {
     Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             when (state) {
                 DetailAuctionState.Scheduled -> Badge("경매 예정")
                 DetailAuctionState.Cancelled -> Badge("경매 취소")
@@ -540,8 +536,11 @@ private fun ProductSummary(
         if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) {
             AuctionUrgencyBadge(remainingSeconds)
         }
-        Text(name, fontSize = 20.sp, lineHeight = 30.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(name, fontSize = 21.sp, lineHeight = 29.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
+        Row(
+            Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Metric(
                 when (state) {
                     DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
@@ -551,7 +550,8 @@ private fun ProductSummary(
                 },
                 "%,d원".format(price),
                 Colors.Navy,
-                24
+                22,
+                Modifier.weight(1f)
             )
             Metric(
                 when (state) {
@@ -568,7 +568,8 @@ private fun ProductSummary(
                     DetailAuctionState.Active, DetailAuctionState.HighestBidder -> formatClock(remainingSeconds)
                 },
                 if (remainingSeconds in 1..59) Colors.Urgent else Colors.Text,
-                24
+                22,
+                Modifier.weight(1f)
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -609,8 +610,8 @@ private fun Badge(label: String, urgent: Boolean = false, success: Boolean = fal
 }
 
 @Composable
-private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int) {
-    Column {
+private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier) {
+    Column(modifier) {
         Text(label, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         Text(value, color = color, fontSize = valueSize.sp, lineHeight = 38.sp, fontWeight = FontWeight.Bold)
     }
