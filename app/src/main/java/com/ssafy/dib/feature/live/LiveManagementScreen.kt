@@ -112,7 +112,7 @@ fun LiveManagementScreen(
                             "SCHEDULED" -> {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = { editingLiveId = live.liveBroadcastId }, Modifier.weight(1f), enabled = !actionLoading) { Text("상품 편성") }
-                                    OutlinedButton(onClick = { onPrepareStream(live.liveBroadcastId) }, Modifier.weight(1f), enabled = !actionLoading) { Text(if (live.streamUrl.isNullOrBlank()) "송출 준비" else "송출 갱신") }
+                                    OutlinedButton(onClick = { onPrepareStream(live.liveBroadcastId) }, Modifier.weight(1f), enabled = !actionLoading) { Text(if (live.streamUrl.isNullOrBlank()) "송출 준비" else "송출 다시 준비") }
                                 }
                                 Button(
                                     onClick = { onStartLive(live.liveBroadcastId) },
@@ -120,7 +120,16 @@ fun LiveManagementScreen(
                                     enabled = auctions.isNotEmpty() && !live.streamUrl.isNullOrBlank() && !actionLoading,
                                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                                 ) { Text("Live 시작", fontWeight = FontWeight.Bold) }
-                                if (auctions.isEmpty() || live.streamUrl.isNullOrBlank()) Text("상품 편성과 송출 준비를 완료하면 시작할 수 있어요.", color = Colors.Muted, fontSize = 10.sp)
+                                Text(
+                                    when {
+                                        auctions.isEmpty() -> "방송할 상품을 한 개 이상 편성해주세요."
+                                        live.streamUrl.isNullOrBlank() -> "송출 준비에서 방송 연결 정보를 먼저 받아주세요."
+                                        else -> "상품과 송출 연결이 준비됐어요. 방송을 시작할 수 있어요."
+                                    },
+                                    color = if (auctions.isNotEmpty() && !live.streamUrl.isNullOrBlank()) Colors.MintInk else Colors.Muted,
+                                    fontSize = 10.sp,
+                                    lineHeight = 15.sp
+                                )
                             }
                             "LIVE" -> {
                                 if (activeAuction != null) Text("현재 경매 중 · ${activeAuction.title}", color = Colors.Live, fontSize = 12.sp, fontWeight = FontWeight.Bold)

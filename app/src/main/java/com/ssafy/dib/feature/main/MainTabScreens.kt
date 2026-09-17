@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -292,14 +293,16 @@ private fun openTradeItem(
 @Composable private fun TradeCard(item: TradeItem, onClick: () -> Unit) {
     val chip = when(item.tone){ TradeTone.Urgent -> Color(0xFFFFF0EA); TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Color(0xFFE56F49); TradeTone.Positive -> Color(0xFF27806E); TradeTone.Neutral -> Color(0xFF6B7280) }
-    Row(Modifier.fillMaxWidth().height(136.dp).background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.size(88.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Text(item.title.take(1), color = Colors.Navy.copy(alpha = .5f), fontSize = 28.sp, fontWeight = FontWeight.Bold) }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(item.meta, color = Color(0xFF6B7280), fontSize = 11.sp)
+    Row(Modifier.fillMaxWidth().heightIn(min = 148.dp).background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(86.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.product_outline), null, Modifier.size(30.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold) }
+            Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            Text(item.meta, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Color(0xFF6B7280), fontSize = 11.sp, lineHeight = 16.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(item.action.removeSuffix(" →"), color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(item.action.removeSuffix(" →"), Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold)
                 Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(if(item.tone == TradeTone.Urgent) ink else Colors.Navy))
             }
         }
@@ -311,12 +314,12 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
     val chip = when(item.tone){ TradeTone.Urgent -> Colors.UrgentBackground; TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Colors.Urgent; TradeTone.Positive -> Colors.MintInk; TradeTone.Neutral -> Colors.Muted }
     Column(
-        modifier.height(232.dp).background(Color.White, RoundedCornerShape(18.dp))
+        modifier.heightIn(min = 232.dp).background(Color.White, RoundedCornerShape(18.dp))
             .border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-            Text(item.title.take(1), color = Colors.Navy.copy(alpha = .5f), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
         }
         Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -502,7 +505,14 @@ fun ProductRegisterScreen(
             ) {
                 Box(Modifier.size(72.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.check_circle), null, Modifier.size(40.dp), colorFilter = ColorFilter.tint(Colors.MintInk)) }
                 Text("상품 등록이 완료됐어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n상품 번호 ${result.productId}", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+                Text(
+                    if (result.productId.startsWith("PREVIEW-")) "현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n개발 미리보기 상품으로 등록됐어요."
+                    else "현재 검수 대기 상태예요. 승인되면 경매와 Live에 등록할 수 있어요.\n상품 번호 ${result.productId}",
+                    Modifier.padding(top = 10.dp),
+                    color = Colors.Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
                 Button(onComplete, Modifier.fillMaxWidth().padding(top = 28.dp).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("등록 상품에서 상태 보기", fontWeight = FontWeight.Bold) }
             }
         }
@@ -802,19 +812,19 @@ private fun RegisterTextField(
     value: String,
     onChange: (String) -> Unit,
     placeholder: String,
-    height: androidx.compose.ui.unit.Dp = 72.dp,
+    height: androidx.compose.ui.unit.Dp = 80.dp,
     keyboardType: KeyboardType = KeyboardType.Text,
     errorMessage: String? = null
 ) {
     Column(
-        Modifier.fillMaxWidth().height(height + if (errorMessage != null && height >= 90.dp) 16.dp else 0.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        Modifier.fillMaxWidth().heightIn(min = height + if (errorMessage != null) 18.dp else 0.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxWidth().heightIn(min = if (height >= 100.dp) 76.dp else 56.dp),
             placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
             singleLine = height < 90.dp,
             isError = errorMessage != null,
@@ -826,22 +836,23 @@ private fun RegisterTextField(
                 errorBorderColor = Colors.Urgent
             )
         )
-        if (errorMessage != null && height >= 90.dp) Text(errorMessage, color = Colors.Urgent, fontSize = 11.sp)
+        if (errorMessage != null) Text(errorMessage, color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
 
 @Composable
 private fun RegisterSelect(label: String, value: String, errorMessage: String? = null, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().height(72.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().heightIn(min = if (errorMessage == null) 80.dp else 98.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(
-            Modifier.fillMaxWidth().weight(1f).background(Color.White, RoundedCornerShape(12.dp))
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).background(Color.White, RoundedCornerShape(12.dp))
                 .border(if (errorMessage != null) 1.5.dp else 1.dp, if (errorMessage != null) Colors.Urgent else Color(0xFFDDE1E7), RoundedCornerShape(12.dp))
                 .clickable(onClick = onClick).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(errorMessage ?: value, Modifier.weight(1f), color = if (errorMessage != null) Colors.Urgent else if (value.contains("선택") || value.contains("상 ·")) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
+            Text(value, Modifier.weight(1f), color = if (value.contains("선택") || value.contains("상 ·")) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
             Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
         }
+        errorMessage?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp) }
     }
 }

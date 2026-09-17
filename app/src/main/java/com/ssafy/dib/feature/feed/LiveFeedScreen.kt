@@ -55,7 +55,6 @@ import com.ssafy.dib.domain.live.LiveChatMessage
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
-import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import androidx.lifecycle.Lifecycle
@@ -247,6 +246,7 @@ private fun LiveFeedPage(
     }
     var comment by rememberSaveable { mutableStateOf("") }
     var showBidFeedback by remember { mutableStateOf(false) }
+    var showFavoriteBurst by remember { mutableStateOf(false) }
     var bidFeedbackAccepted by remember { mutableStateOf(true) }
     var bidFeedbackMessage by remember { mutableStateOf("") }
     var bidSubmitting by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
@@ -300,6 +300,12 @@ private fun LiveFeedPage(
         if (showBidFeedback) {
             delay(1_500)
             showBidFeedback = false
+        }
+    }
+    LaunchedEffect(showFavoriteBurst) {
+        if (showFavoriteBurst) {
+            delay(700)
+            showFavoriteBurst = false
         }
     }
 
@@ -375,15 +381,28 @@ private fun LiveFeedPage(
                         auctionKey != null -> {
                             val selected = !favorite
                             favorite = selected
+                            if (selected) showFavoriteBurst = true
                             onFavoriteChange(auctionKey, selected)
                         }
                     }
                 }
-                LiveAction(R.drawable.product_outline, "상품") { showProducts = true }
                 LiveAction(R.drawable.report_outline, "신고") {
                     if (isAuthenticated) showReportTypes = true else onLoginRequired()
                 }
             }
+        }
+        AnimatedVisibility(
+            visible = showFavoriteBurst,
+            modifier = Modifier.align(Alignment.Center),
+            enter = fadeIn() + scaleIn(initialScale = .45f),
+            exit = fadeOut() + scaleOut(targetScale = 1.25f)
+        ) {
+            Image(
+                painterResource(R.drawable.favorite_selected),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
+                colorFilter = ColorFilter.tint(Colors.Live)
+            )
         }
         AnimatedVisibility(
             visible = favoriteError != null,
@@ -1004,12 +1023,19 @@ private fun LiveAction(@DrawableRes icon: Int, label: String, onClick: () -> Uni
 
 @Composable
 private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    DibWishlistButton(
-        selected = selected,
-        onSelectedChange = { onClick() },
-        productName = "라이브 상품",
-        enabled = enabled
-    )
+    Box(
+        Modifier.size(52.dp).graphicsLayer(alpha = if (enabled) 1f else .45f)
+            .background(Color.Black.copy(alpha = .32f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
+            contentDescription = if (selected) "찜 해제" else "찜하기",
+            modifier = Modifier.size(28.dp),
+            colorFilter = ColorFilter.tint(if (selected) Colors.Live else Color.White)
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1023,6 +1049,17 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
             Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("현재가 ${"%,d".format(currentPrice)}원 · ${"%,d".format(minimum)}원 이상", color = Color.Gray, fontSize = 12.sp)
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1_000, 5_000, 10_000).forEach { increment ->
+                    Button(
+                        onClick = { amount = (currentPrice + increment).toString() },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
+                        contentPadding = PaddingValues(0.dp)
+                    ) { Text("+%,d원".format(increment), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
             Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 30초 이내 입찰 시 종료 시간이 15초 연장돼요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
             Button({ onConfirm(BidSubmission(parsed)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
