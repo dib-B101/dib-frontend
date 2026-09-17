@@ -31,16 +31,16 @@ fun DibWishlistButton(
         modifier = modifier.size(44.dp)
     ) {
         Surface(
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(26.dp),
             shape = CircleShape,
             color = WireframeColors.Background.copy(alpha = .94f),
-            shadowElevation = 1.dp
+            shadowElevation = 0.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Image(
                     painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
                     contentDescription = "$productName ${if (selected) "찜 해제" else "찜하기"}",
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(16.dp),
                     colorFilter = ColorFilter.tint(if (selected) WireframeColors.Favorite else WireframeColors.Muted)
                 )
             }

@@ -69,9 +69,10 @@ fun HomeScreen(
     val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
     val homeRecommendations = displayedAuctions.take(4)
     val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
-    val closingAuctions = remoteAuctions?.sortedBy(HomeAuction::remainingSeconds)?.take(4)
-        ?: if (showSampleContent) recommended else emptyList()
-    val highlightedDeadline = closingAuctions.firstOrNull() ?: if (showSampleContent) deadlineAuction else null
+    val closingAuctions = remoteAuctions?.distinctBy(HomeAuction::id)?.sortedBy(HomeAuction::remainingSeconds)?.take(5)
+        ?: if (showSampleContent) listOf(deadlineAuction, recommended[0], allAuctions[0], allAuctions[1]) else emptyList()
+    val highlightedDeadline = closingAuctions.firstOrNull()
+    val followingDeadlines = closingAuctions.drop(1)
 
     LaunchedEffect(remoteAuctions) {
         remoteAuctions?.let { auctions ->
@@ -155,17 +156,30 @@ fun HomeScreen(
                         favorite = highlightedDeadline.id in favoriteIds,
                         onFavorite = { updateFavorite(highlightedDeadline.id, it) },
                         onProductClick = { onProductClick(highlightedDeadline.id) },
-                        onFeedClick = onLiveClick
+                        onViewAllClick = onViewAllAuctions
                     )
                 }
-                item { AuctionGridSection("곧 마감되는 경매", closingAuctions, 100, favoriteIds, contentView, { contentView = it }, ::updateFavorite, onProductClick) }
+                if (followingDeadlines.isNotEmpty()) {
+                    item {
+                        AuctionGridSection(
+                            title = "이어서 마감돼요",
+                            auctions = followingDeadlines,
+                            favoriteIds = favoriteIds,
+                            viewMode = contentView,
+                            onViewModeChange = { contentView = it },
+                            onFavorite = ::updateFavorite,
+                            onProductClick = onProductClick,
+                            actionLabel = "전체 경매",
+                            onAction = onViewAllAuctions
+                        )
+                    }
+                }
             } else if (remoteError == null) {
                 item { HomeLiveSection(displayedLives, onLiveClick) }
                 item {
                     AuctionGridSection(
                         title = "추천 경매",
                         auctions = homeRecommendations,
-                        imageHeight = 100,
                         favoriteIds = favoriteIds,
                         viewMode = contentView,
                         onViewModeChange = { contentView = it },
@@ -182,20 +196,30 @@ fun HomeScreen(
 
 @Composable
 private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit, onClosing: () -> Unit, onCategory: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.weight(1f).fillMaxHeight().background(Colors.Surface, RoundedCornerShape(14.dp)).padding(4.dp)) {
-            listOf("일반" to false, "마감임박" to true).forEach { (label, value) ->
+    Row(
+        Modifier.fillMaxWidth().height(46.dp).background(Colors.Surface, RoundedCornerShape(15.dp)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+            listOf("추천" to false, "마감 임박" to true).forEach { (label, value) ->
                 val selected = selectedClosing == value
                 Surface(
                     onClick = if(value) onClosing else onGeneral,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     color = if(selected) Color.White else Color.Transparent,
                     shape = RoundedCornerShape(11.dp),
-                    shadowElevation = if(selected) 2.dp else 0.dp
-                ) { Box(contentAlignment = Alignment.Center) { Text(label, color = if(selected) Colors.Navy else Colors.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold) } }
+                    shadowElevation = if(selected) 1.dp else 0.dp
+                ) { Box(contentAlignment = Alignment.Center) { Text(label, color = if(selected) Colors.Navy else Colors.Muted, fontSize = 13.sp, fontWeight = if(selected) FontWeight.Bold else FontWeight.Medium) } }
+            }
+        Surface(
+            onClick = onCategory,
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            color = Color.Transparent,
+            shape = RoundedCornerShape(11.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("카테고리  ›", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
-        OutlinedButton(onClick = onCategory, Modifier.width(76.dp).fillMaxHeight(), shape = RoundedCornerShape(14.dp), contentPadding = PaddingValues(0.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border), colors = ButtonDefaults.outlinedButtonColors(containerColor = Colors.Background)) { Text("카테고리", color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -209,11 +233,12 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                 title = item.title,
                 description = item.description ?: "Live 상품을 확인해보세요",
                 isLive = isLive,
-                footer = if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt)
+                footer = if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt),
+                photo = null
             )
         } ?: listOf(
-            HomeLiveCard("하루공방 라이브", "달빛 유약 머그컵", true, "상품 5개 · 목록 보기"),
-            HomeLiveCard("빈티지마켓 라이브", "빈티지 필름 카메라", false, "상품 3개 · 오늘 20:00")
+            HomeLiveCard("오디오마켓 라이브", "노이즈 캔슬링 헤드폰", true, "상품 5개 · 눌러서 보기", ProductPhoto.Headphones),
+            HomeLiveCard("빈티지마켓 라이브", "빈티지 필름 카메라", false, "상품 3개 · 오늘 20:00", ProductPhoto.Camera)
         )
         if (cards.isEmpty()) {
             Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
@@ -221,24 +246,24 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f).height(172.dp),
+                    modifier = Modifier.weight(1f).height(170.dp),
                     color = Colors.Background,
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Colors.Border),
-                    shadowElevation = 1.dp
+                    shadowElevation = 0.dp
                 ) {
                     Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Box(Modifier.fillMaxWidth().height(86.dp).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft, RoundedCornerShape(12.dp))) {
-                        Image(
-                            painterResource(R.drawable.live_video),
-                            null,
-                            Modifier.align(Alignment.Center).size(38.dp),
+                    Box(Modifier.fillMaxWidth().height(78.dp).clip(RoundedCornerShape(12.dp)).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
+                        card.photo?.let { ProductPhoto(it, modifier = Modifier.matchParentSize()) } ?: Image(
+                            painter = painterResource(R.drawable.live_video),
+                            contentDescription = null,
+                            modifier = Modifier.align(Alignment.Center).size(38.dp),
                             colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
                         )
                         Surface(Modifier.padding(7.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(9.dp)) {
-                            Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(13.dp))
-                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(12.dp))
+                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -256,7 +281,8 @@ private data class HomeLiveCard(
     val title: String,
     val description: String,
     val isLive: Boolean,
-    val footer: String
+    val footer: String,
+    val photo: ProductPhoto?
 )
 
 internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.systemDefault()): String =
@@ -269,11 +295,16 @@ internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.syste
 @Composable
 private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(60.dp).background(Colors.Background).padding(horizontal = 18.dp),
+        Modifier.fillMaxWidth().height(64.dp).background(Color(0xFFFBF9F4)).padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(64.dp, 40.dp), contentScale = ContentScale.Fit)
+        Image(
+            painterResource(R.drawable.dib_official_logo),
+            "dib",
+            Modifier.size(70.dp, 44.dp).clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Fit
+        )
         Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
             Image(
                 painterResource(R.drawable.notification),
@@ -297,8 +328,8 @@ private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () ->
 @Composable
 private fun SearchField(onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(50.dp)
-            .background(Colors.Search, RoundedCornerShape(16.dp))
+        modifier = Modifier.fillMaxWidth().height(48.dp)
+            .background(Colors.Search, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -331,7 +362,6 @@ private fun SectionHeader(title: String, action: String, onClick: () -> Unit = {
 private fun AuctionGridSection(
     title: String,
     auctions: List<HomeAuction>,
-    imageHeight: Int,
     favoriteIds: List<String>,
     viewMode: DibContentView,
     onViewModeChange: (DibContentView) -> Unit,
@@ -341,18 +371,15 @@ private fun AuctionGridSection(
     onAction: () -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
             actionLabel?.let { label ->
-                Row(Modifier.clickable(onClick = onAction).padding(start = 8.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.clickable(onClick = onAction).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(label, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                    Image(painterResource(R.drawable.chevron_right), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.Navy))
                 }
             }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            Text("보기 방식", color = Colors.Muted, fontSize = 10.sp)
-            Spacer(Modifier.width(8.dp))
             DibViewModeToggle(viewMode, onViewModeChange)
         }
         if (viewMode == DibContentView.Grid) {
@@ -361,7 +388,6 @@ private fun AuctionGridSection(
                     row.forEach { auction ->
                         AuctionCard(
                             auction = auction,
-                            imageHeight = imageHeight,
                             favorite = auction.id in favoriteIds,
                             onFavorite = { onFavorite(auction.id, it) },
                             onClick = { onProductClick(auction.id) },
@@ -412,7 +438,6 @@ private fun AuctionListCard(
 @Composable
 private fun AuctionCard(
     auction: HomeAuction,
-    imageHeight: Int,
     favorite: Boolean,
     onFavorite: (Boolean) -> Unit,
     onClick: () -> Unit,
@@ -422,14 +447,14 @@ private fun AuctionCard(
         onClick = onClick,
         modifier = modifier,
         color = Colors.Background,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, Colors.Border),
-        shadowElevation = 1.dp
+        shadowElevation = 0.dp
     ) {
-    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Box(
-            Modifier.fillMaxWidth().height(imageHeight.dp)
-                .background(Colors.Image, RoundedCornerShape(12.dp))
+            Modifier.fillMaxWidth().aspectRatio(1.05f)
+                .background(Colors.Image, RoundedCornerShape(13.dp))
         ) {
             ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
             DibWishlistButton(
@@ -439,9 +464,9 @@ private fun AuctionCard(
                 modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
             Text(auction.meta, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
@@ -455,29 +480,29 @@ private fun DeadlineSection(
     favorite: Boolean,
     onFavorite: (Boolean) -> Unit,
     onProductClick: () -> Unit,
-    onFeedClick: () -> Unit
+    onViewAllClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader("마감 임박", "피드 보기", onFeedClick)
+        SectionHeader("마감 임박 경매", "전체 경매", onViewAllClick)
         Row(
-            Modifier.fillMaxWidth().height(154.dp).background(Colors.Background, RoundedCornerShape(18.dp))
+            Modifier.fillMaxWidth().height(168.dp).background(Colors.Background, RoundedCornerShape(18.dp))
                 .border(1.dp, Colors.Border, RoundedCornerShape(18.dp))
                 .clickable(onClick = onProductClick).padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(Modifier.width(132.dp).fillMaxHeight().background(Colors.Image, RoundedCornerShape(10.dp))) {
+            Box(Modifier.width(144.dp).fillMaxHeight().background(Colors.Image, RoundedCornerShape(12.dp))) {
                 ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
                 DibWishlistButton(favorite, onFavorite, auction.name, Modifier.align(Alignment.TopEnd))
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 AuctionUrgencyBadge(deadlineSeconds, compact = true)
-                Text(auction.name, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
-                Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+                Text(auction.name, maxLines = 2, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
+                Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
                 Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
-                    modifier = Modifier.fillMaxWidth().height(30.dp),
-                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = if (deadlineSeconds <= 15) Colors.Live else Colors.Navy),
                     contentPadding = PaddingValues(0.dp)
                 ) {
