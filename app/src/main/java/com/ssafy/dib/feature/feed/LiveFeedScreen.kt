@@ -337,10 +337,16 @@ private fun LiveFeedPage(
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
-        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 82.dp, bottom = 244.dp), enter = fadeIn(), exit = fadeOut()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.align(Alignment.BottomStart)
+                .imePadding()
+                .padding(start = 16.dp, end = 82.dp, bottom = if (imeVisible) 76.dp else 244.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
                 if (liveItem == null) {
-                    listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?").forEach { message ->
+                    listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?")
+                        .takeLast(if (imeVisible) 2 else 3)
+                        .forEach { message ->
                         Surface(color = Color.Black.copy(alpha = .24f), shape = RoundedCornerShape(10.dp)) {
                             Text(message, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
                         }
@@ -355,7 +361,7 @@ private fun LiveFeedPage(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    liveComments.takeLast(3).forEach { message ->
+                    liveComments.takeLast(if (imeVisible) 2 else 3).forEach { message ->
                         Surface(
                             color = Color.Black.copy(alpha = .24f),
                             shape = RoundedCornerShape(10.dp),
@@ -371,7 +377,6 @@ private fun LiveFeedPage(
                         }
                     }
                 }
-            }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 236.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1068,7 +1073,11 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1_000, 5_000, 10_000).forEach { increment ->
                     Button(
-                        onClick = { amount = (currentPrice + increment).toString() },
+                        onClick = {
+                            val enteredAmount = amount.toIntOrNull()
+                            val baseAmount = if (enteredAmount == null || enteredAmount == minimum) currentPrice else enteredAmount
+                            amount = (baseAmount + increment).toString()
+                        },
                         modifier = Modifier.weight(1f).height(40.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -33,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -168,12 +170,21 @@ fun RegisteredProductsScreen(
                 val canRegisterAuction = product.status.uppercase() in setOf("REGISTERED", "APPROVED") && (remoteProducts != null || showSampleContent)
                 val canEdit = remoteProducts != null && isProductEditable(product.status)
                 val canDelete = remoteProducts != null && product.status.uppercase() in setOf("PENDING", "PENDING_REVIEW", "REGISTERED", "APPROVED", "REJECTED", "REVIEW_REJECTED")
-                Row(Modifier.fillMaxWidth().height(84.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(56.dp))
+                Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(enabled = canRegisterAuction) { onAuctionRegister(product.productId) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (product.thumbnailUrl.isNullOrBlank()) {
+                        Box(Modifier.size(64.dp).background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            Image(painterResource(R.drawable.product_outline), null, Modifier.size(26.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+                        }
+                    } else {
+                        DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(64.dp))
+                    }
                     val statusLabel = productStatusLabel(product.status)
-                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "반려" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(product.title, color = Colors.Navy, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(if (canRegisterAuction) "경매 등록 가능 · 눌러서 등록" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                    }
+                    Column(Modifier.padding(start = 8.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(statusLabel, Modifier.background(when (statusLabel) { "승인" -> Color(0xFFE7F8F2); "반려" -> Color(0xFFFFECEE); else -> Color(0xFFFFF0EA) }, RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp), color = when (statusLabel) { "승인" -> Colors.MintInk; "반려" -> Color(0xFFD84352); else -> Color(0xFFD65A37) }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (canEdit || canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (canEdit) Text("수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
                             if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
@@ -352,7 +363,21 @@ fun InquiryHistoryScreen(
     }
     if (formOpen) {
         var title by rememberSaveable { mutableStateOf("") }; var body by rememberSaveable { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { if (!submitLoading) formOpen = false }, title = { Text("문의하기") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(title, { title = it }, label = { Text("제목") }); OutlinedTextField(body, { body = it }, label = { Text("문의 내용") }); submitError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) } } }, confirmButton = { TextButton({ onSubmit(title.trim(), body.trim()) }, enabled = title.isNotBlank() && body.isNotBlank() && !submitLoading) { if (submitLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("등록") } }, dismissButton = { TextButton({ formOpen = false }, enabled = !submitLoading) { Text("취소") } })
+        AlertDialog(
+            onDismissRequest = { if (!submitLoading) formOpen = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            title = { Text("문의하기", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(title, { title = it.take(100) }, Modifier.fillMaxWidth(), label = { Text("제목") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+                    OutlinedTextField(body, { body = it.take(1000) }, Modifier.fillMaxWidth(), label = { Text("문의 내용") }, minLines = 4, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+                    submitError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
+                }
+            },
+            confirmButton = { Button({ onSubmit(title.trim(), body.trim()) }, enabled = title.isNotBlank() && body.isNotBlank() && !submitLoading, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text("등록") } },
+            dismissButton = { TextButton({ formOpen = false }, enabled = !submitLoading) { Text("취소", color = Colors.Muted) } }
+        )
     }
     if (detailLoading || detailError != null || selectedInquiry != null) {
         AlertDialog(
@@ -439,24 +464,30 @@ private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modi
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Column(
-                Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(Modifier.fillMaxWidth()) {
-                    Text(reportTypeLabel(report.type), Modifier.weight(1f), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text(reportStatusLabel(report.status), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxWidth().background(Colors.Navy, RoundedCornerShape(20.dp)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).background(Color.White.copy(alpha = .14f), CircleShape), contentAlignment = Alignment.Center) {
+                        Image(painterResource(R.drawable.report_outline), null, Modifier.size(21.dp), colorFilter = ColorFilter.tint(Color.White))
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("접수된 신고", color = Color.White.copy(alpha = .72f), fontSize = 11.sp)
+                        Text(reportStatusLabel(report.status), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
+                Text("신고 상세 내용을 확인하고 있어요", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("신고 정보", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(reportTypeLabel(report.type), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(report.targetLabel, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(reportContentDetail(report.content), color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
         item {
-            Column(
-                Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("처리 상태", color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("처리 현황", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
                     if (report.status.equals("PENDING", true)) "신고 내용을 검토하고 있어요" else "신고 처리가 완료됐어요",
                     color = Colors.Navy,
@@ -475,6 +506,16 @@ private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modi
         }
     }
 }
+
+@Composable
+private fun dialogFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Colors.Navy,
+    unfocusedBorderColor = Colors.Border,
+    focusedLabelColor = Colors.Navy,
+    unfocusedLabelColor = Colors.Muted,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White
+)
 
 @Composable
 private fun HistoryLoadMore(isLoading: Boolean, error: String?, onRetry: () -> Unit) {
