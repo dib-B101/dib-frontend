@@ -46,7 +46,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
-import com.ssafy.dib.feature.auction.BidDepositStatusNotice
 import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.home.formatClock
@@ -101,13 +100,9 @@ fun LiveFeedScreen(
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     currentMemberId: String?,
-    paidBidAmount: Int,
-    depositPaidAuctionIds: Set<String>,
     realtimeBiddingEnabled: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
-    onDepositInvalid: (String) -> Unit,
-    onPaymentConsumed: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
@@ -116,7 +111,6 @@ fun LiveFeedScreen(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
-    onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
     when {
@@ -162,13 +156,9 @@ fun LiveFeedScreen(
                     onSendComment = onSendComment,
                     isAuthenticated = isAuthenticated,
                     currentMemberId = currentMemberId,
-                    paidBidAmount = if (page == pagerState.currentPage) paidBidAmount else 0,
-                    depositPaidAuctionIds = depositPaidAuctionIds,
                     realtimeBiddingEnabled = realtimeBiddingEnabled,
                     realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
                     onRealtimeBid = onRealtimeBid,
-                    onDepositInvalid = onDepositInvalid,
-                    onPaymentConsumed = onPaymentConsumed,
                     onStreamRetry = onRetry,
                     onClose = onClose,
                     onProductClick = onProductClick,
@@ -177,8 +167,7 @@ fun LiveFeedScreen(
                     onLoginRequired = onLoginRequired,
                     onReportAuction = onReportAuction,
                     onReportParticipant = onReportParticipant,
-                    onDismissReport = onDismissReport,
-                        onDepositPayment = onDepositPayment
+                    onDismissReport = onDismissReport
                     )
                 }
                 if (isLoadingMore) {
@@ -216,13 +205,9 @@ private fun LiveFeedPage(
     onSendComment: (String) -> Boolean,
     isAuthenticated: Boolean,
     currentMemberId: String?,
-    paidBidAmount: Int,
-    depositPaidAuctionIds: Set<String>,
     realtimeBiddingEnabled: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
-    onDepositInvalid: (String) -> Unit,
-    onPaymentConsumed: () -> Unit,
     onStreamRetry: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
@@ -232,7 +217,6 @@ private fun LiveFeedPage(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
-    onDepositPayment: (String, BidSubmission) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activeAuction = liveItem?.currentAuction
@@ -242,7 +226,6 @@ private fun LiveFeedPage(
     val hasActiveAuction = auctionKey != null && (
         liveItem == null || activeAuction?.status.equals("ACTIVE", ignoreCase = true)
     )
-    val depositPaid = auctionKey in depositPaidAuctionIds
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
@@ -265,6 +248,7 @@ private fun LiveFeedPage(
     var showBidFeedback by remember { mutableStateOf(false) }
     var bidFeedbackAccepted by remember { mutableStateOf(true) }
     var bidFeedbackMessage by remember { mutableStateOf("") }
+    var bidSubmitting by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var reportTarget by remember { mutableStateOf<LiveChatMessage?>(null) }
     var reportContent by rememberSaveable { mutableStateOf("") }
     var memberReportReason by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf("욕설·사기 유도") }
@@ -279,47 +263,28 @@ private fun LiveFeedPage(
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
-    LaunchedEffect(paidBidAmount, chatConnectionState, auctionKey) {
-        if (paidBidAmount > 0) {
-            if (liveItem == null) {
-                currentPrice = paidBidAmount
-                if (remaining in 1..15) remaining = 15
-                bidFeedbackAccepted = true
-                bidFeedbackMessage = "입찰이 접수됐어요."
-                showBidFeedback = true
-                onPaymentConsumed()
-            } else if (!realtimeBiddingEnabled) {
-                bidFeedbackAccepted = false
-                bidFeedbackMessage = "실시간 입찰 연결을 사용할 수 없어요."
-                showBidFeedback = true
-                onPaymentConsumed()
-            } else if (auctionKey == null || chatConnectionState != RealtimeConnectionState.Connected) {
-                bidFeedbackAccepted = false
-                bidFeedbackMessage = "실시간 연결 후 입찰을 자동으로 요청할게요."
-                showBidFeedback = true
-            } else {
-                while (true) {
-                    if (onRealtimeBid(auctionKey, paidBidAmount)) {
-                        onPaymentConsumed()
-                        break
-                    }
-                    delay(1_000L)
-                }
-            }
-        }
-    }
     LaunchedEffect(realtimeBidFeedback?.eventKey) {
         realtimeBidFeedback ?: return@LaunchedEffect
+        bidSubmitting = false
         bidFeedbackAccepted = realtimeBidFeedback.accepted
         bidFeedbackMessage = realtimeBidFeedback.message.ifBlank {
             if (realtimeBidFeedback.accepted) "입찰이 접수됐어요." else "입찰이 반영되지 않았어요."
         }
         if (realtimeBidFeedback.accepted) {
             realtimeBidFeedback.currentPrice?.let { currentPrice = it }
-        } else if (realtimeBidFeedback.errorCode == "DEPOSIT_REQUIRED") {
-            auctionKey?.let(onDepositInvalid)
         }
         showBidFeedback = true
+    }
+    LaunchedEffect(bidSubmitting) {
+        if (bidSubmitting) {
+            delay(10_000L)
+            if (bidSubmitting) {
+                bidSubmitting = false
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "입찰 응답이 늦어지고 있어요. 현재가를 확인한 뒤 다시 시도해주세요."
+                showBidFeedback = true
+            }
+        }
     }
     LaunchedEffect(activeAuction?.auctionId, activeAuction?.currentPrice, activeAuction?.remainingSeconds, isSampleContent) {
         currentPrice = activeAuction?.currentPrice?.takeIf { it > 0 }
@@ -472,7 +437,7 @@ private fun LiveFeedPage(
                         }
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && paidBidAmount <= 0 && realtimeBiddingEnabled,
+                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && !bidSubmitting && realtimeBiddingEnabled,
                             modifier = Modifier.size(68.dp, 58.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
@@ -484,7 +449,7 @@ private fun LiveFeedPage(
                                     isHighestBidder -> "최고가"
                                     !hasActiveAuction -> "대기 중"
                                     !realtimeBiddingEnabled -> "연결 필요"
-                                    paidBidAmount > 0 -> "접속 중"
+                                    bidSubmitting -> "요청 중"
                                     remaining <= 15 -> "지금\n입찰"
                                     else -> "입찰"
                                 },
@@ -716,9 +681,28 @@ private fun LiveFeedPage(
             }
         }
     }
-    if (showBidSheet) LiveBidSheet(currentPrice, depositPaid, { showBidSheet = false }) { submission ->
-        showBidSheet = false
-        auctionKey?.let { onDepositPayment(it, submission) }
+    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { submission ->
+        when {
+            !realtimeBiddingEnabled -> {
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "실시간 입찰 연결을 사용할 수 없어요."
+                showBidFeedback = true
+            }
+            !isSampleContent && chatConnectionState != RealtimeConnectionState.Connected -> {
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "실시간 연결 중이에요. 연결된 뒤 다시 시도해주세요."
+                showBidFeedback = true
+            }
+            auctionKey != null && onRealtimeBid(auctionKey, submission.amount) -> {
+                showBidSheet = false
+                bidSubmitting = true
+            }
+            else -> {
+                bidFeedbackAccepted = false
+                bidFeedbackMessage = "입찰 요청을 보내지 못했어요. 잠시 후 다시 시도해주세요."
+                showBidFeedback = true
+            }
+        }
     }
     reportTarget?.let { target ->
         val detailLimit = reportDetailLimit(memberReportReason, target.content)
@@ -1019,7 +1003,7 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun LiveBidSheet(currentPrice: Int, depositPaid: Boolean, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
+@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
     val minimum = currentPrice + 1
     var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
     val parsed = amount.toIntOrNull() ?: 0
@@ -1029,9 +1013,8 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
             Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("현재가 ${"%,d".format(currentPrice)}원 · ${"%,d".format(minimum)}원 이상", color = Color.Gray, fontSize = 12.sp)
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-            BidDepositStatusNotice(depositPaid)
-            Text("종료 30초 이내 입찰 시 종료 시간이 15초 연장돼요.", color = Colors.Muted, fontSize = 11.sp)
-            Button({ onConfirm(BidSubmission(parsed)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (depositPaid) "${"%,d".format(parsed)}원 입찰하기" else "보증금 결제로 계속", fontWeight = FontWeight.Bold) }
+            Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 30초 이내 입찰 시 종료 시간이 15초 연장돼요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
+            Button({ onConfirm(BidSubmission(parsed)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
     }
 }

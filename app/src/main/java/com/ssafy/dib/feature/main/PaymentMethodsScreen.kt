@@ -144,7 +144,7 @@ fun PaymentMethodsScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text("등록된 카드가 없어요", color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("입찰 전에 자동결제 카드를 등록해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                            Text("낙찰 직후 자동결제를 위해 카드를 미리 등록해주세요.", color = Colors.Muted, fontSize = 12.sp)
                         }
                     }
                     item {

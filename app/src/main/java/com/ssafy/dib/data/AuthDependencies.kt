@@ -9,7 +9,6 @@ import com.ssafy.dib.data.local.auth.DeviceIdentityStore
 import com.ssafy.dib.data.local.auth.SecureAuthSessionStore
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
-import com.ssafy.dib.data.remote.auction.BidDepositRemoteDataSource
 import com.ssafy.dib.data.remote.order.OrderRemoteDataSource
 import com.ssafy.dib.data.remote.support.InquiryRemoteDataSource
 import com.ssafy.dib.data.remote.report.ReportRemoteDataSource
@@ -27,7 +26,6 @@ import com.ssafy.dib.data.remote.socket.OrderChatConnection
 import com.ssafy.dib.data.remote.socket.LiveChatConnection
 import com.ssafy.dib.data.remote.socket.DomainNotificationConnection
 import com.ssafy.dib.data.repository.AuctionRepositoryImpl
-import com.ssafy.dib.data.repository.BidDepositRepositoryImpl
 import com.ssafy.dib.data.repository.AuthRepositoryImpl
 import com.ssafy.dib.data.repository.OrderRepositoryImpl
 import com.ssafy.dib.data.repository.InquiryRepositoryImpl
@@ -42,7 +40,6 @@ import com.ssafy.dib.data.repository.SettlementRepositoryImpl
 import com.ssafy.dib.data.repository.NotificationRepositoryImpl
 import com.ssafy.dib.data.repository.SessionTokenRefresher
 import com.ssafy.dib.domain.auction.AuctionRepository
-import com.ssafy.dib.domain.auction.BidDepositRepository
 import com.ssafy.dib.domain.auth.AuthRepository
 import com.ssafy.dib.domain.order.OrderRepository
 import com.ssafy.dib.domain.support.InquiryRepository
@@ -68,7 +65,6 @@ class AuthDependencies(context: Context) {
     val deviceId: String = deviceStore.getOrCreate()
     val repository: AuthRepository
     val auctionRepository: AuctionRepository
-    val bidDepositRepository: BidDepositRepository
     val orderRepository: OrderRepository
     val inquiryRepository: InquiryRepository
     val reportRepository: ReportRepository
@@ -102,7 +98,6 @@ class AuthDependencies(context: Context) {
         )
         repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
-        bidDepositRepository = BidDepositRepositoryImpl(BidDepositRemoteDataSource(client))
         orderRepository = OrderRepositoryImpl(OrderRemoteDataSource(client))
         inquiryRepository = InquiryRepositoryImpl(InquiryRemoteDataSource(client))
         reportRepository = ReportRepositoryImpl(ReportRemoteDataSource(client))

@@ -35,7 +35,6 @@ import com.ssafy.dib.core.ui.DibCreateMenuSheet
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
-import com.ssafy.dib.feature.auction.BidDepositPaymentScreen
 import com.ssafy.dib.feature.auction.AuctionRegisterScreen
 import com.ssafy.dib.feature.auction.ProductImageViewerScreen
 import com.ssafy.dib.feature.auction.ProductOverviewScreen
@@ -155,9 +154,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var bidHistoryHasNext by remember { mutableStateOf(false) }
     var bidHistoryLoadingMore by remember { mutableStateOf(false) }
     var bidHistoryLoadMoreError by remember { mutableStateOf<String?>(null) }
-    var depositPaidProductIds by remember {
-        mutableStateOf(session.getStringSet("paid_deposits", emptySet()).orEmpty().toSet())
-    }
     var domainNotifications by remember { mutableStateOf<List<DomainNotification>>(emptyList()) }
     var notificationConnectionState by remember { mutableStateOf<RealtimeConnectionState?>(null) }
     var unreadNotificationCount by remember { mutableStateOf(0) }
@@ -341,10 +337,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             bidHistoryLoadMoreError = null
             bidHistoryLoadingMore = false
             bidHistoryError = null
-            if (signedIn == false) {
-                depositPaidProductIds = emptySet()
-                session.edit().remove("paid_deposits").apply()
-            }
         }
         while (signedIn == true) {
             val current = withContext(Dispatchers.IO) { auth.repository.currentSession() }
@@ -1210,9 +1202,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onTabSelected = ::navigateMain
             )
         }
-        composable(Screen.Feed.route) { backStackEntry ->
-            val paidBidAmount by backStackEntry.savedStateHandle
-                .getStateFlow("paidBidAmount", 0).collectAsState()
+        composable(Screen.Feed.route) {
             var liveFeedItems by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveFeedItem>?>(null) }
             var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var liveFeedError by remember { mutableStateOf<String?>(null) }
@@ -1531,8 +1521,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 },
                 isAuthenticated = hasAppAccess,
                 currentMemberId = memberProfile?.memberId,
-                paidBidAmount = paidBidAmount,
-                depositPaidAuctionIds = depositPaidProductIds,
                 realtimeBiddingEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
                 realtimeBidFeedback = liveBidFeedback,
                 onRealtimeBid = { auctionId, amount ->
@@ -1551,12 +1539,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         true
                     } ?: false
                 },
-                onDepositInvalid = { auctionId ->
-                    val updatedPaidProducts = depositPaidProductIds - auctionId
-                    depositPaidProductIds = updatedPaidProducts
-                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
-                },
-                onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
                 onClose = { navController.navigateUp() },
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
                 onFavoriteChange = { auctionId, bookmarked ->
@@ -1628,21 +1610,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onDismissReport = {
                     liveReportError = null
                     liveReportCompleted = false
-                },
-                onDepositPayment = { productId, submission ->
-                    if (!hasAppAccess) {
-                        navController.navigate(Screen.Login.route)
-                        return@LiveFeedScreen
-                    }
-                    if (productId in depositPaidProductIds) {
-                        backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
-                    } else {
-                        val auction = liveAuctionLists.values.asSequence().flatten().firstOrNull { it.auctionId == productId }
-                            ?: liveFeedItems?.firstNotNullOfOrNull { it.currentAuction?.takeIf { active -> active.auctionId == productId } }
-                        backStackEntry.savedStateHandle["depositProductName"] = auction?.title
-                        backStackEntry.savedStateHandle["depositRemainingSeconds"] = auction?.remainingSeconds
-                        navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
-                    }
                 }
             )
         }
@@ -1650,8 +1617,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             route = Screen.ProductDetail.route,
             arguments = listOf(navArgument("auctionId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val paidBidAmount by backStackEntry.savedStateHandle
-                .getStateFlow("paidBidAmount", 0).collectAsState()
             val productId = backStackEntry.arguments?.getString("auctionId").orEmpty()
             var remoteDetail by remember(productId) {
                 mutableStateOf(remoteAuctions?.firstOrNull { it.id == productId })
@@ -1756,21 +1721,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     is ApiResult.Failure -> auctionBidHistoryError = result.error.message.ifBlank { "입찰 이력을 불러오지 못했어요." }
                 }
                 auctionBidHistoryLoading = false
-            }
-            LaunchedEffect(productId, signedIn) {
-                if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
-                when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(productId) }) {
-                    is ApiResult.Success -> {
-                        val updated = if (result.value.status == "PAID") {
-                            depositPaidProductIds + productId
-                        } else {
-                            depositPaidProductIds - productId
-                        }
-                        depositPaidProductIds = updated
-                        session.edit().putStringSet("paid_deposits", updated).apply()
-                    }
-                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
-                }
             }
             DisposableEffect(productId, previewMode, auth.networkConfig.isWebSocketConfigured) {
                 val connection = if (!previewMode && auth.networkConfig.isWebSocketConfigured) {
@@ -1912,11 +1862,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         true
                     } ?: false
                 },
-                onDepositInvalid = {
-                    val updatedPaidProducts = depositPaidProductIds - productId
-                    depositPaidProductIds = updatedPaidProducts
-                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
-                },
                 isAuthenticated = hasAppAccess,
                 isOwnAuction = signedIn == true && memberProfile?.memberId?.let { memberId ->
                     memberId == remoteDetail?.sellerMemberId
@@ -1960,22 +1905,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
-                paidBidAmount = paidBidAmount,
-                depositPaid = productId in depositPaidProductIds,
-                onPaymentConsumed = { backStackEntry.savedStateHandle["paidBidAmount"] = 0 },
-                onDepositPayment = { submission ->
-                    if (!hasAppAccess) {
-                        navController.navigate(Screen.Login.route)
-                        return@ProductDetailScreen
-                    }
-                    if (productId in depositPaidProductIds) {
-                        backStackEntry.savedStateHandle["paidBidAmount"] = submission.amount
-                    } else {
-                        backStackEntry.savedStateHandle["depositProductName"] = remoteProduct?.title ?: remoteDetail?.name
-                        backStackEntry.savedStateHandle["depositRemainingSeconds"] = remoteDetail?.remainingSeconds
-                        navController.navigate(Screen.BidDepositPayment.createRoute(productId, submission.amount))
-                    }
-                },
                 similarProducts = similarProducts,
                 similarProductsLoading = similarProductsLoading,
                 similarProductsError = similarProductsError,
@@ -4422,125 +4351,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onSubmitted = { navController.navigateUp() }
-            )
-        }
-        composable(
-            route = Screen.BidDepositPayment.route,
-            arguments = listOf(
-                navArgument("auctionId") { type = NavType.StringType },
-                navArgument("bidAmount") { type = NavType.IntType }
-            )
-        ) { backStackEntry ->
-            val auctionId = backStackEntry.arguments?.getString("auctionId").orEmpty()
-            val bidAmount = backStackEntry.arguments?.getInt("bidAmount") ?: 0
-            val sourceState = navController.previousBackStackEntry?.savedStateHandle
-            var preparedDeposit by remember { mutableStateOf<com.ssafy.dib.domain.auction.BidDeposit?>(null) }
-            var depositProcessing by remember { mutableStateOf(false) }
-            var depositError by remember { mutableStateOf<String?>(null) }
-            var depositStatusMessage by remember { mutableStateOf<String?>(null) }
-
-            fun prepareDeposit(paymentMethod: String) {
-                if (previewMode) {
-                    preparedDeposit = com.ssafy.dib.domain.auction.BidDeposit(
-                        bidDepositId = "preview-$auctionId-$paymentMethod",
-                        auctionId = auctionId,
-                        amount = 1_000L,
-                        status = "PAID"
-                    )
-                    depositError = null
-                    depositStatusMessage = "개발 미리보기 결제예요. 실제 결제는 발생하지 않았어요."
-                    return
-                }
-                val command = "deposit-prepare:$auctionId:$bidAmount:$paymentMethod"
-                val idempotencyKey = commandKeys.keyFor(command)
-                depositProcessing = true
-                depositError = null
-                depositStatusMessage = null
-                coroutineScope.launch {
-                    when (val result = withContext(Dispatchers.IO) {
-                        auth.bidDepositRepository.prepare(
-                            auctionId = auctionId,
-                            firstBidAmount = bidAmount.toLong(),
-                            paymentMethod = paymentMethod,
-                            idempotencyKey = idempotencyKey
-                        )
-                    }) {
-                        is ApiResult.Success -> {
-                            commandKeys.complete(command)
-                            preparedDeposit = result.value
-                        }
-                        is ApiResult.Failure -> {
-                            if (result.error.code == "DEPOSIT_ALREADY_PAID") {
-                                when (val existing = withContext(Dispatchers.IO) {
-                                    auth.bidDepositRepository.getMine(auctionId)
-                                }) {
-                                    is ApiResult.Success -> {
-                                        commandKeys.complete(command)
-                                        preparedDeposit = existing.value
-                                    }
-                                    is ApiResult.Failure -> {
-                                        depositError = existing.error.message.ifBlank { "기존 보증금 상태를 확인하지 못했어요." }
-                                        if (existing.error.requiresLogin) signedIn = false
-                                    }
-                                }
-                            } else {
-                                depositError = result.error.message.ifBlank { "보증금 결제를 준비하지 못했어요." }
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                    }
-                    depositProcessing = false
-                }
-            }
-
-            fun checkDepositStatus() {
-                depositProcessing = true
-                depositError = null
-                depositStatusMessage = null
-                coroutineScope.launch {
-                    when (val result = withContext(Dispatchers.IO) { auth.bidDepositRepository.getMine(auctionId) }) {
-                        is ApiResult.Success -> {
-                            preparedDeposit = result.value
-                            when (result.value.status.uppercase()) {
-                                "PENDING" -> depositStatusMessage = "아직 결제가 승인되지 않았어요. 결제 페이지에서 승인을 마친 뒤 다시 확인해주세요."
-                                "REFUNDED" -> depositError = "이 경매의 보증금이 반환됐어요. 결제수단을 다시 선택해주세요."
-                            }
-                        }
-                        is ApiResult.Failure -> {
-                            depositError = result.error.message.ifBlank { "결제 상태를 확인하지 못했어요." }
-                            if (result.error.requiresLogin) signedIn = false
-                        }
-                    }
-                    depositProcessing = false
-                }
-            }
-
-            BidDepositPaymentScreen(
-                auctionId = auctionId,
-                bidAmount = bidAmount,
-                productName = sourceState?.get<String>("depositProductName"),
-                remainingSeconds = sourceState?.get<Int>("depositRemainingSeconds"),
-                preparedDeposit = preparedDeposit,
-                isProcessing = depositProcessing,
-                errorMessage = depositError,
-                statusMessage = depositStatusMessage,
-                onPrepare = ::prepareDeposit,
-                onCheckStatus = ::checkDepositStatus,
-                onReset = {
-                    preparedDeposit = null
-                    depositError = null
-                    depositStatusMessage = null
-                },
-                onBack = navController::navigateUp,
-                onReturnToAuction = {
-                    val updatedPaidProducts = depositPaidProductIds + auctionId
-                    depositPaidProductIds = updatedPaidProducts
-                    session.edit().putStringSet("paid_deposits", updatedPaidProducts).apply()
-                    navController.previousBackStackEntry?.savedStateHandle?.apply {
-                        set("paidBidAmount", bidAmount)
-                    }
-                    navController.popBackStack()
-                }
             )
         }
         }

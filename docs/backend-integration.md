@@ -21,9 +21,9 @@ DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 - 회원: 내 정보 조회·닉네임 수정·탈퇴 제한 확인과 탈퇴
 - 상품: 카테고리, 등록·수정·삭제, 내 상품 cursor 목록, 상품 검색 cursor 목록
 - 경매: 추천, 검색·필터·카테고리 cursor 목록, 상세, 찜과 찜 cursor 목록, 내 입찰·공개 입찰 이력
-- 입찰: 보증금 준비·승인·상태 조회, WebSocket 구독·복구·입찰 ACK와 마감 연장
+- 입찰: WebSocket 구독·복구·입찰 ACK와 마감 연장
 - Live: 피드 cursor, 상세, 댓글 과거 내역, 채팅, 신고, 내 방송 cursor 목록, 예약·수정·편성·송출 준비·시작·종료
-- 거래: 구매·판매 cursor 목록, 주문 상세, 결제 준비·상태 확인, 송장 등록·배송 조회·구매 확정
+- 거래: 구매·판매 cursor 목록, 주문 상세, 낙찰 자동결제·실패 결제 재시도, 송장 등록·배송 조회·구매 확정
 - 채팅: 주문·Live 채널 연결, 이전 메시지 페이지네이션, commandId ACK 추적과 재연결 재전송
 - 알림: WebSocket 실시간 수신, 중복 제거, 인앱 배너와 관련 화면 이동
 - 마이: 문의·신고·정산 cursor 목록과 상세, 정산 계좌, 배송지 조회·수정·삭제
@@ -36,9 +36,8 @@ REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 �
 | 항목 | 현재 상태 | 필요한 결정 |
 |---|---|---|
 | 배송지 신규 등록 UI | POST 계약 준비 완료, 화면 비활성 | `apiAddressId`를 발급하는 주소 검색 API·SDK·키와 결과 스키마 |
-| 등록 결제수단 관리 | API 없음 | 등록·조회·삭제·기본수단 지정 endpoint와 자동결제 식별자 |
-| 입찰 사전 조건 | WebSocket `PLACE_BID`는 amount만 전송 | 결제수단·배송지를 서버가 어떤 시점과 데이터로 검증·스냅샷하는지 |
-| 주문·보증금 결제 복귀 | prepare/confirm 계약 구현 | PG 앱·웹 복귀 URI, `paymentKey` 전달 방식과 취소 URI |
+| 결제수단 기본 지정 | 단일 Toss 자동결제 카드 등록·조회·삭제 구현 | 복수 카드와 기본수단 지정 정책이 필요한지 |
+| 입찰 사전 조건 | 보증금 없이 WebSocket `PLACE_BID`에 amount 전송 | 배송지를 주문 생성 시 어떤 방식으로 선택·스냅샷하는지 |
 | 비밀번호 재설정 링크 진입 | 변경 API·토큰 입력 화면 구현 | 이메일 링크의 Android scheme/host/path와 token query 이름 |
 | 차순위 구매 제안 | endpoint 없음 | 제안 목록·상세·수락·거절 API와 만료 시각 |
 | 유사 상품 이동 | API가 ProductCard만 반환 | 활성 경매의 `auctionId` 포함 또는 productId→auctionId 조회 계약 |
@@ -57,5 +56,5 @@ Android는 Kafka broker에 직접 연결하지 않는다. 입찰·채팅 Command
 1. 개발 REST·WebSocket 주소와 테스트 계정으로 인증 smoke test
 2. 실제 cursor 값으로 목록 끝·빈 페이지·중복 항목 검증
 3. 동시 입찰, ACK 유실, 재연결과 종료 직전 연장 검증
-4. PG 복귀 후 보증금·주문 결제 승인과 중복 승인 방지 검증
+4. 낙찰 직후 Toss 자동결제와 실패 후 주문 결제 재시도·중복 승인 방지 검증
 5. 송장 등록부터 배송 완료·구매 확정·정산까지 주문 생명주기 검증
