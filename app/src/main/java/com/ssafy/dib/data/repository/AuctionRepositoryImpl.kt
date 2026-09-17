@@ -127,16 +127,26 @@ class AuctionRepositoryImpl(
         }
 
     override fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionPage> =
-        when (val result = remote.getBookmarks(cursor, size)) {
-            is ApiResult.Success -> ApiResult.Success(
-                AuctionPage(
-                    items = result.value.items.map { it.toDomain(now()) },
-                    nextCursor = result.value.nextCursor,
-                    hasNext = result.value.hasNext
-                ),
-                result.status
-            )
-            is ApiResult.Failure -> result
+        when (val bookmarks = remote.getBookmarks()) {
+            is ApiResult.Success -> {
+                val productIds = bookmarks.value.items.map { it.productId.idValue() }.toSet()
+                when (val auctions = remote.getAuctions(scope = "", status = "", cursor = null, size = 100)) {
+                    is ApiResult.Success -> ApiResult.Success(
+                        AuctionPage(
+                            items = auctions.value.items.asSequence()
+                                .filter { it.productId?.idValue() in productIds }
+                                .take(size)
+                                .map { it.copy(bookmarked = true).toDomain(now()) }
+                                .toList(),
+                            nextCursor = null,
+                            hasNext = false
+                        ),
+                        bookmarks.status
+                    )
+                    is ApiResult.Failure -> auctions
+                }
+            }
+            is ApiResult.Failure -> bookmarks
         }
 
     override fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryPage> =
@@ -185,9 +195,9 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean> =
-        when (val result = remote.setBookmark(auctionId, bookmarked, idempotencyKey)) {
-            is ApiResult.Success -> ApiResult.Success(result.value.bookmarked, result.status)
+    override fun setBookmark(productId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean> =
+        when (val result = remote.setBookmark(productId, bookmarked, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(bookmarked, result.status)
             is ApiResult.Failure -> result
         }
 

@@ -17,6 +17,7 @@
 | 경매 목록 | `GET /api/v1/auctions`, `data`가 배열 | 배열과 목표 페이지 응답을 모두 해석하고 상태·일반/Live·가격을 로컬 보정 |
 | 경매 추천 | `GET /api/v1/auctions/recommendation`, `data`가 배열 | 배열을 일반 경매 추천으로 해석하고 목표 추천 객체도 지원 |
 | 경매 시간 | 날짜가 오프셋 없는 `LocalDateTime`일 수 있음 | ISO Instant와 기기 시간대 LocalDateTime을 모두 해석 |
+| 찜 | 상품 기준 명령과 상품 ID 배열 조회 | 카드에 `productId`를 유지하고 상품 ID로 등록·해제, 찜 상품을 경매 목록과 결합 |
 
 ## 정책 또는 기능 구현이 먼저 필요한 항목
 
@@ -42,12 +43,6 @@
 - 백엔드 등록 파트 이름은 `request`, 프론트는 목표 명세에 따라 `product`와 `imageTypes`를 보낸다.
 - 백엔드는 대표 이미지 타입을 받지 않으며 첫 이미지를 문자열로 저장한다.
 - 백엔드 수정은 JSON만 받고 교체 이미지 업로드를 지원하지 않는다.
-
-### 찜
-
-- 백엔드는 상품 기준 `POST|DELETE /api/v1/products/{productId}/bookmark`, 목록은 `GET /api/v1/bookmarks/me`다.
-- 일부 프론트 화면은 경매 ID를 찜 식별자로 사용한다.
-- 화면 전체에서 `auctionId → productId` 대응을 보장한 뒤 한 번에 전환해야 한다.
 
 ### Live
 

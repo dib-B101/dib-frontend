@@ -16,6 +16,7 @@ object ApiRoutes {
     const val MEMBER_SALES = "/api/v1/members/me/sales"
     const val MEMBER_ADDRESSES = "/api/v1/members/me/addresses"
     const val AUCTIONS = "/api/v1/auctions"
+    const val BOOKMARKS = "/api/v1/bookmarks"
     const val BID_DEPOSITS = "/api/v1/bid-deposits"
     const val ORDERS = "/api/v1/orders"
     const val CARRIERS = "/api/v1/carriers"

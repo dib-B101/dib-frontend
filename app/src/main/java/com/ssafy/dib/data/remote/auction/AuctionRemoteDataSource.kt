@@ -71,13 +71,10 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
             .decodeAuctionPayload(::decodeAuctionRecommendations)
     }
 
-    fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionListResponse> = configured {
-        val path = "${ApiRoutes.MEMBERS_ME}/bookmarks"
-        val urlBuilder = client.urlBuilder(path)
-            .addQueryParameter("size", size.coerceIn(1, 100).toString())
-        cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
-        val url = urlBuilder.build()
-        client.execute(client.requestBuilder(path).url(url).get().build(), AuctionListResponse.serializer())
+    fun getBookmarks(): ApiResult<BookmarkListResponse> = configured {
+        val path = "${ApiRoutes.BOOKMARKS}/me"
+        client.execute(client.requestBuilder(path).get().build(), JsonElement.serializer())
+            .decodeAuctionPayload(::decodeBookmarkList)
     }
 
     fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryListResponse> = configured {
@@ -104,11 +101,11 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), AuctionBidSnapshotResponse.serializer())
     }
 
-    fun setBookmark(auctionId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<BookmarkResponse> = configured {
-        val path = "${ApiRoutes.AUCTIONS}/$auctionId/bookmark"
+    fun setBookmark(productId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Unit> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/$productId/bookmark"
         val builder = client.requestBuilder(path).header("Idempotency-Key", idempotencyKey)
-        val request = if (bookmarked) builder.put(RequestBody.EMPTY).build() else builder.delete().build()
-        client.execute(request, BookmarkResponse.serializer())
+        val request = if (bookmarked) builder.post(RequestBody.EMPTY).build() else builder.delete().build()
+        client.executeUnit(request)
     }
 
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResponse> = configured {
@@ -156,6 +153,11 @@ internal fun decodeAuctionList(payload: JsonElement): AuctionListResponse = when
 internal fun decodeAuctionRecommendations(payload: JsonElement): AuctionRecommendationResponse = when (payload) {
     is JsonArray -> AuctionRecommendationResponse(generalItems = DibJson.instance.decodeFromJsonElement(ListSerializer(AuctionDto.serializer()), payload))
     else -> DibJson.instance.decodeFromJsonElement(AuctionRecommendationResponse.serializer(), payload)
+}
+
+internal fun decodeBookmarkList(payload: JsonElement): BookmarkListResponse = when (payload) {
+    is JsonArray -> BookmarkListResponse(DibJson.instance.decodeFromJsonElement(ListSerializer(BookmarkItemDto.serializer()), payload))
+    else -> DibJson.instance.decodeFromJsonElement(BookmarkListResponse.serializer(), payload)
 }
 
 private inline fun <T, R> ApiResult<T>.decodeAuctionPayload(transform: (T) -> R): ApiResult<R> = when (this) {

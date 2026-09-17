@@ -254,14 +254,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             return
         }
         if (signedIn != true) return
-        val command = "bookmark:$auctionId:$bookmarked"
+        val bookmarkProductId = remoteAuctions?.firstOrNull { it.id == auctionId }?.productId ?: auctionId
+        val command = "bookmark:$bookmarkProductId:$bookmarked"
         val idempotencyKey = commandKeys.keyFor(command)
         remoteAuctions = remoteAuctions?.map { auction ->
             if (auction.id == auctionId) auction.copy(bookmarked = bookmarked) else auction
         }
         coroutineScope.launch {
             when (val result = withContext(Dispatchers.IO) {
-                auth.auctionRepository.setBookmark(auctionId, bookmarked, idempotencyKey)
+                auth.auctionRepository.setBookmark(bookmarkProductId, bookmarked, idempotencyKey)
             }) {
                 is ApiResult.Success -> {
                     commandKeys.complete(command)
@@ -1867,7 +1868,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     remoteDetail = remoteDetail?.copy(bookmarked = selected)
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.auctionRepository.setBookmark(productId, selected, idempotencyKey)
+                            auth.auctionRepository.setBookmark(remoteDetail?.productId ?: productId, selected, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
@@ -3661,13 +3662,14 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onRemove = { auctionId ->
-                    val command = "bookmark:$auctionId:false"
+                    val bookmarkProductId = favorites?.firstOrNull { it.id == auctionId }?.productId ?: auctionId
+                    val command = "bookmark:$bookmarkProductId:false"
                     val idempotencyKey = commandKeys.keyFor(command)
                     removingAuctionId = auctionId
                     favoritesError = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.auctionRepository.setBookmark(auctionId, false, idempotencyKey)
+                            auth.auctionRepository.setBookmark(bookmarkProductId, false, idempotencyKey)
                         }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
