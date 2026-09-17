@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,17 +48,17 @@ import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
-private data class CategoryItem(val id: String, val badge: String, val name: String, val tint: Color, val surface: Color)
+private data class CategoryItem(val id: String, @param:DrawableRes val icon: Int, val name: String, val tint: Color, val surface: Color)
 
 private val categories = listOf(
-    CategoryItem("1", "D", "디지털기기", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("2", "L", "생활가전", Colors.Urgent, Colors.UrgentBackground),
-    CategoryItem("3", "H", "가구·인테리어", Colors.Navy, Colors.NavySoft),
-    CategoryItem("4", "S", "스포츠·레저", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("5", "F", "패션·잡화", Colors.Urgent, Colors.UrgentBackground),
-    CategoryItem("6", "B", "뷰티", Colors.Navy, Colors.NavySoft),
-    CategoryItem("7", "G", "취미·게임", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("8", "A", "예술·창작", Colors.Urgent, Colors.UrgentBackground)
+    CategoryItem("1", R.drawable.category_digital, "디지털기기", Colors.MintInk, Colors.MintSoft),
+    CategoryItem("2", R.drawable.category_home, "생활가전", Colors.Urgent, Colors.UrgentBackground),
+    CategoryItem("3", R.drawable.category_furniture, "가구·인테리어", Colors.Navy, Colors.NavySoft),
+    CategoryItem("4", R.drawable.category_sports, "스포츠·레저", Colors.MintInk, Colors.MintSoft),
+    CategoryItem("5", R.drawable.category_fashion, "패션·잡화", Colors.Urgent, Colors.UrgentBackground),
+    CategoryItem("6", R.drawable.category_beauty, "뷰티", Colors.Navy, Colors.NavySoft),
+    CategoryItem("7", R.drawable.category_game, "취미·게임", Colors.MintInk, Colors.MintSoft),
+    CategoryItem("8", R.drawable.category_art, "예술·창작", Colors.Urgent, Colors.UrgentBackground)
 )
 
 @Composable
@@ -82,8 +83,8 @@ fun CategoryScreen(
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
     val visibleCategories = remoteCategories?.mapIndexed { index, category ->
-        val style = categories[index % categories.size]
-        CategoryItem(category.categoryId, category.name.take(1), category.name, style.tint, style.surface)
+        val style = categoryStyle(category.name, index)
+        CategoryItem(category.categoryId, style.icon, category.name, style.tint, style.surface)
     } ?: categories
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
@@ -150,7 +151,12 @@ fun CategoryScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Box(Modifier.size(56.dp).background(category.surface, CircleShape), contentAlignment = Alignment.Center) {
-                                    Text(category.badge, color = category.tint, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    Image(
+                                        painterResource(category.icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(25.dp),
+                                        colorFilter = ColorFilter.tint(category.tint)
+                                    )
                                 }
                                 Text(category.name, Modifier.padding(top = 9.dp), color = Colors.Text, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                             }
@@ -210,4 +216,16 @@ fun CategoryScreen(
             }
         }
     }
+}
+
+private fun categoryStyle(name: String, fallbackIndex: Int): CategoryItem = when {
+    name.contains("디지털") || name.contains("전자") -> categories[0]
+    name.contains("생활") || name.contains("가전") -> categories[1]
+    name.contains("가구") || name.contains("인테리어") -> categories[2]
+    name.contains("스포츠") || name.contains("레저") -> categories[3]
+    name.contains("패션") || name.contains("잡화") -> categories[4]
+    name.contains("뷰티") || name.contains("미용") -> categories[5]
+    name.contains("취미") || name.contains("게임") -> categories[6]
+    name.contains("예술") || name.contains("창작") -> categories[7]
+    else -> categories[fallbackIndex % categories.size]
 }
