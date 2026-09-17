@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -313,21 +314,21 @@ private fun LiveFeedPage(
             onExit = onClose
         )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.12f), Color.Transparent, Color(0xFF07101D).copy(.72f)))))
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Colors.Live, shape = RoundedCornerShape(14.dp)) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(Modifier.size(8.dp).graphicsLayer(alpha = liveDotAlpha).background(Color.White, CircleShape))
-                        Text("LIVE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Surface(color = Colors.Live, shape = RoundedCornerShape(12.dp)) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Box(Modifier.size(7.dp).graphicsLayer(alpha = liveDotAlpha).background(Color.White, CircleShape))
+                        Text("LIVE", color = Color.White, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("시청 ${"%,d".format(liveItem?.viewCount ?: 1_248)}", Modifier.padding(start = 10.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("${"%,d".format(liveItem?.viewCount ?: 1_248)}명 시청 중", Modifier.padding(start = 9.dp), color = Color.White.copy(alpha = .9f), fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(36.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontWeight = FontWeight.Bold) }
-                Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text("d", color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 76.dp, bottom = 230.dp), enter = fadeIn(), exit = fadeOut()) {
@@ -405,32 +406,40 @@ private fun LiveFeedPage(
         }
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AnimatedVisibility(!imeVisible, enter = fadeIn(), exit = fadeOut()) {
-            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().height(120.dp).animateContentSize()) {
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
-                    Text(
-                        if (hasActiveAuction) "현재 경매 상품 · 전체 ${productAuctions.size.coerceAtLeast(1)}개  ↑" else "경매 준비 중 · 전체 ${productAuctions.size}개  ↑",
-                        Modifier.clickable { showProducts = true },
-                        color = Colors.Muted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth().heightIn(min = 126.dp).animateContentSize()) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { showProducts = true }.padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (hasActiveAuction) "진행 중인 경매" else "경매 준비 중", color = Colors.Navy, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text("상품 ${productAuctions.size.coerceAtLeast(if (hasActiveAuction) 1 else 0)}개", color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                        Image(painterResource(R.drawable.chevron_right), null, Modifier.size(15.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         DibNetworkImage(
                             activeAuction?.imageUrls?.firstOrNull(),
                             activeAuction?.title,
-                            Modifier.size(54.dp).clip(RoundedCornerShape(10.dp))
+                            Modifier.size(62.dp).clip(RoundedCornerShape(12.dp))
                         )
-                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                        Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 activeAuction?.title ?: if (isSampleContent) "달빛 유약 머그컵" else "다음 경매를 준비하고 있어요",
                                 color = Colors.Navy,
                                 fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 if (hasActiveAuction) "현재가 ${"%,d".format(currentPrice)}원" else "판매자가 경매를 시작하면 참여할 수 있어요",
                                 color = if (hasActiveAuction) Colors.Navy else Colors.Muted,
                                 fontSize = if (hasActiveAuction) 15.sp else 11.sp,
+                                lineHeight = if (hasActiveAuction) 20.sp else 16.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                                 fontWeight = FontWeight.Bold
                             )
                             if (hasActiveAuction) AuctionUrgencyBadge(remaining, compact = true)
@@ -438,8 +447,8 @@ private fun LiveFeedPage(
                         Button(
                             onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
                             enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && !bidSubmitting && realtimeBiddingEnabled,
-                            modifier = Modifier.size(68.dp, 58.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.width(76.dp).height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -453,7 +462,8 @@ private fun LiveFeedPage(
                                     remaining <= 15 -> "지금\n입찰"
                                     else -> "입찰"
                                 },
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
+                                lineHeight = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }

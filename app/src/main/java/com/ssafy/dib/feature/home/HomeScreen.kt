@@ -23,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -246,7 +247,7 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f).height(170.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 170.dp),
                     color = Colors.Background,
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Colors.Border),
@@ -267,9 +268,9 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                             }
                         }
                     }
-                    Text(card.title, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                    Text(card.description, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(card.footer, color = Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(card.description, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(card.footer, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.MintInk, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -343,16 +344,16 @@ private fun SearchField(onClick: () -> Unit) {
 @Composable
 private fun SectionHeader(title: String, action: String, onClick: () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().height(24.dp),
+        Modifier.fillMaxWidth().heightIn(min = 32.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Row(
-            Modifier.clickable(onClick = onClick).padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
+            Modifier.clickable(onClick = onClick).padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(action, color = Colors.Navy.copy(alpha = .76f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(action, color = Colors.Navy.copy(alpha = .76f), fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
             Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .66f)))
         }
     }
