@@ -5,6 +5,11 @@ import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
+import com.ssafy.dib.core.network.DibJson
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.RequestBody
 
@@ -16,7 +21,8 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         val url = urlBuilder.build()
-        client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), AuctionListResponse.serializer())
+        client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), JsonElement.serializer())
+            .decodeAuctionPayload(::decodeAuctionList)
     }
 
     fun getMySales(auctionStatus: String?, cursor: String?, size: Int): ApiResult<SaleHistoryResponse> = configured {
@@ -49,10 +55,8 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         sort?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("sort", it) }
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         val url = urlBuilder.build()
-        client.execute(
-            client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(),
-            AuctionListResponse.serializer()
-        )
+        client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), JsonElement.serializer())
+            .decodeAuctionPayload(::decodeAuctionList)
     }
 
     fun getAuction(auctionId: String): ApiResult<AuctionDto> = configured {
@@ -63,7 +67,8 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
     fun getRecommendations(size: Int): ApiResult<AuctionRecommendationResponse> = configured {
         val path = "${ApiRoutes.AUCTIONS}/recommendation"
         val url = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString()).build()
-        client.execute(client.requestBuilder(path).url(url).get().build(), AuctionRecommendationResponse.serializer())
+        client.execute(client.requestBuilder(path).url(url).get().build(), JsonElement.serializer())
+            .decodeAuctionPayload(::decodeAuctionRecommendations)
     }
 
     fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionListResponse> = configured {
@@ -141,4 +146,19 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
                 )
             )
         }
+}
+
+internal fun decodeAuctionList(payload: JsonElement): AuctionListResponse = when (payload) {
+    is JsonArray -> AuctionListResponse(DibJson.instance.decodeFromJsonElement(ListSerializer(AuctionDto.serializer()), payload))
+    else -> DibJson.instance.decodeFromJsonElement(AuctionListResponse.serializer(), payload)
+}
+
+internal fun decodeAuctionRecommendations(payload: JsonElement): AuctionRecommendationResponse = when (payload) {
+    is JsonArray -> AuctionRecommendationResponse(generalItems = DibJson.instance.decodeFromJsonElement(ListSerializer(AuctionDto.serializer()), payload))
+    else -> DibJson.instance.decodeFromJsonElement(AuctionRecommendationResponse.serializer(), payload)
+}
+
+private inline fun <T, R> ApiResult<T>.decodeAuctionPayload(transform: (T) -> R): ApiResult<R> = when (this) {
+    is ApiResult.Success -> ApiResult.Success(transform(value), status)
+    is ApiResult.Failure -> this
 }

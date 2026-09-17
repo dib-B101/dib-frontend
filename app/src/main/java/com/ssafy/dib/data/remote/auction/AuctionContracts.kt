@@ -60,7 +60,8 @@ data class AuctionDto(
     val bookmarked: Boolean = false,
     val myBid: MyBidDto? = null,
     val product: AuctionProductDto? = null,
-    val sellerSummary: ProductSellerSummaryDto? = null
+    val sellerSummary: ProductSellerSummaryDto? = null,
+    val liveBroadcastId: JsonElement? = null
 )
 
 @Serializable
