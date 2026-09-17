@@ -4,11 +4,11 @@
 
 ## Live 판매자 방송 화면
 
-- 현재 `Live 시작`은 방송 상태를 시작 API로 변경하지만 판매자용 송출 화면으로 이동하지 않는다.
-- Android에는 시청용 Media3 재생 화면만 있고 카메라·마이크를 발행하는 LiveKit 호스트 화면이 없다.
-- 제공된 Vue 참고 흐름처럼 방송 토큰과 서버 URL을 받은 뒤 LiveKit Room에 연결하고, 호스트 카메라·마이크 발행, 방송 시간, 종료 및 채팅 수신을 구현해야 한다.
-- 시작 API 성공 뒤 판매자용 호스트 화면으로 이동하고, 실패 시 관리 화면에 머무르도록 연결한다.
-- `prepareStream` 응답의 만료 시간과 provider를 기준으로 다시 준비가 필요한 조건을 확정한다.
+- `SellerLiveStudioScreen`에 카메라·마이크 권한 요청, LiveKit Room 연결과 발행, 로컬 영상, 방송 시간, 음소거, 카메라 전환, 상품 경매 시작 및 종료 UI를 구현했다.
+- 앱에 LiveKit Android SDK와 카메라·마이크 권한을 추가했다.
+- `feature/api-contract-sync`가 `/live-broadcasts/{id}/token` 응답을 `serverUrl`, `token`, `roomName`, `participantName`으로 동기화하고 있으므로 해당 변경이 `develop`에 병합된 뒤 화면 내비게이션을 연결한다.
+- 관리 화면의 `Live 시작`은 판매자 스튜디오로 이동해야 하며, 스튜디오가 LiveKit 발행에 성공한 뒤 방송 시작 상태를 확정해야 한다.
+- 연결 실패 시 관리 화면의 방송 상태를 `LIVE`로 바꾸지 않고 스튜디오에서 재연결할 수 있어야 한다.
 
 ## 입찰 이력과 마감 상태
 
