@@ -26,7 +26,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.notification.DomainNotification
@@ -68,6 +70,7 @@ fun AuctionSearchScreen(
     var submitted by rememberSaveable(browseOnOpen) { mutableStateOf(browseOnOpen) }
     var recent by rememberSaveable { mutableStateOf(listOf("필름 카메라", "머그컵", "작가 핸드메이드")) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
@@ -141,10 +144,27 @@ fun AuctionSearchScreen(
             } else if (errorMessage != null) {
                 item { NetworkErrorContent(onRetry) }
             } else {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("검색 결과 ${results.size}개"); Text("조건에 맞는 경매", color = Colors.Muted, fontSize = 12.sp) } }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            SectionTitle(if (browseOnOpen && query.isBlank()) "전체 경매 ${results.size}개" else "검색 결과 ${results.size}개")
+                            Text(
+                                if (browseOnOpen && query.isBlank()) "원하는 조건으로 경매를 둘러보세요" else "검색 조건에 맞는 경매예요",
+                                Modifier.padding(top = 2.dp),
+                                color = Colors.Muted,
+                                fontSize = 11.sp
+                            )
+                        }
+                        DibViewModeToggle(contentView, { contentView = it })
+                    }
+                }
                 item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DiscoveryFilterChip(true,{showFilters=true},status); DiscoveryFilterChip(category!="전체",{showFilters=true},category); DiscoveryFilterChip(price!="전체",{showFilters=true},price); DiscoveryFilterChip(false,{showFilters=true},"필터 설정") } }
-                if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text("검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
-                items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
+                if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
+                if (contentView == DibContentView.Grid) {
+                    items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
+                } else {
+                    items(results.size) { index -> SearchAuctionListCard(results[index]) { onProductClick(results[index].id) } }
+                }
                 if (hasNext || isLoadingMore || loadMoreError != null) item(key = "search-load-more") {
                     LaunchedEffect(results.size, hasNext, isLoadingMore, loadMoreError) {
                         if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
@@ -174,6 +194,26 @@ fun AuctionSearchScreen(
 }
 
 @Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clip(RoundedCornerShape(14.dp)).background(Colors.Background).clickable(onClick=onClick).padding(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.fillMaxWidth().height(132.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=if(auction.status=="SCHEDULED")Colors.NavySoft else if(auction.status=="ENDED")Colors.Surface else Colors.MintSoft,shape=RoundedCornerShape(10.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=if(auction.status=="SCHEDULED")Colors.Navy else if(auction.status=="ENDED")Colors.Muted else Colors.MintInk,fontSize=10.sp,fontWeight=FontWeight.Bold)}};Text(auction.name,Modifier.padding(horizontal=10.dp),color=Colors.Text,fontSize=13.sp,fontWeight=FontWeight.Bold,maxLines=1);Text("${auction.pricePrefix} ${auction.priceLabel}",Modifier.padding(horizontal=10.dp),color=Colors.Navy,fontSize=14.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}회",Modifier.padding(horizontal=10.dp),color=Colors.Muted,fontSize=10.sp)}}
+@Composable private fun SearchAuctionListCard(auction: HomeAuction, onClick: () -> Unit) {
+    val statusLabel = when (auction.status) { "SCHEDULED" -> "예정"; "ENDED" -> "종료"; else -> "진행 중" }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 118.dp).clip(RoundedCornerShape(16.dp))
+            .background(Colors.Background).clickable(onClick = onClick).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(98.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Surface(color = if (auction.status == "SCHEDULED") Colors.NavySoft else if (auction.status == "ENDED") Colors.Surface else Colors.MintSoft, shape = RoundedCornerShape(9.dp)) {
+                Text(statusLabel, Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = if (auction.status == "SCHEDULED") Colors.Navy else if (auction.status == "ENDED") Colors.Muted else Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(auction.name, color = Colors.Text, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("입찰 ${auction.bidCount}회 · ${remainingTimeLabel(auction.remainingSeconds)} 남음", color = Colors.Muted, fontSize = 10.sp)
+        }
+        Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+    }
+}
 @Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
 
 @Composable
