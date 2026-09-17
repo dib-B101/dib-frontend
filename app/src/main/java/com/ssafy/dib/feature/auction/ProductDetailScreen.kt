@@ -95,7 +95,6 @@ fun ProductDetailScreen(
     realtimeConnected: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (Int) -> Boolean,
-    onDepositInvalid: () -> Unit,
     isAuthenticated: Boolean,
     isOwnAuction: Boolean,
     onBack: () -> Unit,
@@ -104,10 +103,6 @@ fun ProductDetailScreen(
     onReportClick: () -> Unit,
     onTransactionClick: () -> Unit,
     onLoginRequired: () -> Unit,
-    paidBidAmount: Int,
-    depositPaid: Boolean,
-    onPaymentConsumed: () -> Unit,
-    onDepositPayment: (BidSubmission) -> Unit,
     similarProducts: List<RegisteredProduct>?,
     similarProductsLoading: Boolean,
     similarProductsError: String?,
@@ -199,7 +194,6 @@ fun ProductDetailScreen(
             bidError = ""
             snackbar.showSnackbar(feedback.message)
         } else {
-            if (feedback.errorCode == "DEPOSIT_REQUIRED") onDepositInvalid()
             if (feedback.errorCode == "AUCTION_NOT_ACTIVE") remainingSeconds = 0
             val minimumGuide = feedback.minAllowedAmount?.let { "\n최소 ${"%,d".format(it)}원부터 입찰할 수 있어요." }.orEmpty()
             bidError = feedback.message + minimumGuide
@@ -208,25 +202,12 @@ fun ProductDetailScreen(
         }
     }
 
-    LaunchedEffect(paidBidAmount, realtimeConnected) {
-        if (paidBidAmount > 0) {
-            if (!realtimeBiddingEnabled) {
-                onPaymentConsumed()
-                snackbar.showSnackbar("실시간 입찰 연결을 사용할 수 없어요. 연결 설정 후 다시 입찰해주세요.")
-                return@LaunchedEffect
-            }
-            bidSubmitting = true
-            if (!realtimeConnected) {
-                snackbar.showSnackbar("실시간 연결 후 ${"%,d".format(paidBidAmount)}원 입찰을 자동으로 요청할게요.")
-                return@LaunchedEffect
-            }
-            while (true) {
-                if (onRealtimeBid(paidBidAmount)) {
-                    onPaymentConsumed()
-                    snackbar.showSnackbar("${"%,d".format(paidBidAmount)}원 입찰 결과를 확인하고 있어요.")
-                    break
-                }
-                delay(1_000L)
+    LaunchedEffect(bidSubmitting) {
+        if (bidSubmitting) {
+            delay(10_000L)
+            if (bidSubmitting) {
+                bidSubmitting = false
+                snackbar.showSnackbar("입찰 응답이 늦어지고 있어요. 현재가를 확인한 뒤 다시 시도해주세요.")
             }
         }
     }
@@ -345,15 +326,21 @@ fun ProductDetailScreen(
             productName = productName,
             currentPrice = currentPrice,
             submissionError = bidError,
-            depositPaid = depositPaid,
             onDismiss = { showBidSheet = false; bidError = "" },
             onContinue = { submission ->
                 if (submission.amount <= currentPrice) {
                     bidError = "다른 입찰이 먼저 반영됐어요\n최신 입찰가를 확인하고 다시 입찰해 주세요."
-                } else {
+                } else if (!realtimeBiddingEnabled) {
+                    bidError = "실시간 입찰 연결을 사용할 수 없어요."
+                } else if (!realtimeConnected) {
+                    bidError = "실시간 연결 중이에요. 연결된 뒤 다시 눌러주세요."
+                } else if (onRealtimeBid(submission.amount)) {
                     showBidSheet = false
                     bidError = ""
-                    onDepositPayment(submission)
+                    bidSubmitting = true
+                    scope.launch { snackbar.showSnackbar("${"%,d".format(submission.amount)}원 입찰 결과를 확인하고 있어요.") }
+                } else {
+                    bidError = "입찰 요청을 보내지 못했어요. 잠시 후 다시 시도해주세요."
                 }
             }
         )
@@ -677,7 +664,7 @@ private fun ProductInformation(
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("입찰 전, 확인해주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 첫 입찰 전에 고정 보증금 1,000원을 결제해요\n• 재입찰에는 추가 보증금이 없어요\n• 현재가보다 큰 금액을 자유롭게 입력해요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 패찰 시 보증금은 자동 반환돼요",
+            Text("• 현재가보다 큰 금액을 자유롭게 입력해요\n• 입찰 후에는 취소할 수 없어요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 낙찰 직후 등록된 카드로 낙찰가 전액을 자동결제해요\n• 카드 미등록·승인 실패 시 거래 상세에서 재결제할 수 있어요",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (canReport) {
@@ -780,7 +767,7 @@ private fun StickyBidAction(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, depositPaid: Boolean, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
+private fun BidSheet(productName: String, currentPrice: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
     val minimum = currentPrice + 1
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
     val amount = amountText.toIntOrNull() ?: 0
@@ -829,11 +816,10 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
                     }
                 }
             }
-            BidDepositStatusNotice(depositPaid)
-            Text("입찰 후에는 취소할 수 없어요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 30초 이내 새 입찰 시 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
-                Text(if (depositPaid) "${"%,d".format(amount)}원 입찰하기" else "보증금 결제로 계속", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("${"%,d".format(amount)}원 입찰하기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
