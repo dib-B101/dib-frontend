@@ -88,7 +88,7 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
-internal fun ProductCardDto.toDomain() = RegisteredProduct(productId.idValue(), title ?: name ?: "등록 상품", condition, status, thumbnailUrl)
+internal fun ProductCardDto.toDomain() = RegisteredProduct(productId.idValue(), title ?: name ?: "등록 상품", condition, status.ifBlank { productStatus.orEmpty() }, thumbnailUrl)
 
 internal fun ProductDetailResponse.toDomain(): ProductDetail {
     val imageUrls = product.images.mapNotNull { image ->
@@ -111,7 +111,7 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         thumbnailUrl = product.thumbnailUrl,
         status = product.status,
         imageUrls = imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl?.takeIf(String::isNotBlank)) },
-        sellerNickname = sellerSummary?.nickname,
+        sellerNickname = sellerSummary?.nickname ?: product.nickname,
         sellerRating = sellerSummary?.rating,
         sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount
     )

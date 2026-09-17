@@ -8,7 +8,12 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductUpdate
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -16,15 +21,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class ProductRemoteDataSource(private val client: DibHttpClient) {
     fun getCategories(): ApiResult<CategoryListResponse> = configured {
-        client.execute(
-            client.requestBuilder(ApiRoutes.CATEGORIES).get().build(),
-            CategoryListResponse.serializer()
-        )
+        client.execute(client.requestBuilder(ApiRoutes.CATEGORIES).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeCategoryList)
     }
 
     fun getProduct(productId: String): ApiResult<ProductDetailResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/$productId"
-        client.execute(client.requestBuilder(path).get().build(), ProductDetailResponse.serializer())
+        client.execute(client.requestBuilder(path).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductDetail)
     }
 
     fun getSimilarProducts(productId: String, size: Int): ApiResult<ProductListResponse> = configured {
@@ -36,21 +40,23 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
     }
 
     fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
-        val path = "${ApiRoutes.MEMBERS_ME}/products"
+        val path = "${ApiRoutes.PRODUCTS}/members/me"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
         status?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("status", it) }
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
-        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductList)
     }
 
     fun searchProducts(query: String, categoryId: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/search"
         val urlBuilder = client.urlBuilder(path)
-            .addQueryParameter("q", query)
+            .addQueryParameter("keyword", query)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
         categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
-        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ProductListResponse.serializer())
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductList)
     }
 
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductCreateResponse> = configured {
@@ -123,4 +129,26 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
         } catch (error: RuntimeException) {
             ApiResult.Failure(ApiFailure(null, ApiErrorCodes.CLIENT_NOT_CONFIGURED, error.message.orEmpty(), cause = error))
         }
+}
+
+internal fun decodeCategoryList(payload: JsonElement): CategoryListResponse = when (payload) {
+    is JsonArray -> CategoryListResponse(DibJson.instance.decodeFromJsonElement(ListSerializer(CategoryDto.serializer()), payload))
+    else -> DibJson.instance.decodeFromJsonElement(CategoryListResponse.serializer(), payload)
+}
+
+internal fun decodeProductDetail(payload: JsonElement): ProductDetailResponse =
+    if (payload is JsonObject && "product" in payload) {
+        DibJson.instance.decodeFromJsonElement(ProductDetailResponse.serializer(), payload)
+    } else {
+        ProductDetailResponse(DibJson.instance.decodeFromJsonElement(ProductDetailDto.serializer(), payload))
+    }
+
+internal fun decodeProductList(payload: JsonElement): ProductListResponse = when (payload) {
+    is JsonArray -> ProductListResponse(DibJson.instance.decodeFromJsonElement(ListSerializer(ProductCardDto.serializer()), payload))
+    else -> DibJson.instance.decodeFromJsonElement(ProductListResponse.serializer(), payload)
+}
+
+private inline fun <T, R> ApiResult<T>.decodePayload(transform: (T) -> R): ApiResult<R> = when (this) {
+    is ApiResult.Success -> ApiResult.Success(transform(value), status)
+    is ApiResult.Failure -> this
 }

@@ -71,7 +71,8 @@ data class ProductDetailDto(
     val marketPrice: Long? = null,
     val thumbnailUrl: String? = null,
     val status: String = "",
-    val images: List<JsonElement> = emptyList()
+    val images: List<JsonElement> = emptyList(),
+    val nickname: String? = null
 )
 
 @Serializable
@@ -91,5 +92,6 @@ data class ProductCardDto(
     val name: String? = null,
     val condition: String = "",
     val status: String = "",
+    val productStatus: String? = null,
     val thumbnailUrl: String? = null
 )
