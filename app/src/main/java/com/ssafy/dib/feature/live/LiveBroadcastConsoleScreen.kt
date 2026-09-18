@@ -367,12 +367,12 @@ private fun LiveBroadcastVideoPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
-                onClick = { session.setCameraEnabled(!session.cameraEnabled) },
+                onClick = { session.updateCameraEnabled(!session.cameraEnabled) },
                 modifier = Modifier.weight(1f),
                 enabled = streaming
             ) { Text(if (session.cameraEnabled) "카메라 끄기" else "카메라 켜기", fontSize = 12.sp) }
             OutlinedButton(
-                onClick = { session.setMicrophoneEnabled(!session.microphoneEnabled) },
+                onClick = { session.updateMicrophoneEnabled(!session.microphoneEnabled) },
                 modifier = Modifier.weight(1f),
                 enabled = streaming
             ) { Text(if (session.microphoneEnabled) "음소거" else "음소거 해제", fontSize = 12.sp) }

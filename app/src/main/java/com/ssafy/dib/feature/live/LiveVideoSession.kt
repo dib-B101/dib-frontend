@@ -15,6 +15,7 @@ import com.ssafy.dib.domain.live.LiveStreamSession
 import io.livekit.android.LiveKit
 import io.livekit.android.RoomOptions
 import io.livekit.android.events.RoomEvent
+import io.livekit.android.events.collect
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.CameraPosition
 import io.livekit.android.room.track.LocalVideoTrack
@@ -159,7 +160,7 @@ class LiveVideoSession internal constructor(
     private fun localCameraTrack(): LocalVideoTrack? =
         room?.localParticipant?.getTrackPublication(Track.Source.CAMERA)?.track as? LocalVideoTrack
 
-    fun setCameraEnabled(enabled: Boolean) {
+    fun updateCameraEnabled(enabled: Boolean) {
         val target = room ?: return
         scope.launch {
             runCatching { target.localParticipant.setCameraEnabled(enabled) }
@@ -170,7 +171,7 @@ class LiveVideoSession internal constructor(
         }
     }
 
-    fun setMicrophoneEnabled(enabled: Boolean) {
+    fun updateMicrophoneEnabled(enabled: Boolean) {
         val target = room ?: return
         scope.launch {
             runCatching { target.localParticipant.setMicrophoneEnabled(enabled) }
