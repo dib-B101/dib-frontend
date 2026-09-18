@@ -24,6 +24,17 @@ class ReportRemoteDataSource(private val client: DibHttpClient) {
     fun reportMember(memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
         create("/api/v1/members/$memberId/reports", CreateReportRequest(content), idempotencyKey)
 
+    fun reportOrder(orderId: String, content: String, type: String, idempotencyKey: String): ApiResult<CreateReportResponse> = configured {
+        val body = CreateOrderReportRequest(content, type.uppercase().takeIf { it == "CHATTING" } ?: "ORDER")
+        client.execute(
+            client.requestBuilder("${ApiRoutes.ORDERS}/$orderId/reports")
+                .header("Idempotency-Key", idempotencyKey)
+                .post(client.jsonBody(body, CreateOrderReportRequest.serializer()))
+                .build(),
+            CreateReportResponse.serializer()
+        )
+    }
+
     // 백엔드에 라이브 전용 신고 경로가 없어, 관리자가 판단 근거로 볼 수 있도록 방송 id를 회원 신고 본문 끝에 덧붙여 보낸다.
     fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<CreateReportResponse> =
         create("/api/v1/members/$memberId/reports", CreateReportRequest(withLiveBroadcast(content, liveBroadcastId)), idempotencyKey)

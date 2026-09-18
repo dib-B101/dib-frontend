@@ -111,6 +111,7 @@ fun LiveFeedScreen(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
+    onOpenWatch: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when {
@@ -167,7 +168,8 @@ fun LiveFeedScreen(
                     onLoginRequired = onLoginRequired,
                     onReportAuction = onReportAuction,
                     onReportParticipant = onReportParticipant,
-                    onDismissReport = onDismissReport
+                    onDismissReport = onDismissReport,
+                    onOpenWatch = { items[page]?.liveBroadcastId?.let(onOpenWatch) }
                     )
                 }
                 if (isLoadingMore) {
@@ -217,6 +219,7 @@ private fun LiveFeedPage(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
+    onOpenWatch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activeAuction = liveItem?.currentAuction
@@ -314,7 +317,7 @@ private fun LiveFeedPage(
             streamUrl = liveItem?.streamUrl,
             fallbackImageUrl = activeAuction?.imageUrls?.firstOrNull(),
             fallbackTitle = activeAuction?.title.orEmpty(),
-            streamExpected = liveItem != null,
+            streamExpected = !liveItem?.streamUrl.isNullOrBlank(),
             isActivePage = isActivePage,
             onRetry = onStreamRetry,
             onExit = onClose
@@ -332,9 +335,13 @@ private fun LiveFeedPage(
                 Spacer(Modifier.weight(1f))
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.padding(top = 6.dp).clickable(enabled = liveItem != null, onClick = onOpenWatch),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text((liveItem?.title ?: "하루공방").take(1), color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
+                if (liveItem != null) Image(painterResource(R.drawable.chevron_right), "방송 자세히 보기", Modifier.size(15.dp), colorFilter = ColorFilter.tint(Color.White.copy(alpha = .8f)))
             }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 82.dp, bottom = 244.dp), enter = fadeIn(), exit = fadeOut()) {

@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
+import com.ssafy.dib.domain.live.LiveItemPlan
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -53,12 +55,13 @@ fun LiveManagementScreen(
     onLoadMoreAvailableAuctions: () -> Unit,
     onCreate: (title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
     onUpdate: (liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?) -> Unit,
-    onSetItems: (liveBroadcastId: String, auctionIds: List<String>) -> Unit,
+    onSetItems: (liveBroadcastId: String, items: List<LiveItemPlan>) -> Unit,
     onPrepareStream: (liveBroadcastId: String) -> Unit,
     onStartLive: (liveBroadcastId: String) -> Unit,
     onStartAuction: (liveBroadcastId: String, auctionId: String) -> Unit,
     onEndLive: (liveBroadcastId: String) -> Unit,
     onBack: () -> Unit,
+    onOpenConsole: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showCreate by rememberSaveable { mutableStateOf(false) }
@@ -132,6 +135,11 @@ fun LiveManagementScreen(
                                 )
                             }
                             "LIVE" -> {
+                                Button(
+                                    onClick = { onOpenConsole(live.liveBroadcastId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) { Text("방송 관리하기", fontWeight = FontWeight.Bold) }
                                 if (activeAuction != null) Text("현재 경매 중 · ${activeAuction.title}", color = Colors.Live, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 else auctions.filter { it.status == "SCHEDULED" }.forEach { auction ->
                                     OutlinedButton(onClick = { onStartAuction(live.liveBroadcastId, auction.auctionId) }, Modifier.fillMaxWidth(), enabled = !actionLoading) { Text("${auction.title} 경매 시작") }
@@ -186,7 +194,7 @@ fun LiveManagementScreen(
             loadMoreError = availableAuctionsLoadMoreError,
             onLoadMore = onLoadMoreAvailableAuctions,
             onDismiss = { editingLiveId = null },
-            onSave = { ids -> onSetItems(liveId, ids) }
+            onSave = { plans -> onSetItems(liveId, plans) }
         )
     }
 }
@@ -250,21 +258,68 @@ private fun LiveItemDialog(
     loadMoreError: String?,
     onLoadMore: () -> Unit,
     onDismiss: () -> Unit,
-    onSave: (List<String>) -> Unit
+    onSave: (List<LiveItemPlan>) -> Unit
 ) {
     val choices = remember(current, available) { (current + available).distinctBy(AuctionSummary::auctionId) }
-    val selected = remember(current) { mutableStateListOf<String>().apply { addAll(current.map(AuctionSummary::auctionId)) } }
+    val drafts = remember(current) {
+        mutableStateMapOf<String, LiveItemDraft>().apply {
+            current.forEach { auction -> put(auction.auctionId, auction.toLiveItemDraft()) }
+        }
+    }
+    val invalidCount = choices.count { auction ->
+        val draft = drafts[auction.auctionId]
+        draft != null && !auction.isLiveAuctionActive() && !draft.isValid()
+    }
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text("Live 상품 편성 (${selected.size}/10)") },
+        title = { Text("Live 상품 편성 (${drafts.size}/10)") },
         text = { Column(Modifier.fillMaxWidth()) {
             if (choices.isEmpty() && !hasNext) Text("편성 가능한 예약 경매가 없어요.\n등록 상품에서 경매를 먼저 예약해주세요.", color = Colors.Muted, fontSize = 12.sp)
-            else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            else LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(choices, key = AuctionSummary::auctionId) { auction ->
-                    Row(Modifier.fillMaxWidth().clickable { if (auction.auctionId in selected) selected.remove(auction.auctionId) else if (selected.size < 10) selected.add(auction.auctionId) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(auction.auctionId in selected, onCheckedChange = null)
-                        DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(44.dp))
-                        Column(Modifier.padding(start = 10.dp)) { Text(auction.title, fontSize = 13.sp, fontWeight = FontWeight.Bold); Text("시작가 ${"%,d".format(auction.startPrice)}원", color = Colors.Muted, fontSize = 11.sp) }
+                    val draft = drafts[auction.auctionId]
+                    val active = auction.isLiveAuctionActive()
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                if (draft != null) drafts.remove(auction.auctionId)
+                                else if (drafts.size < 10) drafts[auction.auctionId] = auction.toLiveItemDraft()
+                            }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(draft != null, onCheckedChange = null)
+                            DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(44.dp))
+                            Column(Modifier.padding(start = 10.dp)) {
+                                Text(auction.title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("시작가 " + (auction.startPriceOrNull?.let { "%,d원".format(it) } ?: "가격 미정"), color = Colors.Muted, fontSize = 11.sp)
+                            }
+                        }
+                        if (draft != null && active) Text("진행 중인 경매라 시작가와 시간을 바꿀 수 없어요.", Modifier.padding(start = 54.dp, bottom = 6.dp), color = Colors.Muted, fontSize = 11.sp)
+                        if (draft != null && !active) Column(Modifier.padding(start = 54.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    draft.startPrice,
+                                    { value -> drafts[auction.auctionId] = draft.copy(startPrice = value.filter(Char::isDigit).take(10)) },
+                                    Modifier.weight(1.2f),
+                                    label = { Text("시작가", fontSize = 11.sp) },
+                                    suffix = { Text("원") },
+                                    singleLine = true,
+                                    isError = draft.startPrice.isNotBlank() && !draft.isStartPriceValid(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    draft.minutes,
+                                    { value -> drafts[auction.auctionId] = draft.copy(minutes = value.filter(Char::isDigit).take(5)) },
+                                    Modifier.weight(.8f),
+                                    label = { Text("시간", fontSize = 11.sp) },
+                                    suffix = { Text("분") },
+                                    singleLine = true,
+                                    isError = draft.minutes.isNotBlank() && !draft.isMinutesValid(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                            if (!draft.isValid()) Text("시작가는 1,000원 이상, 경매 시간은 5분 이상이어야 해요.", color = Colors.Urgent, fontSize = 11.sp)
+                        }
                     }
                 }
                 if (hasNext || loadingMore || loadMoreError != null) item(key = "available-auction-load-more") {
@@ -284,7 +339,34 @@ private fun LiveItemDialog(
             }
             error?.let { Text(it, Modifier.padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { TextButton({ onSave(selected.toList()) }, enabled = selected.isNotEmpty() && selected.size <= 10 && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },
+        confirmButton = {
+            TextButton(
+                {
+                    // 목록에서 빠진 경매는 서버가 편성을 해제한다
+                    onSave(
+                        choices.mapNotNull { auction ->
+                            val draft = drafts[auction.auctionId] ?: return@mapNotNull null
+                            if (auction.isLiveAuctionActive()) LiveItemPlan(auction.auctionId)
+                            else LiveItemPlan(auction.auctionId, draft.startPrice.toLongOrNull(), draft.minutes.toLongOrNull()?.times(60))
+                        }
+                    )
+                },
+                enabled = drafts.isNotEmpty() && drafts.size <= 10 && invalidCount == 0 && !loading
+            ) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") }
+        },
         dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
     )
 }
+
+private data class LiveItemDraft(val startPrice: String, val minutes: String) {
+    fun isStartPriceValid(): Boolean = (startPrice.toLongOrNull() ?: 0L) >= 1_000L
+    fun isMinutesValid(): Boolean = (minutes.toLongOrNull() ?: 0L) >= 5L
+    fun isValid(): Boolean = isStartPriceValid() && isMinutesValid()
+}
+
+private fun AuctionSummary.toLiveItemDraft() = LiveItemDraft(
+    startPrice = startPriceOrNull?.toString().orEmpty(),
+    minutes = auctionTimeSeconds.takeIf { it > 0 }?.let { (it / 60).coerceAtLeast(5).toString() }.orEmpty()
+)
+
+private fun AuctionSummary.isLiveAuctionActive(): Boolean = status.equals("ACTIVE", ignoreCase = true)

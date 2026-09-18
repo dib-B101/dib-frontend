@@ -143,7 +143,17 @@ fun RegisteredProductsScreen(
     val products = remoteProducts ?: if (showSampleContent) {
         listOf(
             RegisteredProduct("sample-pending", "빈티지 필름 카메라", "NORMAL", "PENDING", null),
-            RegisteredProduct("sample-registered", "달빛 유약 머그컵", "GOOD", "REGISTERED", null, "sample-auction", 30_000, 300, "SCHEDULED"),
+            RegisteredProduct(
+                productId = "sample-registered",
+                title = "달빛 유약 머그컵",
+                condition = "GOOD",
+                status = "REGISTERED",
+                thumbnailUrl = null,
+                auctionId = "sample-auction",
+                startPrice = 30_000,
+                auctionTimeSeconds = 300,
+                auctionStatus = "SCHEDULED"
+            ),
             RegisteredProduct("sample-rejected", "핸드메이드 가죽 지갑", "BAD", "REJECTED", null)
         )
     } else emptyList()
@@ -157,7 +167,14 @@ fun RegisteredProductsScreen(
                     Text("검수 승인되고 시작 전 상태인 경매만 시작할 수 있어요.", color = Colors.Muted, fontSize = 11.sp)
                 }
             }
-            item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 대기", "승인", "반려", "판매 완료").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
+            item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 중", "승인", "등록 거절", "판매 완료").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
+            // 검수 완료 알림이나 소켓 이벤트가 없어서 사용자가 직접 새로고침하는 것이 상태를 확인하는 유일한 방법이다
+            if (remoteProducts != null) item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("검수는 잠시 걸려요. 결과 알림이 없으니 새로고침으로 확인해주세요.", Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp)
+                    TextButton(onClick = onRetry, enabled = !isLoading) { Text("새로고침", fontSize = 12.sp) }
+                }
+            }
             if (isLoading) item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             if (errorMessage != null) item { Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry) { Text("다시 불러오기") } } }
             deleteError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
@@ -176,9 +193,9 @@ fun RegisteredProductsScreen(
                     val statusLabel = productStatusLabel(product.status)
                     Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text(product.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(if (canStartAuction) "검수 승인 · 눌러서 경매 시작" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp) }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "반려" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(statusLabel, color = when (statusLabel) { "승인" -> Color(0xFF61D1B2); "등록 거절" -> Color(0xFFF5636E); else -> Color(0xFFF26B47) }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         if (canEdit || canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (canEdit) Text("수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
+                            if (canEdit) Text(if (statusLabel == "등록 거절") "수정하기" else "수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
                             if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
                         }
                     }
@@ -205,17 +222,19 @@ fun RegisteredProductsScreen(
 }
 
 private fun productStatusLabel(status: String) = when (status.uppercase()) {
-    "PENDING", "PENDING_REVIEW" -> "검수 대기"
+    "PENDING", "PENDING_REVIEW" -> "검수 중"
     "REGISTERED", "APPROVED" -> "승인"
-    "REJECTED", "REVIEW_REJECTED" -> "반려"
+    "REJECTED", "REVIEW_REJECTED" -> "등록 거절"
     "SOLD" -> "판매 완료"
+    "ON_AUCTION" -> "경매 중"
     else -> status
 }
 private fun productStatusDescription(status: String) = when (status.uppercase()) {
-    "PENDING", "PENDING_REVIEW" -> "등록 완료 · AI 검수 대기"
+    "PENDING", "PENDING_REVIEW" -> "AI 검수 중이에요 · 승인되면 경매를 시작할 수 있어요"
     "REGISTERED", "APPROVED" -> "검수 승인 · 경매 시작 가능"
-    "REJECTED", "REVIEW_REJECTED" -> "반려 사유 확인 후 수정 필요"
+    "REJECTED", "REVIEW_REJECTED" -> "등록이 거절됐어요 · 사유 확인 후 수정해주세요"
     "SOLD" -> "판매가 완료된 상품"
+    "ON_AUCTION" -> "경매가 진행 중인 상품"
     else -> "상품 상태 확인 필요"
 }
 internal fun isProductEditable(status: String): Boolean = status.uppercase() in setOf("REGISTERED", "APPROVED", "REJECTED", "REVIEW_REJECTED")
@@ -277,7 +296,7 @@ fun FavoriteAuctionsScreen(
                                 )
                             }
                             Text(auction.name, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(auction.priceText, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Text(if (removingAuctionId == auction.id) "찜 해제 중" else auction.meta, color = Colors.Muted, fontSize = 9.sp)
                         }
                     }
@@ -507,6 +526,7 @@ private fun reportStatusLabel(status: String) = when (status.uppercase()) {
     "PENDING" -> "접수됨"
     "ACCEPTED" -> "검토 완료"
     "REFUNDED" -> "환불 완료"
+    "REJECTED" -> "기각"
     else -> status
 }
 

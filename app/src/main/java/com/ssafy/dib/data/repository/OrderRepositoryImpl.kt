@@ -166,6 +166,8 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         chattingReadOnly = chattingReadOnly ?: !isOrderChatWritable(resolvedStatus),
         thumbnailUrl = (thumbnailUrl ?: product?.thumbnailUrl)?.takeIf(String::isNotBlank),
         paymentDue = paymentDue ?: core?.paymentDue,
+        heldAt = (heldAt ?: core?.heldAt)?.takeIf(String::isNotBlank),
+        holdReportId = (holdReportId ?: core?.holdReportId).idValue().takeIf(String::isNotBlank),
         settlement = settlement?.let { block ->
             OrderSettlementSummary(
                 settlementId = block.settlementId.idValue().takeIf(String::isNotBlank),

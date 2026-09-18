@@ -18,5 +18,6 @@ interface ReportRepository {
     fun getMyReports(cursor: String? = null, size: Int = 30): ApiResult<ReportPage>
     fun reportAuction(auctionId: String, content: String, idempotencyKey: String): ApiResult<String>
     fun reportMember(memberId: String, content: String, idempotencyKey: String): ApiResult<String>
+    fun reportOrder(orderId: String, content: String, type: String = "ORDER", idempotencyKey: String): ApiResult<String>
     fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<String>
 }

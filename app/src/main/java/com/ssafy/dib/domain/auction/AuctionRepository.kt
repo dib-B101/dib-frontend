@@ -10,6 +10,9 @@ data class AuctionSummary(
     val categoryName: String,
     val currentPrice: Int,
     val startPrice: Int,
+    // 아직 시작가를 정하지 않은 SCHEDULED 경매는 서버가 null 을 내려준다. 0 과 구분해야 "가격 미정" 을 보여줄 수 있다
+    val currentPriceOrNull: Int? = null,
+    val startPriceOrNull: Int? = null,
     val bidCount: Int,
     val auctionTimeSeconds: Long = 0,
     val remainingSeconds: Int,
@@ -90,5 +93,6 @@ interface AuctionRepository {
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
     fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>
     fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit>
-    fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String>
+    fun relistAuction(auctionId: String, idempotencyKey: String): ApiResult<AuctionCommandResult>
+    fun startAuction(auctionId: String, idempotencyKey: String, startPrice: Long? = null, auctionTime: Long? = null): ApiResult<String>
 }

@@ -51,20 +51,6 @@ android {
     }
 }
 
-val setupDebugAdbReverse by tasks.registering(Exec::class) {
-    group = "dib"
-    description = "Forwards emulator localhost:8080 to the local backend before a debug build."
-    executable(androidComponents.sdkComponents.adb.get().asFile.absolutePath)
-    args("reverse", "tcp:8080", "tcp:8080")
-    isIgnoreExitValue = true
-}
-
-tasks.configureEach {
-    if (name == "preDebugBuild") {
-        dependsOn(setupDebugAdbReverse)
-    }
-}
-
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -87,4 +73,5 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui.compose)
+    implementation(libs.livekit.android)
 }

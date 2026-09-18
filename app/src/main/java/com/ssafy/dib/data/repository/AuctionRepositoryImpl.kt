@@ -80,12 +80,12 @@ class AuctionRepositoryImpl(
                         .filter { it.liveBroadcastId == null }
                         .filter { status.isBlank() || it.status.equals(status, ignoreCase = true) }
                         .filter { categoryId.isNullOrBlank() || it.categoryId?.idValue() == categoryId }
-                        .filter { minPrice == null || it.currentPrice >= minPrice }
-                        .filter { maxPrice == null || it.currentPrice <= maxPrice }
+                        .filter { minPrice == null || (it.currentPrice ?: 0L) >= minPrice }
+                        .filter { maxPrice == null || (it.currentPrice ?: 0L) <= maxPrice }
                         .let { items ->
                             when (sort?.uppercase()) {
-                                "PRICE_ASC" -> items.sortedBy(AuctionDto::currentPrice)
-                                "PRICE_DESC" -> items.sortedByDescending(AuctionDto::currentPrice)
+                                "PRICE_ASC" -> items.sortedBy { it.currentPrice ?: 0L }
+                                "PRICE_DESC" -> items.sortedByDescending { it.currentPrice ?: 0L }
                                 "ENDING_SOON" -> items.sortedBy { it.endedAt.orEmpty() }
                                 else -> items
                             }
@@ -112,13 +112,13 @@ class AuctionRepositoryImpl(
             is ApiResult.Success -> ApiResult.Success(
                 result.value.map { dto ->
                     SellerAuction(
-                        auctionId = dto.auctionId.idValue(),
+                        auctionId = dto.auctionId?.idValue().orEmpty(),
                         productId = dto.productId?.idValue().orEmpty(),
-                        startPrice = dto.startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                        currentPrice = dto.currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                        bidCount = dto.bidCount.coerceAtLeast(0),
-                        status = dto.status,
-                        auctionTimeSeconds = dto.auctionTime.coerceAtLeast(0)
+                        startPrice = (dto.startPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        currentPrice = (dto.currentPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        bidCount = (dto.bidCount ?: 0).coerceAtLeast(0),
+                        status = dto.status.orEmpty(),
+                        auctionTimeSeconds = (dto.auctionTime ?: 0L).coerceAtLeast(0)
                     )
                 },
                 result.status
@@ -225,7 +225,16 @@ class AuctionRepositoryImpl(
 
     override fun cancelAuction(auctionId: String, idempotencyKey: String) = remote.cancelAuction(auctionId, idempotencyKey)
 
-    override fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.startAuction(auctionId, idempotencyKey)) {
+    override fun relistAuction(auctionId: String, idempotencyKey: String): ApiResult<AuctionCommandResult> =
+        when (val result = remote.relistAuction(auctionId, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionCommandResult(result.value.auctionId?.idValue() ?: auctionId, result.value.message),
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
+    override fun startAuction(auctionId: String, idempotencyKey: String, startPrice: Long?, auctionTime: Long?): ApiResult<String> = when (val result = remote.startAuction(auctionId, idempotencyKey, startPrice, auctionTime)) {
         is ApiResult.Success -> ApiResult.Success(result.value.message, result.status)
         is ApiResult.Failure -> result
     }
@@ -235,7 +244,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
     val referenceTime = serverTime.toInstantOrNull() ?: now
     val endTime = scheduledEndAt.toInstantOrNull() ?: endedAt.toInstantOrNull()
     val remaining = endTime?.let { Duration.between(referenceTime, it).seconds.coerceAtLeast(0) }
-        ?: auctionTime.coerceAtLeast(0)
+        ?: (auctionTime ?: 0L).coerceAtLeast(0)
     val detailedImages = product?.images.orEmpty().mapNotNull { image ->
         (image as? JsonPrimitive)?.contentOrNull
             ?: runCatching {
@@ -249,10 +258,12 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         productId = productId?.idValue() ?: product?.productId?.idValue().orEmpty(),
         title = title ?: productName ?: product?.title ?: product?.name ?: "경매 상품",
         categoryName = categoryName ?: product?.categoryName ?: "기타",
-        currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-        startPrice = startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        currentPrice = (currentPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        startPrice = (startPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        currentPriceOrNull = currentPrice?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
+        startPriceOrNull = startPrice?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
         bidCount = bidCount.coerceAtLeast(0),
-        auctionTimeSeconds = auctionTime.coerceAtLeast(0),
+        auctionTimeSeconds = (auctionTime ?: 0L).coerceAtLeast(0),
         remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
         status = status,
         bookmarked = bookmarked,

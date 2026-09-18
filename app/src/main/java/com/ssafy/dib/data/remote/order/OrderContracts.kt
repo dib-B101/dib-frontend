@@ -28,7 +28,9 @@ data class OrderSummaryDto(
     val product: OrderProductDto? = null,
     val payment: OrderPaymentDto? = null,
     val settlement: OrderSettlementDto? = null,
-    val chattingReadOnly: Boolean? = null
+    val chattingReadOnly: Boolean? = null,
+    val heldAt: String? = null,
+    val holdReportId: JsonElement? = null
 )
 
 @Serializable
@@ -50,7 +52,9 @@ data class OrderCoreDto(
     val status: String? = null,
     val paymentDue: String? = null,
     val updatedAt: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    val heldAt: String? = null,
+    val holdReportId: JsonElement? = null
 )
 
 // 주문 상세 응답의 settlement 블록. 확정(CONFIRMED) 전에는 서버가 null 을 준다

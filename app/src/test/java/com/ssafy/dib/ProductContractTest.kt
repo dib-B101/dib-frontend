@@ -10,6 +10,7 @@ import com.ssafy.dib.data.remote.product.decodeProductDetail
 import com.ssafy.dib.data.repository.toDomain
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -129,6 +130,50 @@ class ProductContractTest {
         assertEquals("LIKE_NEW", product.condition)
         assertEquals(null, response.nextCursor)
         assertTrue(!response.hasNext)
+    }
+
+    @Test
+    fun pendingMyProductRowKeepsNullAuctionFields() {
+        val response = DibJson.instance.decodeFromString(
+            ProductListResponse.serializer(),
+            """{"items":[{"productId":12,"title":"검수 중 상품","condition":"GOOD","productStatus":"PENDING","auctionId":null,"startPrice":null,"currentPrice":null,"auctionTime":null,"auctionStatus":null,"bidCount":null}],"nextCursor":null,"hasNext":false}"""
+        )
+
+        val product = response.items.single().toDomain()
+
+        assertEquals("PENDING", product.status)
+        assertNull(product.auctionId)
+        assertNull(product.startPrice)
+        assertNull(product.currentPrice)
+        assertNull(product.auctionTimeSeconds)
+        assertNull(product.auctionStatus)
+        assertNull(product.bidCount)
+    }
+
+    @Test
+    fun rejectedProductDetailExposesModerationResult() {
+        val response = decodeProductDetail(
+            DibJson.instance.parseToJsonElement(
+                """{"productId":8,"memberId":17,"categoryId":3,"title":"카메라","status":"REJECTED","moderationReason":"상품 사진에서 금지 품목이 확인됐어요.","moderationStage":"ai","moderatedAt":"2026-09-18T02:00:00Z"}"""
+            )
+        )
+
+        val product = response.toDomain()
+
+        assertEquals("REJECTED", product.status)
+        assertEquals("상품 사진에서 금지 품목이 확인됐어요.", product.moderationReason)
+        assertEquals("ai", product.moderationStage)
+        assertEquals("2026-09-18T02:00:00Z", product.moderatedAt)
+    }
+
+    @Test
+    fun productCreateResponseAcceptsPendingWithoutAuction() {
+        val response = DibJson.instance.decodeFromString(
+            com.ssafy.dib.data.remote.product.ProductCreateResponse.serializer(),
+            """{"productId":12,"status":"PENDING","thumbnailUrl":null,"createdAt":"2026-09-18T02:00:00Z"}"""
+        )
+
+        assertEquals("PENDING", response.status)
     }
 
     @Test

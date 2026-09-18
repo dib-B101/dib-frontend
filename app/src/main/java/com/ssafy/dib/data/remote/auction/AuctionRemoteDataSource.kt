@@ -134,9 +134,20 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.executeUnit(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).delete().build())
     }
 
-    fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<StartAuctionResponse> = configured {
+    fun startAuction(auctionId: String, idempotencyKey: String, startPrice: Long? = null, auctionTime: Long? = null): ApiResult<StartAuctionResponse> = configured {
         val path = "${ApiRoutes.AUCTIONS}/$auctionId/start"
-        client.execute(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).patch(RequestBody.EMPTY).build(), StartAuctionResponse.serializer())
+        // 본문을 생략하면 서버가 DB 에 저장된 시작가/경매 시간을 쓴다
+        val body = if (startPrice == null && auctionTime == null) RequestBody.EMPTY
+        else client.jsonBody(StartAuctionRequest(startPrice, auctionTime), StartAuctionRequest.serializer())
+        client.execute(client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).patch(body).build(), StartAuctionResponse.serializer())
+    }
+
+    fun relistAuction(auctionId: String, idempotencyKey: String): ApiResult<AuctionCommandResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/relist"
+        client.execute(
+            client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).patch(RequestBody.EMPTY).build(),
+            AuctionCommandResponse.serializer()
+        )
     }
 
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =

@@ -23,7 +23,10 @@ data class OrderSummary(
     val chattingReadOnly: Boolean = false,
     val thumbnailUrl: String? = null,
     val paymentDue: String? = null,
-    val settlement: OrderSettlementSummary? = null
+    val settlement: OrderSettlementSummary? = null,
+    // 신고 접수로 보류된 주문은 서버가 heldAt 을 채워준다. 구매확정·송장등록이 막힌다
+    val heldAt: String? = null,
+    val holdReportId: String? = null
 )
 
 fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =

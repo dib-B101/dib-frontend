@@ -30,4 +30,7 @@ data class ReportDto(
 data class CreateReportRequest(val content: String)
 
 @Serializable
+data class CreateOrderReportRequest(val content: String, val type: String)
+
+@Serializable
 data class CreateReportResponse(val reportId: JsonElement, val status: String)

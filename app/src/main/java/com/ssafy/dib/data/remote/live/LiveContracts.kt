@@ -41,7 +41,8 @@ data class LiveBroadcastDto(
 @Serializable data class CreateLiveBroadcastResponse(val liveBroadcastId: JsonElement, val status: String, val startedAt: String? = null, val createdAt: String? = null)
 @Serializable data class UpdateLiveBroadcastRequest(val title: String? = null, val description: String? = null, val startedAt: String? = null)
 @Serializable data class UpdateLiveBroadcastResponse(val liveBroadcastId: JsonElement, val status: String, val updatedAt: String)
-@Serializable data class SetLiveItemsRequest(val auctionIds: List<JsonElement>)
+@Serializable data class SetLiveItemsRequest(val items: List<SetLiveItemDto>)
+@Serializable data class SetLiveItemDto(val auctionId: JsonElement, val startPrice: Long? = null, val auctionTime: Long? = null)
 @Serializable data class SetLiveItemsResponse(val liveBroadcastId: JsonElement, val auctions: List<AuctionDto> = emptyList())
 @Serializable data class LiveStreamSessionResponse(
     val serverUrl: String,

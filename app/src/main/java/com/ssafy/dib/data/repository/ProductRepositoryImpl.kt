@@ -73,10 +73,10 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
         when (val result = remote.registerProduct(registration, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(
                 ProductRegistrationResult(
-                    productId = result.value.productId.idValue(),
-                    status = result.value.status,
+                    productId = result.value.productId?.idValue().orEmpty(),
+                    status = result.value.status.orEmpty(),
                     thumbnailUrl = result.value.thumbnailUrl,
-                    createdAt = result.value.createdAt
+                    createdAt = result.value.createdAt.orEmpty()
                 ),
                 result.status
             )
@@ -88,22 +88,36 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
 
     override fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult> =
         when (val result = remote.updateProduct(productId, update)) {
-            is ApiResult.Success -> ApiResult.Success(ProductUpdateResult(result.value.productId?.idValue().orEmpty(), result.value.status.orEmpty(), result.value.thumbnailUrl, result.value.updatedAt), result.status)
+            is ApiResult.Success -> ApiResult.Success(
+                ProductUpdateResult(
+                    productId = result.value.productId?.idValue().orEmpty(),
+                    status = result.value.status.orEmpty(),
+                    thumbnailUrl = result.value.thumbnailUrl,
+                    updatedAt = result.value.updatedAt,
+                    moderationReason = result.value.moderationReason,
+                    moderationStage = result.value.moderationStage,
+                    moderatedAt = result.value.moderatedAt
+                ),
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 }
 
 internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
 internal fun ProductCardDto.toDomain() = RegisteredProduct(
-    productId = productId.idValue(),
+    productId = productId?.idValue().orEmpty(),
     title = title ?: name ?: "등록 상품",
-    condition = condition,
-    status = productStatus ?: status,
+    condition = condition.orEmpty(),
+    status = (productStatus ?: status).orEmpty(),
     thumbnailUrl = thumbnailUrl,
+    // 경매가 없는 상품은 아래 값을 null 로 유지해야 화면에서 "가격 미정" 으로 표시된다
     auctionId = auctionId?.idValue(),
     startPrice = startPrice,
+    currentPrice = currentPrice,
     auctionTimeSeconds = auctionTime,
-    auctionStatus = auctionStatus
+    auctionStatus = auctionStatus,
+    bidCount = bidCount
 )
 
 internal fun ProductDetailResponse.toDomain(): ProductDetail {
@@ -115,9 +129,9 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         }.getOrNull()
     }.filter(String::isNotBlank).distinct()
     return ProductDetail(
-        productId = product.productId.idValue(),
-        memberId = product.memberId.idValue(),
-        categoryId = product.categoryId.idValue(),
+        productId = product.productId?.idValue().orEmpty(),
+        memberId = product.memberId?.idValue().orEmpty(),
+        categoryId = product.categoryId?.idValue().orEmpty(),
         title = product.title,
         description = product.description,
         condition = product.condition,
@@ -129,7 +143,10 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         imageUrls = imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname ?: product.nickname,
         sellerRating = sellerSummary?.rating,
-        sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount
+        sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,
+        moderationReason = product.moderationReason,
+        moderationStage = product.moderationStage,
+        moderatedAt = product.moderatedAt
     )
 }
 

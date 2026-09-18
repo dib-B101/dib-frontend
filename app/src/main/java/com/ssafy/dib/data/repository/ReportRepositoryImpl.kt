@@ -35,6 +35,12 @@ class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportR
             is ApiResult.Failure -> result
         }
 
+    override fun reportOrder(orderId: String, content: String, type: String, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.reportOrder(orderId, content, type, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<String> =
         when (val result = remote.reportLiveParticipant(liveBroadcastId, memberId, content, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)

@@ -1,7 +1,9 @@
 package com.ssafy.dib.data.repository
 
 import com.ssafy.dib.core.network.ApiResult
+import com.ssafy.dib.data.remote.live.LiveItemPlanPayload
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
+import com.ssafy.dib.domain.live.LiveItemPlan
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveFeedPage
 import com.ssafy.dib.domain.live.LiveRepository
@@ -119,8 +121,8 @@ class LiveRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
-        when (val result = remote.setItems(liveBroadcastId, auctionIds)) {
+    override fun setItems(liveBroadcastId: String, items: List<LiveItemPlan>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
+        when (val result = remote.setItems(liveBroadcastId, items.map { LiveItemPlanPayload(it.auctionId, it.startPrice, it.auctionTime) })) {
             is ApiResult.Success -> ApiResult.Success(result.value.auctions.map { it.toDomain(now()) }, result.status)
             is ApiResult.Failure -> result
         }

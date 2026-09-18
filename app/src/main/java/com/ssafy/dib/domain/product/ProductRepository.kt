@@ -7,8 +7,7 @@ data class ProductCategory(val categoryId: String, val name: String)
 data class ProductImageUpload(
     val fileName: String,
     val mediaType: String,
-    val bytes: ByteArray,
-    val type: String
+    val bytes: ByteArray
 )
 
 data class ProductRegistration(
@@ -19,13 +18,14 @@ data class ProductRegistration(
     val modelName: String? = null,
     val releaseYear: Int? = null,
     val marketPrice: Long? = null,
-    val startPrice: Long,
-    val auctionTime: Int,
+    val startPrice: Long? = null,
+    val auctionTime: Int? = null,
     val images: List<ProductImageUpload>
 )
 
 data class ProductRegistrationResult(
     val productId: String,
+    // 검수가 켜져 있으면 등록 직후 상태는 PENDING 이다
     val status: String,
     val thumbnailUrl: String?,
     val createdAt: String
@@ -38,13 +38,21 @@ data class ProductUpdate(
     val condition: String,
     val modelName: String?,
     val releaseYear: Int?,
-    val marketPrice: Long?,
-    // 경매가 SCHEDULED 일 때만 서버가 갱신을 허용한다. 그 외에는 null 로 보내 경매를 건드리지 않는다
+    val marketPrice: Long? = null,
+    // 검수 통과 전 상품에는 경매 행이 없다. 경매가 SCHEDULED 일 때만 보내고, 그 외에는 null 로 보내 404 AUCTION_NOT_FOUND 를 피한다
     val startPrice: Long? = null,
     val auctionTime: Int? = null
 )
 
-data class ProductUpdateResult(val productId: String, val status: String, val thumbnailUrl: String?, val updatedAt: String?)
+data class ProductUpdateResult(
+    val productId: String,
+    val status: String,
+    val thumbnailUrl: String?,
+    val updatedAt: String?,
+    val moderationReason: String? = null,
+    val moderationStage: String? = null,
+    val moderatedAt: String? = null
+)
 
 data class ProductDetail(
     val productId: String,
@@ -61,7 +69,10 @@ data class ProductDetail(
     val imageUrls: List<String>,
     val sellerNickname: String?,
     val sellerRating: Double?,
-    val sellerTradeCount: Int?
+    val sellerTradeCount: Int?,
+    val moderationReason: String? = null,
+    val moderationStage: String? = null,
+    val moderatedAt: String? = null
 )
 
 data class RegisteredProduct(
@@ -70,10 +81,13 @@ data class RegisteredProduct(
     val condition: String,
     val status: String,
     val thumbnailUrl: String?,
+    // 검수 전·거절 상품에는 경매 행이 없어 아래 값이 모두 null 로 내려온다
     val auctionId: String? = null,
     val startPrice: Long? = null,
+    val currentPrice: Long? = null,
     val auctionTimeSeconds: Long? = null,
-    val auctionStatus: String? = null
+    val auctionStatus: String? = null,
+    val bidCount: Int? = null
 )
 
 data class RegisteredProductPage(

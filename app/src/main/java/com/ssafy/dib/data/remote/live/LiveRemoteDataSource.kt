@@ -9,6 +9,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.RequestBody
 
+data class LiveItemPlanPayload(val auctionId: String, val startPrice: Long? = null, val auctionTime: Long? = null)
+
 class LiveRemoteDataSource(private val client: DibHttpClient) {
     fun getFeed(cursor: String?, size: Int): ApiResult<LiveFeedResponse> = configured {
         val path = "${ApiRoutes.LIVE_BROADCASTS}/feed"
@@ -49,8 +51,19 @@ class LiveRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
-    fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<SetLiveItemsResponse> = configured {
-        unsupported("라이브 상품 편성 API가 백엔드에 아직 없습니다.")
+    fun setItems(liveBroadcastId: String, items: List<LiveItemPlanPayload>): ApiResult<SetLiveItemsResponse> = configured {
+        val path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/items"
+        // 편성은 목록 전체를 보내 그대로 맞추는 방식이다. 빠진 경매는 서버가 편성을 해제한다
+        val body = SetLiveItemsRequest(
+            items.map { item ->
+                val id = item.auctionId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(item.auctionId)
+                SetLiveItemDto(id, item.startPrice, item.auctionTime)
+            }
+        )
+        client.execute(
+            client.requestBuilder(path).put(client.jsonBody(body, SetLiveItemsRequest.serializer())).build(),
+            SetLiveItemsResponse.serializer()
+        )
     }
 
     fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSessionResponse> = postCommand(
@@ -60,33 +73,28 @@ class LiveRemoteDataSource(private val client: DibHttpClient) {
     )
 
     fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<StartLiveBroadcastResponse> = postCommand(
-        path = "",
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/start",
         idempotencyKey = idempotencyKey,
-        serializer = StartLiveBroadcastResponse.serializer(),
-        unsupportedMessage = "라이브 시작 API가 백엔드에 아직 없습니다."
+        serializer = StartLiveBroadcastResponse.serializer()
     )
 
     fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<StartLiveAuctionResponse> = postCommand(
-        path = "",
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/auctions/$auctionId/start",
         idempotencyKey = idempotencyKey,
-        serializer = StartLiveAuctionResponse.serializer(),
-        unsupportedMessage = "라이브 경매 시작 API가 백엔드에 아직 없습니다."
+        serializer = StartLiveAuctionResponse.serializer()
     )
 
     fun end(liveBroadcastId: String, idempotencyKey: String): ApiResult<EndLiveBroadcastResponse> = postCommand(
-        path = "",
+        path = "${ApiRoutes.LIVE_BROADCASTS}/$liveBroadcastId/end",
         idempotencyKey = idempotencyKey,
-        serializer = EndLiveBroadcastResponse.serializer(),
-        unsupportedMessage = "라이브 종료 API가 백엔드에 아직 없습니다."
+        serializer = EndLiveBroadcastResponse.serializer()
     )
 
     private fun <T> postCommand(
         path: String,
         idempotencyKey: String,
-        serializer: kotlinx.serialization.DeserializationStrategy<T>,
-        unsupportedMessage: String? = null
+        serializer: kotlinx.serialization.DeserializationStrategy<T>
     ): ApiResult<T> = configured {
-        if (unsupportedMessage != null) return@configured unsupported(unsupportedMessage)
         client.execute(
             client.requestBuilder(path).header("Idempotency-Key", idempotencyKey).post(RequestBody.EMPTY).build(),
             serializer

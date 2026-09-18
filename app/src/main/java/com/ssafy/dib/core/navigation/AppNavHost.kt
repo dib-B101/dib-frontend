@@ -54,6 +54,9 @@ import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
 import com.ssafy.dib.feature.live.LiveManagementScreen
+import com.ssafy.dib.feature.live.LiveBroadcastConsoleScreen
+import com.ssafy.dib.feature.live.LiveWatchScreen
+import com.ssafy.dib.feature.live.LiveBidNotice
 import com.ssafy.dib.feature.home.HomeScreen
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.toHomeAuction
@@ -79,6 +82,7 @@ import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
 import com.ssafy.dib.feature.main.SettlementHistoryScreen
 import com.ssafy.dib.feature.main.SettlementDetailScreen
+import com.ssafy.dib.feature.main.ORDER_HOLD_BLOCK_MESSAGE
 import com.ssafy.dib.feature.main.TransactionScreen
 import com.ssafy.dib.feature.main.OrderChatScreen
 import com.ssafy.dib.feature.main.WithdrawalScreen
@@ -1629,7 +1633,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onDismissReport = {
                     liveReportError = null
                     liveReportCompleted = false
-                }
+                },
+                onOpenWatch = { liveId -> navController.navigate(Screen.LiveWatch.createRoute(liveId)) }
             )
         }
         composable(
@@ -1949,6 +1954,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var productSubmitLoading by remember { mutableStateOf(false) }
             var productSubmitError by remember { mutableStateOf<String?>(null) }
             var productResult by remember { mutableStateOf<ProductRegistrationResult?>(null) }
+            // 검수는 비동기이고 완료 알림이 없어서 사용자가 직접 상태를 다시 조회해야 한다
+            var productLatestStatus by remember { mutableStateOf<String?>(null) }
+            var productStatusRefreshing by remember { mutableStateOf(false) }
 
             LaunchedEffect(categoriesRevision, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
@@ -1994,10 +2002,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         form.condition,
                         form.modelName.orEmpty(),
                         form.releaseYear?.toString().orEmpty(),
-                        form.marketPrice?.toString().orEmpty(),
-                        form.startPrice.toString(),
-                        form.auctionTime.toString(),
-                        form.images.joinToString { "${it.uri}:${it.type}" }
+                        form.images.joinToString { "${it.uri}" }
                     ).joinToString("\u001f")
                     val idempotencyKey = commandKeys.keyFor(command)
                     productSubmitLoading = true
@@ -2011,8 +2016,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                         fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-$index.jpg",
                                         mediaType = resolveProductImageMediaType(context.contentResolver, uri) ?: "application/octet-stream",
                                         bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                            ?: error("선택한 사진을 읽을 수 없습니다."),
-                                        type = image.type
+                                            ?: error("선택한 사진을 읽을 수 없습니다.")
                                     )
                                 }
                             }
@@ -2028,9 +2032,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                             condition = form.condition,
                                             modelName = form.modelName,
                                             releaseYear = form.releaseYear,
-                                            marketPrice = form.marketPrice,
-                                            startPrice = form.startPrice,
-                                            auctionTime = form.auctionTime,
                                             images = images
                                         ),
                                         idempotencyKey
@@ -2056,7 +2057,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         popUpTo(Screen.Register.route) { inclusive = true }
                     }
                 },
-                onBack = navController::navigateUp
+                onBack = navController::navigateUp,
+                latestStatus = productLatestStatus,
+                statusRefreshing = productStatusRefreshing,
+                onRefreshStatus = {
+                    val productId = productResult?.productId
+                    if (!productId.isNullOrBlank() && !productStatusRefreshing) {
+                        productStatusRefreshing = true
+                        coroutineScope.launch {
+                            when (val result = withContext(Dispatchers.IO) { auth.productRepository.getProduct(productId) }) {
+                                is ApiResult.Success -> productLatestStatus = result.value.status
+                                is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                            }
+                            productStatusRefreshing = false
+                        }
+                    }
+                }
             )
         }
         composable(Screen.Trades.route) {
@@ -2177,6 +2193,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var shippingCarriersLoading by remember(orderId) { mutableStateOf(false) }
             var shippingCarriersError by remember(orderId) { mutableStateOf<String?>(null) }
             var shippingCarriersRevision by remember(orderId) { mutableStateOf(0) }
+            var orderReportSubmitting by remember(orderId) { mutableStateOf(false) }
+            var orderReportError by remember(orderId) { mutableStateOf<String?>(null) }
+            var orderReportCompleted by remember(orderId) { mutableStateOf(false) }
 
             LaunchedEffect(orderId, orderDetailRevision, previewMode) {
                 if (previewMode || orderId == "sample") {
@@ -2362,6 +2381,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }
                             is ApiResult.Failure -> {
                                 shipmentError = when (result.error.code) {
+                                    "ORDER_ON_HOLD" -> ORDER_HOLD_BLOCK_MESSAGE
                                     "PAYMENT_REQUIRED" -> "결제가 완료된 주문만 발송할 수 있어요."
                                     "INVALID_TRACKING" -> "송장번호를 다시 확인해주세요."
                                     else -> result.error.message.ifBlank { "배송 정보를 등록하지 못했어요." }
@@ -2404,6 +2424,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             }
                             is ApiResult.Failure -> {
                                 confirmationError = when (result.error.code) {
+                                    "ORDER_ON_HOLD" -> ORDER_HOLD_BLOCK_MESSAGE
                                     "DELIVERY_NOT_COMPLETED" -> "배송 완료 후 구매를 확정할 수 있어요."
                                     "ALREADY_CONFIRMED" -> "이미 구매 확정된 주문이에요."
                                     else -> result.error.message.ifBlank { "구매를 확정하지 못했어요." }
@@ -2415,6 +2436,38 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 onOpenChat = { navController.navigate(Screen.OrderChat.createRoute(orderId)) },
+                reportSubmitting = orderReportSubmitting,
+                reportError = orderReportError,
+                reportCompleted = orderReportCompleted,
+                onReportOrder = { content, type ->
+                    val command = "order-report:" + orderId + ":" + type + ":" + content
+                    val idempotencyKey = commandKeys.keyFor(command)
+                    orderReportSubmitting = true
+                    orderReportError = null
+                    orderReportCompleted = false
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.reportRepository.reportOrder(orderId, content, type, idempotencyKey)
+                        }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                orderReportCompleted = true
+                                // 접수되면 서버가 주문에 보류를 걸므로 heldAt 을 다시 받아 보류 배지를 띄운다
+                                orderDetailRevision++
+                                ordersRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                orderReportError = reportSubmissionMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        orderReportSubmitting = false
+                    }
+                },
+                onDismissReport = {
+                    orderReportError = null
+                    orderReportCompleted = false
+                },
                 onBack = navController::navigateUp
             )
         }
@@ -2721,6 +2774,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             var actionError by remember { mutableStateOf<String?>(null) }
             val startKeys = remember { mutableMapOf<String, String>() }
             val cancelKeys = remember { mutableMapOf<String, String>() }
+            val relistKeys = remember { mutableMapOf<String, String>() }
+            var relistedAuctionId by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(salesRevision, salesStatus, signedIn, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
@@ -2830,17 +2885,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         actionAuctionId = null
                     }
                 },
-                onStart = { auctionId ->
+                onStart = { auctionId, startPrice, auctionTime ->
                     actionAuctionId = auctionId
                     actionMessage = null
                     actionError = null
-                    val key = startKeys.getOrPut(auctionId) { java.util.UUID.randomUUID().toString() }
+                    // 시작가/경매 시간이 바뀌면 같은 멱등키를 재사용하면 안 된다
+                    val key = startKeys.getOrPut("$auctionId:$startPrice:$auctionTime") { java.util.UUID.randomUUID().toString() }
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.auctionRepository.startAuction(auctionId, key)
+                            auth.auctionRepository.startAuction(auctionId, key, startPrice, auctionTime)
                         }) {
                             is ApiResult.Success -> {
-                                startKeys.remove(auctionId)
+                                startKeys.remove("$auctionId:$startPrice:$auctionTime")
                                 actionMessage = result.value.ifBlank { "경매를 시작했어요." }
                                 salesRevision++
                                 auctionsRevision++
@@ -2876,6 +2932,32 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         actionAuctionId = null
                     }
                 },
+                onRelist = { auctionId ->
+                    actionAuctionId = auctionId
+                    actionMessage = null
+                    actionError = null
+                    val key = relistKeys.getOrPut(auctionId) { java.util.UUID.randomUUID().toString() }
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.auctionRepository.relistAuction(auctionId, key)
+                        }) {
+                            is ApiResult.Success -> {
+                                relistKeys.remove(auctionId)
+                                actionMessage = result.value.message.ifBlank { "경매를 다시 올렸어요. 시작가와 경매 시간을 정해주세요." }
+                                relistedAuctionId = result.value.auctionId.ifBlank { auctionId }
+                                salesRevision++
+                                auctionsRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                actionError = auctionCommandError(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        actionAuctionId = null
+                    }
+                },
+                relistedAuctionId = relistedAuctionId,
+                onRelistConsumed = { relistedAuctionId = null },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
             )
@@ -3115,8 +3197,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
-                onSetItems = setLiveItems@ { liveId, auctionIds ->
+                onSetItems = setLiveItems@ { liveId, items ->
                     if (previewMode) {
+                        val auctionIds = items.map { it.auctionId }
                         assignedAuctions = assignedAuctions + (liveId to previewLiveAuctions.filter { it.auctionId in auctionIds })
                         liveActionMessage = "개발 미리보기 상품 편성을 저장했어요."
                         liveActionRevision++
@@ -3126,10 +3209,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     liveActionError = null
                     liveActionMessage = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.setItems(liveId, auctionIds) }) {
-                            is ApiResult.Success -> { assignedAuctions = assignedAuctions + (liveId to result.value); liveActionRevision++; liveManagementRevision++ }
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.setItems(liveId, items) }) {
+                            is ApiResult.Success -> {
+                                assignedAuctions = assignedAuctions + (liveId to result.value)
+                                liveActionMessage = "Live 상품 편성을 저장했어요."
+                                liveActionRevision++
+                                liveManagementRevision++
+                            }
                             is ApiResult.Failure -> {
-                                liveActionError = result.error.message.ifBlank { "Live 상품 편성을 저장하지 못했어요." }
+                                liveActionError = liveControlError(result.error)
                                 if (result.error.requiresLogin) signedIn = false
                             }
                         }
@@ -3173,7 +3261,12 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     liveActionMessage = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.liveRepository.start(liveId, idempotencyKey) }) {
-                            is ApiResult.Success -> { commandKeys.complete(command); liveActionMessage = "Live 방송을 시작했어요."; liveManagementRevision++ }
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                liveActionMessage = "Live 방송을 시작했어요."
+                                liveManagementRevision++
+                                navController.navigate(Screen.LiveBroadcastConsole.createRoute(liveId))
+                            }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
@@ -3219,6 +3312,423 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         liveActionLoading = false
                     }
                 },
+                onBack = navController::navigateUp,
+                onOpenConsole = { liveId -> navController.navigate(Screen.LiveBroadcastConsole.createRoute(liveId)) }
+            )
+        }
+        composable(
+            route = Screen.LiveBroadcastConsole.route,
+            arguments = listOf(navArgument("liveBroadcastId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val liveId = backStackEntry.arguments?.getString("liveBroadcastId").orEmpty()
+            var consoleTitle by remember(liveId) { mutableStateOf("Live 방송") }
+            var consoleStatus by remember(liveId) { mutableStateOf("LIVE") }
+            var consoleRoomName by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleViewerCount by remember(liveId) { mutableStateOf(0) }
+            var consoleAuctions by remember(liveId) { mutableStateOf<List<com.ssafy.dib.domain.auction.AuctionSummary>>(emptyList()) }
+            var consoleMessages by remember(liveId) { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
+            var consoleBidNotices by remember(liveId) { mutableStateOf<List<LiveBidNotice>>(emptyList()) }
+            var consoleNoticeSeq by remember(liveId) { mutableStateOf(0) }
+            var consoleLoading by remember(liveId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
+            var consoleError by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleRevision by remember(liveId) { mutableStateOf(0) }
+            var consoleChatError by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleState by remember(liveId) { mutableStateOf<RealtimeConnectionState?>(null) }
+            var consoleEnded by remember(liveId) { mutableStateOf(false) }
+            var consoleActionLoading by remember(liveId) { mutableStateOf(false) }
+            var consoleActionError by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleActionErrorCode by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleActionMessage by remember(liveId) { mutableStateOf<String?>(null) }
+            var consoleConnection by remember(liveId) { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
+            val consoleActiveAuctionId = consoleAuctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }?.auctionId
+
+            LaunchedEffect(liveId, consoleRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured || liveId.isBlank()) {
+                    consoleLoading = false
+                    return@LaunchedEffect
+                }
+                // 경매가 열리고 닫힐 때마다 목록을 다시 받되, 첫 진입에서만 전체 로딩을 보여준다
+                consoleLoading = consoleAuctions.isEmpty()
+                consoleError = null
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
+                    is ApiResult.Success -> {
+                        val detail = result.value
+                        consoleTitle = detail.title
+                        consoleStatus = detail.status
+                        consoleRoomName = detail.streamUrl
+                        consoleViewerCount = detail.viewCount
+                        consoleAuctions = detail.auctions
+                        consoleEnded = detail.status.equals("ENDED", ignoreCase = true)
+                    }
+                    is ApiResult.Failure -> {
+                        consoleError = liveControlError(result.error)
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                if (consoleMessages.isEmpty()) {
+                    when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
+                        is ApiResult.Success -> consoleMessages = result.value.items
+                        is ApiResult.Failure -> {
+                            consoleChatError = result.error.message.ifBlank { "이전 채팅을 불러오지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
+                    }
+                }
+                consoleLoading = false
+            }
+            LaunchedEffect(consoleActionMessage) {
+                if (consoleActionMessage != null) {
+                    delay(2_000L)
+                    consoleActionMessage = null
+                }
+            }
+            DisposableEffect(liveId, consoleActiveAuctionId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
+                    auth.createLiveChatConnection().also { created ->
+                        consoleConnection = created
+                        created.updateCurrentMemberId(memberProfile?.memberId)
+                        created.start(
+                            liveBroadcastId = liveId,
+                            activeAuctionId = consoleActiveAuctionId,
+                            onMessage = { message -> coroutineScope.launch {
+                                consoleMessages = (consoleMessages + message).distinctBy { it.liveChattingId }
+                            } },
+                            onUpdate = { update -> coroutineScope.launch {
+                                update.viewerCount?.let { consoleViewerCount = it }
+                                update.liveTitle?.let { consoleTitle = it }
+                                when (update.eventType) {
+                                    SocketEventTypes.LIVE_ENDED -> {
+                                        consoleEnded = true
+                                        consoleStatus = "ENDED"
+                                    }
+                                    SocketEventTypes.LIVE_STARTED -> consoleStatus = "LIVE"
+                                    SocketEventTypes.LIVE_AUCTION_OPENED, SocketEventTypes.LIVE_AUCTION_CLOSED -> consoleRevision++
+                                }
+                                update.auctionId?.let { auctionId ->
+                                    consoleAuctions = consoleAuctions.map { auction ->
+                                        if (auction.auctionId != auctionId) auction else auction.copy(
+                                            currentPrice = update.currentPrice ?: auction.currentPrice,
+                                            bidCount = update.bidCount ?: auction.bidCount,
+                                            remainingSeconds = update.remainingSeconds ?: auction.remainingSeconds,
+                                            status = update.status ?: auction.status
+                                        )
+                                    }
+                                }
+                                if (update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED) {
+                                    update.currentPrice?.let { amount ->
+                                        consoleNoticeSeq++
+                                        consoleBidNotices = (consoleBidNotices + LiveBidNotice(
+                                            noticeId = "${update.auctionId.orEmpty()}:$amount:$consoleNoticeSeq",
+                                            nickname = null,
+                                            amount = amount,
+                                            time = update.occurredAt ?: java.time.Instant.now().toString()
+                                        )).takeLast(100)
+                                    }
+                                }
+                            } },
+                            onError = { message -> coroutineScope.launch { consoleChatError = message } },
+                            onState = { state -> coroutineScope.launch { consoleState = state } }
+                        )
+                    }
+                } else null
+                onDispose {
+                    consoleConnection = null
+                    connection?.close()
+                }
+            }
+
+            val consoleStreamTokenProvider: (suspend () -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
+                remember(liveId, previewMode, auth.networkConfig.isRestConfigured) {
+                    if (previewMode || liveId.isBlank() || !auth.networkConfig.isRestConfigured) null
+                    else suspend {
+                        // 방 접속 토큰은 재사용하면 안 돼서 시도마다 새 멱등 키를 쓴다
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.liveRepository.prepareStream(liveId, java.util.UUID.randomUUID().toString())
+                        }) {
+                            is ApiResult.Success -> Result.success(result.value)
+                            is ApiResult.Failure -> Result.failure(IllegalStateException(liveControlError(result.error)))
+                        }
+                    }
+                }
+
+            LiveBroadcastConsoleScreen(
+                liveTitle = consoleTitle,
+                liveStatus = consoleStatus,
+                viewerCount = consoleViewerCount,
+                roomName = consoleRoomName,
+                streamTokenProvider = consoleStreamTokenProvider,
+                auctions = consoleAuctions,
+                chatMessages = consoleMessages,
+                bidNotices = consoleBidNotices,
+                connectionState = consoleState,
+                isLoading = consoleLoading,
+                errorMessage = consoleError,
+                actionLoading = consoleActionLoading,
+                actionError = consoleActionError,
+                actionErrorCode = consoleActionErrorCode,
+                actionMessage = consoleActionMessage,
+                chatError = consoleChatError,
+                currentMemberId = memberProfile?.memberId,
+                liveEnded = consoleEnded,
+                onRetry = { consoleRevision++ },
+                onStartAuction = startConsoleAuction@ { auctionId ->
+                    if (previewMode) {
+                        consoleAuctions = consoleAuctions.map { auction ->
+                            if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE", remainingSeconds = 300) else auction
+                        }
+                        consoleActionMessage = "개발 미리보기 상품 경매를 시작했어요."
+                        return@startConsoleAuction
+                    }
+                    val command = "live-start-auction:$liveId:$auctionId"
+                    val idempotencyKey = commandKeys.keyFor(command)
+                    consoleActionLoading = true
+                    consoleActionError = null
+                    consoleActionErrorCode = null
+                    consoleActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.liveRepository.startAuction(liveId, auctionId, idempotencyKey)
+                        }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                consoleActionMessage = "상품 경매를 시작했어요."
+                                consoleRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                consoleActionError = liveControlError(result.error)
+                                consoleActionErrorCode = result.error.code
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        consoleActionLoading = false
+                    }
+                },
+                onEndLive = endConsoleLive@ {
+                    if (previewMode) {
+                        consoleEnded = true
+                        consoleStatus = "ENDED"
+                        return@endConsoleLive
+                    }
+                    val command = "live-end:$liveId"
+                    val idempotencyKey = commandKeys.keyFor(command)
+                    consoleActionLoading = true
+                    consoleActionError = null
+                    consoleActionErrorCode = null
+                    consoleActionMessage = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.liveRepository.end(liveId, idempotencyKey) }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                consoleEnded = true
+                                consoleStatus = "ENDED"
+                                navController.navigateUp()
+                            }
+                            is ApiResult.Failure -> {
+                                consoleActionError = liveControlError(result.error)
+                                consoleActionErrorCode = result.error.code
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        consoleActionLoading = false
+                    }
+                },
+                onSendChat = { content ->
+                    if (previewMode) true else {
+                        consoleConnection?.updateCurrentMemberId(memberProfile?.memberId)
+                        consoleConnection?.send(content) == true
+                    }
+                },
+                onOpenItemPlan = { navController.navigateUp() },
+                onDismissActionError = {
+                    consoleActionError = null
+                    consoleActionErrorCode = null
+                },
+                onBack = navController::navigateUp
+            )
+        }
+        composable(
+            route = Screen.LiveWatch.route,
+            arguments = listOf(navArgument("liveBroadcastId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val liveId = backStackEntry.arguments?.getString("liveBroadcastId").orEmpty()
+            var watchTitle by remember(liveId) { mutableStateOf("Live 방송") }
+            var watchSellerNickname by remember(liveId) { mutableStateOf<String?>(null) }
+            var watchViewerCount by remember(liveId) { mutableStateOf(0) }
+            var watchAuction by remember(liveId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionSummary?>(null) }
+            var watchMessages by remember(liveId) { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
+            var watchBidNotices by remember(liveId) { mutableStateOf<List<LiveBidNotice>>(emptyList()) }
+            var watchNoticeSeq by remember(liveId) { mutableStateOf(0) }
+            var watchLoading by remember(liveId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
+            var watchError by remember(liveId) { mutableStateOf<String?>(null) }
+            var watchRevision by remember(liveId) { mutableStateOf(0) }
+            var watchChatError by remember(liveId) { mutableStateOf<String?>(null) }
+            var watchState by remember(liveId) { mutableStateOf<RealtimeConnectionState?>(null) }
+            var watchEnded by remember(liveId) { mutableStateOf(false) }
+            var watchConnection by remember(liveId) { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
+            var watchPendingBidCommandId by remember(liveId) { mutableStateOf<String?>(null) }
+            var watchBidFeedback by remember(liveId) { mutableStateOf<RealtimeBidFeedback?>(null) }
+            val watchActiveAuctionId = watchAuction?.takeIf { it.status.equals("ACTIVE", ignoreCase = true) }?.auctionId
+
+            LaunchedEffect(liveId, watchRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured || liveId.isBlank()) {
+                    watchLoading = false
+                    return@LaunchedEffect
+                }
+                watchLoading = watchAuction == null && watchMessages.isEmpty()
+                watchError = null
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
+                    is ApiResult.Success -> {
+                        val detail = result.value
+                        watchTitle = detail.title
+                        watchViewerCount = detail.viewCount
+                        watchAuction = detail.currentAuction
+                            ?: detail.auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
+                        watchSellerNickname = (listOfNotNull(detail.currentAuction) + detail.auctions)
+                            .firstNotNullOfOrNull { it.sellerNickname?.takeIf(String::isNotBlank) }
+                        watchEnded = detail.status.equals("ENDED", ignoreCase = true)
+                    }
+                    is ApiResult.Failure -> {
+                        watchError = result.error.message.ifBlank { "방송 정보를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                if (watchMessages.isEmpty()) {
+                    when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
+                        is ApiResult.Success -> watchMessages = result.value.items
+                        is ApiResult.Failure -> {
+                            watchChatError = result.error.message.ifBlank { "이전 채팅을 불러오지 못했어요." }
+                            if (result.error.requiresLogin) signedIn = false
+                        }
+                    }
+                }
+                watchLoading = false
+            }
+            DisposableEffect(liveId, watchActiveAuctionId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
+                val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
+                    auth.createLiveChatConnection().also { created ->
+                        watchConnection = created
+                        created.updateCurrentMemberId(memberProfile?.memberId)
+                        created.start(
+                            liveBroadcastId = liveId,
+                            activeAuctionId = watchActiveAuctionId,
+                            onMessage = { message -> coroutineScope.launch {
+                                watchMessages = (watchMessages + message).distinctBy { it.liveChattingId }
+                            } },
+                            onUpdate = { update -> coroutineScope.launch {
+                                update.viewerCount?.let { watchViewerCount = it }
+                                update.liveTitle?.let { watchTitle = it }
+                                if (update.eventType == SocketEventTypes.LIVE_ENDED) {
+                                    watchEnded = true
+                                    watchPendingBidCommandId = null
+                                    return@launch
+                                }
+                                if (update.eventType == SocketEventTypes.LIVE_AUCTION_OPENED && update.auctionId != null) {
+                                    watchRevision++
+                                }
+                                val current = watchAuction
+                                if (current != null && update.auctionId == current.auctionId) {
+                                    watchAuction = current.copy(
+                                        currentPrice = update.currentPrice ?: current.currentPrice,
+                                        bidCount = update.bidCount ?: current.bidCount,
+                                        remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
+                                        status = update.status ?: current.status,
+                                        isHighestBidder = when {
+                                            update.isHighestBidder != null -> update.isHighestBidder
+                                            update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
+                                                update.currentPrice != null && update.currentPrice != current.currentPrice -> false
+                                            else -> current.isHighestBidder
+                                        }
+                                    )
+                                }
+                                if (update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED) {
+                                    update.currentPrice?.let { amount ->
+                                        watchNoticeSeq++
+                                        watchBidNotices = (watchBidNotices + LiveBidNotice(
+                                            noticeId = "${update.auctionId.orEmpty()}:$amount:$watchNoticeSeq",
+                                            nickname = null,
+                                            amount = amount,
+                                            time = update.occurredAt ?: java.time.Instant.now().toString()
+                                        )).takeLast(100)
+                                    }
+                                }
+                                if (update.bidAccepted != null && update.commandId == watchPendingBidCommandId) {
+                                    watchBidFeedback = RealtimeBidFeedback(
+                                        accepted = update.bidAccepted,
+                                        message = update.message.orEmpty(),
+                                        currentPrice = update.currentPrice,
+                                        minAllowedAmount = update.minAllowedAmount,
+                                        errorCode = update.errorCode,
+                                        eventKey = "${update.eventType}:${update.commandId}:${update.occurredAt.orEmpty()}"
+                                    )
+                                    watchPendingBidCommandId = null
+                                }
+                            } },
+                            onError = { message -> coroutineScope.launch { watchChatError = message } },
+                            onState = { state -> coroutineScope.launch { watchState = state } }
+                        )
+                    }
+                } else null
+                onDispose {
+                    watchConnection = null
+                    watchPendingBidCommandId = null
+                    connection?.close()
+                }
+            }
+
+            val watchStreamTokenProvider: (suspend () -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
+                remember(liveId, previewMode, auth.networkConfig.isRestConfigured) {
+                    if (previewMode || liveId.isBlank() || !auth.networkConfig.isRestConfigured) null
+                    else suspend {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.liveRepository.prepareStream(liveId, java.util.UUID.randomUUID().toString())
+                        }) {
+                            is ApiResult.Success -> Result.success(result.value)
+                            is ApiResult.Failure -> Result.failure(IllegalStateException(liveControlError(result.error)))
+                        }
+                    }
+                }
+
+            LiveWatchScreen(
+                liveTitle = watchTitle,
+                sellerNickname = watchSellerNickname,
+                viewerCount = watchViewerCount,
+                streamTokenProvider = watchStreamTokenProvider,
+                activeAuction = watchAuction,
+                chatMessages = watchMessages,
+                bidNotices = watchBidNotices,
+                connectionState = watchState,
+                isLoading = watchLoading,
+                errorMessage = watchError,
+                chatError = watchChatError,
+                bidFeedback = watchBidFeedback,
+                bidEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
+                isAuthenticated = hasAppAccess,
+                currentMemberId = memberProfile?.memberId,
+                liveEnded = watchEnded,
+                onRetry = { watchRevision++ },
+                onBid = { auctionId, amount ->
+                    if (previewMode) {
+                        watchBidFeedback = RealtimeBidFeedback(
+                            accepted = true,
+                            message = "개발 미리보기 입찰이 반영됐어요.",
+                            currentPrice = amount,
+                            minAllowedAmount = null,
+                            errorCode = null,
+                            eventKey = "preview:$auctionId:$amount"
+                        )
+                        true
+                    } else watchConnection?.placeBid(auctionId, amount)?.let { commandId ->
+                        watchPendingBidCommandId = commandId
+                        true
+                    } ?: false
+                },
+                onSendChat = { content ->
+                    if (previewMode) true else {
+                        watchConnection?.updateCurrentMemberId(memberProfile?.memberId)
+                        watchConnection?.send(content) == true
+                    }
+                },
+                onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onBack = navController::navigateUp
             )
         }
@@ -3848,6 +4358,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 auctionStatus = editAuction?.auctionStatus,
                 auctionStartPrice = editAuction?.startPrice,
                 auctionTimeSeconds = editAuction?.auctionTimeSeconds,
+                productStatus = editDetail?.status,
                 isLoading = editLoading,
                 errorMessage = editError,
                 submitLoading = editSubmitLoading,
@@ -3864,7 +4375,11 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                 editSubmitError = when (result.error.code) {
                                     "PRODUCT_NOT_EDITABLE" -> "진행 중인 경매나 거래가 있어 수정할 수 없어요."
                                     "PRODUCT_NOT_FOUND" -> "상품을 찾을 수 없어요."
-                                    "FORBIDDEN" -> "본인이 등록한 상품만 수정할 수 있어요."
+                                    "FORBIDDEN", "NOT_MY_PRODUCT" -> "본인이 등록한 상품만 수정할 수 있어요."
+                                    // 검수 전 상품에는 경매 행이 없어서 가격·경매시간을 보내면 404 가 난다
+                                    "AUCTION_NOT_FOUND" -> "검수 통과 후에 가격과 경매 시간을 정할 수 있어요."
+                                    "PRODUCT_PENDING" -> "검수 중인 상품이에요."
+                                    "PRODUCT_NOT_APPROVED" -> "검수가 끝난 상품만 경매를 시작할 수 있어요."
                                     else -> result.error.message.ifBlank { "상품을 수정하지 못했어요." }
                                 }
                                 if (result.error.requiresLogin) signedIn = false
@@ -3935,18 +4450,18 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     commandError = null
                     productRevision++
                 },
-                onStart = {
+                onStart = { startPrice, auctionTime ->
                     val auctionId = auctionProduct?.auctionId ?: return@AuctionRegisterScreen
                     if (previewMode) {
                         auctionStarted = true
                         return@AuctionRegisterScreen
                     }
-                    val command = "auction-start:$auctionId"
+                    val command = "auction-start:$auctionId:$startPrice:$auctionTime"
                     val idempotencyKey = commandKeys.keyFor(command)
                     commandLoading = true
                     commandError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, idempotencyKey) }) {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.startAuction(auctionId, idempotencyKey, startPrice, auctionTime) }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
                                 auctionStarted = true
@@ -4237,6 +4752,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 product = product,
                 loading = loading,
                 errorMessage = errorMessage,
+                isMyProduct = product?.memberId?.isNotBlank() == true && product?.memberId == memberProfile?.memberId,
+                onEditProduct = { editId -> navController.navigate(Screen.ProductEdit.createRoute(editId)) },
                 onRetry = { revision++ },
                 onBack = navController::navigateUp,
                 onSellerClick = { memberId ->
@@ -4537,13 +5054,18 @@ internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
 
 internal fun auctionCommandError(error: ApiFailure): String = when (error.code) {
     "PRODUCT_NOT_OWNED", "NOT_MY_PRODUCT" -> "본인이 등록한 상품만 경매에 올릴 수 있어요."
-    "PRODUCT_NOT_APPROVED", "PRODUCT_PENDING" -> "상품 검수가 끝난 뒤 경매를 등록할 수 있어요."
+    "PRODUCT_NOT_APPROVED" -> "검수가 끝난 상품만 경매를 시작할 수 있어요."
+    "PRODUCT_PENDING" -> "검수 중인 상품이에요."
     "PRODUCT_ALREADY_LISTED", "PRODUCT_ON_AUCTION" -> "이미 다른 경매에 등록되거나 Live에 편성된 상품이에요."
     "PRODUCT_ALREADY_SOLD" -> "판매가 완료된 상품이에요."
     "PRODUCT_ALREADY_DELETED" -> "삭제된 상품이에요."
     "AUCTION_STARTED", "AUCTION_NOT_EDITABLE" -> "시작된 경매는 변경하거나 취소할 수 없어요."
     "AUCTION_NOT_FOUND" -> "경매를 찾을 수 없어요. 목록에서 다시 확인해주세요."
     "INVALID_AUCTION", "LIVE_RULES_INVALID" -> "시작가와 경매 시간을 다시 확인해주세요."
+    "AUCTION_PRICE_REQUIRED" -> "시작가와 경매 시간을 먼저 정해주세요."
+    "AUCTION_PRICE_INVALID" -> "시작가는 1,000원 이상이어야 해요."
+    "AUCTION_SCHEDULE_INVALID" -> "경매 시간은 5분 이상이어야 해요."
+    "AUCTION_NOT_RELISTABLE" -> "유찰된 경매만 다시 올릴 수 있어요."
     else -> error.message.ifBlank { "경매 요청을 처리하지 못했어요." }
 }
 
@@ -4560,6 +5082,9 @@ internal fun liveControlError(error: ApiFailure): String = when (error.code) {
     "LIVE_AUCTION_ALREADY_ACTIVE" -> "현재 경매가 끝난 뒤 다음 상품 경매를 시작해주세요."
     "LIVE_AUCTION_ALREADY_PROCESSED" -> "이미 시작되었거나 종료된 경매예요. 다른 예정 경매를 선택해주세요."
     "LIVE_RULES_INVALID" -> "Live 경매의 시작가와 진행 시간을 확인해주세요."
+    "AUCTION_PRICE_REQUIRED" -> "시작가와 경매 시간을 먼저 정해주세요."
+    "AUCTION_PRICE_INVALID" -> "시작가는 1,000원 이상이어야 해요."
+    "AUCTION_SCHEDULE_INVALID" -> "경매 시간은 5분 이상이어야 해요."
     "AUCTION_NOT_ACTIVE" -> "선택한 경매를 시작할 수 있는 상태가 아니에요."
     "NOT_BROADCASTER" -> "이 방송을 관리할 권한이 없어요."
     else -> error.message.ifBlank { "Live 요청을 처리하지 못했어요." }
@@ -4572,6 +5097,8 @@ internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.co
     "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
     "MEMBER_NOT_FOUND" -> "신고할 회원을 찾을 수 없어요."
     "LIVE_NOT_FOUND" -> "신고할 Live 방송을 찾을 수 없어요."
+    "ORDER_NOT_FOUND" -> "신고할 거래를 찾을 수 없어요."
+    "ORDER_ON_HOLD" -> ORDER_HOLD_BLOCK_MESSAGE
     else -> error.message.ifBlank { "신고를 접수하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
 

@@ -52,7 +52,9 @@ fun ProductOverviewScreen(
     onBack: () -> Unit,
     onSellerClick: (String) -> Unit,
     onImageClick: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMyProduct: Boolean = false,
+    onEditProduct: ((String) -> Unit)? = null
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
@@ -79,7 +81,7 @@ fun ProductOverviewScreen(
                     Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("다시 불러오기") }
                 }
             }
-            else -> ProductOverviewContent(product, onSellerClick, onImageClick, Modifier.padding(padding))
+            else -> ProductOverviewContent(product, onSellerClick, onImageClick, Modifier.padding(padding), isMyProduct, onEditProduct, onRetry)
         }
     }
 }
@@ -89,7 +91,10 @@ private fun ProductOverviewContent(
     product: ProductDetail,
     onSellerClick: (String) -> Unit,
     onImageClick: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMyProduct: Boolean = false,
+    onEditProduct: ((String) -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null
 ) {
     val images = product.imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl) }
     val pageCount = images.size.coerceAtLeast(1)
@@ -122,6 +127,7 @@ private fun ProductOverviewContent(
                     Text(productStatusLabel(product.status), color = Colors.Muted, fontSize = 11.sp)
                 }
                 Text(product.title, fontSize = 22.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, color = Colors.Navy)
+                if (isMyProduct) ProductModerationNotice(product, onEditProduct, onRefresh)
                 product.marketPrice?.let { Text("시세 ${"%,d".format(it)}원", color = Colors.Muted, fontSize = 13.sp) }
                 HorizontalDivider(color = Colors.Border)
                 Text("상품 설명", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -172,8 +178,67 @@ private fun productConditionLabel(condition: String): String = when (condition.u
 
 private fun productStatusLabel(status: String): String = when (status.uppercase()) {
     "REGISTERED" -> "등록 완료"
+    "ON_AUCTION" -> "경매 중"
     "PENDING" -> "검수 중"
-    "REJECTED" -> "등록 반려"
+    "REJECTED" -> "등록 거절"
     "SOLD" -> "판매 완료"
     else -> status
+}
+
+/** 판매자 본인에게만 AI 검수 상태와 거절 사유를 보여준다. */
+@Composable
+private fun ProductModerationNotice(
+    product: ProductDetail,
+    onEditProduct: ((String) -> Unit)?,
+    onRefresh: (() -> Unit)?
+) {
+    val status = product.status.uppercase()
+    if (status != "PENDING" && status != "REJECTED") return
+    val rejected = status == "REJECTED"
+    Column(
+        Modifier.fillMaxWidth()
+            .background(if (rejected) Colors.UrgentBackground else Colors.NavySoft, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            if (rejected) "등록 거절" else "검수 중",
+            color = if (rejected) Colors.Urgent else Colors.Navy,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            product.moderationReason?.takeIf(String::isNotBlank)
+                ?: if (rejected) "거절 사유가 전달되지 않았어요. 내용을 수정한 뒤 다시 검수를 받아주세요."
+                else "AI 검수가 끝나면 경매를 시작할 수 있어요. 결과 알림이 없어서 새로고침으로 확인해야 해요.",
+            color = Colors.Muted,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
+        )
+        product.moderationStage?.takeIf(String::isNotBlank)?.let { stage ->
+            Text("검수 단계 ${moderationStageLabel(stage)}", color = Colors.Muted, fontSize = 11.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (rejected && onEditProduct != null) {
+                Button(
+                    onClick = { onEditProduct(product.productId) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                ) { Text("수정하기", fontWeight = FontWeight.Bold) }
+            }
+            if (!rejected && onRefresh != null) {
+                Button(onClick = onRefresh, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
+                    Text("새로고침", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Text("검수가 끝나기 전에는 경매를 시작할 수 없어요.", color = Colors.Muted, fontSize = 11.sp)
+    }
+}
+
+internal fun moderationStageLabel(stage: String): String = when (stage.lowercase()) {
+    "rule" -> "규칙 검사"
+    "ai" -> "AI 검수"
+    "fallback" -> "자동 보류"
+    "admin" -> "관리자 검토"
+    else -> stage
 }

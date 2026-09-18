@@ -282,7 +282,7 @@ fun ProductDetailScreen(
             item {
                 ProductGallery(product.photo, productImages, onImageClick)
             }
-            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition) }
+            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
             item {
                 AuctionBidHistorySection(
                     items = bidHistory,
@@ -506,7 +506,8 @@ private fun ProductSummary(
     bidCount: Int,
     remainingSeconds: Int,
     state: DetailAuctionState,
-    condition: String?
+    condition: String?,
+    priceUndecided: Boolean = false
 ) {
     Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -531,7 +532,7 @@ private fun ProductSummary(
                     DetailAuctionState.Cancelled -> "취소 시점 가격"
                     DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
                 },
-                "%,d원".format(price),
+                if (priceUndecided) "가격 미정" else "%,d원".format(price),
                 Colors.Navy,
                 22,
                 Modifier.weight(1f)
@@ -556,7 +557,7 @@ private fun ProductSummary(
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(if (priceUndecided) "시작가 미정" else "시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Text("${bidCount}회 입찰", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (state == DetailAuctionState.Active) {
