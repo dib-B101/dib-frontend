@@ -3553,6 +3553,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             val liveId = backStackEntry.arguments?.getString("liveBroadcastId").orEmpty()
             var watchTitle by remember(liveId) { mutableStateOf("Live 방송") }
             var watchSellerNickname by remember(liveId) { mutableStateOf<String?>(null) }
+            var watchSellerMemberId by remember(liveId) { mutableStateOf<String?>(null) }
             var watchViewerCount by remember(liveId) { mutableStateOf(0) }
             var watchAuction by remember(liveId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionSummary?>(null) }
             var watchMessages by remember(liveId) { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
@@ -3585,6 +3586,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             ?: detail.auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
                         watchSellerNickname = (listOfNotNull(detail.currentAuction) + detail.auctions)
                             .firstNotNullOfOrNull { it.sellerNickname?.takeIf(String::isNotBlank) }
+                        watchSellerMemberId = detail.memberId.takeIf(String::isNotBlank)
                         watchEnded = detail.status.equals("ENDED", ignoreCase = true)
                     }
                     is ApiResult.Failure -> {
@@ -3704,6 +3706,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 bidEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
                 isAuthenticated = hasAppAccess,
                 currentMemberId = memberProfile?.memberId,
+                sellerMemberId = watchSellerMemberId,
                 liveEnded = watchEnded,
                 onRetry = { watchRevision++ },
                 onBid = { auctionId, amount ->

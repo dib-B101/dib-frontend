@@ -10,6 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -198,6 +201,7 @@ fun LiveBroadcastConsoleScreen(
                     chatMessages = chatMessages,
                     bidNotices = bidNotices,
                     currentMemberId = currentMemberId,
+                    sellerMemberId = currentMemberId,
                     chatError = chatError,
                     inputEnabled = !liveEnded,
                     onSendChat = onSendChat,
@@ -547,23 +551,89 @@ internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, running:
     return remaining
 }
 
+/**
+ * 판매자가 남긴 마지막 채팅을 채팅창 위에 고정해 보여준다.
+ * 일반 채팅은 계속 올라가 묻히므로 공지성 안내는 항상 보여야 한다.
+ */
+@Composable
+private fun LiveSellerNoticeBar(notice: LiveChatMessage) {
+    var expanded by rememberSaveable(notice.liveChattingId) { mutableStateOf(false) }
+    var overflowing by remember(notice.liveChattingId) { mutableStateOf(false) }
+    val expandable = overflowing || expanded
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Colors.NavySoft)
+            .then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                "판매자 공지",
+                Modifier.background(Colors.Navy, RoundedCornerShape(5.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                color = Color.White,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                notice.nickname?.takeIf(String::isNotBlank).orEmpty(),
+                Modifier.weight(1f),
+                color = Colors.Navy,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (expandable) Image(
+                painterResource(R.drawable.chevron_right),
+                if (expanded) "접기" else "펼치기",
+                Modifier.size(16.dp).graphicsLayer(rotationZ = if (expanded) 270f else 90f),
+                colorFilter = ColorFilter.tint(Colors.Navy)
+            )
+        }
+        Text(
+            notice.content,
+            Modifier.fillMaxWidth().padding(top = 4.dp)
+                .then(if (expanded) Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()) else Modifier),
+            color = Colors.Text,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            maxLines = if (expanded) Int.MAX_VALUE else 2,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { layout -> if (!expanded) overflowing = layout.hasVisualOverflow }
+        )
+    }
+    HorizontalDivider(color = Colors.Border)
+}
+
 @Composable
 internal fun LiveChatPanel(
     chatMessages: List<LiveChatMessage>,
     bidNotices: List<LiveBidNotice>,
     currentMemberId: String?,
+    sellerMemberId: String?,
     chatError: String?,
     inputEnabled: Boolean,
     onSendChat: (String) -> Boolean,
     modifier: Modifier = Modifier
 ) {
     val feed = remember(chatMessages, bidNotices) { mergeLiveConsoleFeed(chatMessages, bidNotices) }
+    val pinnedNotice = remember(chatMessages, sellerMemberId) {
+        sellerMemberId?.takeIf(String::isNotBlank)?.let { seller ->
+            chatMessages.lastOrNull { it.memberId == seller && it.content.isNotBlank() }
+        }
+    }
     val listState = rememberLazyListState()
     var draft by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(feed.size) {
         if (feed.isNotEmpty()) listState.animateScrollToItem(feed.lastIndex)
     }
     Column(modifier.fillMaxSize()) {
+        pinnedNotice?.let { LiveSellerNoticeBar(it) }
         if (feed.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text("아직 채팅이 없어요", color = Colors.Muted, fontSize = 12.sp)
         } else LazyColumn(
@@ -581,15 +651,44 @@ internal fun LiveChatPanel(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    is LiveConsoleFeedEntry.Chat -> Column {
-                        Text(
-                            entry.message.nickname?.takeIf(String::isNotBlank)
-                                ?: if (entry.message.memberId == currentMemberId) "나" else entry.message.memberId,
-                            color = Colors.Muted,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(entry.message.content, color = Colors.Text, fontSize = 13.sp, lineHeight = 18.sp)
+                    is LiveConsoleFeedEntry.Chat -> {
+                        val fromSeller = sellerMemberId?.takeIf(String::isNotBlank) == entry.message.memberId
+                        Column(
+                            Modifier.fillMaxWidth().then(
+                                if (fromSeller) Modifier
+                                    .background(Colors.NavySoft, RoundedCornerShape(9.dp))
+                                    .padding(horizontal = 10.dp, vertical = 7.dp)
+                                else Modifier
+                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                if (fromSeller) Text(
+                                    "판매자",
+                                    Modifier.background(Colors.Navy, RoundedCornerShape(5.dp))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    entry.message.nickname?.takeIf(String::isNotBlank)
+                                        ?: if (entry.message.memberId == currentMemberId) "나" else entry.message.memberId,
+                                    color = if (fromSeller) Colors.Navy else Colors.Muted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                entry.message.content,
+                                color = Colors.Text,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = if (fromSeller) FontWeight.Medium else FontWeight.Normal
+                            )
+                        }
                     }
                 }
             }

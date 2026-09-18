@@ -3,6 +3,7 @@ package com.ssafy.dib.core.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import com.ssafy.dib.BuildConfig
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -69,7 +70,8 @@ private object DibBitmapLoader {
     fun cached(url: String): Bitmap? = cache.get(url)
 
     fun load(url: String): Bitmap? = runCatching {
-        client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+        val resolvedUrl = resolveImageUrl(url)
+        client.newCall(Request.Builder().url(resolvedUrl).get().build()).execute().use { response ->
             if (!response.isSuccessful) return@use null
             val bytes = response.body.bytes()
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -86,4 +88,11 @@ private object DibBitmapLoader {
         while (width / sample > MAX_DIMENSION || height / sample > MAX_DIMENSION) sample *= 2
         return sample
     }
+}
+
+internal fun resolveImageUrl(url: String): String {
+    if (url.startsWith("http://") || url.startsWith("https://")) return url
+    val baseUrl = BuildConfig.API_BASE_URL.trimEnd('/')
+    if (baseUrl.isBlank()) return url
+    return baseUrl + if (url.startsWith('/')) url else "/$url"
 }
