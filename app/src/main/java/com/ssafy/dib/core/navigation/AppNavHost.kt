@@ -1,5 +1,7 @@
 package com.ssafy.dib.core.navigation
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +51,7 @@ import com.ssafy.dib.feature.auth.PasswordResetLinkScreen
 import com.ssafy.dib.feature.auth.PasswordResetScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
+import com.ssafy.dib.feature.auth.SignupMode
 import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
@@ -87,6 +90,9 @@ import com.ssafy.dib.core.network.RetriableCommandKeys
 import com.ssafy.dib.core.session.SessionInactivityTracker
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
+import com.ssafy.dib.domain.auth.KakaoAuthenticationResult
+import com.ssafy.dib.domain.auth.KakaoSignupCommand
+import com.ssafy.dib.core.auth.KakaoOAuthCallback
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.support.InquiryDetail
@@ -108,7 +114,11 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 @Composable
-fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
+fun AppNavHost(
+    sessionInactivityTracker: SessionInactivityTracker,
+    oauthCallbackUri: Uri? = null,
+    onOAuthCallbackConsumed: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val lifecycleOwner = context as? LifecycleOwner
@@ -129,6 +139,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     var loginError by remember { mutableStateOf<String?>(null) }
     var signupState by remember { mutableStateOf(SignupUiState()) }
     var phoneVerificationToken by remember { mutableStateOf<String?>(null) }
+    var kakaoSignupToken by remember { mutableStateOf<String?>(null) }
+    var kakaoNickname by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
     var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
@@ -207,6 +219,58 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
             if (tab != DibMainTab.Register) popUpTo(Screen.Home.route) { saveState = true }
             launchSingleTop = true
             restoreState = tab != DibMainTab.Register
+        }
+    }
+
+    LaunchedEffect(oauthCallbackUri) {
+        val callbackUri = oauthCallbackUri ?: return@LaunchedEffect
+        onOAuthCallbackConsumed()
+        when (val callback = auth.kakaoOAuthConfig.parseCallback(callbackUri)) {
+            is KakaoOAuthCallback.Success -> {
+                if (!auth.kakaoOAuthStateStore.consume(callback.state)) {
+                    loginError = "카카오 로그인 요청이 만료됐거나 올바르지 않습니다. 다시 시도해주세요."
+                    return@LaunchedEffect
+                }
+                loginLoading = true
+                loginError = null
+                when (val result = withContext(Dispatchers.IO) {
+                    auth.repository.authenticateWithKakao(
+                        callback.authorizationCode,
+                        auth.kakaoOAuthConfig.redirectUri,
+                        auth.deviceId
+                    )
+                }) {
+                    is ApiResult.Success -> when (val value = result.value) {
+                        is KakaoAuthenticationResult.LoggedIn -> {
+                            signedIn = true
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
+                        }
+                        is KakaoAuthenticationResult.SignupRequired -> {
+                            kakaoSignupToken = value.signupToken
+                            kakaoNickname = value.nickname
+                            signupState = SignupUiState()
+                            phoneVerificationToken = null
+                            navController.navigate(Screen.SignUp.route)
+                        }
+                    }
+                    is ApiResult.Failure -> loginError = when (result.error.code) {
+                        "KAKAO_AUTH_FAILED" -> "카카오 인증에 실패했습니다. 다시 시도해주세요."
+                        "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
+                        else -> result.error.message.ifBlank { "카카오 로그인에 실패했습니다." }
+                    }
+                }
+                loginLoading = false
+            }
+            is KakaoOAuthCallback.Failure -> {
+                auth.kakaoOAuthStateStore.consume(callback.state)
+                loginError = callback.message
+            }
+            is KakaoOAuthCallback.Invalid -> {
+                auth.kakaoOAuthStateStore.consume(null)
+                loginError = callback.message
+            }
         }
     }
 
@@ -559,6 +623,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onPasswordReset = { navController.navigate(Screen.PasswordResetLink.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
+                onKakaoLogin = {
+                    if (!auth.kakaoOAuthConfig.isConfigured) {
+                        loginError = "Kakao REST API 키와 Redirect URI 설정을 확인해주세요."
+                    } else {
+                        loginError = null
+                        val state = auth.kakaoOAuthStateStore.create()
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
+                        }.onFailure {
+                            auth.kakaoOAuthStateStore.consume(state)
+                            loginError = "카카오 로그인 화면을 열 수 없습니다. 브라우저 설정을 확인해주세요."
+                        }
+                    }
+                },
                 onLogin = { email, password ->
                     loginLoading = true
                     loginError = null
@@ -716,7 +794,15 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         composable(Screen.SignUp.route) {
             SignupScreen(
                 state = signupState,
-                onBack = navController::navigateUp,
+                mode = if (kakaoSignupToken == null) SignupMode.EMAIL else SignupMode.KAKAO,
+                initialNickname = kakaoNickname.orEmpty(),
+                onBack = {
+                    kakaoSignupToken = null
+                    kakaoNickname = null
+                    signupState = SignupUiState()
+                    phoneVerificationToken = null
+                    navController.navigateUp()
+                },
                 onRequestPhoneVerification = { phoneNumber ->
                     signupState = signupState.copy(
                         phoneRequestLoading = true,
@@ -799,7 +885,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     signupState = signupState.copy(signupLoading = true, signupError = null)
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
-                            auth.repository.signUp(
+                            val socialToken = kakaoSignupToken
+                            if (socialToken == null) auth.repository.signUp(
                                 SignUpCommand(
                                     email = form.email,
                                     password = form.password,
@@ -810,11 +897,25 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     phoneNumber = form.phoneNumber,
                                     phoneVerificationToken = token
                                 )
+                            ) else auth.repository.signUpWithKakao(
+                                KakaoSignupCommand(
+                                    signupToken = socialToken,
+                                    email = form.email,
+                                    name = form.name,
+                                    nickname = form.nickname,
+                                    gender = form.gender,
+                                    birthDate = form.birthDate,
+                                    phoneNumber = form.phoneNumber,
+                                    phoneVerificationToken = token,
+                                    deviceId = auth.deviceId
+                                )
                             )
                         }) {
                             is ApiResult.Success -> {
                                 signupState = SignupUiState()
                                 phoneVerificationToken = null
+                                kakaoSignupToken = null
+                                kakaoNickname = null
                                 signedIn = true
                                 navController.navigate(Screen.Home.route) {
                                     popUpTo(Screen.Welcome.route) { inclusive = true }

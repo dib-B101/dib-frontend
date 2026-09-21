@@ -8,6 +8,8 @@ object ApiRoutes {
     const val PASSWORD = "/api/v1/auth/password"
     const val SIGN_UP = "/api/v1/auth/signup"
     const val LOGIN = "/api/v1/auth/login"
+    const val KAKAO_AUTH = "/api/v1/auth/oauth/kakao"
+    const val KAKAO_SIGN_UP = "/api/v1/auth/oauth/kakao/signup"
     const val TOKEN_REFRESH = "/api/v1/auth/token/refresh"
     const val LOGOUT = "/api/v1/auth/logout"
     const val CATEGORIES = "/api/v1/categories"

@@ -83,6 +83,24 @@ class AuthRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    fun authenticateWithKakao(request: KakaoAuthRequest): ApiResult<KakaoAuthResponse> = configured {
+        client.execute(
+            client.requestBuilder(ApiRoutes.KAKAO_AUTH)
+                .post(client.jsonBody(request, KakaoAuthRequest.serializer()))
+                .build(),
+            KakaoAuthResponse.serializer()
+        )
+    }
+
+    fun signUpWithKakao(request: KakaoSignupRequest): ApiResult<KakaoAuthResponse> = configured {
+        client.execute(
+            client.requestBuilder(ApiRoutes.KAKAO_SIGN_UP)
+                .post(client.jsonBody(request, KakaoSignupRequest.serializer()))
+                .build(),
+            KakaoAuthResponse.serializer()
+        )
+    }
+
     fun refresh(request: RefreshTokenRequest): ApiResult<RefreshTokenResponse> = configured {
         client.execute(
             client.requestBuilder(ApiRoutes.TOKEN_REFRESH)

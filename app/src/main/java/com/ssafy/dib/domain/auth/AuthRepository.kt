@@ -36,6 +36,27 @@ data class SignUpCommand(
     val phoneVerificationToken: String
 )
 
+sealed interface KakaoAuthenticationResult {
+    data class LoggedIn(val session: AuthSession) : KakaoAuthenticationResult
+    data class SignupRequired(
+        val signupToken: String,
+        val nickname: String?,
+        val profileImageUrl: String?
+    ) : KakaoAuthenticationResult
+}
+
+data class KakaoSignupCommand(
+    val signupToken: String,
+    val email: String,
+    val name: String,
+    val nickname: String,
+    val gender: String,
+    val birthDate: String,
+    val phoneNumber: String,
+    val phoneVerificationToken: String,
+    val deviceId: String
+)
+
 interface AuthSessionStore {
     fun read(): AuthSession?
     fun save(session: AuthSession)
@@ -58,6 +79,12 @@ interface AuthRepository {
     fun resetPassword(resetToken: String, newPassword: String): ApiResult<Unit>
     fun signUp(command: SignUpCommand): ApiResult<AuthSession>
     fun login(email: String, password: String, deviceId: String): ApiResult<AuthSession>
+    fun authenticateWithKakao(
+        authorizationCode: String,
+        redirectUri: String,
+        deviceId: String
+    ): ApiResult<KakaoAuthenticationResult>
+    fun signUpWithKakao(command: KakaoSignupCommand): ApiResult<AuthSession>
     fun refresh(deviceId: String): ApiResult<AuthSession>
     fun logout(deviceId: String): ApiResult<Unit>
 }

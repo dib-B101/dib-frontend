@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -22,6 +24,9 @@ android {
         val apiBaseUrl = providers.gradleProperty("DIB_API_BASE_URL").orElse("").get()
         val webSocketUrl = providers.gradleProperty("DIB_WS_URL").orElse("").get()
         val tossClientKey = providers.gradleProperty("DIB_TOSS_CLIENT_KEY").orElse("").get()
+        val kakaoRestApiKey = providers.gradleProperty("DIB_KAKAO_REST_API_KEY").orElse("").get()
+        val kakaoRedirectUri = providers.gradleProperty("DIB_KAKAO_REDIRECT_URI").orElse("").get()
+        val parsedKakaoRedirect = runCatching { URI(kakaoRedirectUri) }.getOrNull()
         val sessionIdleTimeoutMinutes = providers.gradleProperty("DIB_SESSION_IDLE_TIMEOUT_MINUTES")
             .orElse("30")
             .get()
@@ -31,7 +36,12 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "WEB_SOCKET_URL", "\"${webSocketUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "TOSS_CLIENT_KEY", "\"${tossClientKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "KAKAO_REST_API_KEY", "\"${kakaoRestApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "KAKAO_REDIRECT_URI", "\"${kakaoRedirectUri.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("long", "SESSION_IDLE_TIMEOUT_MILLIS", "${sessionIdleTimeoutMinutes * 60_000L}L")
+        manifestPlaceholders["kakaoRedirectScheme"] = parsedKakaoRedirect?.scheme ?: "https"
+        manifestPlaceholders["kakaoRedirectHost"] = parsedKakaoRedirect?.host ?: "oauth.invalid"
+        manifestPlaceholders["kakaoRedirectPath"] = parsedKakaoRedirect?.path?.ifBlank { "/" } ?: "/oauth/kakao/callback"
     }
 
     buildTypes {
