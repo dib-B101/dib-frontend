@@ -41,17 +41,21 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val splashPainter = painterResource(R.drawable.splash_mascot)
+            val splashRatio = splashPainter.intrinsicSize.let { size ->
+                if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+            }
             Surface(
                 color = Colors.Background,
                 shape = RoundedCornerShape(32.dp),
                 shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(1f)
+                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(splashRatio)
             ) {
                 Image(
-                    painterResource(R.drawable.splash_mascot),
+                    splashPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             }
             Spacer(Modifier.height(24.dp))
