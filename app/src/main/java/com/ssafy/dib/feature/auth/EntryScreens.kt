@@ -118,7 +118,7 @@ fun WelcomeScreen(
                 Surface(
                     color = Colors.Background.copy(alpha = .94f),
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
