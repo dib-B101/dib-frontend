@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -40,17 +41,21 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val splashPainter = painterResource(R.drawable.splash_mascot)
+            val splashRatio = splashPainter.intrinsicSize.let { size ->
+                if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+            }
             Surface(
                 color = Colors.Background,
                 shape = RoundedCornerShape(32.dp),
                 shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(1f)
+                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(splashRatio)
             ) {
                 Image(
-                    painterResource(R.drawable.splash_mascot),
+                    splashPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             }
             Spacer(Modifier.height(24.dp))
@@ -98,22 +103,26 @@ fun WelcomeScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = Colors.Muted
         )
+        val mascotPainter = painterResource(R.drawable.welcome_mascot)
+        val mascotRatio = mascotPainter.intrinsicSize.let { size ->
+            if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+        }
         Surface(
             color = Colors.Navy,
             shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(1.32f)
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(mascotRatio)
         ) {
             Box {
                 Image(
-                    painterResource(R.drawable.welcome_mascot),
+                    mascotPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
                 Surface(
                     color = Colors.Background.copy(alpha = .94f),
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
