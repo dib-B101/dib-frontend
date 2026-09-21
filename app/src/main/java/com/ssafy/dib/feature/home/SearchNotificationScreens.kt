@@ -48,6 +48,23 @@ data class AuctionSearchFilters(
     val status: String
 )
 
+/** 가격 필터 구간. [minExclusive]보다 크고 [maxInclusive] 이하인 가격을 포함한다. null은 제한 없음. */
+private data class PriceRange(val label: String, val minExclusive: Long?, val maxInclusive: Long?) {
+    /** 서버 minPrice는 이상(>=) 조건이므로 하한을 1원 올려 보낸다. */
+    val minPriceParam: Long? get() = minExclusive?.plus(1)
+    val maxPriceParam: Long? get() = maxInclusive
+    fun contains(price: Long): Boolean = (minExclusive == null || price > minExclusive) && (maxInclusive == null || price <= maxInclusive)
+}
+
+private val PriceRanges = listOf(
+    PriceRange("전체", null, null),
+    PriceRange("1만원 이하", null, 10_000),
+    PriceRange("1~5만원", 10_000, 50_000),
+    PriceRange("5~10만원", 50_000, 100_000),
+    PriceRange("10~30만원", 100_000, 300_000),
+    PriceRange("30만원 이상", 300_000, null)
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuctionSearchScreen(
@@ -75,14 +92,15 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
+    val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
     val fallbackCategories = DefaultProductCategories
     val categories = remoteCategories ?: fallbackCategories
     val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
     fun filters() = AuctionSearchFilters(
         query = query.trim(),
         categoryId = selectedCategoryId,
-        minPrice = if (price == "5~10만원") 50_000 else null,
-        maxPrice = when (price) { "5만원 이하" -> 50_000; "5~10만원" -> 100_000; else -> null },
+        minPrice = selectedPriceRange.minPriceParam,
+        maxPrice = selectedPriceRange.maxPriceParam,
         status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" }
     )
     fun submit() {
@@ -95,7 +113,7 @@ fun AuctionSearchScreen(
     }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
         (category == "전체" || category.removeSuffix("기기").split("·").any { token -> it.category.contains(token) || token.contains(it.category) }) &&
-            (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
+            selectedPriceRange.contains(it.price.toLong()) &&
             it.status == filters().status
     }
     val results = when {
@@ -196,7 +214,7 @@ fun AuctionSearchScreen(
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);IconButton(onClick={showFilters=false}){Image(painterResource(R.drawable.close),"닫기",Modifier.size(20.dp),colorFilter=ColorFilter.tint(Colors.Text))}}
             FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
-            FilterGroup("가격 범위",listOf("전체","5만원 이하","5~10만원"),price){price=it}
+            FilterGroup("가격 범위",PriceRanges.map(PriceRange::label),price){price=it}
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }
     }
