@@ -134,7 +134,7 @@ fun AuctionSearchScreen(
                 TextField(
                     value = query, onValueChange = { query = it; submitted = false },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    placeholder = { Text("상품과 작가를 검색해보세요", color = Colors.Muted, fontSize = 14.sp) },
+                    placeholder = { Text("상품을 검색해보세요", color = Colors.Muted, fontSize = 14.sp) },
                     leadingIcon = { Image(painterResource(R.drawable.search_full), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Muted)) },
                     trailingIcon = if(query.isNotBlank()) ({ IconButton(onClick = { query=""; submitted=false }) { Image(painterResource(R.drawable.close), "검색어 지우기", Modifier.size(18.dp), colorFilter = ColorFilter.tint(Colors.Muted)) } }) else null,
                     singleLine = true,
