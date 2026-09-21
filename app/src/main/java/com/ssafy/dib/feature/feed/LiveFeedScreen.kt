@@ -1032,13 +1032,11 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
 
 @Composable
 private fun LiveAction(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
-    Column(
-        Modifier.size(48.dp, 58.dp).background(Color.Black.copy(.32f), RoundedCornerShape(24.dp)).clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        Modifier.size(52.dp).background(Color.Black.copy(alpha = .32f), CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Image(painterResource(icon), label, Modifier.size(21.dp), colorFilter = ColorFilter.tint(Color.White))
-        Text(label, color = Color.White, fontSize = 9.sp)
+        Image(painterResource(icon), contentDescription = label, modifier = Modifier.size(28.dp), colorFilter = ColorFilter.tint(Color.White))
     }
 }
 
