@@ -31,6 +31,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.domain.product.DefaultProductCategories
 import com.ssafy.dib.domain.notification.DomainNotification
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -45,6 +46,23 @@ data class AuctionSearchFilters(
     val minPrice: Long?,
     val maxPrice: Long?,
     val status: String
+)
+
+/** 가격 필터 구간. [minExclusive]보다 크고 [maxInclusive] 이하인 가격을 포함한다. null은 제한 없음. */
+private data class PriceRange(val label: String, val minExclusive: Long?, val maxInclusive: Long?) {
+    /** 서버 minPrice는 이상(>=) 조건이므로 하한을 1원 올려 보낸다. */
+    val minPriceParam: Long? get() = minExclusive?.plus(1)
+    val maxPriceParam: Long? get() = maxInclusive
+    fun contains(price: Long): Boolean = (minExclusive == null || price > minExclusive) && (maxInclusive == null || price <= maxInclusive)
+}
+
+private val PriceRanges = listOf(
+    PriceRange("전체", null, null),
+    PriceRange("1만원 이하", null, 10_000),
+    PriceRange("1~5만원", 10_000, 50_000),
+    PriceRange("5~10만원", 50_000, 100_000),
+    PriceRange("10~30만원", 100_000, 300_000),
+    PriceRange("30만원 이상", 300_000, null)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,16 +92,15 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
-    val fallbackCategories = remember {
-        listOf(ProductCategory("1", "디지털기기"), ProductCategory("8", "예술·창작"))
-    }
+    val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
+    val fallbackCategories = DefaultProductCategories
     val categories = remoteCategories ?: fallbackCategories
     val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
     fun filters() = AuctionSearchFilters(
         query = query.trim(),
         categoryId = selectedCategoryId,
-        minPrice = if (price == "5~10만원") 50_000 else null,
-        maxPrice = when (price) { "5만원 이하" -> 50_000; "5~10만원" -> 100_000; else -> null },
+        minPrice = selectedPriceRange.minPriceParam,
+        maxPrice = selectedPriceRange.maxPriceParam,
         status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" }
     )
     fun submit() {
@@ -95,8 +112,8 @@ fun AuctionSearchScreen(
         if (browseOnOpen) submit()
     }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
-        (category == "전체" || it.category.contains(category.removeSuffix("기기"))) &&
-            (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
+        (category == "전체" || category.removeSuffix("기기").split("·").any { token -> it.category.contains(token) || token.contains(it.category) }) &&
+            selectedPriceRange.contains(it.price.toLong()) &&
             it.status == filters().status
     }
     val results = when {
@@ -158,7 +175,18 @@ fun AuctionSearchScreen(
                         DibViewModeToggle(contentView, { contentView = it })
                     }
                 }
-                item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DiscoveryFilterChip(true,{showFilters=true},status); DiscoveryFilterChip(category!="전체",{showFilters=true},category); DiscoveryFilterChip(price!="전체",{showFilters=true},price); DiscoveryFilterChip(false,{showFilters=true},"필터 설정") } }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("진행 중", "예정", "종료").forEach { value ->
+                                DiscoveryFilterChip(status == value, { if (status != value) { status = value; submit() } }, value)
+                            }
+                            if (category != "전체") DiscoveryAppliedChip(category) { category = "전체"; submit() }
+                            if (price != "전체") DiscoveryAppliedChip(price) { price = "전체"; submit() }
+                        }
+                        DiscoveryFilterButton(active = category != "전체" || price != "전체") { showFilters = true }
+                    }
+                }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 if (contentView == DibContentView.Grid) {
                     items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
@@ -186,9 +214,8 @@ fun AuctionSearchScreen(
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);IconButton(onClick={showFilters=false}){Image(painterResource(R.drawable.close),"닫기",Modifier.size(20.dp),colorFilter=ColorFilter.tint(Colors.Text))}}
             FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
-            FilterGroup("가격 범위",listOf("전체","5만원 이하","5~10만원"),price){price=it}
-            FilterGroup("경매 상태",listOf("진행 중","예정","종료"),status){status=it}
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
+            FilterGroup("가격 범위",PriceRanges.map(PriceRange::label),price){price=it}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }
     }
 }
@@ -214,7 +241,7 @@ fun AuctionSearchScreen(
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
 }
-@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
+@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
 
 @Composable
 fun NotificationCenterScreen(
@@ -342,3 +369,33 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
 @Composable private fun SectionTitle(text:String){Text(text,color=Colors.Text,fontSize=18.sp,fontWeight=FontWeight.Bold)}
 
 @Composable private fun DiscoveryFilterChip(selected:Boolean,onClick:()->Unit,label:String){FilterChip(selected=selected,onClick=onClick,label={Text(label,fontSize=12.sp,fontWeight=if(selected)FontWeight.Bold else FontWeight.Medium)},shape=RoundedCornerShape(12.dp),border=FilterChipDefaults.filterChipBorder(enabled=true,selected=selected,borderColor=Colors.Border,selectedBorderColor=Colors.Navy),colors=FilterChipDefaults.filterChipColors(containerColor=Colors.Background,labelColor=Colors.Muted,selectedContainerColor=Colors.Navy,selectedLabelColor=Color.White))}
+
+@Composable private fun DiscoveryAppliedChip(label: String, onRemove: () -> Unit) {
+    FilterChip(
+        selected = true,
+        onClick = onRemove,
+        label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+        trailingIcon = { Image(painterResource(R.drawable.close), "$label 조건 해제", Modifier.size(12.dp), colorFilter = ColorFilter.tint(Color.White)) },
+        shape = RoundedCornerShape(12.dp),
+        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = true, borderColor = Colors.Border, selectedBorderColor = Colors.Navy),
+        colors = FilterChipDefaults.filterChipColors(containerColor = Colors.Background, labelColor = Colors.Muted, selectedContainerColor = Colors.Navy, selectedLabelColor = Color.White)
+    )
+}
+
+@Composable private fun DiscoveryFilterButton(active: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = Colors.Surface,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Image(
+                painterResource(R.drawable.filter_list),
+                contentDescription = "필터 설정",
+                modifier = Modifier.size(18.dp),
+                colorFilter = ColorFilter.tint(if (active) Colors.Navy else Colors.Muted)
+            )
+        }
+    }
+}
