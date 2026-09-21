@@ -1020,7 +1020,7 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
     Surface(
         color = Color(0xFFF8F9FB),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().height(62.dp).graphicsLayer(alpha = if (enabled) 1f else .5f)
+        modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp).graphicsLayer(alpha = if (enabled) 1f else .5f)
             .clickable(enabled = enabled, onClick = onClick)
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
