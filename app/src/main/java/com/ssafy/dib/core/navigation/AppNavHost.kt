@@ -1,5 +1,6 @@
 package com.ssafy.dib.core.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,7 +28,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
@@ -124,6 +127,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     val coroutineScope = rememberCoroutineScope()
     val notificationSnackbar = remember { SnackbarHostState() }
     val session = remember(context) { context.getSharedPreferences("dib_session", 0) }
+    val navigationPreferences = remember(context) { context.getSharedPreferences("dib_navigation", 0) }
     val notificationPreferences = remember(context) { context.getSharedPreferences("dib_notification_preferences", 0) }
     val commandKeys = remember { RetriableCommandKeys() }
     var signedIn by remember { mutableStateOf<Boolean?>(null) }
@@ -182,6 +186,36 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
     }
     var wishlistNotificationsEnabled by remember {
         mutableStateOf(notificationPreferences.getBoolean("wishlist_enabled", false))
+    }
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+
+    suspend fun activeLiveConsoleRoute(): String? {
+        if (!auth.networkConfig.isRestConfigured) return null
+        return when (val result = withContext(Dispatchers.IO) {
+            auth.liveRepository.getMine(status = "LIVE", size = 10)
+        }) {
+            is ApiResult.Success -> result.value.items
+                .firstOrNull { it.status.equals("LIVE", ignoreCase = true) }
+                ?.liveBroadcastId
+                ?.takeIf(String::isNotBlank)
+                ?.let(Screen.LiveBroadcastConsole::createRoute)
+            is ApiResult.Failure -> null
+        }
+    }
+
+    suspend fun postSignInRoute(): String = activeLiveConsoleRoute()
+        ?: navigationPreferences.getString(LAST_AUTHENTICATED_ROUTE_KEY, null)
+            ?.takeIf(::isRestorableAuthenticatedRoute)
+        ?: Screen.Home.route
+
+    LaunchedEffect(currentBackStackEntry, signedIn) {
+        if (signedIn == true) {
+            currentBackStackEntry?.persistedRoute()?.let { route ->
+                navigationPreferences.edit().putString(LAST_AUTHENTICATED_ROUTE_KEY, route).apply()
+            }
+        } else if (signedIn == false) {
+            navigationPreferences.edit().remove(LAST_AUTHENTICATED_ROUTE_KEY).apply()
+        }
     }
 
     fun expireInactiveSession() {
@@ -309,10 +343,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
     }
 
-    DisposableEffect(signedIn, lifecycleOwner) {
+    DisposableEffect(signedIn, lifecycleOwner, currentBackStackEntry) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && signedIn == true && sessionInactivityTracker.hasExpired()) {
-                expireInactiveSession()
+            if (event == Lifecycle.Event.ON_RESUME && signedIn == true) {
+                if (sessionInactivityTracker.hasExpired()) {
+                    expireInactiveSession()
+                } else {
+                    coroutineScope.launch {
+                        activeLiveConsoleRoute()?.let { route ->
+                            if (currentBackStackEntry?.persistedRoute() != route) {
+                                navController.navigate(route) { launchSingleTop = true }
+                            }
+                        }
+                    }
+                }
             }
         }
         lifecycleOwner?.lifecycle?.addObserver(observer)
@@ -527,8 +571,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
                         }
                     }
+                    val destination = if (restored) postSignInRoute() else Screen.Welcome.route
                     signedIn = restored
-                    navController.navigate(if (restored) Screen.Home.route else Screen.Welcome.route) {
+                    navController.navigate(destination) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
                 }
@@ -575,8 +620,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                             auth.repository.login(email, password, auth.deviceId)
                         }) {
                             is ApiResult.Success -> {
+                                val destination = postSignInRoute()
                                 signedIn = true
-                                navController.navigate(Screen.Home.route) {
+                                navController.navigate(destination) {
                                     popUpTo(Screen.Welcome.route) { inclusive = true }
                                 }
                             }
@@ -1358,6 +1404,22 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                     if (item.liveBroadcastId != targetLiveId) return@map item
                                     val current = item.currentAuction
                                     val updatedAuction = when {
+                                        current != null && update.auctionId == current.auctionId -> current.copy(
+                                            title = update.title ?: current.title,
+                                            currentPrice = update.currentPrice ?: current.currentPrice,
+                                            bidCount = update.bidCount ?: current.bidCount,
+                                            remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
+                                            status = update.status ?: current.status,
+                                            imageUrls = update.thumbnailUrl?.takeIf(String::isNotBlank)
+                                                ?.let(::listOf)
+                                                ?: current.imageUrls,
+                                            isHighestBidder = when {
+                                                update.isHighestBidder != null -> update.isHighestBidder
+                                                update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
+                                                    update.currentPrice != null && update.currentPrice != current.currentPrice -> false
+                                                else -> current.isHighestBidder
+                                            }
+                                        )
                                         update.eventType in setOf(SocketEventTypes.LIVE_SNAPSHOT, SocketEventTypes.LIVE_AUCTION_OPENED) && update.auctionId != null ->
                                             com.ssafy.dib.domain.auction.AuctionSummary(
                                                 auctionId = update.auctionId,
@@ -1374,18 +1436,6 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                                                 isHighestBidder = update.isHighestBidder,
                                                 imageUrls = listOfNotNull(update.thumbnailUrl)
                                             )
-                                        current != null && update.auctionId == current.auctionId -> current.copy(
-                                            currentPrice = update.currentPrice ?: current.currentPrice,
-                                            bidCount = update.bidCount ?: current.bidCount,
-                                            remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
-                                            status = update.status ?: current.status,
-                                            isHighestBidder = when {
-                                                update.isHighestBidder != null -> update.isHighestBidder
-                                                update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
-                                                    update.currentPrice != null && update.currentPrice != current.currentPrice -> false
-                                                else -> current.isHighestBidder
-                                            }
-                                        )
                                         else -> current
                                     }
                                     item.copy(
@@ -1451,6 +1501,20 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 }
             }
+            val feedStreamTokenProvider: (suspend (String) -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
+                remember(previewMode, auth.networkConfig.isRestConfigured) {
+                    if (previewMode || !auth.networkConfig.isRestConfigured) null
+                    else { liveId ->
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.liveRepository.prepareStream(liveId, java.util.UUID.randomUUID().toString())
+                        }) {
+                            is ApiResult.Success -> Result.success(result.value)
+                            is ApiResult.Failure -> Result.failure(
+                                IllegalStateException(result.error.message.ifBlank { "영상 연결 정보를 받지 못했어요." })
+                            )
+                        }
+                    }
+                }
             LiveFeedScreen(
                 remoteItems = liveFeedItems,
                 isLoading = liveFeedLoading,
@@ -1486,6 +1550,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     }
                 },
                 activeLiveBroadcastId = activeLiveBroadcastId,
+                streamTokenProvider = feedStreamTokenProvider,
                 liveComments = liveComments,
                 chatHasMore = liveChatHasMore,
                 chatLoadingEarlier = liveChatLoadingEarlier,
@@ -1633,8 +1698,7 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 onDismissReport = {
                     liveReportError = null
                     liveReportCompleted = false
-                },
-                onOpenWatch = { liveId -> navController.navigate(Screen.LiveWatch.createRoute(liveId)) }
+                }
             )
         }
         composable(
@@ -3382,7 +3446,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     consoleActionMessage = null
                 }
             }
-            DisposableEffect(liveId, consoleActiveAuctionId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
+            // LiveChatConnection이 LIVE_AUCTION_OPENED/CLOSED를 받아 경매 토픽만 바꾸므로
+            // 상품 시작 때 전체 소켓을 재생성하지 않는다. 재연결은 영상과 상품 UI를 깜빡이게 했다.
+            DisposableEffect(liveId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
                 val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         consoleConnection = created
@@ -3435,6 +3501,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     consoleConnection = null
                     connection?.close()
                 }
+            }
+            LaunchedEffect(consoleConnection, consoleActiveAuctionId) {
+                consoleConnection?.updateActiveAuction(consoleActiveAuctionId)
             }
 
             val consoleStreamTokenProvider: (suspend () -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
@@ -3491,8 +3560,10 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                         }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
+                                consoleAuctions = consoleAuctions.map { auction ->
+                                    if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE") else auction
+                                }
                                 consoleActionMessage = "상품 경매를 시작했어요."
-                                consoleRevision++
                             }
                             is ApiResult.Failure -> {
                                 consoleActionError = liveControlError(result.error)
@@ -3605,7 +3676,8 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                 }
                 watchLoading = false
             }
-            DisposableEffect(liveId, watchActiveAuctionId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
+            // 열린 경매 구독은 기존 Live 소켓 안에서 전환한다. 경매 변경마다 소켓을 닫지 않는다.
+            DisposableEffect(liveId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
                 val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         watchConnection = created
@@ -3675,6 +3747,9 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
                     watchPendingBidCommandId = null
                     connection?.close()
                 }
+            }
+            LaunchedEffect(watchConnection, watchActiveAuctionId) {
+                watchConnection?.updateActiveAuction(watchActiveAuctionId)
             }
 
             val watchStreamTokenProvider: (suspend () -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
@@ -4994,6 +5069,37 @@ fun AppNavHost(sessionInactivityTracker: SessionInactivityTracker) {
         }
     }
 }
+
+private const val LAST_AUTHENTICATED_ROUTE_KEY = "last_authenticated_route"
+private val ROUTE_ARGUMENT_PATTERN = Regex("\\{([^}]+)\\}")
+private val NON_RESTORABLE_AUTHENTICATED_ROUTES = setOf(
+    Screen.Splash.route,
+    Screen.Welcome.route,
+    Screen.SignUp.route,
+    Screen.Login.route,
+    Screen.FindEmail.route,
+    Screen.PasswordResetLink.route,
+    Screen.PasswordReset.route
+)
+
+private fun NavBackStackEntry.persistedRoute(): String? {
+    var route = destination.route ?: return null
+    if (route in NON_RESTORABLE_AUTHENTICATED_ROUTES) return null
+    ROUTE_ARGUMENT_PATTERN.findAll(route).toList().forEach { match ->
+        val key = match.groupValues[1]
+        val args = arguments ?: return null
+        if (!args.containsKey(key)) return null
+        @Suppress("DEPRECATION")
+        val value = args.get(key) ?: return null
+        route = route.replace(match.value, Uri.encode(value.toString()))
+    }
+    return route.takeIf(::isRestorableAuthenticatedRoute)
+}
+
+private fun isRestorableAuthenticatedRoute(route: String): Boolean =
+    route.isNotBlank() &&
+        '{' !in route &&
+        route.substringBefore('?') !in NON_RESTORABLE_AUTHENTICATED_ROUTES.map { it.substringBefore('?') }.toSet()
 
 private fun previewLiveBroadcast() = com.ssafy.dib.domain.live.LiveBroadcastSummary(
     liveBroadcastId = "preview-live",

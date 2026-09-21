@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import io.livekit.android.renderer.TextureViewRenderer
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.VideoTrack
+import livekit.org.webrtc.RendererCommon
 
 /** 방송을 시작할 때만 물어보는 권한 묶음. 시청자 화면에서는 절대 요청하지 않는다. */
 object LiveMediaPermissions {
@@ -52,10 +53,11 @@ internal fun LiveVideoSurface(
     room: Room?,
     videoTrack: VideoTrack?,
     mirror: Boolean,
+    fill: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (room == null || videoTrack == null) return
-    key(room) { LiveVideoSurfaceContent(room, videoTrack, mirror, modifier) }
+    key(room) { LiveVideoSurfaceContent(room, videoTrack, mirror, fill, modifier) }
 }
 
 @Composable
@@ -63,6 +65,7 @@ private fun LiveVideoSurfaceContent(
     room: Room,
     videoTrack: VideoTrack,
     mirror: Boolean,
+    fill: Boolean,
     modifier: Modifier
 ) {
     val boundView = remember { mutableStateOf<TextureViewRenderer?>(null) }
@@ -94,6 +97,10 @@ private fun LiveVideoSurfaceContent(
                 boundTrack.value = videoTrack
             }
             view.setMirror(mirror)
+            view.setScalingType(
+                if (fill) RendererCommon.ScalingType.SCALE_ASPECT_FILL
+                else RendererCommon.ScalingType.SCALE_ASPECT_FIT
+            )
         }
     )
 }

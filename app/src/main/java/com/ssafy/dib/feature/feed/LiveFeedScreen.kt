@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,21 +51,17 @@ import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveChatMessage
+import com.ssafy.dib.domain.live.LiveStreamSession
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.AuctionUrgencyBadge
+import com.ssafy.dib.feature.live.LiveVideoRole
+import com.ssafy.dib.feature.live.LiveVideoState
+import com.ssafy.dib.feature.live.LiveVideoSurface
+import com.ssafy.dib.feature.live.liveChatSpeakerLabel
+import com.ssafy.dib.feature.live.rememberLiveVideoSession
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.compose.PlayerSurface
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +76,7 @@ fun LiveFeedScreen(
     loadMoreError: String?,
     onLoadMore: () -> Unit,
     activeLiveBroadcastId: String?,
+    streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     liveComments: List<LiveChatMessage>,
     chatHasMore: Boolean,
     chatLoadingEarlier: Boolean,
@@ -111,7 +107,6 @@ fun LiveFeedScreen(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
-    onOpenWatch: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when {
@@ -139,6 +134,7 @@ fun LiveFeedScreen(
                     LiveFeedPage(
                     liveItem = items[page],
                     isActivePage = page == pagerState.currentPage,
+                    streamTokenProvider = streamTokenProvider,
                     liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
                     chatHasMore = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatHasMore,
                     chatLoadingEarlier = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatLoadingEarlier,
@@ -160,7 +156,6 @@ fun LiveFeedScreen(
                     realtimeBiddingEnabled = realtimeBiddingEnabled,
                     realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
                     onRealtimeBid = onRealtimeBid,
-                    onStreamRetry = onRetry,
                     onClose = onClose,
                     onProductClick = onProductClick,
                     onFavoriteChange = onFavoriteChange,
@@ -168,8 +163,7 @@ fun LiveFeedScreen(
                     onLoginRequired = onLoginRequired,
                     onReportAuction = onReportAuction,
                     onReportParticipant = onReportParticipant,
-                    onDismissReport = onDismissReport,
-                    onOpenWatch = { items[page]?.liveBroadcastId?.let(onOpenWatch) }
+                    onDismissReport = onDismissReport
                     )
                 }
                 if (isLoadingMore) {
@@ -189,6 +183,7 @@ fun LiveFeedScreen(
 private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
     isActivePage: Boolean,
+    streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     liveComments: List<LiveChatMessage>,
     chatHasMore: Boolean,
     chatLoadingEarlier: Boolean,
@@ -210,7 +205,6 @@ private fun LiveFeedPage(
     realtimeBiddingEnabled: Boolean,
     realtimeBidFeedback: RealtimeBidFeedback?,
     onRealtimeBid: (String, Int) -> Boolean,
-    onStreamRetry: () -> Unit,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
@@ -219,7 +213,6 @@ private fun LiveFeedPage(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
-    onOpenWatch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activeAuction = liveItem?.currentAuction
@@ -229,6 +222,8 @@ private fun LiveFeedPage(
     val hasActiveAuction = auctionKey != null && (
         liveItem == null || activeAuction?.status.equals("ACTIVE", ignoreCase = true)
     )
+    val sellerMemberId = liveItem?.memberId?.takeIf(String::isNotBlank)
+    val sellerNotice = liveComments.lastOrNull { it.memberId == sellerMemberId && it.content.isNotBlank() }
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
@@ -314,13 +309,11 @@ private fun LiveFeedPage(
 
     Box(modifier.fillMaxSize().safeDrawingPadding().background(Color(0xFF17212D))) {
         LiveVideoBackground(
-            streamUrl = liveItem?.streamUrl,
+            liveBroadcastId = liveItem?.liveBroadcastId,
+            streamTokenProvider = streamTokenProvider,
             fallbackImageUrl = activeAuction?.imageUrls?.firstOrNull(),
             fallbackTitle = activeAuction?.title.orEmpty(),
-            streamExpected = !liveItem?.streamUrl.isNullOrBlank(),
-            isActivePage = isActivePage,
-            onRetry = onStreamRetry,
-            onExit = onClose
+            isActivePage = isActivePage
         )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.12f), Color.Transparent, Color(0xFF07101D).copy(.72f)))))
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -336,12 +329,11 @@ private fun LiveFeedPage(
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
             Row(
-                Modifier.padding(top = 6.dp).clickable(enabled = liveItem != null, onClick = onOpenWatch),
+                Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text((liveItem?.title ?: "하루공방").take(1), color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
-                if (liveItem != null) Image(painterResource(R.drawable.chevron_right), "방송 자세히 보기", Modifier.size(15.dp), colorFilter = ColorFilter.tint(Color.White.copy(alpha = .8f)))
             }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 82.dp, bottom = 244.dp), enter = fadeIn(), exit = fadeOut()) {
@@ -362,9 +354,40 @@ private fun LiveFeedPage(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    liveComments.takeLast(3).forEach { message ->
+                    sellerNotice?.let { notice ->
                         Surface(
-                            color = Color.Black.copy(alpha = .24f),
+                            color = Colors.Navy.copy(alpha = .82f),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.clickable { showComments = true }
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    "판매자 공지",
+                                    Modifier.background(Color.White.copy(alpha = .22f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    notice.content,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    liveComments.takeLast(3).forEach { message ->
+                        val fromSeller = sellerMemberId != null && message.memberId == sellerMemberId
+                        Surface(
+                            color = if (fromSeller) Colors.Navy.copy(alpha = .62f) else Color.Black.copy(alpha = .24f),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.clickable(enabled = message.memberId != currentMemberId) {
                                 if (isAuthenticated) {
@@ -374,7 +397,13 @@ private fun LiveFeedPage(
                                 } else onLoginRequired()
                             }
                         ) {
-                            Text("${message.nickname ?: message.memberId}  ${message.content}", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
+                            Text(
+                                (if (fromSeller) "[판매자] " else "") +
+                                    liveChatSpeakerLabel(message, currentMemberId, fromSeller = false) + "  " + message.content,
+                                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                color = Color.White,
+                                fontSize = 10.sp
+                            )
                         }
                     }
                 }
@@ -719,7 +748,23 @@ private fun LiveFeedPage(
                     }
                 ) {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        Text(message.nickname ?: message.memberId, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        val fromSeller = sellerMemberId != null && message.memberId == sellerMemberId
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            if (fromSeller) Text(
+                                "판매자",
+                                Modifier.background(Colors.Navy, RoundedCornerShape(5.dp))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                liveChatSpeakerLabel(message, currentMemberId, fromSeller),
+                                color = Colors.Navy,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Text(message.content, Modifier.padding(top = 3.dp), color = Colors.Text, fontSize = 13.sp)
                     }
                 }
@@ -770,7 +815,16 @@ private fun LiveFeedPage(
                 Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("신고 대상 회원", color = Colors.Muted, fontSize = 10.sp)
-                        Text("@${target.nickname ?: target.memberId}", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                                "@" + liveChatSpeakerLabel(
+                                    target,
+                                    currentMemberId,
+                                    sellerMemberId != null && target.memberId == sellerMemberId
+                                ),
+                                color = Colors.Navy,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         Text("라이브 채팅 참여자", color = Colors.Muted, fontSize = 10.sp)
                     }
                 }
@@ -883,139 +937,84 @@ private fun reportContentPrefix(reason: String, evidence: String?): String = bui
     append("[상세 내용] ")
 }
 
-@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun LiveVideoBackground(
-    streamUrl: String?,
+    liveBroadcastId: String?,
+    streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     fallbackImageUrl: String?,
     fallbackTitle: String,
-    streamExpected: Boolean,
-    isActivePage: Boolean,
-    onRetry: () -> Unit,
-    onExit: () -> Unit
+    isActivePage: Boolean
 ) {
-    val context = LocalContext.current
-    var playbackFailed by remember(streamUrl) { mutableStateOf(false) }
-    var retryCount by remember(streamUrl) { mutableIntStateOf(0) }
-    var retryKey by remember(streamUrl) { mutableIntStateOf(0) }
-    val activePage by rememberUpdatedState(isActivePage)
-    val player = remember(streamUrl, retryKey) {
-        streamUrl?.takeIf(String::isNotBlank)?.let { url ->
-            ExoPlayer.Builder(context).build().apply {
-                setMediaItem(MediaItem.fromUri(url))
-                repeatMode = Player.REPEAT_MODE_ONE
-                playWhenReady = isActivePage
-                prepare()
-            }
-        }
+    val provider = liveBroadcastId?.let { id ->
+        streamTokenProvider?.let { request -> suspend { request(id) } }
     }
-    val lifecycleOwner = context as? LifecycleOwner
+    val session = rememberLiveVideoSession(
+        role = LiveVideoRole.VIEWER,
+        enabled = isActivePage && provider != null,
+        tokenProvider = provider
+    )
 
-    DisposableEffect(player, lifecycleOwner) {
-        if (player == null) return@DisposableEffect onDispose { }
-        val listener = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                playbackFailed = true
-                retryCount++
-            }
-        }
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> if (activePage) player.play()
-                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> player.pause()
-                else -> Unit
-            }
-        }
-        player.addListener(listener)
-        lifecycleOwner?.lifecycle?.addObserver(observer)
-        onDispose {
-            lifecycleOwner?.lifecycle?.removeObserver(observer)
-            player.removeListener(listener)
-            player.release()
-        }
-    }
-    LaunchedEffect(player, isActivePage) {
-        if (isActivePage) player?.play() else player?.pause()
-    }
-    LaunchedEffect(playbackFailed, retryCount, isActivePage) {
-        if (playbackFailed && isActivePage && retryCount < LIVE_STREAM_MAX_RETRIES) {
-            delay(LIVE_STREAM_RETRY_DELAY_MILLIS)
-            playbackFailed = false
-            retryKey++
-        }
-    }
-
-    val streamMissing = streamExpected && streamUrl.isNullOrBlank()
-    val recoveryFailed = streamMissing || (playbackFailed && retryCount >= LIVE_STREAM_MAX_RETRIES)
-    val reconnecting = playbackFailed && !recoveryFailed
-
-    if (player != null && !playbackFailed) {
-        PlayerSurface(
-            player = player,
-            modifier = Modifier.fillMaxSize(),
-            surfaceType = SURFACE_TYPE_TEXTURE_VIEW
+    when {
+        session.videoTrack != null -> LiveVideoSurface(
+            room = session.room,
+            videoTrack = session.videoTrack,
+            mirror = false,
+            fill = true,
+            modifier = Modifier.fillMaxSize()
         )
-    } else {
-        if (!fallbackImageUrl.isNullOrBlank()) {
-            DibNetworkImage(fallbackImageUrl, fallbackTitle, Modifier.fillMaxSize())
-        } else if (!streamExpected) {
-            Image(
-                painterResource(R.drawable.product_photo),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Image(
-                painterResource(R.drawable.live_video),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
+        !fallbackImageUrl.isNullOrBlank() -> DibNetworkImage(
+            fallbackImageUrl,
+            fallbackTitle,
+            Modifier.fillMaxSize()
+        )
+        else -> Image(
+            painterResource(if (liveBroadcastId == null) R.drawable.product_photo else R.drawable.live_video),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
+
+    if (!isActivePage || liveBroadcastId == null) return
+    when (val state = session.state) {
+        LiveVideoState.Preparing, LiveVideoState.Connecting -> LiveVideoConnectionNotice("방송 연결 중이에요")
+        LiveVideoState.Reconnecting -> LiveVideoConnectionNotice("방송에 다시 연결 중이에요")
+        LiveVideoState.Connected -> if (session.videoTrack == null) {
+            LiveVideoConnectionNotice("판매자 영상을 기다리는 중이에요")
+        }
+        LiveVideoState.Disconnected -> LiveVideoConnectionNotice("영상 연결이 끊겼어요", "다시 연결", session::retry)
+        is LiveVideoState.Failed -> LiveVideoConnectionNotice(state.message, "다시 연결", session::retry)
+        LiveVideoState.Idle -> if (streamTokenProvider == null) {
+            LiveVideoConnectionNotice("영상 연결 정보를 사용할 수 없어요")
         }
     }
-    if (reconnecting) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Surface(
-                modifier = Modifier.padding(horizontal = 48.dp),
-                color = Color(0xFF101C2C).copy(alpha = .92f),
-                shape = RoundedCornerShape(14.dp)
+}
+
+@Composable
+private fun LiveVideoConnectionNotice(
+    message: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Surface(
+            modifier = Modifier.padding(horizontal = 48.dp),
+            color = Color(0xFF101C2C).copy(alpha = .88f),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Column(
-                    Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("라이브 연결이 불안정해요", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("대표 이미지로 경매를 계속 보여드려요", color = Color.White.copy(alpha = .78f), fontSize = 10.sp)
-                    Text("재연결 중 · $retryCount/$LIVE_STREAM_MAX_RETRIES", color = Colors.Mint, fontSize = 10.sp)
+                Text(message, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (actionLabel != null && onAction != null) {
+                    TextButton(onClick = onAction) { Text(actionLabel, color = Colors.Mint) }
                 }
             }
         }
     }
-    if (recoveryFailed && isActivePage) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("라이브 연결을 복구하지 못했어요") },
-            text = { Text("네트워크를 확인한 뒤 다시 시도해 주세요.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        retryCount = 0
-                        playbackFailed = false
-                        retryKey++
-                        onRetry()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
-                ) { Text("다시 연결") }
-            },
-            dismissButton = { TextButton(onClick = onExit) { Text("라이브 나가기") } }
-        )
-    }
 }
-
-private const val LIVE_STREAM_MAX_RETRIES = 3
-private const val LIVE_STREAM_RETRY_DELAY_MILLIS = 2_000L
 
 @Composable
 private fun LiveReportTypeAction(title: String, description: String, enabled: Boolean, onClick: () -> Unit) {

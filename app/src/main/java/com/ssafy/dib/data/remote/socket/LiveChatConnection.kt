@@ -175,6 +175,19 @@ class LiveChatConnection(
         currentMemberId = memberId?.takeIf(String::isNotBlank)
     }
 
+    /** Live 소켓은 유지한 채 현재 경매 토픽만 교체한다. */
+    @Synchronized
+    fun updateActiveAuction(auctionId: String?) {
+        val next = auctionId?.takeIf(String::isNotBlank)
+        if (next == subscribedAuctionId) return
+        if (next == null) {
+            subscribedAuctionId?.let(::unsubscribeAuction)
+        } else {
+            subscribeAuction(next)
+        }
+    }
+
+    @Synchronized
     private fun subscribeAuction(auctionId: String) {
         if (subscribedAuctionId == auctionId) return
         subscribedAuctionId?.takeIf { it != auctionId }?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
@@ -187,6 +200,7 @@ class LiveChatConnection(
         )
     }
 
+    @Synchronized
     private fun unsubscribeAuction(auctionId: String) {
         if (subscribedAuctionId == auctionId) {
             socket.send(SocketCommands.unsubscribeAuction(auctionId))

@@ -17,10 +17,13 @@ import io.livekit.android.RoomOptions
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import io.livekit.android.room.Room
+import io.livekit.android.room.participant.VideoTrackPublishDefaults
 import io.livekit.android.room.track.CameraPosition
 import io.livekit.android.room.track.LocalVideoTrack
+import io.livekit.android.room.track.LocalVideoTrackOptions
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
+import io.livekit.android.room.track.VideoPreset169
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -102,7 +105,21 @@ class LiveVideoSession internal constructor(
     private suspend fun connectTo(credentials: LiveStreamSession) {
         val created = LiveKit.create(
             appContext = appContext,
-            options = RoomOptions(adaptiveStream = true, dynacast = true)
+            options = RoomOptions(
+                // 피드에는 활성 방송 하나만 연결하므로 시청자는 항상 최고 품질 레이어를 요청한다.
+                adaptiveStream = false,
+                dynacast = role == LiveVideoRole.PUBLISHER,
+                videoTrackCaptureDefaults = if (role == LiveVideoRole.PUBLISHER) {
+                    LocalVideoTrackOptions(captureParams = VideoPreset169.H1080.capture)
+                } else null,
+                videoTrackPublishDefaults = if (role == LiveVideoRole.PUBLISHER) {
+                    VideoTrackPublishDefaults(
+                        videoEncoding = VideoPreset169.H1080.encoding,
+                        simulcast = true,
+                        simulcastLayers = listOf(VideoPreset169.H360, VideoPreset169.H720)
+                    )
+                } else null
+            )
         )
         room = created
         state = LiveVideoState.Connecting

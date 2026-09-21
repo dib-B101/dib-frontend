@@ -22,7 +22,7 @@ DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 - 상품: 카테고리, 등록·수정·삭제, 내 상품 cursor 목록, 상품 검색 cursor 목록
 - 경매: 추천, 검색·필터·카테고리 cursor 목록, 상세, 찜과 찜 cursor 목록, 내 입찰·공개 입찰 이력
 - 입찰: WebSocket 구독·복구·입찰 ACK와 마감 연장
-- Live: 피드 cursor, 상세, 댓글 과거 내역, 채팅, 신고, 내 방송 cursor 목록, 예약·수정·편성·송출 준비·시작·종료
+- Live: 피드 cursor, 상세, 댓글 과거 내역, 채팅, 신고, 내 방송 cursor 목록, 예약·수정·편성·송출 준비·시작·종료, LiveKit 송출과 피드 자동 시청
 - 거래: 구매·판매 cursor 목록, 주문 상세, 낙찰 자동결제·실패 결제 재시도, 송장 등록·배송 조회·구매 확정
 - 채팅: 주문·Live 채널 연결, 이전 메시지 페이지네이션, commandId ACK 추적과 재연결 재전송
 - 알림: WebSocket 실시간 수신, 중복 제거, 인앱 배너와 관련 화면 이동
@@ -43,7 +43,7 @@ REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 �
 | 유사 상품 이동 | API가 ProductCard만 반환 | 활성 경매의 `auctionId` 포함 또는 productId→auctionId 조회 계약 |
 | 알림 내역 | WebSocket 수신만 구현 | REST 알림 목록·읽음 처리·미수신 복구 endpoint |
 | 판매자 공개 활동 | 상품 상세의 판매자 요약만 표시 | 판매자 공개 프로필·후기·판매 경매 목록 endpoint와 페이지네이션 계약 |
-| Live 송출 | prepare 응답 소비 구현 | 실제 송출 SDK/프로토콜, 권한, 재접속과 장애 복구 규칙 |
+| LiveKit 장애 복구 | 송출·시청 연결과 수동 재연결 구현 | 토큰 만료, 네트워크 전환, 판매자 카메라 재시작 시 자동 복구 규칙 |
 
 고정 카드 ID나 임의 `apiAddressId`처럼 서버에 존재하지 않는 값을 실제 데이터처럼 전송하지 않는다. 외부 계약이 확정되면 위 표의 항목별 브랜치에서 UI와 end-to-end 동작을 연결한다.
 

@@ -79,6 +79,21 @@ internal fun mergeLiveConsoleFeed(
     chatMessages.map(LiveConsoleFeedEntry::Chat) + bidNotices.map(LiveConsoleFeedEntry::Bid)
     ).sortedBy(LiveConsoleFeedEntry::entryTime).distinctBy(LiveConsoleFeedEntry::entryKey)
 
+/**
+ * 채팅 작성자 표시명. 닉네임이 없을 때 회원 번호가 그대로 노출되면
+ * 사람 이름이 갑자기 "1", "2" 처럼 보여 마스킹된 것으로 오해된다.
+ */
+internal fun liveChatSpeakerLabel(
+    message: LiveChatMessage,
+    currentMemberId: String?,
+    fromSeller: Boolean
+): String = message.nickname?.takeIf(String::isNotBlank)
+    ?: when {
+        currentMemberId?.takeIf(String::isNotBlank) == message.memberId -> "나"
+        fromSeller -> "판매자"
+        else -> "익명"
+    }
+
 internal fun liveBidNoticeLabel(notice: LiveBidNotice): String {
     val amount = "%,d원 입찰".format(notice.amount)
     return notice.nickname?.takeIf(String::isNotBlank)?.let { "${it}님이 " + amount } ?: amount
@@ -674,8 +689,7 @@ internal fun LiveChatPanel(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    entry.message.nickname?.takeIf(String::isNotBlank)
-                                        ?: if (entry.message.memberId == currentMemberId) "나" else entry.message.memberId,
+                                    liveChatSpeakerLabel(entry.message, currentMemberId, fromSeller),
                                     color = if (fromSeller) Colors.Navy else Colors.Muted,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
