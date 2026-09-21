@@ -4,6 +4,18 @@ import com.ssafy.dib.core.network.ApiResult
 
 data class ProductCategory(val categoryId: String, val name: String)
 
+/** 서버 카테고리를 받지 못했을 때 사용하는 기본 카테고리 목록. ID와 이름은 CategoryScreen과 동일하다. */
+val DefaultProductCategories: List<ProductCategory> = listOf(
+    ProductCategory("1", "디지털기기"),
+    ProductCategory("2", "생활가전"),
+    ProductCategory("3", "가구·인테리어"),
+    ProductCategory("4", "스포츠·레저"),
+    ProductCategory("5", "패션·잡화"),
+    ProductCategory("6", "뷰티"),
+    ProductCategory("7", "취미·게임"),
+    ProductCategory("8", "예술·창작")
+)
+
 data class ProductImageUpload(
     val fileName: String,
     val mediaType: String,

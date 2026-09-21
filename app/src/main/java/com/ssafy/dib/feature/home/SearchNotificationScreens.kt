@@ -31,6 +31,7 @@ import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.domain.product.DefaultProductCategories
 import com.ssafy.dib.domain.notification.DomainNotification
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -74,9 +75,7 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
-    val fallbackCategories = remember {
-        listOf(ProductCategory("1", "디지털기기"), ProductCategory("8", "예술·창작"))
-    }
+    val fallbackCategories = DefaultProductCategories
     val categories = remoteCategories ?: fallbackCategories
     val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
     fun filters() = AuctionSearchFilters(
@@ -95,7 +94,7 @@ fun AuctionSearchScreen(
         if (browseOnOpen) submit()
     }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
-        (category == "전체" || it.category.contains(category.removeSuffix("기기"))) &&
+        (category == "전체" || category.removeSuffix("기기").split("·").any { token -> it.category.contains(token) || token.contains(it.category) }) &&
             (price == "전체" || price == "5만원 이하" && it.price <= 50_000 || price == "5~10만원" && it.price in 50_000..100_000) &&
             it.status == filters().status
     }
@@ -158,7 +157,16 @@ fun AuctionSearchScreen(
                         DibViewModeToggle(contentView, { contentView = it })
                     }
                 }
-                item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DiscoveryFilterChip(true,{showFilters=true},status); DiscoveryFilterChip(category!="전체",{showFilters=true},category); DiscoveryFilterChip(price!="전체",{showFilters=true},price); DiscoveryFilterChip(false,{showFilters=true},"필터 설정") } }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiscoveryFilterChip(true, { showFilters = true }, status)
+                            DiscoveryFilterChip(category != "전체", { showFilters = true }, category)
+                            DiscoveryFilterChip(price != "전체", { showFilters = true }, price)
+                        }
+                        DiscoveryFilterButton(active = category != "전체" || price != "전체" || status != "진행 중") { showFilters = true }
+                    }
+                }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 if (contentView == DibContentView.Grid) {
                     items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
@@ -214,7 +222,7 @@ fun AuctionSearchScreen(
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
 }
-@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
+@Composable private fun FilterGroup(title:String,values:List<String>,selected:String,onSelect:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(title,color=Colors.Text,fontSize=14.sp,fontWeight=FontWeight.Bold);FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){values.forEach{DiscoveryFilterChip(selected=selected==it,onClick={onSelect(it)},label=it)}}}}
 
 @Composable
 fun NotificationCenterScreen(
@@ -342,3 +350,21 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
 @Composable private fun SectionTitle(text:String){Text(text,color=Colors.Text,fontSize=18.sp,fontWeight=FontWeight.Bold)}
 
 @Composable private fun DiscoveryFilterChip(selected:Boolean,onClick:()->Unit,label:String){FilterChip(selected=selected,onClick=onClick,label={Text(label,fontSize=12.sp,fontWeight=if(selected)FontWeight.Bold else FontWeight.Medium)},shape=RoundedCornerShape(12.dp),border=FilterChipDefaults.filterChipBorder(enabled=true,selected=selected,borderColor=Colors.Border,selectedBorderColor=Colors.Navy),colors=FilterChipDefaults.filterChipColors(containerColor=Colors.Background,labelColor=Colors.Muted,selectedContainerColor=Colors.Navy,selectedLabelColor=Color.White))}
+
+@Composable private fun DiscoveryFilterButton(active: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = Colors.Surface,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Image(
+                painterResource(R.drawable.filter_list),
+                contentDescription = "필터 설정",
+                modifier = Modifier.size(18.dp),
+                colorFilter = ColorFilter.tint(if (active) Colors.Navy else Colors.Muted)
+            )
+        }
+    }
+}
