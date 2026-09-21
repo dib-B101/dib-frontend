@@ -160,11 +160,13 @@ fun AuctionSearchScreen(
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DiscoveryFilterChip(true, { showFilters = true }, status)
-                            DiscoveryFilterChip(category != "전체", { showFilters = true }, category)
-                            DiscoveryFilterChip(price != "전체", { showFilters = true }, price)
+                            listOf("진행 중", "예정", "종료").forEach { value ->
+                                DiscoveryFilterChip(status == value, { if (status != value) { status = value; submit() } }, value)
+                            }
+                            if (category != "전체") DiscoveryAppliedChip(category) { category = "전체"; submit() }
+                            if (price != "전체") DiscoveryAppliedChip(price) { price = "전체"; submit() }
                         }
-                        DiscoveryFilterButton(active = category != "전체" || price != "전체" || status != "진행 중") { showFilters = true }
+                        DiscoveryFilterButton(active = category != "전체" || price != "전체") { showFilters = true }
                     }
                 }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
@@ -195,8 +197,7 @@ fun AuctionSearchScreen(
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);IconButton(onClick={showFilters=false}){Image(painterResource(R.drawable.close),"닫기",Modifier.size(20.dp),colorFilter=ColorFilter.tint(Colors.Text))}}
             FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
             FilterGroup("가격 범위",listOf("전체","5만원 이하","5~10만원"),price){price=it}
-            FilterGroup("경매 상태",listOf("진행 중","예정","종료"),status){status=it}
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체";status="진행 중"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }
     }
 }
@@ -350,6 +351,18 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
 @Composable private fun SectionTitle(text:String){Text(text,color=Colors.Text,fontSize=18.sp,fontWeight=FontWeight.Bold)}
 
 @Composable private fun DiscoveryFilterChip(selected:Boolean,onClick:()->Unit,label:String){FilterChip(selected=selected,onClick=onClick,label={Text(label,fontSize=12.sp,fontWeight=if(selected)FontWeight.Bold else FontWeight.Medium)},shape=RoundedCornerShape(12.dp),border=FilterChipDefaults.filterChipBorder(enabled=true,selected=selected,borderColor=Colors.Border,selectedBorderColor=Colors.Navy),colors=FilterChipDefaults.filterChipColors(containerColor=Colors.Background,labelColor=Colors.Muted,selectedContainerColor=Colors.Navy,selectedLabelColor=Color.White))}
+
+@Composable private fun DiscoveryAppliedChip(label: String, onRemove: () -> Unit) {
+    FilterChip(
+        selected = true,
+        onClick = onRemove,
+        label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+        trailingIcon = { Image(painterResource(R.drawable.close), "$label 조건 해제", Modifier.size(12.dp), colorFilter = ColorFilter.tint(Color.White)) },
+        shape = RoundedCornerShape(12.dp),
+        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = true, borderColor = Colors.Border, selectedBorderColor = Colors.Navy),
+        colors = FilterChipDefaults.filterChipColors(containerColor = Colors.Background, labelColor = Colors.Muted, selectedContainerColor = Colors.Navy, selectedLabelColor = Color.White)
+    )
+}
 
 @Composable private fun DiscoveryFilterButton(active: Boolean, onClick: () -> Unit) {
     Surface(
