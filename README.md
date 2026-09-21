@@ -1,6 +1,10 @@
 # dib-frontend
 
-DIB Android 앱 저장소입니다. Kotlin과 Jetpack Compose를 사용하며 최소 지원 버전은 Android 8.0(API 26)입니다.
+DIB Android 앱과 관리자 웹 저장소입니다. 사용자 앱은 Kotlin과 Jetpack Compose를 사용하며 최소 지원 버전은 Android 8.0(API 26)입니다. 운영자 콘솔은 `admin-web/`의 React 애플리케이션입니다.
+
+## 관리자 웹
+
+문의, AI 상품 검수, 이상 입찰, 신고, 회원 제재를 처리하는 운영자 콘솔은 [`admin-web/README.md`](admin-web/README.md)를 참고하세요.
 
 ## 개발 환경
 

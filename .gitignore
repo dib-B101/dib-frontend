@@ -37,3 +37,11 @@ coverage/
 .kotlin/
 local.properties
 /build/
+
+# Admin web
+admin-web/node_modules/
+admin-web/dist/
+admin-web/.env.local
+admin-web/*.tsbuildinfo
+admin-web/vite.config.js
+admin-web/vite.config.d.ts
