@@ -94,6 +94,43 @@ data class LoginResponse(
 )
 
 @Serializable
+data class KakaoAuthRequest(
+    val authorizationCode: String,
+    val redirectUri: String,
+    val deviceId: String
+)
+
+@Serializable
+data class KakaoProfileDto(
+    val nickname: String? = null,
+    val profileImageUrl: String? = null
+)
+
+@Serializable
+data class KakaoAuthResponse(
+    val isNewMember: Boolean,
+    val member: MemberDto? = null,
+    val signupToken: String? = null,
+    val kakaoProfile: KakaoProfileDto? = null,
+    val accessToken: String? = null,
+    val refreshToken: String? = null,
+    val accessExpiresIn: Long? = null
+)
+
+@Serializable
+data class KakaoSignupRequest(
+    val signupToken: String,
+    val email: String,
+    val name: String,
+    val nickname: String,
+    val gender: String,
+    val birthDate: String,
+    val phoneNumber: String,
+    val phoneVerificationToken: String,
+    val deviceId: String
+)
+
+@Serializable
 data class RefreshTokenRequest(
     val refreshToken: String,
     val deviceId: String

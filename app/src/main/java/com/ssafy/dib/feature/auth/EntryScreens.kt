@@ -193,6 +193,7 @@ fun LoginScreen(
     onFindEmail: () -> Unit,
     onPasswordReset: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
+    onKakaoLogin: () -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
     modifier: Modifier = Modifier
@@ -254,10 +255,9 @@ fun LoginScreen(
                 Text("또는", Modifier.padding(horizontal = 20.dp), color = Colors.Muted, fontSize = 12.sp)
                 HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
             }
-            Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
+            Button(onClick = onKakaoLogin, enabled = !isLoading, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
                 Text("카카오로 로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Text("카카오 로그인은 서버 연동 후 사용할 수 있어요", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
         }
     }
 }
