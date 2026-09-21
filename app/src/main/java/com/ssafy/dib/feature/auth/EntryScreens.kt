@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -98,17 +99,21 @@ fun WelcomeScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = Colors.Muted
         )
+        val mascotPainter = painterResource(R.drawable.welcome_mascot)
+        val mascotRatio = mascotPainter.intrinsicSize.let { size ->
+            if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+        }
         Surface(
             color = Colors.Navy,
             shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(1.32f)
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(mascotRatio)
         ) {
             Box {
                 Image(
-                    painterResource(R.drawable.welcome_mascot),
+                    mascotPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
                 Surface(
                     color = Colors.Background.copy(alpha = .94f),
