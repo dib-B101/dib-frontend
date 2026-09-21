@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -40,17 +41,21 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val splashPainter = painterResource(R.drawable.splash_mascot)
+            val splashRatio = splashPainter.intrinsicSize.let { size ->
+                if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+            }
             Surface(
                 color = Colors.Background,
                 shape = RoundedCornerShape(32.dp),
                 shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(1f)
+                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(splashRatio)
             ) {
                 Image(
-                    painterResource(R.drawable.splash_mascot),
+                    splashPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             }
             Spacer(Modifier.height(24.dp))
@@ -98,22 +103,26 @@ fun WelcomeScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = Colors.Muted
         )
+        val mascotPainter = painterResource(R.drawable.welcome_mascot)
+        val mascotRatio = mascotPainter.intrinsicSize.let { size ->
+            if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+        }
         Surface(
             color = Colors.Navy,
             shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(1.32f)
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(mascotRatio)
         ) {
             Box {
                 Image(
-                    painterResource(R.drawable.welcome_mascot),
+                    mascotPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
                 Surface(
                     color = Colors.Background.copy(alpha = .94f),
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -184,6 +193,7 @@ fun LoginScreen(
     onFindEmail: () -> Unit,
     onPasswordReset: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
+    onKakaoLogin: () -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
     modifier: Modifier = Modifier
@@ -245,10 +255,9 @@ fun LoginScreen(
                 Text("또는", Modifier.padding(horizontal = 20.dp), color = Colors.Muted, fontSize = 12.sp)
                 HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
             }
-            Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
+            Button(onClick = onKakaoLogin, enabled = !isLoading, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
                 Text("카카오로 로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Text("카카오 로그인은 서버 연동 후 사용할 수 있어요", Modifier.padding(top = 18.dp), color = Colors.Muted, fontSize = 12.sp)
         }
     }
 }

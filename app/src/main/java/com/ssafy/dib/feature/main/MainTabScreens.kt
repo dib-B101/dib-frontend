@@ -153,7 +153,7 @@ fun MyTradesScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column { Text("${selected.label} 현황", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("${items.size}건", color = Colors.Muted, fontSize = 11.sp) }
+                    Text("${selected.label} 현황 · ${items.size}건", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     DibViewModeToggle(contentView, { contentView = it })
                 }
             }

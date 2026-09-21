@@ -805,7 +805,11 @@ private fun BidSheet(productName: String, currentPrice: Int, submissionError: St
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1_000, 5_000, 10_000).forEach { increment ->
-                    Button(onClick = { amountText = (currentPrice + increment).toString() },
+                    Button(onClick = {
+                        val enteredAmount = amountText.toIntOrNull()
+                        val baseAmount = if (enteredAmount == null || enteredAmount == minimum) currentPrice else enteredAmount
+                        amountText = (baseAmount + increment).toString()
+                    },
                         modifier = Modifier.weight(1f).height(40.dp), shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
                         contentPadding = PaddingValues(0.dp)) {

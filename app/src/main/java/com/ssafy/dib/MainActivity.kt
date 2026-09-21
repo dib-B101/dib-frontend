@@ -1,7 +1,9 @@
 package com.ssafy.dib
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,6 +13,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.ssafy.dib.core.navigation.AppNavHost
 import com.ssafy.dib.core.session.SessionInactivityTracker
 import com.ssafy.dib.ui.theme.DibTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
     private val sessionInactivityTracker by lazy { SessionInactivityTracker(this) }
@@ -19,15 +24,24 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (granted) recreate()
     }
+    private var oauthCallbackUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        oauthCallbackUri = intent?.data
         requestLocalDevelopmentNetworkAccess()
         enableEdgeToEdge()
 
         setContent {
             DibTheme {
-                AppNavHost(sessionInactivityTracker)
+                AppNavHost(
+                    sessionInactivityTracker = sessionInactivityTracker,
+                    oauthCallbackUri = oauthCallbackUri,
+                    onOAuthCallbackConsumed = {
+                        oauthCallbackUri = null
+                        intent?.setData(null)
+                    }
+                )
             }
         }
     }
@@ -43,6 +57,12 @@ class MainActivity : ComponentActivity() {
         }
 
         localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        oauthCallbackUri = intent.data
     }
 
     override fun onUserInteraction() {

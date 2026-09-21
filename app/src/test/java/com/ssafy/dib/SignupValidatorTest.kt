@@ -42,4 +42,9 @@ class SignupValidatorTest {
         assertFalse(SignupValidator.isFormValid(validForm.copy(birthDate = "20000131")))
         assertFalse(SignupValidator.isFormValid(validForm.copy(birthDate = "2025-02-31")))
     }
+
+    @Test
+    fun kakaoSignupDoesNotRequirePassword() {
+        assertTrue(SignupValidator.isKakaoFormValid(validForm.copy(password = "")))
+    }
 }

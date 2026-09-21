@@ -72,6 +72,8 @@ data class SignupForm(
     val birthDate: String
 )
 
+enum class SignupMode { EMAIL, KAKAO }
+
 object SignupValidator {
     private val emailPattern = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
 
@@ -101,6 +103,14 @@ object SignupValidator {
             isNicknameValid(form.nickname) &&
             isBirthDateValid(form.birthDate) &&
             form.gender in setOf("MALE", "FEMALE")
+
+    fun isKakaoFormValid(form: SignupForm) =
+        isPhoneValid(form.phoneNumber) &&
+            isEmailValid(form.email) &&
+            isNameValid(form.name) &&
+            isNicknameValid(form.nickname) &&
+            isBirthDateValid(form.birthDate) &&
+            form.gender in setOf("MALE", "FEMALE")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,6 +122,8 @@ fun SignupScreen(
     onConfirmPhoneVerification: (String) -> Unit,
     onCheckEmail: (String) -> Unit,
     onSignUp: (SignupForm) -> Unit,
+    mode: SignupMode = SignupMode.EMAIL,
+    initialNickname: String = "",
     modifier: Modifier = Modifier
 ) {
     var phone by rememberSaveable { mutableStateOf("") }
@@ -120,7 +132,7 @@ fun SignupScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var passwordConfirm by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
-    var nickname by rememberSaveable { mutableStateOf("") }
+    var nickname by rememberSaveable(initialNickname) { mutableStateOf(initialNickname) }
     var gender by rememberSaveable { mutableStateOf("") }
     var birthDate by rememberSaveable { mutableStateOf("") }
     var attempted by rememberSaveable { mutableStateOf(false) }
@@ -144,15 +156,19 @@ fun SignupScreen(
         birthDate = birthDate
     )
     val phoneConfirmed = state.phoneVerified && state.requestedPhone == phone
-    val emailConfirmed = state.emailAvailable == true && state.checkedEmail == email.trim()
+    val emailConfirmed = mode == SignupMode.KAKAO ||
+        (state.emailAvailable == true && state.checkedEmail == email.trim())
     val passwordMatches = password == passwordConfirm
-    val canSubmit = phoneConfirmed && emailConfirmed && passwordMatches && SignupValidator.isFormValid(form)
+    val formValid = if (mode == SignupMode.KAKAO) SignupValidator.isKakaoFormValid(form)
+        else SignupValidator.isFormValid(form)
+    val canSubmit = phoneConfirmed && emailConfirmed &&
+        (mode == SignupMode.KAKAO || passwordMatches) && formValid
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { AuthTopBar("이메일 회원가입", onBack) }
+        topBar = { AuthTopBar(if (mode == SignupMode.KAKAO) "카카오 회원가입" else "이메일 회원가입", onBack) }
     ) { contentPadding ->
         Column(
             Modifier.fillMaxSize()
@@ -218,38 +234,43 @@ fun SignupScreen(
                     keyboardType = KeyboardType.Email,
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedButton(
-                    onClick = { onCheckEmail(email.trim()) },
-                    enabled = SignupValidator.isEmailValid(email) && !state.emailCheckLoading,
-                    modifier = Modifier.height(56.dp)
-                ) {
-                    if (state.emailCheckLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
-                    else Text("중복 확인")
+                if (mode == SignupMode.EMAIL) {
+                    OutlinedButton(
+                        onClick = { onCheckEmail(email.trim()) },
+                        enabled = SignupValidator.isEmailValid(email) && !state.emailCheckLoading,
+                        modifier = Modifier.height(56.dp)
+                    ) {
+                        if (state.emailCheckLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
+                        else Text("중복 확인")
+                    }
                 }
             }
             when {
+                mode == SignupMode.KAKAO -> Text("기존 계정 연결 시 가입한 이메일을 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
                 emailConfirmed -> FeedbackText("사용할 수 있는 이메일이에요.", success = true)
                 state.checkedEmail == email.trim() && state.emailAvailable == false -> FeedbackText("이미 사용 중인 이메일이에요.")
                 state.emailError != null -> FeedbackText(state.emailError)
             }
-            SignupField(
-                "비밀번호",
-                password,
-                { password = it.take(64) },
-                "대·소문자, 숫자, 특수문자 포함 10자 이상",
-                KeyboardType.Password,
-                password = true,
-                errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { attempted && !SignupValidator.isPasswordValid(password) }
-            )
-            SignupField(
-                "비밀번호 확인",
-                passwordConfirm,
-                { passwordConfirm = it },
-                "비밀번호 다시 입력",
-                KeyboardType.Password,
-                password = true,
-                errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (attempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
-            )
+            if (mode == SignupMode.EMAIL) {
+                SignupField(
+                    "비밀번호",
+                    password,
+                    { password = it.take(64) },
+                    "대·소문자, 숫자, 특수문자 포함 10자 이상",
+                    KeyboardType.Password,
+                    password = true,
+                    errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { attempted && !SignupValidator.isPasswordValid(password) }
+                )
+                SignupField(
+                    "비밀번호 확인",
+                    passwordConfirm,
+                    { passwordConfirm = it },
+                    "비밀번호 다시 입력",
+                    KeyboardType.Password,
+                    password = true,
+                    errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (attempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
+                )
+            }
             SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요", errorMessage = "이름은 2~30자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNameValid(name) })
             SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자", errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNicknameValid(nickname) })
 

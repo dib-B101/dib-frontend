@@ -3,6 +3,9 @@ package com.ssafy.dib.data.repository
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
 import com.ssafy.dib.data.remote.auth.LoginRequest
+import com.ssafy.dib.data.remote.auth.KakaoAuthRequest
+import com.ssafy.dib.data.remote.auth.KakaoAuthResponse
+import com.ssafy.dib.data.remote.auth.KakaoSignupRequest
 import com.ssafy.dib.data.remote.auth.LogoutRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationConfirmRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
@@ -14,6 +17,8 @@ import com.ssafy.dib.data.remote.auth.SignUpRequest
 import com.ssafy.dib.domain.auth.AuthRepository
 import com.ssafy.dib.domain.auth.AuthSession
 import com.ssafy.dib.domain.auth.AuthSessionStore
+import com.ssafy.dib.domain.auth.KakaoAuthenticationResult
+import com.ssafy.dib.domain.auth.KakaoSignupCommand
 import com.ssafy.dib.domain.auth.PhoneVerificationChallenge
 import com.ssafy.dib.domain.auth.PhoneVerificationConfirmation
 import com.ssafy.dib.domain.auth.SignUpCommand
@@ -138,6 +143,59 @@ class AuthRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun authenticateWithKakao(
+        authorizationCode: String,
+        redirectUri: String,
+        deviceId: String
+    ): ApiResult<KakaoAuthenticationResult> {
+        return when (val result = remote.authenticateWithKakao(
+            KakaoAuthRequest(authorizationCode, redirectUri, deviceId)
+        )) {
+            is ApiResult.Success -> if (result.value.isNewMember) {
+                val signupToken = result.value.signupToken
+                    ?: return ApiResult.Failure(invalidKakaoResponse())
+                ApiResult.Success(
+                    KakaoAuthenticationResult.SignupRequired(
+                        signupToken,
+                        result.value.kakaoProfile?.nickname,
+                        result.value.kakaoProfile?.profileImageUrl
+                    ),
+                    result.status
+                )
+            } else {
+                val session = result.value.toSession(now())
+                    ?: return ApiResult.Failure(invalidKakaoResponse())
+                sessionStore.save(session)
+                ApiResult.Success(KakaoAuthenticationResult.LoggedIn(session), result.status)
+            }
+            is ApiResult.Failure -> result
+        }
+    }
+
+    override fun signUpWithKakao(command: KakaoSignupCommand): ApiResult<AuthSession> {
+        return when (val result = remote.signUpWithKakao(
+            KakaoSignupRequest(
+                command.signupToken,
+                command.email,
+                command.name,
+                command.nickname,
+                command.gender,
+                command.birthDate,
+                command.phoneNumber,
+                command.phoneVerificationToken,
+                command.deviceId
+            )
+        )) {
+            is ApiResult.Success -> {
+                val session = result.value.toSession(now())
+                    ?: return ApiResult.Failure(invalidKakaoResponse())
+                sessionStore.save(session)
+                ApiResult.Success(session, result.status)
+            }
+            is ApiResult.Failure -> result
+        }
+    }
+
     override fun refresh(deviceId: String): ApiResult<AuthSession> {
         val current = sessionStore.read() ?: return ApiResult.Failure(
             com.ssafy.dib.core.network.ApiFailure(
@@ -172,3 +230,24 @@ class AuthRepositoryImpl(
 
 private fun JsonElement?.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: this?.toString()?.trim('"').orEmpty()
+
+private fun KakaoAuthResponse.toSession(now: Long): AuthSession? {
+    val responseMember = member ?: return null
+    val access = accessToken ?: return null
+    val refresh = refreshToken ?: return null
+    val expiresIn = accessExpiresIn ?: return null
+    return AuthSession(
+        memberId = responseMember.memberId.idValue(),
+        email = responseMember.email,
+        nickname = responseMember.nickname,
+        accessToken = access,
+        refreshToken = refresh,
+        accessExpiresAtEpochMillis = now + expiresIn * 1_000L
+    )
+}
+
+private fun invalidKakaoResponse() = com.ssafy.dib.core.network.ApiFailure(
+    status = null,
+    code = "INVALID_KAKAO_RESPONSE",
+    message = "카카오 로그인 응답이 올바르지 않습니다."
+)

@@ -122,7 +122,7 @@ fun CategoryScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(painterResource(R.drawable.search_full), "검색", Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Muted))
-                Text("상품과 작가를 검색해보세요", Modifier.padding(start = 10.dp), color = Colors.Muted, fontSize = 14.sp)
+                Text("상품을 검색해보세요", Modifier.padding(start = 10.dp), color = Colors.Muted, fontSize = 14.sp)
             }
             Spacer(Modifier.height(24.dp))
             Text(if(selectedId == null) "전체 카테고리" else "진행 중인 경매", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)

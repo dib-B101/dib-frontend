@@ -231,19 +231,21 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
     val scheduledAt = scheduledLocalDateTime?.takeIf { it.isAfter(LocalDateTime.now()) }?.toString()
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정") },
-        text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(title, { title = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("방송 제목") }, singleLine = true)
-            OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 2)
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+        text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(title, { title = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("방송 제목") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
+            OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 3, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(date, { date = it.take(10) }, Modifier.weight(1.2f), label = { Text("날짜") }, placeholder = { Text("2026-09-14") }, singleLine = true)
-                OutlinedTextField(time, { time = it.filter { char -> char.isDigit() || char == ':' }.take(5) }, Modifier.weight(.8f), label = { Text("시간") }, placeholder = { Text("19:30") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(date, { date = it.take(10) }, Modifier.weight(1.2f), label = { Text("날짜") }, placeholder = { Text("2026-09-14") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
+                OutlinedTextField(time, { time = it.filter { char -> char.isDigit() || char == ':' }.take(5) }, Modifier.weight(.8f), label = { Text("시간") }, placeholder = { Text("19:30") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
             }
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { TextButton({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, null) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
-        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
+        confirmButton = { Button({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, null) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
+        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소", color = Colors.Muted) } }
     )
 }
 
@@ -272,14 +274,16 @@ private fun LiveItemDialog(
     }
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text("Live 상품 편성 (${drafts.size}/10)") },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = { Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("Live 상품 편성", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("${drafts.size}/10개 선택", color = Colors.Muted, fontSize = 11.sp) } },
         text = { Column(Modifier.fillMaxWidth()) {
             if (choices.isEmpty() && !hasNext) Text("편성 가능한 예약 경매가 없어요.\n등록 상품에서 경매를 먼저 예약해주세요.", color = Colors.Muted, fontSize = 12.sp)
             else LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(choices, key = AuctionSummary::auctionId) { auction ->
                     val draft = drafts[auction.auctionId]
                     val active = auction.isLiveAuctionActive()
-                    Column(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(10.dp)) {
                         Row(
                             Modifier.fillMaxWidth().clickable {
                                 if (draft != null) drafts.remove(auction.auctionId)
@@ -288,9 +292,10 @@ private fun LiveItemDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(draft != null, onCheckedChange = null)
-                            DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(44.dp))
+                            if (auction.imageUrls.firstOrNull().isNullOrBlank()) Box(Modifier.size(48.dp).background(Color(0xFFE9EDF2), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Image(painterResource(R.drawable.product_outline), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Muted)) }
+                            else DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(48.dp))
                             Column(Modifier.padding(start = 10.dp)) {
-                                Text(auction.title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(auction.title, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 Text("시작가 " + (auction.startPriceOrNull?.let { "%,d원".format(it) } ?: "가격 미정"), color = Colors.Muted, fontSize = 11.sp)
                             }
                         }
@@ -340,7 +345,7 @@ private fun LiveItemDialog(
             error?.let { Text(it, Modifier.padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp) }
         } },
         confirmButton = {
-            TextButton(
+            Button(
                 {
                     // 목록에서 빠진 경매는 서버가 편성을 해제한다
                     onSave(
@@ -351,10 +356,12 @@ private fun LiveItemDialog(
                         }
                     )
                 },
-                enabled = drafts.isNotEmpty() && drafts.size <= 10 && invalidCount == 0 && !loading
-            ) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") }
+                enabled = drafts.isNotEmpty() && drafts.size <= 10 && invalidCount == 0 && !loading,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+            ) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text("저장") }
         },
-        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
+        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소", color = Colors.Muted) } }
     )
 }
 
@@ -370,3 +377,13 @@ private fun AuctionSummary.toLiveItemDraft() = LiveItemDraft(
 )
 
 private fun AuctionSummary.isLiveAuctionActive(): Boolean = status.equals("ACTIVE", ignoreCase = true)
+
+@Composable
+private fun liveDialogFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Colors.Navy,
+    unfocusedBorderColor = Colors.Border,
+    focusedLabelColor = Colors.Navy,
+    unfocusedLabelColor = Colors.Muted,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White
+)

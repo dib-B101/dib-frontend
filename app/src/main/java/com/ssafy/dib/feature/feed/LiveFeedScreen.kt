@@ -336,10 +336,16 @@ private fun LiveFeedPage(
                 Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
-        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 82.dp, bottom = 244.dp), enter = fadeIn(), exit = fadeOut()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.align(Alignment.BottomStart)
+                .imePadding()
+                .padding(start = 16.dp, end = 82.dp, bottom = if (imeVisible) 76.dp else 244.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
                 if (liveItem == null) {
-                    listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?").forEach { message ->
+                    listOf("도윤  포장 상태 궁금해요", "nana***  다음 상품도 기대돼요", "haeun9***  가격 실화인가요?")
+                        .takeLast(if (imeVisible) 2 else 3)
+                        .forEach { message ->
                         Surface(color = Color.Black.copy(alpha = .24f), shape = RoundedCornerShape(10.dp)) {
                             Text(message, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Color.White, fontSize = 10.sp)
                         }
@@ -407,7 +413,6 @@ private fun LiveFeedPage(
                         }
                     }
                 }
-            }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 236.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1021,7 +1026,7 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
     Surface(
         color = Color(0xFFF8F9FB),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().height(62.dp).graphicsLayer(alpha = if (enabled) 1f else .5f)
+        modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp).graphicsLayer(alpha = if (enabled) 1f else .5f)
             .clickable(enabled = enabled, onClick = onClick)
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1033,13 +1038,11 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
 
 @Composable
 private fun LiveAction(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
-    Column(
-        Modifier.size(48.dp, 58.dp).background(Color.Black.copy(.32f), RoundedCornerShape(24.dp)).clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        Modifier.size(52.dp).background(Color.Black.copy(alpha = .32f), CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Image(painterResource(icon), label, Modifier.size(21.dp), colorFilter = ColorFilter.tint(Color.White))
-        Text(label, color = Color.White, fontSize = 9.sp)
+        Image(painterResource(icon), contentDescription = label, modifier = Modifier.size(28.dp), colorFilter = ColorFilter.tint(Color.White))
     }
 }
 
@@ -1074,7 +1077,11 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1_000, 5_000, 10_000).forEach { increment ->
                     Button(
-                        onClick = { amount = (currentPrice + increment).toString() },
+                        onClick = {
+                            val enteredAmount = amount.toIntOrNull()
+                            val baseAmount = if (enteredAmount == null || enteredAmount == minimum) currentPrice else enteredAmount
+                            amount = (baseAmount + increment).toString()
+                        },
                         modifier = Modifier.weight(1f).height(40.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),

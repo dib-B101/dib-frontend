@@ -34,19 +34,27 @@ DIB_API_BASE_URL=https://your-api-host
 DIB_WS_URL=wss://your-websocket-host
 DIB_TOSS_CLIENT_KEY=test_ck_your_toss_billing_client_key
 DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
+DIB_KAKAO_REST_API_KEY=your_kakao_rest_api_key
+DIB_KAKAO_REDIRECT_URI=https://your-app-link-host/oauth/kakao/callback
 ```
 
 - `DIB_API_BASE_URL`: REST API 호스트입니다. 앱이 `/api/v1/...` 경로를 붙여 요청하므로 경로 없이 호스트까지만 입력합니다.
 - `DIB_WS_URL`: 백엔드 WebSocket 명세에서 사용하는 접속 URL을 입력합니다.
 - `DIB_TOSS_CLIENT_KEY`: 백엔드 `TOSS_SECRET_KEY`와 짝이 맞는 토스페이먼츠 자동결제(빌링) 공개 클라이언트 키입니다. 카드 등록 화면에서만 사용하며 시크릿 키는 앱에 넣지 않습니다.
 - `DIB_SESSION_IDLE_TIMEOUT_MINUTES`: 사용자 입력이 없을 때 자동 로그아웃할 시간입니다. 생략하면 30분입니다.
+- `DIB_KAKAO_REST_API_KEY`: Kakao Developers에서 발급한 REST API 키입니다. 클라이언트 시크릿은 앱에 넣지 않습니다.
+- `DIB_KAKAO_REDIRECT_URI`: Kakao Developers REST API 키에 등록한 HTTPS Redirect URI입니다. Android App Link와 백엔드 `KAKAO_REDIRECT_URIS`에도 같은 값을 등록해야 합니다.
+
+Kakao OAuth callback이 앱으로 돌아오려면 Redirect URI 호스트가 `/.well-known/assetlinks.json`에서 Android 패키지 `com.ssafy.dib`와 배포 인증서 SHA-256 지문을 연결해야 합니다. Kakao Developers에서는 Kakao 로그인 사용 설정을 켜고 같은 Redirect URI를 REST API 키에 등록합니다.
 
 명령줄에서 일회성으로 실행할 때는 같은 값을 Gradle `-P` 옵션으로 전달할 수 있습니다.
 
 ```powershell
 .\gradlew.bat :app:assembleDebug `
   -PDIB_API_BASE_URL=https://your-api-host `
-  -PDIB_WS_URL=wss://your-websocket-host
+  -PDIB_WS_URL=wss://your-websocket-host `
+  -PDIB_KAKAO_REST_API_KEY=your_kakao_rest_api_key `
+  -PDIB_KAKAO_REDIRECT_URI=https://your-app-link-host/oauth/kakao/callback
 ```
 
 값을 바꾼 뒤에는 Gradle Sync 또는 앱 재빌드가 필요합니다. 실제 팀 개발 서버 주소는 팀 내부 환경 설정을 사용하세요.
