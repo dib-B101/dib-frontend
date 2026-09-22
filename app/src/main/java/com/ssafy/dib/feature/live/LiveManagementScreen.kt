@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.live.LiveBroadcastSummary
@@ -89,13 +90,14 @@ fun LiveManagementScreen(
             }
         }
     ) { padding ->
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
         when {
-            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
-            errorMessage != null -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
+            errorMessage != null -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text(errorMessage, color = Colors.Muted)
                 OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기") }
             }
-            else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 92.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 92.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { Text("예약한 방송 ${items.size}개", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                 if (items.isEmpty()) item { EmptyLiveCard() }
                 items(items, key = LiveBroadcastSummary::liveBroadcastId) { live ->
@@ -172,6 +174,7 @@ fun LiveManagementScreen(
                 actionMessage?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFDDF8F0), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.MintInk, fontSize = 12.sp) } }
                 actionError?.let { item { Text(it, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             }
+        }
         }
     }
 

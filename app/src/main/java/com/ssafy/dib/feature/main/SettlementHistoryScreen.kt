@@ -39,6 +39,7 @@ import com.ssafy.dib.domain.settlement.SettlementDetail
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.settlement.SettlementSummary
 import com.ssafy.dib.core.time.formatServerTime
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -56,11 +57,12 @@ fun SettlementHistoryScreen(
     modifier: Modifier = Modifier
 ) {
     SettlementScaffold("정산 내역", onBack, modifier) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color(0xFFEAF8F4), RoundedCornerShape(14.dp)).padding(16.dp)) {
                     Text("판매 정산", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -97,6 +99,7 @@ fun SettlementHistoryScreen(
                     }
                 }
             }
+            }
         }
     }
 }
@@ -111,11 +114,12 @@ fun SettlementDetailScreen(
     modifier: Modifier = Modifier
 ) {
     SettlementScaffold("정산 상세", onBack, modifier) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             errorMessage?.let { message -> item { ErrorRow(message, onRetry) } }
             if (detail == null && isLoading) item { LoadingBlock() }
             detail?.let { settlement ->
@@ -146,6 +150,7 @@ fun SettlementDetailScreen(
                         )
                     )
                 }
+            }
             }
         }
     }

@@ -54,11 +54,13 @@ import androidx.compose.ui.res.painterResource
 import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
 import com.ssafy.dib.domain.order.ShippingCarrier
+import com.ssafy.dib.domain.order.isOrderChatWritable
 import com.ssafy.dib.domain.payment.Payment
 
 private enum class TransactionStep { PaymentRequired, Paying, PaymentFailed, PaymentSuccess, Preparing, Shipping, Delivered, Complete }
@@ -212,11 +214,12 @@ private fun RemoteTransactionScreen(
             TransactionAppBar(if (role == "seller") "판매 거래 상세" else "구매 거래 상세", onBack)
         }
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             when {
                 isLoading -> item {
                     Row(Modifier.fillMaxWidth().padding(vertical = 80.dp), horizontalArrangement = Arrangement.Center) {
@@ -319,7 +322,7 @@ private fun RemoteTransactionScreen(
                             addressSubmitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                         }
                     }
-                    if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "CANCELED", "REFUNDED")) {
+                    if (isOrderChatWritable(order.status, order.chattingReadOnly)) {
                         item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
                     }
                     if (order.status.uppercase() !in setOf("PENDING", "CONFIRMED", "CANCELLED", "CANCELED", "REFUNDED")) {
@@ -502,6 +505,7 @@ private fun RemoteTransactionScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

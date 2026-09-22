@@ -39,6 +39,7 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.time.formatServerTime
@@ -155,7 +156,7 @@ fun MyTradesScreen(
         },
         bottomBar = { DibBottomNavigation(DibMainTab.Trades, onTabSelected) }
     ) { padding ->
-        PullToRefreshBox(isRefreshing = remoteLoading || bidsLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
+        DibPullToRefreshBox(isRefreshing = remoteLoading || bidsLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -416,7 +417,7 @@ fun MyPageScreen(
         topBar = { Text("마이", Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold) },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }
     ) { padding ->
-        PullToRefreshBox(isRefreshing = profileLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
+        DibPullToRefreshBox(isRefreshing = profileLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(20.dp)).border(1.dp, Colors.Border, RoundedCornerShape(20.dp)).padding(18.dp)) {

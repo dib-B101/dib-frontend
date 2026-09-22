@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -117,7 +118,12 @@ fun CategoryScreen(
         },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp)) {
+        DibPullToRefreshBox(
+            isRefreshing = isLoading,
+            onRefresh = onRetry,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
             Spacer(Modifier.height(12.dp))
             Row(
                 Modifier.fillMaxWidth().height(50.dp).background(Colors.Search, RoundedCornerShape(16.dp))
@@ -218,6 +224,7 @@ fun CategoryScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
