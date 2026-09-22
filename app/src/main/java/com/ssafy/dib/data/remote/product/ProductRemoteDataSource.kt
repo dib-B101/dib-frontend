@@ -129,7 +129,7 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
                 image.bytes.toRequestBody(image.mediaType.toMediaTypeOrNull())
             )
         }
-        client.execute(
+        client.executeUpload(
             client.requestBuilder(ApiRoutes.PRODUCTS)
                 .header("Idempotency-Key", idempotencyKey)
                 .post(multipart.build())

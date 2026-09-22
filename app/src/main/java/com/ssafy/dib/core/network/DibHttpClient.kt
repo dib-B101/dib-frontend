@@ -1,6 +1,7 @@
 package com.ssafy.dib.core.network
 
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
@@ -56,6 +57,16 @@ class DibHttpClient(
         }
         .build()
 
+    // OkHttp 기본 write timeout 은 10초라 실기기에서 카메라 원본 여러 장을
+    // multipart 로 보낼 때 요청이 서버에 도착하기 전에 끊길 수 있다.
+    // 일반 API는 기본 timeout을 유지하고, 명시적인 업로드 호출에만 여유를 준다.
+    private val uploadClient = client.newBuilder()
+        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
+
     fun requestBuilder(path: String): Request.Builder {
         return Request.Builder().url(urlBuilder(path).build())
     }
@@ -64,8 +75,18 @@ class DibHttpClient(
         "${config.requireApiBaseUrl()}/${path.trimStart('/')}".toHttpUrl().newBuilder()
 
     fun <T> execute(request: Request, responseSerializer: DeserializationStrategy<T>): ApiResult<T> =
+        executeWith(client, request, responseSerializer)
+
+    fun <T> executeUpload(request: Request, responseSerializer: DeserializationStrategy<T>): ApiResult<T> =
+        executeWith(uploadClient, request, responseSerializer)
+
+    private fun <T> executeWith(
+        httpClient: OkHttpClient,
+        request: Request,
+        responseSerializer: DeserializationStrategy<T>
+    ): ApiResult<T> =
         try {
-            client.newCall(request).execute().use { response ->
+            httpClient.newCall(request).execute().use { response ->
                 val body = response.body.string()
                 if (response.isSuccessful) {
                     runCatching {
@@ -127,6 +148,10 @@ class DibHttpClient(
         private const val JSON_MEDIA_TYPE = "application/json"
         private const val TOKEN_REFRESH_PATH = "/api/v1/auth/token/refresh"
         private const val MAX_AUTH_ATTEMPTS = 2
+        private const val CONNECT_TIMEOUT_SECONDS = 30L
+        private const val READ_TIMEOUT_SECONDS = 60L
+        private const val WRITE_TIMEOUT_SECONDS = 120L
+        private const val CALL_TIMEOUT_SECONDS = 180L
     }
 }
 
