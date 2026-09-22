@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,8 +62,16 @@ fun HomeScreen(
     onCategoryClick: () -> Unit,
     onLoginRequired: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    /**
+     * 홈 탭을 다시 눌렀다는 신호. 값이 바뀔 때마다 목록을 맨 위로 올린다 (QA #21 · #23).
+     *
+     * 화면이 스스로 알 수 없는 사건이라 바깥에서 받는다 — 하단 내비는 탭 클릭을
+     * AppNavHost 로 올려보내고, 그쪽이 "같은 탭을 다시 눌렀는지" 를 판단한다.
+     */
+    tabReselectSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
     var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
@@ -79,6 +88,11 @@ fun HomeScreen(
         remoteAuctions?.let { auctions ->
             favoriteIds = auctions.filter(HomeAuction::bookmarked).map(HomeAuction::id)
         }
+    }
+
+    // 첫 조합에서는 0 이라 움직이지 않는다. 탭을 다시 누른 순간부터만 올린다.
+    LaunchedEffect(tabReselectSignal) {
+        if (tabReselectSignal > 0) listState.animateScrollToItem(0)
     }
 
     LaunchedEffect(highlightedDeadline?.id) {
@@ -117,6 +131,7 @@ fun HomeScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
