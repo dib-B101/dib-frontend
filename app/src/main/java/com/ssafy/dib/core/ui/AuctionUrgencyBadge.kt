@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import com.ssafy.dib.R
+import com.ssafy.dib.core.time.formatRemainingTime
 
 @Composable
 fun AuctionUrgencyBadge(
@@ -62,7 +63,7 @@ fun AuctionUrgencyBadge(
             .graphicsLayer(scaleX = pulse, scaleY = pulse)
             .background(background, RoundedCornerShape(if (compact) 9.dp else 12.dp))
             .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = if (compact) 4.dp else 7.dp)
-            .semantics { contentDescription = "$label, ${formatUrgencyClock(safeSeconds)} 남음" },
+            .semantics { contentDescription = "$label, ${formatRemainingTime(safeSeconds)} 남음" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
     ) {
@@ -73,7 +74,7 @@ fun AuctionUrgencyBadge(
             colorFilter = ColorFilter.tint(foreground)
         )
         Text(
-            text = "$label  ${formatUrgencyClock(safeSeconds)}",
+            text = "$label  ${formatRemainingTime(safeSeconds)}",
             color = foreground,
             fontSize = if (compact) 11.sp else 13.sp,
             lineHeight = if (compact) 15.sp else 18.sp,
@@ -83,6 +84,3 @@ fun AuctionUrgencyBadge(
         )
     }
 }
-
-private fun formatUrgencyClock(seconds: Int): String =
-    "%02d:%02d".format(seconds / 60, seconds % 60)
