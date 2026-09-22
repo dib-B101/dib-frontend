@@ -87,7 +87,8 @@ private fun StartConfirmationContent(
     val approved = productStatus in setOf("REGISTERED", "APPROVED")
     val awaitingModeration = productStatus in setOf("PENDING", "PENDING_REVIEW")
     val rejected = productStatus in setOf("REJECTED", "REVIEW_REJECTED")
-    val ready = approved && !product.auctionId.isNullOrBlank() && product.auctionStatus?.uppercase() == "SCHEDULED"
+    // 유찰(ENDED) 경매도 다시 시작할 수 있다 — 서버가 시작 요청에서 재등록을 겸한다
+    val ready = approved && !product.auctionId.isNullOrBlank() && product.auctionStatus?.uppercase() in setOf("SCHEDULED", "ENDED")
     val conditionsFixed = isScheduledAuctionReady(
         auctionId = product.auctionId,
         auctionStatus = product.auctionStatus,
@@ -110,7 +111,14 @@ private fun StartConfirmationContent(
             HorizontalDivider(color = Colors.Border)
             AuctionConditionRow("시작가", product.startPrice?.let { "%,d원".format(it) } ?: "가격 미정")
             AuctionConditionRow("경매 시간", product.auctionTimeSeconds?.let(::formatAuctionDuration) ?: "미정")
-            AuctionConditionRow("경매 상태", if (product.auctionStatus?.uppercase() == "SCHEDULED") "시작 전" else "확인 필요")
+            AuctionConditionRow(
+                "경매 상태",
+                when (product.auctionStatus?.uppercase()) {
+                    "SCHEDULED" -> "시작 전"
+                    "ENDED" -> "유찰 · 다시 시작 가능"
+                    else -> "확인 필요"
+                }
+            )
         }
         Text(
             if (conditionsFixed) "저장된 조건이 기본값으로 채워져요. 시작하면 즉시 카운트다운이 진행되며 조건은 바꿀 수 없어요."

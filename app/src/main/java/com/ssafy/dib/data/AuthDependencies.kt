@@ -8,6 +8,7 @@ import com.ssafy.dib.core.network.NetworkConfig
 import com.ssafy.dib.data.local.auth.DeviceIdentityStore
 import com.ssafy.dib.data.local.auth.SecureAuthSessionStore
 import com.ssafy.dib.data.local.auth.KakaoOAuthStateStore
+import com.ssafy.dib.data.local.search.RecentSearchStore
 import com.ssafy.dib.core.auth.KakaoOAuthConfig
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
@@ -67,6 +68,8 @@ class AuthDependencies(context: Context) {
     val networkConfig: NetworkConfig = NetworkConfig.fromBuildConfig()
     val deviceId: String = deviceStore.getOrCreate()
     val kakaoOAuthStateStore = KakaoOAuthStateStore(appContext)
+    // 최근 검색어는 기기에만 저장한다
+    val recentSearchStore = RecentSearchStore(appContext)
     val kakaoOAuthConfig = KakaoOAuthConfig(
         BuildConfig.KAKAO_REST_API_KEY,
         BuildConfig.KAKAO_REDIRECT_URI

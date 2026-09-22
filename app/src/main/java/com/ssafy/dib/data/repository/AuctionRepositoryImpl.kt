@@ -141,7 +141,10 @@ class AuctionRepositoryImpl(
                             title = live.title,
                             description = live.description,
                             status = live.status,
-                            scheduledAt = live.scheduledAt
+                            scheduledAt = live.scheduledAt,
+                            itemCount = live.itemCount,
+                            firstItemTitle = live.firstItemTitle,
+                            firstItemThumbnailUrl = live.firstItemThumbnailUrl
                         )
                     },
                     generalItems = result.value.generalItems.take(size).map { it.toDomain(now()) }

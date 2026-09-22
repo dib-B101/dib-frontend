@@ -78,7 +78,17 @@ data class BidHistoryPage(val items: List<BidHistoryItem>, val nextCursor: Strin
 // bidderNickname 이 없으면(예전 서버, 탈퇴 회원) maskedBidderId 를 그대로 보여준다
 data class AuctionBidHistoryItem(val bidId: String, val maskedBidderId: String, val amount: Int, val createdAt: String, val bidderNickname: String? = null)
 data class AuctionBidHistoryPage(val items: List<AuctionBidHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
-data class RecommendedLive(val liveBroadcastId: String, val title: String, val description: String?, val status: String, val scheduledAt: String?)
+data class RecommendedLive(
+    val liveBroadcastId: String,
+    val title: String,
+    val description: String?,
+    val status: String,
+    val scheduledAt: String?,
+    // 홈 카드는 영상 대신 편성 상품 하나의 사진·제목을 보여준다
+    val itemCount: Int? = null,
+    val firstItemTitle: String? = null,
+    val firstItemThumbnailUrl: String? = null
+)
 data class HomeRecommendations(val liveItems: List<RecommendedLive>, val generalItems: List<AuctionSummary>)
 data class AuctionBidSnapshot(
     val auctionId: String,

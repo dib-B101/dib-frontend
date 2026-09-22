@@ -186,8 +186,10 @@ fun RegisteredProductsScreen(
             if (!isLoading && errorMessage == null && filtered.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("등록한 상품이 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("상품을 등록하면 검수 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp) } }
             items(filtered.size) { index ->
                 val product = filtered[index]
+                // 유찰(ENDED 인데 상품은 REGISTERED 로 돌아온 것)도 여기서 바로 다시 시작한다. 서버가 시작 때 재등록을 겸한다
+                val unsold = product.auctionStatus?.uppercase() == "ENDED"
                 val canStartAuction = product.status.uppercase() in setOf("REGISTERED", "APPROVED") &&
-                    product.auctionStatus?.uppercase() == "SCHEDULED" &&
+                    product.auctionStatus?.uppercase() in setOf("SCHEDULED", "ENDED") &&
                     !product.auctionId.isNullOrBlank() &&
                     (remoteProducts != null || showSampleContent)
                 val canEdit = remoteProducts != null && isProductEditable(product.status)
@@ -203,7 +205,14 @@ fun RegisteredProductsScreen(
                     val statusLabel = productStatusLabel(product.status)
                     Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(product.title, color = Colors.Navy, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(if (canStartAuction) "검수 승인 · 눌러서 경매 시작" else productStatusDescription(product.status), color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                        Text(
+                            when {
+                                canStartAuction && unsold -> "유찰된 경매 · 눌러서 다시 경매 시작"
+                                canStartAuction -> "검수 승인 · 눌러서 경매 시작"
+                                else -> productStatusDescription(product.status)
+                            },
+                            color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp
+                        )
                     }
                     Column(Modifier.padding(start = 8.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(statusLabel, Modifier.background(when (statusLabel) { "승인" -> Color(0xFFE7F8F2); "등록 거절" -> Color(0xFFFFECEE); else -> Color(0xFFFFF0EA) }, RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp), color = when (statusLabel) { "승인" -> Colors.MintInk; "등록 거절" -> Color(0xFFD84352); else -> Color(0xFFD65A37) }, fontSize = 10.sp, fontWeight = FontWeight.Bold)

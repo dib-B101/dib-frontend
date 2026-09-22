@@ -10,6 +10,7 @@ import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.ProductUpdate
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -99,6 +100,13 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
             .decodePayload(::decodeProductList)
+    }
+
+    // 인기 검색어 상위 N개 (서버가 검색 키워드를 Redis 에 누적한 결과). 로그인 없이 호출된다
+    fun getPopularKeywords(size: Int): ApiResult<List<String>> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/search/popular-keywords"
+        val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 20).toString())
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), ListSerializer(String.serializer()))
     }
 
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductCreateResponse> = configured {
