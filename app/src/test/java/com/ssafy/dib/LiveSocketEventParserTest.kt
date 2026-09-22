@@ -168,4 +168,48 @@ class LiveSocketEventParserTest {
         )!!
         assertEquals("CANCELED", cancelled.status)
     }
+
+    @Test
+    fun `closed live auction parses winnerId when backend provides it`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_CLOSED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 31)
+                    put("result", "SOLD")
+                    put("finalPrice", 52_000)
+                    put("winnerId", 42)
+                }
+            )
+        )!!
+
+        assertEquals("42", update.winnerId)
+        assertEquals("SOLD", update.auctionResult)
+        assertEquals("ENDED", update.status)
+    }
+
+    @Test
+    fun `closed live auction tolerates missing winnerId without breaking existing fields`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_CLOSED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 31)
+                    put("result", "SOLD")
+                    put("finalPrice", 52_000)
+                }
+            )
+        )!!
+
+        // 백엔드가 winnerId 를 아직 안 줄 때도 기존 필드는 그대로여야 한다
+        assertEquals(null, update.winnerId)
+        assertEquals("SOLD", update.auctionResult)
+        assertEquals("31", update.auctionId)
+        assertEquals("ENDED", update.status)
+        assertEquals(0, update.remainingSeconds)
+        assertEquals(52_000, update.currentPrice)
+        assertEquals("Live 경매가 낙찰됐어요.", update.message)
+    }
 }

@@ -1,10 +1,13 @@
 package com.ssafy.dib.feature.live
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +61,7 @@ fun LiveWatchScreen(
     currentMemberId: String?,
     sellerMemberId: String?,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult? = null,
     onRetry: () -> Unit,
     onBid: (String, Int) -> Boolean,
     onSendChat: (String) -> Boolean,
@@ -119,6 +123,8 @@ fun LiveWatchScreen(
                 ) else LiveWatchAuctionCard(
                     auction = activeAuction,
                     bidEnabled = bidEnabled,
+                    lastResult = lastResult,
+                    currentMemberId = currentMemberId,
                     onBidRequest = { if (isAuthenticated) showBidSheet = true else onLoginRequired() }
                 )
                 feedbackMessage?.let { message ->
@@ -251,17 +257,68 @@ private fun LiveWatchVideoPanel(
 private fun LiveWatchAuctionCard(
     auction: AuctionSummary?,
     bidEnabled: Boolean,
+    lastResult: LiveAuctionResult?,
+    currentMemberId: String?,
     onBidRequest: () -> Unit
 ) {
     if (auction == null || !auction.status.equals("ACTIVE", ignoreCase = true)) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
-                .padding(16.dp)
-        ) {
-            Text("다음 경매를 준비하고 있어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("판매자가 경매를 시작하면 바로 입찰할 수 있어요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 11.sp)
+        // 낙찰자만 축하 연출을 본다 — 나머지 시청자에게 "당신이 낙찰됐다"고 착각하게 하면 안 된다
+        val isWinner = lastResult?.winnerId != null && lastResult.winnerId == currentMemberId
+        when {
+            lastResult != null && isWinner -> AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + scaleIn(initialScale = .85f)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        .background(Colors.MintSoft, RoundedCornerShape(14.dp))
+                        .border(1.dp, Colors.Mint, RoundedCornerShape(14.dp))
+                        .padding(16.dp)
+                ) {
+                    Text("🎉 낙찰을 축하해요!", color = Colors.MintInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "‘${lastResult.title}’ · 최종가 %,d원".format(lastResult.finalPrice ?: 0),
+                        Modifier.padding(top = 4.dp),
+                        color = Colors.Navy,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "거래 상세에서 결제와 배송을 확인해주세요",
+                        Modifier.padding(top = 4.dp),
+                        color = Colors.Muted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+            lastResult != null -> Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    .background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text("‘${lastResult.title}’ 경매가 종료됐어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (lastResult.sold) "최종가 %,d원에 낙찰됐어요".format(lastResult.finalPrice ?: 0) else "입찰이 없어 유찰됐어요",
+                    Modifier.padding(top = 4.dp),
+                    color = Colors.Muted,
+                    fontSize = 11.sp
+                )
+                Text(
+                    "다음 상품은 판매자가 시작하면 바로 보여요",
+                    Modifier.padding(top = 4.dp),
+                    color = Colors.Muted,
+                    fontSize = 11.sp
+                )
+            }
+            else -> Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    .background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text("다음 경매를 준비하고 있어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("판매자가 경매를 시작하면 바로 입찰할 수 있어요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 11.sp)
+            }
         }
         return
     }

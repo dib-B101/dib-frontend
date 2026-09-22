@@ -32,7 +32,10 @@ data class LiveRealtimeUpdate(
     val message: String? = null,
     val errorCode: String? = null,
     val minAllowedAmount: Int? = null,
-    val occurredAt: String? = null
+    val occurredAt: String? = null,
+    // 낙찰자 정보는 백엔드가 아직 안 줄 수 있어 항상 null 허용 — 없으면 낙찰자 연출을 하지 않는다
+    val winnerId: String? = null,
+    val auctionResult: String? = null
 )
 
 class LiveSocketEventParser(
@@ -149,7 +152,10 @@ class LiveSocketEventParser(
                     remainingSeconds = 0,
                     status = if (result in setOf("CANCELLED", "CANCELED")) "CANCELED" else "ENDED",
                     message = if (result == "SOLD") "Live 경매가 낙찰됐어요." else "Live 경매가 종료됐어요.",
-                    occurredAt = occurredAt
+                    occurredAt = occurredAt,
+                    auctionResult = result,
+                    // winnerId 는 최상위 필드 또는 winner 객체 안에 올 수 있고, 필드 자체가 아직 없을 수도 있다
+                    winnerId = payload.string("winnerId") ?: payload.obj("winner")?.string("memberId")
                 )
             }
             SocketEventTypes.LIVE_VIEWER_COUNT_UPDATED -> LiveRealtimeUpdate(

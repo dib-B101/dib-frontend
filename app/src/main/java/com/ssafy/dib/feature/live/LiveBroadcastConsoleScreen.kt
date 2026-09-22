@@ -58,6 +58,9 @@ data class LiveBidNotice(
     val time: String
 )
 
+/** LIVE_AUCTION_CLOSED 한 건의 표시용 결과. winnerId 는 서버가 아직 안 주면 null 이고, 그때는 낙찰자 연출을 하지 않는다. */
+data class LiveAuctionResult(val auctionId: String, val title: String, val finalPrice: Int?, val sold: Boolean, val winnerId: String?, val occurredAt: String?)
+
 internal sealed interface LiveConsoleFeedEntry {
     val entryKey: String
     val entryTime: String
@@ -108,6 +111,13 @@ internal fun liveAuctionStatusLabel(status: String): String = when (status.upper
     else -> status
 }
 
+/** 상품 카드의 경매 시간 표기. 분 단위로만 보이면 300초/60초처럼 1분 미만 상품이 "0분"으로 뭉개진다. */
+internal fun liveDurationLabel(seconds: Long): String = when {
+    seconds < 60 -> "${seconds}초"
+    seconds % 60 == 0L -> "${seconds / 60}분"
+    else -> "${seconds / 60}분 ${seconds % 60}초"
+}
+
 internal fun liveConnectionLabel(state: RealtimeConnectionState?): String = when (state) {
     RealtimeConnectionState.Connecting -> "연결 중"
     RealtimeConnectionState.Connected -> "실시간 연결됨"
@@ -137,6 +147,7 @@ fun LiveBroadcastConsoleScreen(
     chatError: String?,
     currentMemberId: String?,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult? = null,
     onRetry: () -> Unit,
     onStartAuction: (String) -> Unit,
     onEndLive: () -> Unit,
@@ -222,6 +233,7 @@ fun LiveBroadcastConsoleScreen(
                     hasActiveAuction = activeAuction != null,
                     actionLoading = actionLoading,
                     liveEnded = liveEnded,
+                    lastResult = lastResult,
                     onStartAuction = onStartAuction,
                     onOpenItemPlan = onOpenItemPlan,
                     modifier = Modifier.weight(1f)
@@ -507,6 +519,7 @@ private fun LiveConsoleProductTab(
     hasActiveAuction: Boolean,
     actionLoading: Boolean,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult?,
     onStartAuction: (String) -> Unit,
     onOpenItemPlan: () -> Unit,
     modifier: Modifier = Modifier
@@ -524,6 +537,10 @@ private fun LiveConsoleProductTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 다음 경매가 아직 안 켜진 동안, 방금 끝난 경매의 결과를 먼저 보여준다 — 자동 시작은 없다는 것도 여기서 알린다
+        if (!hasActiveAuction && lastResult != null) item(key = "console-last-result:${lastResult.auctionId}:${lastResult.occurredAt}") {
+            LiveConsoleResultCard(lastResult)
+        }
         items(auctions, key = AuctionSummary::auctionId) { auction ->
             LiveConsoleProductRow(
                 auction = auction,
@@ -533,6 +550,32 @@ private fun LiveConsoleProductTab(
                 onStartAuction = onStartAuction
             )
         }
+    }
+}
+
+@Composable
+private fun LiveConsoleResultCard(result: LiveAuctionResult) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("‘${result.title}’ 경매가 종료됐어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(
+            buildString {
+                append(if (result.sold) "낙찰 · 최종가 %,d원".format(result.finalPrice ?: 0) else "유찰 · 입찰이 없었어요")
+                if (result.winnerId != null) append(" · 낙찰자에게 결과를 알렸어요")
+            },
+            color = Colors.Text,
+            fontSize = 12.sp
+        )
+        Text(
+            "다음 상품은 아래 카드의 ‘지금 시작’을 눌러야 시작돼요. 자동으로 시작되지 않아요.",
+            color = Colors.Muted,
+            fontSize = 11.sp
+        )
     }
 }
 
@@ -557,7 +600,7 @@ private fun LiveConsoleProductRow(
                 Text(auction.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
                     "시작가 " + (auction.startPriceOrNull?.let { "%,d원".format(it) } ?: "가격 미정") +
-                        " · " + (auction.auctionTimeSeconds.takeIf { it > 0 }?.let { "${it / 60}분" } ?: "시간 미정"),
+                        " · " + (auction.auctionTimeSeconds.takeIf { it > 0 }?.let { liveDurationLabel(it) } ?: "시간 미정"),
                     color = Colors.Muted,
                     fontSize = 11.sp
                 )
