@@ -519,6 +519,7 @@ fun ProductRegisterScreen(
     var modelName by rememberSaveable { mutableStateOf("") }
     var releaseYear by rememberSaveable { mutableStateOf("") }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
+    var conditionDialog by rememberSaveable { mutableStateOf(false) }
     var imageValidationMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showPhotoReorder by remember { mutableStateOf(false) }
     var validationRequested by rememberSaveable { mutableStateOf(false) }
@@ -674,7 +675,7 @@ fun ProductRegisterScreen(
                     item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요", placeholder = selectedCategory == null, errorMessage = "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
-                    item { RegisterSelect("상품 상태 *", conditionLabel(condition), placeholder = condition.isBlank(), errorMessage = "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
+                    item { RegisterSelect("상품 상태 *", conditionLabel(condition), placeholder = condition.isBlank(), errorMessage = "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { conditionDialog = true } }
                     item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
                     item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
                     item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
@@ -716,6 +717,28 @@ fun ProductRegisterScreen(
         title = { Text("카테고리 선택") },
         text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
         confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
+    )
+    // 카테고리와 같은 방식으로 목록을 펼쳐 고른다. 예전엔 탭할 때마다 상→중→하로 순환해서
+    // 어떤 값이 있는지 눌러 보기 전에는 알 수 없었다
+    if (conditionDialog) AlertDialog(
+        onDismissRequest = { conditionDialog = false },
+        title = { Text("상품 상태 선택") },
+        text = {
+            Column {
+                PRODUCT_CONDITIONS.forEach { value ->
+                    val selected = condition == value
+                    Text(
+                        conditionLabel(value),
+                        Modifier.fillMaxWidth()
+                            .clickable { condition = value; conditionDialog = false }
+                            .padding(vertical = 14.dp),
+                        color = Colors.Navy,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton({ conditionDialog = false }) { Text("닫기") } }
     )
     imageValidationMessage?.let { message ->
         AlertDialog(
