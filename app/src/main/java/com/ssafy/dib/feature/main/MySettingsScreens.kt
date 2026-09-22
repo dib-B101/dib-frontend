@@ -197,16 +197,11 @@ fun SettlementAccountsScreen(
     account: SettlementAccount?,
     isLoading: Boolean,
     errorMessage: String?,
-    verificationRequested: Boolean,
-    verificationConfirmed: Boolean,
     actionLoading: Boolean,
     actionError: String?,
     actionRevision: Int,
     onRetry: () -> Unit,
-    onRequestVerification: (String) -> Unit,
-    onConfirmVerification: (String) -> Unit,
     onSave: (bankName: String, accountNumber: String, accountHolder: String) -> Unit,
-    onResetVerification: () -> Unit,
     onBack: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
@@ -228,36 +223,23 @@ fun SettlementAccountsScreen(
                 else -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("등록한 정산 계좌가 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("판매 대금을 받을 본인 계좌를 등록해주세요", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
             }
             item { Text("안전 확인 · 계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(16.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            item { Button({ onResetVerification(); editorOpen = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경", fontWeight = FontWeight.Bold) } }
+            item { Button({ editorOpen = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경", fontWeight = FontWeight.Bold) } }
         }
     }
     if (editorOpen) {
         var bank by rememberSaveable { mutableStateOf(account?.bankName.orEmpty()) }
         var number by remember { mutableStateOf("") }
         var holder by rememberSaveable { mutableStateOf(account?.accountHolder.orEmpty()) }
-        var phone by remember { mutableStateOf("") }
-        var code by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { if (!actionLoading) editorOpen = false }, title = { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(bank, { bank = it.take(30) }, label = { Text("은행") }, singleLine = true)
                 OutlinedTextField(number, { number = it.filter(Char::isDigit).take(24) }, label = { Text("계좌번호") }, singleLine = true)
                 OutlinedTextField(holder, { holder = it.take(30) }, label = { Text("예금주") }, singleLine = true)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(phone, { phone = it.filter(Char::isDigit).take(11) }, Modifier.weight(1f), label = { Text("휴대전화") }, singleLine = true)
-                    TextButton({ onRequestVerification(phone) }, enabled = phone.length >= 10 && !actionLoading) { Text(if (verificationRequested) "재전송" else "인증요청") }
-                }
-                if (verificationRequested && !verificationConfirmed) Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, Modifier.weight(1f), label = { Text("인증번호") }, singleLine = true)
-                    TextButton({ onConfirmVerification(code) }, enabled = code.length >= 4 && !actionLoading) { Text("확인") }
-                }
-                if (verificationConfirmed) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Image(painterResource(R.drawable.check_circle), null, Modifier.size(17.dp), colorFilter = ColorFilter.tint(Color(0xFF27806E)))
-                    Text("휴대전화 본인 인증 완료", color = Color(0xFF27806E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                // 휴대전화 재인증은 받지 않는다. 가입 때 본인인증을 마친 계정이다
                 actionError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
             } },
-            confirmButton = { TextButton({ onSave(bank.trim(), number, holder.trim()) }, enabled = verificationConfirmed && bank.isNotBlank() && number.length >= 8 && holder.isNotBlank() && !actionLoading) { if (actionLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },
+            confirmButton = { TextButton({ onSave(bank.trim(), number, holder.trim()) }, enabled = bank.isNotBlank() && number.length >= 8 && holder.isNotBlank() && !actionLoading) { if (actionLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("저장") } },
             dismissButton = { TextButton({ editorOpen = false }, enabled = !actionLoading) { Text("취소") } }
         )
     }

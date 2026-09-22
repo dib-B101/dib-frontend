@@ -6,5 +6,5 @@ data class SettlementAccount(val bankName: String, val maskedAccountNumber: Stri
 
 interface SettlementAccountRepository {
     fun getAccount(): ApiResult<SettlementAccount>
-    fun saveAccount(phoneVerificationToken: String, bankName: String, accountNumber: String, accountHolder: String): ApiResult<SettlementAccount>
+    fun saveAccount(bankName: String, accountNumber: String, accountHolder: String): ApiResult<SettlementAccount>
 }

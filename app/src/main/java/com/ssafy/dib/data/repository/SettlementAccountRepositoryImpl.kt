@@ -13,8 +13,8 @@ class SettlementAccountRepositoryImpl(private val remote: SettlementAccountRemot
         is ApiResult.Failure -> result
     }
 
-    override fun saveAccount(phoneVerificationToken: String, bankName: String, accountNumber: String, accountHolder: String): ApiResult<SettlementAccount> =
-        when (val result = remote.saveAccount(SaveSettlementAccountRequest(phoneVerificationToken, bankName, accountNumber, accountHolder))) {
+    override fun saveAccount(bankName: String, accountNumber: String, accountHolder: String): ApiResult<SettlementAccount> =
+        when (val result = remote.saveAccount(SaveSettlementAccountRequest(bankName, accountNumber, accountHolder))) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
             is ApiResult.Failure -> result
         }

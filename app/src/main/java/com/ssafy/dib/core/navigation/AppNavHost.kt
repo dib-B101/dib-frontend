@@ -4266,8 +4266,6 @@ fun AppNavHost(
             var settlementLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var settlementError by remember { mutableStateOf<String?>(null) }
             var settlementRevision by remember { mutableStateOf(0) }
-            var settlementChallengeId by remember { mutableStateOf<String?>(null) }
-            var settlementVerificationToken by remember { mutableStateOf<String?>(null) }
             var settlementActionLoading by remember { mutableStateOf(false) }
             var settlementActionError by remember { mutableStateOf<String?>(null) }
             var settlementActionRevision by remember { mutableStateOf(0) }
@@ -4293,57 +4291,21 @@ fun AppNavHost(
                 account = settlementAccount,
                 isLoading = settlementLoading,
                 errorMessage = settlementError,
-                verificationRequested = settlementChallengeId != null,
-                verificationConfirmed = settlementVerificationToken != null,
                 actionLoading = settlementActionLoading,
                 actionError = settlementActionError,
                 actionRevision = settlementActionRevision,
                 onRetry = { settlementRevision++ },
-                onRequestVerification = { phone ->
-                    settlementActionLoading = true
-                    settlementActionError = null
-                    settlementVerificationToken = null
-                    coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.repository.requestSensitivePhoneVerification(phone) }) {
-                            is ApiResult.Success -> settlementChallengeId = result.value.verificationId
-                            is ApiResult.Failure -> {
-                                settlementActionError = signupErrorMessage(result.error)
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                        settlementActionLoading = false
-                    }
-                },
-                onConfirmVerification = { code ->
-                    val challengeId = settlementChallengeId ?: return@SettlementAccountsScreen
-                    settlementActionLoading = true
-                    settlementActionError = null
-                    coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
-                            is ApiResult.Success -> settlementVerificationToken = result.value.verificationToken
-                            is ApiResult.Failure -> {
-                                settlementActionError = signupErrorMessage(result.error)
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                        settlementActionLoading = false
-                    }
-                },
                 onSave = { bankName, accountNumber, accountHolder ->
-                    val token = settlementVerificationToken ?: return@SettlementAccountsScreen
                     settlementActionLoading = true
                     settlementActionError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.settlementAccountRepository.saveAccount(token, bankName, accountNumber, accountHolder) }) {
+                        when (val result = withContext(Dispatchers.IO) { auth.settlementAccountRepository.saveAccount(bankName, accountNumber, accountHolder) }) {
                             is ApiResult.Success -> {
                                 settlementAccount = result.value
                                 settlementActionRevision++
-                                settlementChallengeId = null
-                                settlementVerificationToken = null
                             }
                             is ApiResult.Failure -> {
                                 settlementActionError = when (result.error.code) {
-                                    "INVALID_VERIFICATION" -> "본인 인증이 만료됐어요. 다시 인증해주세요."
                                     "ACCOUNT_VERIFICATION_FAILED" -> "은행·계좌번호·예금주가 일치하는지 확인해주세요."
                                     else -> result.error.message.ifBlank { "정산 계좌를 저장하지 못했어요." }
                                 }
@@ -4352,11 +4314,6 @@ fun AppNavHost(
                         }
                         settlementActionLoading = false
                     }
-                },
-                onResetVerification = {
-                    settlementChallengeId = null
-                    settlementVerificationToken = null
-                    settlementActionError = null
                 },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain

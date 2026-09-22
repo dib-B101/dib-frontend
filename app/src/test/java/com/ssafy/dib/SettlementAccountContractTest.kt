@@ -20,9 +20,20 @@ class SettlementAccountContractTest {
         assertTrue(encoded.contains("CHANGE_SENSITIVE"))
     }
 
+    // 정산 계좌 저장은 휴대폰 재인증 토큰을 보내지 않는다 (가입 때 이미 본인인증을 마친 계정)
+    @Test
+    fun settlementAccountRequestCarriesNoVerificationToken() {
+        val encoded = DibJson.instance.encodeToString(
+            SaveSettlementAccountRequest.serializer(),
+            SaveSettlementAccountRequest("우리은행", "100212345678", "김띱")
+        )
+
+        assertTrue(!encoded.contains("phoneVerificationToken"))
+    }
+
     @Test
     fun settlementAccountContractsUseUnmaskedInputAndMaskedOutput() {
-        val request = SaveSettlementAccountRequest("verification-token", "우리은행", "100212345678", "김띱")
+        val request = SaveSettlementAccountRequest("우리은행", "100212345678", "김띱")
         val encoded = DibJson.instance.encodeToString(SaveSettlementAccountRequest.serializer(), request)
         val response = DibJson.instance.decodeFromString(
             SettlementAccountResponse.serializer(),
