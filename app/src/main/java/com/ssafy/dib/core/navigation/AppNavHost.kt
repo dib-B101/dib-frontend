@@ -73,6 +73,7 @@ import com.ssafy.dib.feature.home.AuctionSearchScreen
 import com.ssafy.dib.feature.home.AuctionSearchFilters
 import com.ssafy.dib.feature.home.NotificationCenterScreen
 import com.ssafy.dib.feature.home.CategoryScreen
+import com.ssafy.dib.feature.home.LiveListScreen
 import com.ssafy.dib.feature.main.AddressManagementScreen
 import com.ssafy.dib.feature.main.FavoriteAuctionsScreen
 import com.ssafy.dib.feature.main.InquiryHistoryScreen
@@ -1097,7 +1098,7 @@ fun AppNavHost(
                 onProductClick = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
-                onLiveClick = { navController.navigate(Screen.Feed.route) },
+                onLiveClick = { navController.navigate(Screen.LiveList.route) },
                 onSearchClick = {
                     browseAllAuctions = false
                     navController.navigate(Screen.Search.route)
@@ -1119,17 +1120,29 @@ fun AppNavHost(
                 tabReselectSignal = tabReselectSignal
             )
         }
-        composable(Screen.Categories.route) {
+        composable(Screen.LiveList.route) {
+            LiveListScreen(
+                lives = remoteHomeLives,
+                loading = auctionsLoading,
+                error = auctionsError,
+                onRefresh = { auctionsRevision++ },
+                onBack = navController::navigateUp,
+                onLiveClick = { liveId -> navController.navigate(Screen.LiveWatch.createRoute(liveId)) },
+                onTabSelected = ::navigateMain
+            )
+        }
+        composable(Screen.Categories.route) { categoryEntry ->
             // null 이면 CategoryScreen 이 기본 카테고리로 그린다 — 응답 전/실패에는 빈 화면 대신 대체 목록이 보여야 한다
-            var categoryList by remember { mutableStateOf<List<ProductCategory>?>(null) }
-            var categoryAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
-            var categoryLoading by remember { mutableStateOf(false) }
-            var categoryError by remember { mutableStateOf<String?>(null) }
-            var selectedCategoryId by remember { mutableStateOf<String?>(null) }
-            var categoryCursor by remember { mutableStateOf<String?>(null) }
-            var categoryHasNext by remember { mutableStateOf(false) }
-            var categoryLoadingMore by remember { mutableStateOf(false) }
-            var categoryLoadMoreError by remember { mutableStateOf<String?>(null) }
+            val categoryState = androidx.lifecycle.ViewModelProvider(categoryEntry)[CategoryUiState::class.java]
+            var categoryList by categoryState.categories
+            var categoryAuctions by categoryState.auctions
+            var categoryLoading by categoryState.loading
+            var categoryError by categoryState.error
+            var selectedCategoryId by categoryState.selectedCategoryId
+            var categoryCursor by categoryState.cursor
+            var categoryHasNext by categoryState.hasNext
+            var categoryLoadingMore by categoryState.loadingMore
+            var categoryLoadMoreError by categoryState.loadMoreError
 
             fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false) {
                 selectedCategoryId = categoryId
@@ -1963,7 +1976,10 @@ fun AppNavHost(
                 similarProductsLoading = true
                 similarProductsError = null
                 when (val result = withContext(Dispatchers.IO) { auth.productRepository.getSimilarProducts(sourceProductId) }) {
-                    is ApiResult.Success -> similarProducts = result.value.filterNot { it.productId == sourceProductId }
+                    is ApiResult.Success -> similarProducts = result.value.filter {
+                        it.productId != sourceProductId && !it.auctionId.isNullOrBlank() &&
+                            it.auctionStatus.equals("ACTIVE", ignoreCase = true)
+                    }
                     is ApiResult.Failure -> {
                         similarProductsError = result.error.message.ifBlank { "비슷한 상품을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
@@ -2202,7 +2218,7 @@ fun AppNavHost(
                 similarProductsLoading = similarProductsLoading,
                 similarProductsError = similarProductsError,
                 onSimilarProductsRetry = { similarProductsRevision++ },
-                onSimilarProductClick = { similarProductId -> navController.navigate(Screen.ProductOverview.createRoute(similarProductId)) }
+                onSimilarProductClick = { similarAuctionId -> navController.navigate(Screen.ProductDetail.createRoute(similarAuctionId)) }
             )
         }
         composable(Screen.Register.route) {
@@ -2367,6 +2383,7 @@ fun AppNavHost(
                 saleLoadMoreError = saleOrdersLoadMoreError,
                 onRetry = { ordersRevision++ },
                 onBidsRetry = { bidHistoryRevision++ },
+                onRefresh = { ordersRevision++; bidHistoryRevision++ },
                 onLoadMoreBids = {
                     val cursor = bidHistoryCursor
                     if (cursor != null && bidHistoryHasNext && !bidHistoryLoadingMore) {
@@ -2971,6 +2988,7 @@ fun AppNavHost(
                 profileLoading = myProfileLoading,
                 profileError = myProfileError,
                 onRetryProfile = { myProfileRevision++ },
+                onRefresh = { myProfileRevision++ },
                 onTabSelected = ::navigateMain,
                 onProfileEditClick = { navController.navigate(Screen.ProfileEdit.route) },
                 onFavoritesClick = { navController.navigate(Screen.FavoriteAuctions.route) },

@@ -154,8 +154,8 @@ fun AddressManagementScreen(
                 Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
             }
             if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
-            OutlinedTextField(detail, { detail = it }, label = { Text("상세주소 (동/호수)") }, singleLine = true)
-            OutlinedTextField(label, { label = it }, label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true)
+            OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text("상세주소 (동/호수)") }, singleLine = true, colors = dialogFieldColors())
+            OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true, colors = dialogFieldColors())
         } },
         confirmButton = {
             TextButton({
@@ -181,9 +181,9 @@ fun AddressManagementScreen(
         onDismissRequest = onDismiss,
         title = { Text("배송지 수정") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(label, { label = it }, label = { Text("배송지 이름") }, singleLine = true)
-            OutlinedTextField(postalCode, { postalCode = it.filter(Char::isDigit).take(10) }, label = { Text("우편번호") }, singleLine = true)
-            OutlinedTextField(address, { address = it }, label = { Text("주소") })
+            OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름") }, singleLine = true, colors = dialogFieldColors())
+            OutlinedTextField(postalCode, { postalCode = it.filter(Char::isDigit).take(10) }, modifier = Modifier.fillMaxWidth(), label = { Text("우편번호") }, singleLine = true, colors = dialogFieldColors())
+            OutlinedTextField(address, { address = it }, modifier = Modifier.fillMaxWidth(), label = { Text("주소") }, colors = dialogFieldColors())
             Text("배송지 삭제", Modifier.clickable(enabled = !actionLoading, onClick = onDelete).padding(vertical = 8.dp), color = Color(0xFFEF596B), fontWeight = FontWeight.Bold)
         } },
         confirmButton = { TextButton({ onSave(initial.copy(name = label.trim(), postalCode = postalCode, address = address.trim())) }, enabled = label.isNotBlank() && address.isNotBlank() && !actionLoading) { Text("저장") } },
@@ -233,9 +233,9 @@ fun SettlementAccountsScreen(
         AlertDialog(
             onDismissRequest = { if (!actionLoading) editorOpen = false }, title = { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(bank, { bank = it.take(30) }, label = { Text("은행") }, singleLine = true)
-                OutlinedTextField(number, { number = it.filter(Char::isDigit).take(24) }, label = { Text("계좌번호") }, singleLine = true)
-                OutlinedTextField(holder, { holder = it.take(30) }, label = { Text("예금주") }, singleLine = true)
+                OutlinedTextField(bank, { bank = it.take(30) }, modifier = Modifier.fillMaxWidth(), label = { Text("은행") }, singleLine = true, colors = dialogFieldColors())
+                OutlinedTextField(number, { number = it.filter(Char::isDigit).take(24) }, modifier = Modifier.fillMaxWidth(), label = { Text("계좌번호") }, singleLine = true, colors = dialogFieldColors())
+                OutlinedTextField(holder, { holder = it.take(30) }, modifier = Modifier.fillMaxWidth(), label = { Text("예금주") }, singleLine = true, colors = dialogFieldColors())
                 // 휴대전화 재인증은 받지 않는다. 가입 때 본인인증을 마친 계정이다
                 actionError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
             } },

@@ -96,6 +96,6 @@ internal fun remainingTimeLabel(seconds: Int): String = when {
     seconds <= 0 -> "마감"
     seconds < 60 -> "${seconds}초"
     seconds < 3_600 -> "${seconds / 60}분"
-    seconds % 3_600 < 60 -> "${seconds / 3_600}시간"
-    else -> "${seconds / 3_600}시간 ${seconds % 3_600 / 60}분"
+    seconds < 86_400 -> "${seconds / 3_600}시간 ${seconds % 3_600 / 60}분"
+    else -> "${seconds / 86_400}일 ${seconds % 86_400 / 3_600}시간 ${seconds % 3_600 / 60}분"
 }

@@ -43,6 +43,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 /** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     isAuthenticated: Boolean,
@@ -130,9 +131,10 @@ fun HomeScreen(
             )
         }
     ) { padding ->
+        PullToRefreshBox(isRefreshing = remoteLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
@@ -206,6 +208,7 @@ fun HomeScreen(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -323,7 +326,7 @@ private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () ->
         )
         Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
             Image(
-                painterResource(R.drawable.notification),
+                painterResource(R.drawable.notification_vector),
                 contentDescription = if (unreadNotificationCount > 0) "새 알림 ${unreadNotificationCount}개" else "알림",
                 modifier = Modifier.size(22.dp),
                 colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .72f))
@@ -390,13 +393,13 @@ private fun AuctionGridSection(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
+            DibViewModeToggle(viewMode, onViewModeChange)
             actionLabel?.let { label ->
                 Row(Modifier.clickable(onClick = onAction).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(label, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Image(painterResource(R.drawable.chevron_right), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.Navy))
                 }
             }
-            DibViewModeToggle(viewMode, onViewModeChange)
         }
         if (viewMode == DibContentView.Grid) {
             auctions.chunked(2).forEach { row ->
@@ -426,6 +429,8 @@ private fun AuctionGridSection(
     }
 }
 
+private fun homeAuctionMeta(auction: HomeAuction): String = "${remainingTimeLabel(auction.remainingSeconds)} 남음"
+
 @Composable
 private fun AuctionListCard(
     auction: HomeAuction,
@@ -445,7 +450,7 @@ private fun AuctionListCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(auction.priceText, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(auction.meta, color = Colors.Muted, fontSize = 10.sp)
+            Text(homeAuctionMeta(auction), color = Colors.Muted, fontSize = 10.sp)
         }
         DibWishlistButton(favorite, onFavorite, auction.name)
     }
@@ -483,7 +488,7 @@ private fun AuctionCard(
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
             Text(auction.priceText, color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
-            Text(auction.meta, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            Text(homeAuctionMeta(auction), maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
     }
@@ -514,7 +519,7 @@ private fun DeadlineSection(
                 AuctionUrgencyBadge(deadlineSeconds, compact = true)
                 Text(auction.name, maxLines = 2, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
                 Text(auction.priceText, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
-                Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
+                Text("${remainingTimeLabel(deadlineSeconds)} 남음", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
                     modifier = Modifier.fillMaxWidth().height(34.dp),
@@ -548,7 +553,7 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(auction.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
                     Text(auction.priceText, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(auction.meta, color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
+                    Text(homeAuctionMeta(auction), color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
                 }
             }
         }

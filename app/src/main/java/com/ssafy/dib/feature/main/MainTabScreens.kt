@@ -66,6 +66,7 @@ private data class TradeItem(
     val thumbnailUrl: String? = null
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyTradesScreen(
     onTabSelected: (DibMainTab) -> Unit,
@@ -89,6 +90,7 @@ fun MyTradesScreen(
     saleLoadMoreError: String?,
     onRetry: () -> Unit,
     onBidsRetry: () -> Unit,
+    onRefresh: () -> Unit,
     onLoadMoreBids: () -> Unit,
     onLoadMoreOrders: (OrderRole) -> Unit,
     modifier: Modifier = Modifier
@@ -96,7 +98,9 @@ fun MyTradesScreen(
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.List) }
     val items = when (selected) {
-        TradeTab.Bid -> remoteBids?.map(BidHistoryItem::toTradeItem)
+        TradeTab.Bid -> remoteBids?.filterNot { bid ->
+            remotePurchaseOrders.orEmpty().any { order -> order.auctionId == bid.auctionId }
+        }?.map(BidHistoryItem::toTradeItem)
             ?: if (!showSampleContent || bidsLoading || bidsError != null) emptyList() else listOf(
             TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "현재가보다 높게 입찰하기 →", TradeTone.Urgent),
             TradeItem("최고 입찰자", "빈티지 스니커즈", "내 입찰가 58,000원 · 마감 12분", "경매 상태 보기 →", TradeTone.Positive),
@@ -115,7 +119,7 @@ fun MyTradesScreen(
             TradeItem("판매 완료", "원목 라운지 체어", "구매 확정 · 정산 예정", "거래 내역 보기 →", TradeTone.Neutral)
         )
     }
-    val selectedLoading = if (selected == TradeTab.Bid) bidsLoading else remoteLoading
+    val selectedLoading = if (selected == TradeTab.Bid) bidsLoading || (remotePurchaseOrders == null && remoteLoading) else remoteLoading
     val selectedError = if (selected == TradeTab.Bid) bidsError else remoteError
     val selectedOrderRole = when (selected) {
         TradeTab.Purchase -> OrderRole.BUYER
@@ -151,7 +155,8 @@ fun MyTradesScreen(
         },
         bottomBar = { DibBottomNavigation(DibMainTab.Trades, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        PullToRefreshBox(isRefreshing = remoteLoading || bidsLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("${selected.label} 현황 · ${items.size}건", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -239,6 +244,7 @@ fun MyTradesScreen(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -380,12 +386,14 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPageScreen(
     profile: MemberProfile?,
     profileLoading: Boolean,
     profileError: String?,
     onRetryProfile: () -> Unit,
+    onRefresh: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     onProfileEditClick: () -> Unit,
     onFavoritesClick: () -> Unit,
@@ -408,7 +416,8 @@ fun MyPageScreen(
         topBar = { Text("마이", Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold) },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        PullToRefreshBox(isRefreshing = profileLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(20.dp)).border(1.dp, Colors.Border, RoundedCornerShape(20.dp)).padding(18.dp)) {
                     if (profileLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp), color = Colors.Mint)
@@ -445,7 +454,7 @@ fun MyPageScreen(
                     listOf(
                         Triple(R.drawable.favorite_outline, "찜한 경매", onFavoritesClick),
                         Triple(R.drawable.nav_register_full, "등록 상품", onRegisteredProductsClick),
-                        Triple(R.drawable.notification, "알림", onNotificationsClick),
+                        Triple(R.drawable.notification_vector, "알림", onNotificationsClick),
                         Triple(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick)
                     ).forEach { (icon, label, action) ->
                         Column(Modifier.width(76.dp).clickable(onClick = action), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -470,6 +479,7 @@ fun MyPageScreen(
                     MenuRow("로그아웃", Color(0xFFEF596B)) { confirmation = "로그아웃" }
                 }
             }
+        }
         }
     }
     confirmation?.let { action ->
