@@ -718,27 +718,10 @@ fun ProductRegisterScreen(
         text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
         confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
     )
-    // 카테고리와 같은 방식으로 목록을 펼쳐 고른다. 예전엔 탭할 때마다 상→중→하로 순환해서
-    // 어떤 값이 있는지 눌러 보기 전에는 알 수 없었다
-    if (conditionDialog) AlertDialog(
-        onDismissRequest = { conditionDialog = false },
-        title = { Text("상품 상태 선택") },
-        text = {
-            Column {
-                PRODUCT_CONDITIONS.forEach { value ->
-                    val selected = condition == value
-                    Text(
-                        conditionLabel(value),
-                        Modifier.fillMaxWidth()
-                            .clickable { condition = value; conditionDialog = false }
-                            .padding(vertical = 14.dp),
-                        color = Colors.Navy,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
-        },
-        confirmButton = { TextButton({ conditionDialog = false }) { Text("닫기") } }
+    if (conditionDialog) ProductConditionDialog(
+        selected = condition,
+        onSelect = { condition = it },
+        onDismiss = { conditionDialog = false }
     )
     imageValidationMessage?.let { message ->
         AlertDialog(
@@ -930,7 +913,7 @@ private fun ProductImageThumbnail(uri: Uri, representative: Boolean, onRemove: (
     }
 }
 
-// 등록(RegisterSelect)·수정(FilterChip) 두 화면이 같은 라벨을 쓰도록 여기 한 곳에만 둔다
+// 등록·수정 두 화면이 같은 값·라벨·선택 UI 를 쓰도록 여기 한 곳에만 둔다
 internal val PRODUCT_CONDITIONS = listOf("GOOD", "NORMAL", "BAD")
 
 internal fun conditionLabel(condition: String) = when (condition) {
@@ -938,6 +921,31 @@ internal fun conditionLabel(condition: String) = when (condition) {
     "NORMAL" -> "중 · 일반 사용감"
     "BAD" -> "하 · 하자 있음"
     else -> "상 · 중 · 하"
+}
+
+// 카테고리와 같은 방식으로 목록을 펼쳐 고른다. 예전엔 등록 화면이 탭마다 상→중→하로
+// 순환하고 수정 화면은 칩 3개라, 같은 값을 고르는데 화면마다 방식이 달랐다
+@Composable
+internal fun ProductConditionDialog(selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("상품 상태 선택") },
+        text = {
+            Column {
+                PRODUCT_CONDITIONS.forEach { value ->
+                    Text(
+                        conditionLabel(value),
+                        Modifier.fillMaxWidth()
+                            .clickable { onSelect(value); onDismiss() }
+                            .padding(vertical = 14.dp),
+                        color = Colors.Navy,
+                        fontWeight = if (selected == value) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onDismiss) { Text("닫기") } }
+    )
 }
 
 @Composable

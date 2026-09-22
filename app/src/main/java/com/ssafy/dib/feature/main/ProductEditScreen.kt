@@ -115,6 +115,7 @@ private fun ProductEditForm(
     var modelName by rememberSaveable(detail.productId) { mutableStateOf(detail.modelName.orEmpty()) }
     var releaseYear by rememberSaveable(detail.productId) { mutableStateOf(detail.releaseYear?.toString().orEmpty()) }
     var showCategories by rememberSaveable { mutableStateOf(false) }
+    var showConditions by rememberSaveable { mutableStateOf(false) }
     val moderationStatus = (productStatus ?: detail.status).uppercase()
     val awaitingModeration = moderationStatus in setOf("PENDING", "PENDING_REVIEW")
     val rejected = moderationStatus in setOf("REJECTED", "REVIEW_REJECTED")
@@ -179,15 +180,8 @@ private fun ProductEditForm(
         item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name ?: "카테고리 선택") } }
         item {
             Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PRODUCT_CONDITIONS.forEach { value ->
-                    FilterChip(
-                        selected = condition == value,
-                        onClick = { condition = value },
-                        label = { Text(conditionLabel(value), fontSize = 10.sp, lineHeight = 13.sp) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+            OutlinedButton({ showConditions = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Text(if (condition.isBlank()) "상품 상태 선택" else conditionLabel(condition))
             }
         }
         item { EditField("모델명 (선택)", modelName, { modelName = it }, KeyboardType.Text) }
@@ -232,6 +226,11 @@ private fun ProductEditForm(
         item { Button({ onSubmit(ProductUpdate(title.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), null, if (auctionEditable) startPrice.toLongOrNull() else null, if (auctionEditable) auctionMinutes.toIntOrNull()?.let { it * 60 } else null)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정 내용 등록", fontWeight = FontWeight.Bold) } }
     }
     if (showCategories) AlertDialog(onDismissRequest = { showCategories = false }, title = { Text("카테고리 선택") }, text = { LazyColumn { items(categories) { category -> Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp)) } } }, confirmButton = { TextButton({ showCategories = false }) { Text("닫기") } })
+    if (showConditions) ProductConditionDialog(
+        selected = condition,
+        onSelect = { condition = it },
+        onDismiss = { showConditions = false }
+    )
 }
 
 @Composable
