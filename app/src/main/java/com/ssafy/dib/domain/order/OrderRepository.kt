@@ -12,6 +12,7 @@ data class OrderSummary(
     val finalPrice: Int,
     val status: String,
     val updatedAt: String?,
+    val thumbnailUrl: String? = null,
     val paymentId: String? = null,
     val chattingReadOnly: Boolean = false
 )

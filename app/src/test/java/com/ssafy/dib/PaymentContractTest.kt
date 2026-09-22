@@ -4,10 +4,21 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.payment.PaymentMethodResponse
 import com.ssafy.dib.data.remote.payment.PaymentResponse
 import com.ssafy.dib.data.repository.toDomain
+import com.ssafy.dib.core.navigation.paymentMethodRegistrationErrorMessage
+import com.ssafy.dib.core.network.ApiFailure
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PaymentContractTest {
+    @Test
+    fun billingKeyFailureUsesRetryableUserMessage() {
+        val message = paymentMethodRegistrationErrorMessage(
+            ApiFailure(502, "BILLING_KEY_ISSUE_FAILED", "결제수단 등록에 실패했습니다.")
+        )
+
+        assertEquals("카드 인증 정보를 확인하지 못했어요. 잠시 후 다시 등록해주세요.", message)
+    }
+
     @Test
     fun paymentMethodMapsMaskedCardDetails() {
         val response = DibJson.instance.decodeFromString(
