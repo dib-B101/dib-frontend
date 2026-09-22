@@ -675,8 +675,9 @@ internal fun parseLiveInstant(value: String?): java.time.Instant? = value?.takeI
         .getOrNull()
 }
 
+// 올림으로 센다 — 내림이면 서버가 15초로 되돌린 직후 14 로 보인다 (remainingWholeSeconds 참고)
 internal fun remainingSecondsUntil(endedAt: String?, now: java.time.Instant = java.time.Instant.now()): Int? =
-    parseLiveInstant(endedAt)?.let { java.time.Duration.between(now, it).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt() }
+    parseLiveInstant(endedAt)?.let { com.ssafy.dib.core.time.remainingWholeSeconds(now, it) }
 
 /**
  * 남은 시간은 종료 절대 시각(endedAt) 기준으로 매 틱 다시 계산한다.

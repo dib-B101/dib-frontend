@@ -2,7 +2,10 @@ package com.ssafy.dib.core.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.util.LruCache
+import androidx.exifinterface.media.ExifInterface
+import java.io.ByteArrayInputStream
 import com.ssafy.dib.BuildConfig
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -79,7 +82,13 @@ private object DibBitmapLoader {
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
             }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.also { cache.put(url, it) }
+            val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return@use null
+            // 예전에 올라간 사진은 픽셀이 눕혀 있고 회전값만 EXIF 에 있다. 여기서 세워야 목록·상세 어디서든 바로 보인다
+            val rotation = runCatching { ExifInterface(ByteArrayInputStream(bytes)).rotationDegrees }.getOrDefault(0)
+            val upright = if (rotation == 0) decoded else Bitmap.createBitmap(
+                decoded, 0, 0, decoded.width, decoded.height, Matrix().apply { postRotate(rotation.toFloat()) }, true
+            )
+            upright.also { cache.put(url, it) }
         }
     }.getOrNull()
 

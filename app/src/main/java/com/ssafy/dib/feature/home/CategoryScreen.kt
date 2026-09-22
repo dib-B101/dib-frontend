@@ -134,7 +134,7 @@ fun CategoryScreen(
                 Text("상품을 검색해보세요", Modifier.padding(start = 10.dp), color = Colors.Muted, fontSize = 14.sp)
             }
             Spacer(Modifier.height(24.dp))
-            Text(if(selectedId == null) "전체 카테고리" else "진행 중인 경매", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(if(selectedId == null) "전체 카테고리" else "진행·예정 경매", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             if (selectedId == null) Text("관심 있는 분야의 경매를 둘러보세요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 13.sp)
             Spacer(Modifier.height(18.dp))
             if (selectedId == null) {
@@ -183,10 +183,10 @@ fun CategoryScreen(
                     return@Column
                 }
                 val visibleAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter { it.category.contains(selectedName.orEmpty().take(2)) }.ifEmpty { allHomeAuctions.distinctBy(HomeAuction::id).take(6) }
-                Text("진행 중인 경매 ${visibleAuctions.size}개", color = Colors.Muted, fontSize = 13.sp)
+                Text("진행·예정 경매 ${visibleAuctions.size}개", color = Colors.Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
                 if (visibleAuctions.isEmpty()) {
-                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("진행 중인 경매가 없어요.", color = Colors.Muted, fontSize = 13.sp) }
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("진행 중이거나 예정된 경매가 없어요.", color = Colors.Muted, fontSize = 13.sp) }
                     return@Column
                 }
                 LazyVerticalGrid(
@@ -204,7 +204,12 @@ fun CategoryScreen(
                         ) {
                             ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().aspectRatio(1.05f))
                             Text(auction.name, Modifier.padding(horizontal = 10.dp), color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음", Modifier.padding(horizontal = 10.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            // 예정 경매도 이 목록에 들어오므로 남은 시간 대신 "경매 예정" 으로 구분한다 (예정 건의 remainingSeconds 는 진행 시간 그대로다)
+                            Text(
+                                if (auction.status.equals("SCHEDULED", ignoreCase = true)) "${auction.priceLabel} · 경매 예정"
+                                else "${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음",
+                                Modifier.padding(horizontal = 10.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                     if (hasNext || isLoadingMore || loadMoreError != null) {

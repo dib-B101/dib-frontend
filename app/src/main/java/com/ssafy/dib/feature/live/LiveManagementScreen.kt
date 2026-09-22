@@ -343,7 +343,7 @@ private fun LiveItemDialog(
                                     )
                                 }
                             }
-                            if (!draft.isValid()) Text("시작가는 1,000원 이상, 경매 시간은 30초 이상 5분(300초) 이하여야 해요.", color = Colors.Urgent, fontSize = 11.sp)
+                            if (!draft.isValid()) Text("시작가는 1,000원 이상 10원 단위, 경매 시간은 30초 이상 5분(300초) 이하여야 해요.", color = Colors.Urgent, fontSize = 11.sp)
                         }
                     }
                 }
@@ -387,7 +387,8 @@ private fun LiveItemDialog(
 
 private data class LiveItemDraft(val startPrice: String, val seconds: String) {
     companion object { const val MIN_SECONDS = 30L; const val MAX_SECONDS = 300L }
-    fun isStartPriceValid(): Boolean = (startPrice.toLongOrNull() ?: 0L) >= 1_000L
+    // 서버(TradeInputValidator)와 같은 10원 단위 규칙. 편성에서 1001원을 저장하면 방송 중 입찰이 전부 튕긴다
+    fun isStartPriceValid(): Boolean = (startPrice.toLongOrNull() ?: 0L).let { it >= 1_000L && it % 10L == 0L }
     fun isSecondsValid(): Boolean = (seconds.toLongOrNull() ?: 0L) in MIN_SECONDS..MAX_SECONDS
     fun isValid(): Boolean = isStartPriceValid() && isSecondsValid()
 }

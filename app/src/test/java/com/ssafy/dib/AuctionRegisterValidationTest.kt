@@ -12,6 +12,8 @@ class AuctionRegisterValidationTest {
         assertFalse(isScheduledAuctionReady(null, "SCHEDULED", 1_000, 300))
         assertFalse(isScheduledAuctionReady("1", "ACTIVE", 1_000, 300))
         assertFalse(isScheduledAuctionReady("1", "SCHEDULED", 999, 300))
+        // 서버와 같은 10원 단위 규칙 — 1,005원처럼 끝자리가 어긋나면 시작할 수 없다
+        assertFalse(isScheduledAuctionReady("1", "SCHEDULED", 1_005, 300))
         assertFalse(isScheduledAuctionReady("1", "SCHEDULED", 1_000, 299))
         assertTrue(isScheduledAuctionReady("1", "SCHEDULED", 1_000, 300))
     }

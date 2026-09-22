@@ -202,6 +202,8 @@ internal fun isScheduledAuctionReady(
 ): Boolean = !auctionId.isNullOrBlank() &&
     auctionStatus?.uppercase() == "SCHEDULED" &&
     (startPrice ?: 0L) >= 1_000L &&
+    // 서버(TradeInputValidator)와 같은 10원 단위 규칙
+    (startPrice ?: 0L) % 10L == 0L &&
     (auctionTimeSeconds ?: 0L) >= 300L
 
 internal fun formatAuctionDuration(seconds: Long): String = when {

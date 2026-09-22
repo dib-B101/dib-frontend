@@ -63,7 +63,9 @@ import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
 import com.ssafy.dib.feature.live.LiveManagementScreen
 import com.ssafy.dib.feature.live.LiveBroadcastConsoleScreen
-import com.ssafy.dib.feature.live.LiveWatchScreen
+import com.ssafy.dib.feature.live.LiveHostMediaPreference
+import com.ssafy.dib.feature.live.remainingSecondsUntil
+import com.ssafy.dib.feature.main.prepareProductImageUpload
 import com.ssafy.dib.feature.live.LiveBidNotice
 import com.ssafy.dib.feature.live.LiveAuctionResult
 import com.ssafy.dib.feature.home.HomeScreen
@@ -86,7 +88,7 @@ import com.ssafy.dib.feature.main.ProfileEditScreen
 import com.ssafy.dib.feature.main.ProductRegisterScreen
 import com.ssafy.dib.feature.main.ProductEditScreen
 import com.ssafy.dib.feature.main.ProductRegistrationForm
-import com.ssafy.dib.feature.main.resolveProductImageMediaType
+
 import com.ssafy.dib.feature.main.RegisteredProductsScreen
 import com.ssafy.dib.feature.main.ReportHistoryScreen
 import com.ssafy.dib.feature.main.SettlementAccountsScreen
@@ -113,7 +115,7 @@ import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.domain.product.ProductCategory
-import com.ssafy.dib.domain.product.ProductImageUpload
+
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.domain.product.ProductSearchFilter
@@ -150,6 +152,9 @@ fun AppNavHost(
     var showCreateMenu by rememberSaveable { mutableStateOf(false) }
     var productSelectionPurpose by rememberSaveable { mutableStateOf<String?>(null) }
     var browseAllAuctions by rememberSaveable { mutableStateOf(false) }
+    // 홈 "지금 LIVE" 에서 고른 방송. 피드 탭이 열리면 그 방송 페이지로 바로 넘긴다 (browseAllAuctions 와 같은 전달 방식).
+    // 예전엔 홈 경로가 별도 시청 화면(LiveWatchScreen)을 열어 피드와 다른 모양·다른 시청자 수를 보여줬다
+    var feedFocusLiveBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
     var memberProfile by remember { mutableStateOf<com.ssafy.dib.domain.member.MemberProfile?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -468,6 +473,8 @@ fun AppNavHost(
     fun updateBookmark(
         auctionId: String,
         bookmarked: Boolean,
+        // 찜 API 는 productId 기준이다. 호출 쪽이 알고 있으면 넘기고, 없으면 홈 목록에서 찾는다
+        productId: String? = null,
         onResult: ((bookmarked: Boolean, errorMessage: String?) -> Unit)? = null
     ) {
         if (previewMode) {
@@ -478,7 +485,7 @@ fun AppNavHost(
             return
         }
         if (signedIn != true) return
-        val bookmarkProductId = remoteAuctions?.firstOrNull { it.id == auctionId }?.productId ?: auctionId
+        val bookmarkProductId = productId ?: remoteAuctions?.firstOrNull { it.id == auctionId }?.productId ?: auctionId
         val command = "bookmark:$bookmarkProductId:$bookmarked"
         val idempotencyKey = commandKeys.keyFor(command)
         remoteAuctions = remoteAuctions?.map { auction ->
@@ -666,7 +673,10 @@ fun AppNavHost(
         auctionsError = null
         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations() }) {
             is ApiResult.Success -> {
-                remoteAuctions = result.value.generalItems.map { it.toHomeAuction() }
+                // 첫 진입은 AI 추천 순서 그대로, 당겨서 새로고침(revision > 0)부터는 섞어서 홈 추천 4장이 매번 달라지게 한다.
+                // 서버 추천 스냅샷은 회원별로 고정이라 섞지 않으면 새로고침해도 같은 4장만 보였다
+                val items = result.value.generalItems.map { it.toHomeAuction() }
+                remoteAuctions = if (auctionsRevision == 0) items else items.shuffled()
                 remoteHomeLives = result.value.liveItems
             }
             is ApiResult.Failure -> {
@@ -1180,7 +1190,10 @@ fun AppNavHost(
                 error = auctionsError,
                 onRefresh = { auctionsRevision++ },
                 onBack = navController::navigateUp,
-                onLiveClick = { liveId -> navController.navigate(Screen.LiveWatch.createRoute(liveId)) },
+                onLiveClick = { liveId ->
+                    feedFocusLiveBroadcastId = liveId
+                    navController.navigate(Screen.Feed.route) { launchSingleTop = true }
+                },
                 onTabSelected = ::navigateMain
             )
         }
@@ -1208,7 +1221,8 @@ fun AppNavHost(
                 if (append) categoryLoadMoreError = null else categoryError = null
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) {
-                        auth.auctionRepository.getActiveGeneralAuctions(categoryId = categoryId, cursor = cursor)
+                        // 카테고리 조회는 예정 경매도 보여준다(OPEN = 진행 중 + 예정). 추천만 진행 중으로 제한한다
+                        auth.auctionRepository.getGeneralAuctions(size = 20, categoryId = categoryId, status = "OPEN", cursor = cursor)
                     }) {
                         is ApiResult.Success -> {
                             val mapped = result.value.items.map { it.toHomeAuction() }
@@ -1586,6 +1600,39 @@ fun AppNavHost(
                 }
                 liveFeedLoading = false
             }
+            // 홈 "지금 LIVE" 에서 고른 방송이 피드 첫 페이지에 없으면 상세를 받아 맨 앞에 끼워 넣는다.
+            // 목록에 있으면 LiveFeedScreen 이 focusLiveBroadcastId 로 그 페이지까지 넘긴다
+            LaunchedEffect(feedFocusLiveBroadcastId, liveFeedItems, liveFeedLoading) {
+                val focusId = feedFocusLiveBroadcastId ?: return@LaunchedEffect
+                val items = liveFeedItems ?: return@LaunchedEffect
+                if (liveFeedLoading || items.any { it.liveBroadcastId == focusId }) return@LaunchedEffect
+                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(focusId) }) {
+                    is ApiResult.Success -> {
+                        val detail = result.value
+                        if (detail.status.equals("LIVE", ignoreCase = true)) {
+                            liveAuctionLists = liveAuctionLists + (focusId to detail.auctions)
+                            liveFeedItems = listOf(
+                                com.ssafy.dib.domain.live.LiveFeedItem(
+                                    liveBroadcastId = detail.liveBroadcastId,
+                                    memberId = detail.memberId,
+                                    title = detail.title,
+                                    description = detail.description,
+                                    streamUrl = detail.streamUrl,
+                                    viewCount = detail.viewCount,
+                                    currentAuction = detail.currentAuction
+                                )
+                            ) + items
+                        } else {
+                            // 이미 끝난 방송이면 피드를 그대로 보여준다
+                            feedFocusLiveBroadcastId = null
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        feedFocusLiveBroadcastId = null
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+            }
             LaunchedEffect(activeLiveBroadcastId, signedIn) {
                 val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) {
@@ -1828,6 +1875,8 @@ fun AppNavHost(
                 chatError = liveChatError,
                 chatConnectionState = liveChatState,
                 onLiveVisible = { liveId ->
+                    // 고른 방송 페이지에 도착했으면 전달값을 비운다. 안 비우면 다음에 피드 탭을 눌러도 그 방송으로 되돌아간다
+                    if (liveId == feedFocusLiveBroadcastId) feedFocusLiveBroadcastId = null
                     if (activeLiveBroadcastId != liveId) {
                         activeLiveBroadcastId = liveId
                         liveComments = emptyList()
@@ -1895,7 +1944,11 @@ fun AppNavHost(
                     liveFavoriteError = null
                     liveFavoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds + auctionId
                     applyLiveBookmark(auctionId, bookmarked)
-                    updateBookmark(auctionId, bookmarked) { resolvedBookmark, errorMessage ->
+                    // 라이브 경매는 홈 목록(remoteAuctions)에 없어 productId 를 여기서 직접 찾아 넘긴다. 안 넘기면 auctionId 가
+                    // productId 로 전송돼 다른 상품이 찜되거나, 취소가 BOOKMARK_NOT_FOUND 로 실패해 찜 표시가 되살아났다
+                    val productId = (liveAuctionLists.values.flatten() + liveFeedItems.orEmpty().mapNotNull { it.currentAuction })
+                        .firstOrNull { it.auctionId == auctionId }?.productId?.takeIf(String::isNotBlank)
+                    updateBookmark(auctionId, bookmarked, productId = productId) { resolvedBookmark, errorMessage ->
                         applyLiveBookmark(auctionId, resolvedBookmark)
                         liveFavoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds - auctionId
                         liveFavoriteError = errorMessage
@@ -1963,7 +2016,8 @@ fun AppNavHost(
                 },
                 // 당겨서 새로고침은 사용자가 직접 요구한 갱신이라 최소 간격을 두지 않는다.
                 onRefresh = { liveFeedRevision++ },
-                onTabSelected = ::navigateMain
+                onTabSelected = ::navigateMain,
+                focusLiveBroadcastId = feedFocusLiveBroadcastId
             )
         }
         composable(
@@ -2348,7 +2402,7 @@ fun AppNavHost(
                         form.condition,
                         form.modelName.orEmpty(),
                         form.releaseYear?.toString().orEmpty(),
-                        form.images.joinToString { "${it.uri}" }
+                        form.images.joinToString { "${it.uri}#${it.rotationDegrees}" }
                     ).joinToString("\u001f")
                     val idempotencyKey = commandKeys.keyFor(command)
                     productSubmitLoading = true
@@ -2356,14 +2410,9 @@ fun AppNavHost(
                     coroutineScope.launch {
                         val uploads = withContext(Dispatchers.IO) {
                             runCatching {
+                                // EXIF·사용자 회전을 반영해 세운 바이트로 올린다. 서버는 EXIF 를 다시 읽지 않는다
                                 form.images.mapIndexed { index, image ->
-                                    val uri = image.uri
-                                    ProductImageUpload(
-                                        fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "product-$index.jpg",
-                                        mediaType = resolveProductImageMediaType(context.contentResolver, uri) ?: "application/octet-stream",
-                                        bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                            ?: error("선택한 사진을 읽을 수 없습니다.")
-                                    )
+                                    prepareProductImageUpload(context.contentResolver, image, index)
                                 }
                             }
                         }
@@ -3958,10 +4007,18 @@ fun AppNavHost(
                         }) {
                             is ApiResult.Success -> {
                                 commandKeys.complete(command)
+                                // 응답의 종료 시각으로 바로 카운트다운을 그리고, 목록은 소켓 이벤트를 기다리지 않고 직접 다시 받는다.
+                                // 소켓이 안 붙어 있으면 LIVE_AUCTION_OPENED 가 안 와서 '지금 시작' 버튼이 그대로 남아 있었다
+                                val started = result.value
                                 consoleAuctions = consoleAuctions.map { auction ->
-                                    if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE") else auction
+                                    if (auction.auctionId == auctionId) auction.copy(
+                                        status = started.status.ifBlank { "ACTIVE" },
+                                        endedAt = started.scheduledEndAt ?: auction.endedAt,
+                                        remainingSeconds = started.scheduledEndAt?.let { remainingSecondsUntil(it) } ?: auction.remainingSeconds
+                                    ) else auction
                                 }
                                 consoleActionMessage = "상품 경매를 시작했어요."
+                                consoleRevision++
                             }
                             is ApiResult.Failure -> {
                                 consoleActionError = liveControlError(result.error)
@@ -3991,6 +4048,7 @@ fun AppNavHost(
                                 consoleEnded = true
                                 consoleStatus = "ENDED"
                                 if (myLiveBroadcastId == liveId) myLiveBroadcastId = null   // 우상단 LIVE 표시 끄기
+                                LiveHostMediaPreference.reset()   // 다음 방송은 카메라·마이크 기본값(켬)으로 시작
                                 navController.navigateUp()
                             }
                             is ApiResult.Failure -> {
@@ -4030,216 +4088,6 @@ fun AppNavHost(
                         launchSingleTop = true
                     }
                 }
-            )
-        }
-        composable(
-            route = Screen.LiveWatch.route,
-            arguments = listOf(navArgument("liveBroadcastId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val liveId = backStackEntry.arguments?.getString("liveBroadcastId").orEmpty()
-            var watchTitle by remember(liveId) { mutableStateOf("Live 방송") }
-            var watchSellerNickname by remember(liveId) { mutableStateOf<String?>(null) }
-            var watchSellerMemberId by remember(liveId) { mutableStateOf<String?>(null) }
-            var watchViewerCount by remember(liveId) { mutableStateOf(0) }
-            var watchAuction by remember(liveId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionSummary?>(null) }
-            var watchMessages by remember(liveId) { mutableStateOf<List<com.ssafy.dib.domain.live.LiveChatMessage>>(emptyList()) }
-            var watchBidNotices by remember(liveId) { mutableStateOf<List<LiveBidNotice>>(emptyList()) }
-            var watchNoticeSeq by remember(liveId) { mutableStateOf(0) }
-            var watchLoading by remember(liveId) { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
-            var watchError by remember(liveId) { mutableStateOf<String?>(null) }
-            var watchRevision by remember(liveId) { mutableStateOf(0) }
-            var watchChatError by remember(liveId) { mutableStateOf<String?>(null) }
-            var watchState by remember(liveId) { mutableStateOf<RealtimeConnectionState?>(null) }
-            var watchEnded by remember(liveId) { mutableStateOf(false) }
-            // 낙찰자 축하 연출/결과 카드에 쓸 마지막 LIVE_AUCTION_CLOSED 결과. 다음 경매가 열리면 비운다
-            var watchLastResult by remember(liveId) { mutableStateOf<LiveAuctionResult?>(null) }
-            var watchConnection by remember(liveId) { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
-            var watchPendingBidCommandId by remember(liveId) { mutableStateOf<String?>(null) }
-            var watchBidFeedback by remember(liveId) { mutableStateOf<RealtimeBidFeedback?>(null) }
-            val watchActiveAuctionId = watchAuction?.takeIf { it.status.equals("ACTIVE", ignoreCase = true) }?.auctionId
-
-            LaunchedEffect(liveId, watchRevision, signedIn, previewMode) {
-                if (previewMode || !auth.networkConfig.isRestConfigured || liveId.isBlank()) {
-                    watchLoading = false
-                    return@LaunchedEffect
-                }
-                watchLoading = watchAuction == null && watchMessages.isEmpty()
-                watchError = null
-                when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
-                    is ApiResult.Success -> {
-                        val detail = result.value
-                        watchTitle = detail.title
-                        watchViewerCount = detail.viewCount
-                        watchAuction = detail.currentAuction
-                            ?: detail.auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
-                        watchSellerNickname = (listOfNotNull(detail.currentAuction) + detail.auctions)
-                            .firstNotNullOfOrNull { it.sellerNickname?.takeIf(String::isNotBlank) }
-                        watchSellerMemberId = detail.memberId.takeIf(String::isNotBlank)
-                        watchEnded = detail.status.equals("ENDED", ignoreCase = true)
-                    }
-                    is ApiResult.Failure -> {
-                        watchError = result.error.message.ifBlank { "방송 정보를 불러오지 못했어요." }
-                        if (result.error.requiresLogin) signedIn = false
-                    }
-                }
-                if (watchMessages.isEmpty()) {
-                    when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
-                        is ApiResult.Success -> watchMessages = result.value.items
-                        is ApiResult.Failure -> {
-                            watchChatError = result.error.message.ifBlank { "이전 채팅을 불러오지 못했어요." }
-                            if (result.error.requiresLogin) signedIn = false
-                        }
-                    }
-                }
-                watchLoading = false
-            }
-            // 열린 경매 구독은 기존 Live 소켓 안에서 전환한다. 경매 변경마다 소켓을 닫지 않는다.
-            DisposableEffect(liveId, signedIn, previewMode, auth.networkConfig.isWebSocketConfigured) {
-                val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
-                    auth.createLiveChatConnection().also { created ->
-                        watchConnection = created
-                        created.updateCurrentMemberId(memberProfile?.memberId)
-                        created.start(
-                            liveBroadcastId = liveId,
-                            activeAuctionId = watchActiveAuctionId,
-                            onMessage = { message -> coroutineScope.launch {
-                                watchMessages = (watchMessages + message).distinctBy { it.liveChattingId }
-                            } },
-                            onUpdate = { update -> coroutineScope.launch {
-                                update.viewerCount?.let { watchViewerCount = it }
-                                update.liveTitle?.let { watchTitle = it }
-                                if (update.eventType == SocketEventTypes.LIVE_ENDED) {
-                                    watchEnded = true
-                                    watchPendingBidCommandId = null
-                                    return@launch
-                                }
-                                if (update.eventType == SocketEventTypes.LIVE_AUCTION_OPENED && update.auctionId != null) {
-                                    watchRevision++
-                                    // 다음 경매가 열렸으니 지난 결과/축하 카드는 치운다
-                                    watchLastResult = null
-                                }
-                                if (update.eventType == SocketEventTypes.LIVE_AUCTION_CLOSED && update.auctionId != null) {
-                                    watchLastResult = LiveAuctionResult(
-                                        auctionId = update.auctionId,
-                                        title = watchAuction?.title ?: "상품",
-                                        finalPrice = update.currentPrice,
-                                        sold = update.auctionResult == "SOLD",
-                                        winnerId = update.winnerId,
-                                        occurredAt = update.occurredAt
-                                    )
-                                }
-                                val current = watchAuction
-                                if (current != null && update.auctionId == current.auctionId) {
-                                    watchAuction = current.copy(
-                                        currentPrice = update.currentPrice ?: current.currentPrice,
-                                        bidCount = update.bidCount ?: current.bidCount,
-                                        remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
-                                        // 절대 종료 시각을 갱신해야 탭 전환 뒤에도 카운트다운이 정확하다
-                                        endedAt = update.endedAt ?: current.endedAt,
-                                        status = update.status ?: current.status,
-                                        isHighestBidder = when {
-                                            update.isHighestBidder != null -> update.isHighestBidder
-                                            update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED &&
-                                                update.currentPrice != null && update.currentPrice != current.currentPrice -> false
-                                            else -> current.isHighestBidder
-                                        }
-                                    )
-                                }
-                                if (update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED) {
-                                    update.currentPrice?.let { amount ->
-                                        watchNoticeSeq++
-                                        watchBidNotices = (watchBidNotices + LiveBidNotice(
-                                            noticeId = "${update.auctionId.orEmpty()}:$amount:$watchNoticeSeq",
-                                            nickname = null,
-                                            amount = amount,
-                                            time = update.occurredAt ?: java.time.Instant.now().toString()
-                                        )).takeLast(100)
-                                    }
-                                }
-                                if (update.bidAccepted != null && update.commandId == watchPendingBidCommandId) {
-                                    watchBidFeedback = RealtimeBidFeedback(
-                                        accepted = update.bidAccepted,
-                                        message = update.message.orEmpty(),
-                                        currentPrice = update.currentPrice,
-                                        minAllowedAmount = update.minAllowedAmount,
-                                        errorCode = update.errorCode,
-                                        eventKey = "${update.eventType}:${update.commandId}:${update.occurredAt.orEmpty()}"
-                                    )
-                                    watchPendingBidCommandId = null
-                                }
-                            } },
-                            onError = { message -> coroutineScope.launch { watchChatError = message } },
-                            onState = { state -> coroutineScope.launch { watchState = state } }
-                        )
-                    }
-                } else null
-                onDispose {
-                    watchConnection = null
-                    watchPendingBidCommandId = null
-                    connection?.close()
-                }
-            }
-            LaunchedEffect(watchConnection, watchActiveAuctionId) {
-                watchConnection?.updateActiveAuction(watchActiveAuctionId)
-            }
-
-            val watchStreamTokenProvider: (suspend () -> Result<com.ssafy.dib.domain.live.LiveStreamSession>)? =
-                remember(liveId, previewMode, auth.networkConfig.isRestConfigured) {
-                    if (previewMode || liveId.isBlank() || !auth.networkConfig.isRestConfigured) null
-                    else suspend {
-                        when (val result = withContext(Dispatchers.IO) {
-                            auth.liveRepository.prepareStream(liveId, java.util.UUID.randomUUID().toString())
-                        }) {
-                            is ApiResult.Success -> Result.success(result.value)
-                            is ApiResult.Failure -> Result.failure(IllegalStateException(liveControlError(result.error)))
-                        }
-                    }
-                }
-
-            LiveWatchScreen(
-                liveTitle = watchTitle,
-                sellerNickname = watchSellerNickname,
-                viewerCount = watchViewerCount,
-                streamTokenProvider = watchStreamTokenProvider,
-                activeAuction = watchAuction,
-                chatMessages = watchMessages,
-                bidNotices = watchBidNotices,
-                connectionState = watchState,
-                isLoading = watchLoading,
-                errorMessage = watchError,
-                chatError = watchChatError,
-                bidFeedback = watchBidFeedback,
-                bidEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
-                isAuthenticated = hasAppAccess,
-                currentMemberId = memberProfile?.memberId,
-                sellerMemberId = watchSellerMemberId,
-                liveEnded = watchEnded,
-                lastResult = watchLastResult,
-                onRetry = { watchRevision++ },
-                onBid = { auctionId, amount ->
-                    if (previewMode) {
-                        watchBidFeedback = RealtimeBidFeedback(
-                            accepted = true,
-                            message = "개발 미리보기 입찰이 반영됐어요.",
-                            currentPrice = amount,
-                            minAllowedAmount = null,
-                            errorCode = null,
-                            eventKey = "preview:$auctionId:$amount"
-                        )
-                        true
-                    } else watchConnection?.placeBid(auctionId, amount)?.let { commandId ->
-                        watchPendingBidCommandId = commandId
-                        true
-                    } ?: false
-                },
-                onSendChat = { content ->
-                    if (previewMode) true else {
-                        watchConnection?.updateCurrentMemberId(memberProfile?.memberId)
-                        watchConnection?.send(content) == true
-                    }
-                },
-                onLoginRequired = { navController.navigate(Screen.Login.route) },
-                onBack = navController::navigateUp
             )
         }
         composable(Screen.Addresses.route) {
@@ -5296,6 +5144,7 @@ fun AppNavHost(
                 activeCount = sellerAuctions?.count { it.status == "ACTIVE" },
                 endedCount = sellerAuctions?.count { it.status == "ENDED" },
                 showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
+                isOwnProfile = memberId.isNotBlank() && memberId == memberProfile?.memberId,
                 onBack = navController::navigateUp,
                 onReviewsClick = { navController.navigate(Screen.SellerReviews.createRoute(memberId)) },
                 onListingsClick = { navController.navigate(Screen.SellerListings.createRoute(memberId)) },
@@ -5328,14 +5177,15 @@ fun AppNavHost(
                 val auctions = withContext(Dispatchers.IO) { auth.auctionRepository.getSellerAuctions(memberId) }
                 val products = withContext(Dispatchers.IO) { auth.productRepository.getSellerProducts(memberId) }
                 if (auctions is ApiResult.Success) {
-                    // 판매자 경매 API 응답에는 상품 제목/썸네일이 없어 판매자 상품 목록과 productId 로 맞춘다
+                    // 판매자 경매 API 가 상품 제목/썸네일을 함께 준다. 예전 서버(없을 때)만 판매자 상품 목록과 productId 로 맞춘다 —
+                    // 그 목록엔 SOLD 상품이 없어 판매 완료 건이 "판매 상품" 빈 카드로 보였다
                     val byProductId = (products as? ApiResult.Success)?.value?.associateBy { it.productId }.orEmpty()
                     sellerListings = auctions.value.filter { it.productId.isNotBlank() }.map { auction ->
                         val product = byProductId[auction.productId]
                         SellerListing(
                             productId = auction.productId,
-                            title = product?.title ?: "판매 상품",
-                            thumbnailUrl = product?.thumbnailUrl,
+                            title = auction.title ?: product?.title ?: "판매 상품",
+                            thumbnailUrl = auction.thumbnailUrl ?: product?.thumbnailUrl,
                             currentPrice = auction.currentPrice,
                             bidCount = auction.bidCount,
                             status = auction.status

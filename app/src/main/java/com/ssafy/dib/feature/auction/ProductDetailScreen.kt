@@ -425,7 +425,7 @@ private fun AuctionBidHistorySection(
                 visibleItems.forEachIndexed { index, bid ->
                     Row(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(bid.maskedBidderId, color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(bid.bidderNickname ?: bid.maskedBidderId, color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text(formatBidCreatedAt(bid.createdAt), color = Colors.Muted, fontSize = 10.sp)
                         }
                         Text("${"%,d".format(bid.amount)}원", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -683,7 +683,7 @@ private fun ProductInformation(
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("입찰 전에 확인해 주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 최소 입찰가 이상을 10원 단위로 입력해 주세요.\n• 입찰한 금액은 취소할 수 없어요.\n• 종료 30초 이내에 새 입찰이 들어오면 경매가 15초 연장돼요.\n• 낙찰되면 등록된 카드로 낙찰가 전액이 자동 결제돼요.\n• 결제가 실패하면 거래 상세에서 다시 결제할 수 있어요.",
+            Text("• 최소 입찰가 이상을 10원 단위로 입력해 주세요.\n• 입찰한 금액은 취소할 수 없어요.\n• 종료 15초 이내에 새 입찰이 들어오면 남은 시간이 15초로 다시 맞춰져요.\n• 낙찰되면 등록된 카드로 낙찰가 전액이 자동 결제돼요.\n• 결제가 실패하면 거래 상세에서 다시 결제할 수 있어요.",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (canReport) {
@@ -792,8 +792,11 @@ private fun StickyBidAction(
 private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
     val minimum = minimumBidAmount(currentPrice, bidCount)
     var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
-    val amount = amountText.toIntOrNull() ?: 0
-    val valid = isValidBidAmount(amount, minimum)
+    val typedAmount = amountText.toIntOrNull() ?: 0
+    // 끝자리가 0 이 아니면 막는 대신 10원 단위로 올려서 그 금액으로 입찰한다 — 사용자가 직접 끝자리를 맞추던 불편을 없앤다
+    val amount = roundUpToBidUnit(typedAmount)
+    val snapped = typedAmount > 0 && amount != typedAmount
+    val valid = typedAmount > 0 && isValidBidAmount(amount, minimum)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -822,7 +825,11 @@ private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, subm
                 modifier = Modifier.fillMaxWidth(),
                 suffix = { Text("원", fontWeight = FontWeight.Bold) },
                 isError = amountText.isNotEmpty() && !valid,
-                supportingText = if (amountText.isNotEmpty() && !valid) {{ Text("최소 금액 이상, 10원 단위로 입력해주세요") }} else null,
+                supportingText = when {
+                    amountText.isNotEmpty() && !valid -> {{ Text("최소 금액 이상으로 입력해주세요") }}
+                    snapped -> {{ Text("10원 단위로 올려 ${"%,d".format(amount)}원으로 입찰돼요") }}
+                    else -> null
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = LocalTextStyle.current.copy(color = Colors.Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold),
                 shape = RoundedCornerShape(15.dp),
@@ -831,9 +838,7 @@ private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, subm
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1_000, 5_000, 10_000).forEach { increment ->
                     Button(onClick = {
-                        val enteredAmount = amountText.toIntOrNull()
-                        val baseAmount = enteredAmount?.coerceAtLeast(minimum) ?: minimum
-                        amountText = (baseAmount.toLong() + increment).coerceAtMost(999_999_999).toString()
+                        amountText = steppedBidAmount(amountText.toIntOrNull() ?: minimum, increment, minimum).toString()
                     },
                         modifier = Modifier.weight(1f).height(40.dp), shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
@@ -842,7 +847,7 @@ private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, subm
                     }
                 }
             }
-            Text("입찰 후에는 취소할 수 없고, 낙찰되면 등록된 카드로 자동결제돼요.\n종료 30초 이내 새 입찰 시 경매가 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("입찰 후에는 취소할 수 없고, 낙찰되면 등록된 카드로 자동결제돼요.\n종료 15초 이내 새 입찰 시 남은 시간이 15초로 다시 맞춰져요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
                 Text("${"%,d".format(amount)}원 입찰하기", fontSize = 14.sp, fontWeight = FontWeight.Bold)

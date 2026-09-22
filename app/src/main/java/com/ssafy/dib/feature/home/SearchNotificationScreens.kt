@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.domain.auction.matchesAuctionStatusFilter
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
@@ -103,7 +104,8 @@ fun AuctionSearchScreen(
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
-    var status by rememberSaveable { mutableStateOf("진행 중") }
+    // 기본은 "전체"(진행 중 + 예정). 예정 경매도 검색·카테고리에서는 보이기로 했고, 추천에서만 뺀다
+    var status by rememberSaveable { mutableStateOf("전체") }
     var sort by rememberSaveable { mutableStateOf("LATEST") }
     val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
     val fallbackCategories = DefaultProductCategories
@@ -114,7 +116,8 @@ fun AuctionSearchScreen(
         categoryId = selectedCategoryId,
         minPrice = selectedPriceRange.minPriceParam,
         maxPrice = selectedPriceRange.maxPriceParam,
-        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" },
+        // OPEN 은 서버 목록 API 의 "진행 중 + 예정" 값이다
+        status = when (status) { "진행 중" -> "ACTIVE"; "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "OPEN" },
         sort = sort
     )
     fun submit() {
@@ -128,7 +131,7 @@ fun AuctionSearchScreen(
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
         (category == "전체" || category.removeSuffix("기기").split("·").any { token -> it.category.contains(token) || token.contains(it.category) }) &&
             selectedPriceRange.contains(it.price.toLong()) &&
-            it.status == filters().status
+            it.status.matchesAuctionStatusFilter(filters().status)
     }
     val results = when {
         !submitted -> emptyList()
@@ -197,7 +200,7 @@ fun AuctionSearchScreen(
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("진행 중", "예정", "종료").forEach { value ->
+                            listOf("전체", "진행 중", "예정", "종료").forEach { value ->
                                 DiscoveryFilterChip(status == value, { if (status != value) { status = value; submit() } }, value)
                             }
                             if (category != "전체") DiscoveryAppliedChip(category) { category = "전체"; submit() }

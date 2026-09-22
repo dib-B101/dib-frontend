@@ -22,6 +22,8 @@ object WireframeColors {
     val MintInk = Color(0xFF16745E)
     val Live = Color(0xFFF04452)
     val Favorite = Color(0xFFF04452)
+    // 별점. 코랄(Live)은 "긴급" 뜻으로 쓰는 색이라 평가 별은 따로 둔다
+    val Star = Color(0xFFF5B301)
     val UrgentBackground = Color(0xFFFFF0EA)
     val Urgent = Color(0xFFD9582F)
     val SuccessBackground = MintSoft
