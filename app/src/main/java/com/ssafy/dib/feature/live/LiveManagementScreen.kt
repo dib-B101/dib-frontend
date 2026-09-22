@@ -329,7 +329,7 @@ private fun LiveItemDialog(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 listOf(30L to "30초", 60L to "1분", 120L to "2분", 180L to "3분", 300L to "5분").forEach { (s, label) ->
                                     FilterChip(
                                         selected = draft.seconds == s.toString(),
