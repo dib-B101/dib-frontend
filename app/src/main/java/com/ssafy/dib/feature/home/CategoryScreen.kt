@@ -50,6 +50,7 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 private data class CategoryItem(val id: String, @param:DrawableRes val icon: Int, val name: String, val tint: Color, val surface: Color)
 
+// 서버 카테고리(GET /api/v1/categories)가 오기 전이거나 실패했을 때만 쓰는 대체 목록
 private val categories = listOf(
     CategoryItem("1", R.drawable.category_digital, "디지털기기", Colors.MintInk, Colors.MintSoft),
     CategoryItem("2", R.drawable.category_home, "생활가전", Colors.Urgent, Colors.UrgentBackground),
@@ -82,7 +83,7 @@ fun CategoryScreen(
 ) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
-    val visibleCategories = remoteCategories?.mapIndexed { index, category ->
+    val visibleCategories = remoteCategories?.takeIf { it.isNotEmpty() }?.mapIndexed { index, category ->
         val style = categoryStyle(category.name, index)
         CategoryItem(category.categoryId, style.icon, category.name, style.tint, style.surface)
     } ?: categories

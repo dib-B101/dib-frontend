@@ -38,7 +38,8 @@ internal fun SettlementSummaryDto.toDomain() = SettlementSummary(
     grossAmount = grossAmount,
     commissionFee = commisionFee,
     netAmount = netAmount,
-    payoutAt = payoutAt
+    payoutAt = payoutAt,
+    productTitle = productTitle?.takeIf(String::isNotBlank)
 )
 
 internal fun SettlementDetailResponse.toDomain() = SettlementDetail(
@@ -49,7 +50,8 @@ internal fun SettlementDetailResponse.toDomain() = SettlementDetail(
     netAmount = netAmount,
     bankName = bankName,
     maskedAccountNumber = maskedAccountNumber,
-    payoutAt = payoutAt
+    payoutAt = payoutAt,
+    productTitle = productTitle?.takeIf(String::isNotBlank)
 )
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

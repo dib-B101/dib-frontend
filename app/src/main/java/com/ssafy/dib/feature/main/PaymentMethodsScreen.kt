@@ -2,7 +2,17 @@ package com.ssafy.dib.feature.main
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
+import android.webkit.WebSettings
+import android.webkit.WebResourceResponse
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -17,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.domain.payment.PaymentMethod
@@ -209,15 +221,34 @@ private fun TossBillingAuthDialog(
 ) {
     val context = LocalContext.current
     val webView = remember {
+        // chrome://inspect 로 이 WebView 의 네트워크·콘솔을 직접 볼 수 있게 (디버그 빌드 한정)
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
         WebView(context).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.databaseEnabled = true
+            // 토스 인증 다음 단계(비밀번호 입력)는 다른 도메인의 iframe·세션을 탄다.
+            // WebView 는 서드파티 쿠키를 기본 차단하므로 이걸 켜지 않으면 세션이 끊겨 회색 빈 화면이 된다
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             settings.allowFileAccess = false
             settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = true
+            // setSupportMultipleWindows 는 false(기본) 로 둔다. false 면 window.open 을 WebView 가
+            // 현재 창에서 그대로 열어주므로, 직접 onCreateWindow 로 URL 을 가로채다가 토스 내부 요청까지
+            // 메인 화면에 끌어오는 사고를 막을 수 있다
+            // 토스 SDK 가 실제로 던지는 에러를 Logcat 으로 본다 (필터: TossWebView)
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    Log.w(TOSS_LOG_TAG, "${message.messageLevel()} ${message.message()} @${message.sourceId()}:${message.lineNumber()}")
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
-                    if (uri.scheme == "https" && uri.host == CALLBACK_HOST) {
+                    if ((uri.scheme == "http" || uri.scheme == "https") && uri.host == CALLBACK_HOST) {
                         when (uri.path) {
                             SUCCESS_PATH -> {
                                 val authKey = uri.getQueryParameter("authKey").orEmpty()
@@ -225,7 +256,12 @@ private fun TossBillingAuthDialog(
                                 if (authKey.isNotBlank() && returnedCustomerKey == customerKey) onSuccess(authKey, returnedCustomerKey)
                                 else onFailure("카드 인증 결과를 확인할 수 없어요.")
                             }
-                            FAIL_PATH -> onFailure(uri.getQueryParameter("message") ?: "카드 인증을 완료하지 못했어요.")
+                            FAIL_PATH -> {
+                                val code = uri.getQueryParameter("code").orEmpty()
+                                val message = uri.getQueryParameter("message") ?: "카드 인증을 완료하지 못했어요."
+                                Log.w(TOSS_LOG_TAG, "billing auth failed code=$code message=$message")
+                                onFailure(if (code.isBlank()) message else "$message ($code)")
+                            }
                         }
                         return true
                     }
@@ -239,13 +275,33 @@ private fun TossBillingAuthDialog(
                         true
                     }
                 }
+
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    Log.w(TOSS_LOG_TAG, "page started $url")
+                }
+
+                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                    Log.w(TOSS_LOG_TAG, "ssl error ${error?.primaryError} ${error?.url}")
+                    handler?.cancel()
+                }
+
+                // 토스 SDK 가 UNKNOWN 을 던질 때 실제로 어떤 요청이 실패했는지 본다
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    Log.w(TOSS_LOG_TAG, "resource error ${request?.url} : ${error?.errorCode} ${error?.description}")
+                }
+
+                override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                    Log.w(TOSS_LOG_TAG, "http error ${errorResponse?.statusCode} ${request?.url}")
+                }
             }
             loadDataWithBaseURL(BASE_URL, billingAuthHtml(clientKey, customerKey), "text/html", "UTF-8", null)
         }
     }
     DisposableEffect(webView) { onDispose { webView.stopLoading(); webView.destroy() } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(Color.White)) {
+        // safeDrawingPadding: 상태바·내비게이션바에 더해 키보드(ime)까지 피한다.
+        // 이게 없으면 카드번호 다음 단계 입력칸이 키보드에 가려져 화면이 멈춘 것처럼 보인다
+        Column(Modifier.fillMaxSize().background(Color.White).safeDrawingPadding()) {
             Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onDismiss) { Text("닫기", color = Colors.Navy) }
                 Text("카드 인증", Modifier.padding(start = 8.dp), color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -266,20 +322,29 @@ private fun billingAuthHtml(clientKey: String, customerKey: String): String {
         <style>body{font-family:sans-serif;margin:0;padding:28px;color:#1d2942}button{width:100%;height:54px;border:0;border-radius:14px;background:#17233f;color:white;font-size:16px;font-weight:700}.box{margin-top:28px;padding:20px;border:1px solid #e1e5ea;border-radius:16px}p{color:#687386;line-height:1.6;font-size:14px}</style></head>
         <body><h2>자동결제 카드 등록</h2><p>카드 인증을 완료하면 DIB 서버가 빌링키를 안전하게 발급받아 저장합니다.</p><div class="box"><button id="register">토스페이먼츠에서 카드 인증</button></div>
         <script>
+        console.log('origin=' + location.origin + ' clientKeyPrefix=' + $quotedClientKey.slice(0, 8) + ' clientKeyLen=' + $quotedClientKey.length + ' customerKey=' + $quotedCustomerKey);
+        window.addEventListener('error', function(ev){ console.log('window error: ' + (ev && ev.message)); });
         document.getElementById('register').addEventListener('click', async function(){
           try {
+            if (typeof TossPayments !== 'function') throw new Error('토스 SDK 스크립트를 불러오지 못했습니다.');
             const tossPayments = TossPayments($quotedClientKey);
             const payment = tossPayments.payment({customerKey:$quotedCustomerKey});
             await payment.requestBillingAuth({method:'CARD',successUrl:$successUrl,failUrl:$failUrl,windowTarget:'self'});
           } catch(e) {
-            location.href = $failUrl + '?message=' + encodeURIComponent((e && e.message) || '카드 인증을 시작하지 못했어요.');
+            console.log('requestBillingAuth error name=' + (e && e.name) + ' code=' + (e && e.code) + ' message=' + (e && e.message));
+            location.href = $failUrl + '?code=' + encodeURIComponent((e && e.code) || 'SDK_ERROR') + '&message=' + encodeURIComponent((e && e.message) || '카드 인증을 시작하지 못했어요.');
           }
         });
         </script></body></html>
     """.trimIndent()
 }
 
-private const val CALLBACK_HOST = "dib.local"
-private const val BASE_URL = "https://$CALLBACK_HOST/"
+private const val TOSS_LOG_TAG = "TossWebView"
+
+// 토스는 successUrl / failUrl 의 형식을 검증한다. dib.local 처럼 실존하지 않는 TLD 는
+// INCORRECT_SUCCESS_URL_FORMAT 으로 거절되므로 토스 문서 예시와 같은 localhost 를 쓴다.
+// 이 주소로 실제 요청이 나가지는 않는다 — 카드 인증 후 리다이렉트를 WebViewClient 가 가로채서 authKey 만 꺼낸다.
+private const val CALLBACK_HOST = "localhost"
+private const val BASE_URL = "http://$CALLBACK_HOST:8080/"
 private const val SUCCESS_PATH = "/payment-method/success"
 private const val FAIL_PATH = "/payment-method/fail"

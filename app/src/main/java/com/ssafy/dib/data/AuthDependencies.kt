@@ -104,7 +104,7 @@ class AuthDependencies(context: Context) {
             guestSessionProvider = GuestSessionProvider { guestSessionId() },
             tokenRefresher = tokenRefresher
         )
-        repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore)
+        repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore, deviceId)
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
         orderRepository = OrderRepositoryImpl(OrderRemoteDataSource(client))
         inquiryRepository = InquiryRepositoryImpl(InquiryRemoteDataSource(client))
@@ -113,7 +113,7 @@ class AuthDependencies(context: Context) {
         paymentRepository = PaymentRepositoryImpl(PaymentRemoteDataSource(client))
         memberRepository = MemberRepositoryImpl(MemberRemoteDataSource(client))
         addressRepository = AddressRepositoryImpl(AddressRemoteDataSource(client))
-        liveRepository = LiveRepositoryImpl(LiveRemoteDataSource(client))
+        liveRepository = LiveRepositoryImpl(LiveRemoteDataSource(client), { sessionStore.read()?.memberId })
         settlementAccountRepository = SettlementAccountRepositoryImpl(SettlementAccountRemoteDataSource(client))
         settlementRepository = SettlementRepositoryImpl(SettlementRemoteDataSource(client))
         notificationRepository = NotificationRepositoryImpl(NotificationRemoteDataSource(client))

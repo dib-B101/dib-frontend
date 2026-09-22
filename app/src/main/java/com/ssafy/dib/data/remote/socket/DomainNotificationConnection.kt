@@ -62,6 +62,7 @@ class DomainNotificationConnection(
                 reconnectTask = null
                 reconnectAttempt = 0
                 onState(RealtimeConnectionState.Connected)
+                socket.send(SocketCommands.subscribeNotifications())
             }
 
             override fun onEvent(envelope: SocketEnvelope) {

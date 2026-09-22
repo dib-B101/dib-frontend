@@ -9,11 +9,14 @@ import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.domain.order.OrderMessagePage
 import com.ssafy.dib.domain.order.OrderPage
+import com.ssafy.dib.domain.order.OrderSettlementSummary
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderShippingAddress
+import com.ssafy.dib.domain.order.OrderAddressInput
 import com.ssafy.dib.domain.order.OrderOfferAcceptance
 import com.ssafy.dib.domain.order.ShippingCarrier
 import com.ssafy.dib.domain.order.isOrderChatWritable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -46,6 +49,21 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
 
     override fun getShippingAddress(orderId: String): ApiResult<OrderShippingAddress> =
         when (val result = remote.getShippingAddress(orderId)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun updateShippingAddress(orderId: String, input: OrderAddressInput): ApiResult<OrderShippingAddress> =
+        when (val result = remote.updateShippingAddress(
+            orderId,
+            com.ssafy.dib.data.remote.order.UpdateOrderAddressRequest(
+                zip = input.zip.trim(),
+                address = input.address.trim(),
+                detail = input.detail?.trim()?.takeIf(String::isNotBlank),
+                receiverName = input.receiverName.trim(),
+                receiverPhone = input.receiverPhone.filter { it.isDigit() }
+            )
+        )) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
             is ApiResult.Failure -> result
         }
@@ -91,6 +109,9 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Failure -> result
         }
 
+    override fun writeReview(orderId: String, rating: Int): ApiResult<Unit> =
+        remote.writeReview(orderId, rating)
+
     override fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptance> =
         when (val result = remote.acceptRunnerUpOffer(auctionId)) {
             is ApiResult.Success -> ApiResult.Success(
@@ -122,7 +143,9 @@ internal fun com.ssafy.dib.data.remote.order.ShipmentResponse.toDomain(): OrderS
 )
 
 internal fun com.ssafy.dib.data.remote.order.OrderShippingAddressResponse.toDomain(): OrderShippingAddress {
-    val value = address.jsonObject
+    // 구매자가 아직 배송지를 입력하지 않은 주문은 서버가 address: null 을 준다.
+    // jsonObject 로 바로 캐스팅하면 JsonNull 에서 앱이 죽으므로 빈 배송지로 처리한다
+    val value = address as? JsonObject ?: JsonObject(emptyMap())
     return OrderShippingAddress(
         name = value.stringValue("receiverName").ifBlank { value.stringValue("name").ifBlank { "배송지" } },
         postalCode = value.stringValue("zip").ifBlank { value.stringValue("number") },
@@ -142,9 +165,20 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         finalPrice = (finalPrice ?: amount ?: core?.finalPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         status = resolvedStatus,
         updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt,
-        thumbnailUrl = thumbnailUrl ?: product?.thumbnailUrl,
         paymentId = payment?.paymentId.idValue().takeIf(String::isNotBlank),
-        chattingReadOnly = chattingReadOnly ?: !isOrderChatWritable(resolvedStatus)
+        chattingReadOnly = chattingReadOnly ?: !isOrderChatWritable(resolvedStatus),
+        thumbnailUrl = (thumbnailUrl ?: product?.thumbnailUrl)?.takeIf(String::isNotBlank),
+        paymentDue = paymentDue ?: core?.paymentDue,
+        heldAt = (heldAt ?: core?.heldAt)?.takeIf(String::isNotBlank),
+        holdReportId = (holdReportId ?: core?.holdReportId).idValue().takeIf(String::isNotBlank),
+        myRating = myRating,
+        settlement = settlement?.let { block ->
+            OrderSettlementSummary(
+                settlementId = block.settlementId.idValue().takeIf(String::isNotBlank),
+                netAmount = block.netAmount,
+                payoutAt = block.payoutAt
+            )
+        }
     )
 }
 

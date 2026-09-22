@@ -24,14 +24,19 @@ data class HomeAuction(
     val startPrice: Int = price,
     val sellerNickname: String? = null,
     val sellerRating: Double? = null,
+    // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
+    val sellerReviewCount: Int? = null,
     val sellerTradeCount: Int? = null,
     val productDescription: String? = null,
     val productCondition: String? = null,
     val productModelName: String? = null,
     val productReleaseYear: Int? = null,
-    val productMarketPrice: Long? = null
+    val productMarketPrice: Long? = null,
+    // 아직 시작가를 정하지 않은 SCHEDULED 경매는 금액 대신 "가격 미정" 을 보여준다
+    val priceUndecided: Boolean = false
 ) {
-    val priceLabel: String get() = "%,d원".format(price)
+    val priceLabel: String get() = if (priceUndecided) "가격 미정" else "%,d원".format(price)
+    val priceText: String get() = if (priceUndecided) priceLabel else "$pricePrefix $priceLabel"
     val meta: String get() = "${if (bidCount == 0) "첫 입찰 대기 중" else "입찰 ${bidCount}회"} · ${remainingTimeLabel(remainingSeconds)} 남음"
 }
 
@@ -62,21 +67,23 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     id = auctionId,
     productId = productId,
     name = title,
-    price = currentPrice.takeIf { it > 0 } ?: startPrice,
+    price = currentPriceOrNull?.takeIf { it > 0 } ?: startPriceOrNull ?: 0,
     bidCount = bidCount,
     remainingSeconds = remainingSeconds,
     category = categoryName,
     photo = ProductPhoto.Placeholder,
-    pricePrefix = if (currentPrice > 0) "현재가" else "시작가",
+    pricePrefix = if ((currentPriceOrNull ?: 0) > 0) "현재가" else "시작가",
     status = status,
     isHighestBidder = isHighestBidder,
     myBidAmount = myBidAmount,
     bookmarked = bookmarked,
     sellerMemberId = sellerMemberId,
     imageUrls = imageUrls,
-    startPrice = startPrice,
+    startPrice = startPriceOrNull ?: 0,
+    priceUndecided = currentPriceOrNull == null && startPriceOrNull == null,
     sellerNickname = sellerNickname,
     sellerRating = sellerRating,
+    sellerReviewCount = sellerReviewCount,
     sellerTradeCount = sellerTradeCount,
     productDescription = productDescription,
     productCondition = productCondition,

@@ -7,6 +7,7 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.product.ProductRegistration
+import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.ProductUpdate
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
@@ -27,33 +28,74 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
 
     fun getProduct(productId: String): ApiResult<ProductDetailResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/$productId"
-        client.execute(client.requestBuilder(path).get().build(), JsonElement.serializer())
-            .decodePayload(::decodeProductDetail)
+        when (val detail = client.execute(client.requestBuilder(path).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductDetail)) {
+            is ApiResult.Failure -> detail
+            is ApiResult.Success -> {
+                val imagePath = "$path/images"
+                when (val images = client.execute(client.requestBuilder(imagePath).get().build(), ListSerializer(ProductImageDto.serializer()))) {
+                    is ApiResult.Failure -> detail
+                    is ApiResult.Success -> {
+                        val imageElements = images.value.map { image -> JsonPrimitive(image.imageUrl) }
+                        val value = detail.value.copy(product = detail.value.product.copy(images = imageElements))
+                        ApiResult.Success(value, detail.status)
+                    }
+                }
+            }
+        }
     }
 
     fun getSimilarProducts(productId: String, size: Int): ApiResult<ProductListResponse> = configured {
-        val path = "${ApiRoutes.PRODUCTS}/$productId/similar"
-        val url = client.urlBuilder(path)
-            .addQueryParameter("size", size.coerceIn(1, 20).toString())
+        val url = client.urlBuilder(ApiRoutes.PRODUCTS)
+            .addQueryParameter("size", size.coerceIn(1, 100).toString())
             .build()
-        client.execute(client.requestBuilder(path).url(url).get().build(), ProductListResponse.serializer())
+        when (val result = client.execute(client.requestBuilder(ApiRoutes.PRODUCTS).url(url).get().build(), ProductListResponse.serializer())) {
+            is ApiResult.Failure -> result
+            is ApiResult.Success -> ApiResult.Success(
+                result.value.copy(items = result.value.items.filterNot { it.productId.toString().trim('"') == productId }),
+                result.status
+            )
+        }
+    }
+
+    fun getSellerProducts(memberId: String): ApiResult<List<ProductCardDto>> = configured {
+        val path = "${ApiRoutes.PRODUCTS}/members/$memberId"
+        client.execute(client.requestBuilder(path).get().build(), ListSerializer(ProductCardDto.serializer()))
     }
 
     fun getMyProducts(status: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/members/me"
         val urlBuilder = client.urlBuilder(path).addQueryParameter("size", size.coerceIn(1, 100).toString())
-        status?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("status", it) }
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
-        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
-            .decodePayload(::decodeProductList)
+        when (val result = client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductList)) {
+            is ApiResult.Failure -> result
+            is ApiResult.Success -> {
+                val filtered = status?.takeIf(String::isNotBlank)?.let { wanted ->
+                    result.value.items.filter { (it.productStatus ?: it.status) == wanted }
+                } ?: result.value.items
+                ApiResult.Success(result.value.copy(items = filtered), result.status)
+            }
+        }
     }
 
-    fun searchProducts(query: String, categoryId: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
+    // 예전에는 서버가 keyword 만 받아서 카테고리를 앱에서 걸렀는데, 한 페이지 안에서만 거르니
+    // 페이지 경계 밖의 결과가 통째로 사라졌다. 이제 조건을 전부 서버로 넘긴다
+    fun searchProducts(
+        query: String,
+        filter: ProductSearchFilter,
+        cursor: String?,
+        size: Int
+    ): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/search"
         val urlBuilder = client.urlBuilder(path)
-            .addQueryParameter("keyword", query)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
-        categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
+        query.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("keyword", it) }
+        filter.categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
+        filter.minPrice?.let { urlBuilder.addQueryParameter("minPrice", it.toString()) }
+        filter.maxPrice?.let { urlBuilder.addQueryParameter("maxPrice", it.toString()) }
+        filter.condition?.let { urlBuilder.addQueryParameter("condition", it) }
+        if (filter.onAuctionOnly) urlBuilder.addQueryParameter("onAuctionOnly", "true")
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
             .decodePayload(::decodeProductList)
@@ -69,11 +111,13 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
             condition = registration.condition,
             modelName = registration.modelName,
             releaseYear = registration.releaseYear,
-            marketPrice = registration.marketPrice
+            marketPrice = registration.marketPrice,
+            startPrice = registration.startPrice,
+            auctionTime = registration.auctionTime
         )
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart(
-                "product",
+                "request",
                 null,
                 DibJson.instance.encodeToString(ProductCreatePayload.serializer(), payload)
                     .toRequestBody("application/json".toMediaType())
@@ -84,7 +128,6 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
                 image.fileName,
                 image.bytes.toRequestBody(image.mediaType.toMediaTypeOrNull())
             )
-            multipart.addFormDataPart("imageTypes", image.type)
         }
         client.execute(
             client.requestBuilder(ApiRoutes.PRODUCTS)
@@ -107,20 +150,12 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
 
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResponse> = configured {
         val categoryId = update.categoryId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(update.categoryId)
-        val imageItems = update.replacementImages?.mapIndexed { index, image -> ProductUpdateImageItem(newFileIndex = index, type = image.type) }
-        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice, imageItems)
-        val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart(
-                "product",
-                null,
-                DibJson.instance.encodeToString(ProductUpdatePayload.serializer(), payload).toRequestBody("application/json".toMediaType())
-            )
-        update.replacementImages?.forEach { image ->
-            multipartBuilder.addFormDataPart("newImages", image.fileName, image.bytes.toRequestBody(image.mediaType.toMediaTypeOrNull()))
-        }
-        val multipart = multipartBuilder.build()
+        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice, update.startPrice, update.auctionTime)
         val path = "${ApiRoutes.PRODUCTS}/$productId"
-        client.execute(client.requestBuilder(path).patch(multipart).build(), ProductUpdateResponse.serializer())
+        client.execute(
+            client.requestBuilder(path).patch(client.jsonBody(payload, ProductUpdatePayload.serializer())).build(),
+            ProductUpdateResponse.serializer()
+        )
     }
 
     private inline fun <T> configured(block: () -> ApiResult<T>): ApiResult<T> =

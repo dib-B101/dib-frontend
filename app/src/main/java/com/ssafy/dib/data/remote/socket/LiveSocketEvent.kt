@@ -75,7 +75,7 @@ class LiveSocketEventParser(
                     liveTitle = live.string("title"),
                     title = product?.string("title"),
                     thumbnailUrl = product?.string("thumbnailUrl"),
-                    streamUrl = live.string("streamUrl"),
+                    streamUrl = live.string("streamUrl").playableMediaUrl(),
                     currentPrice = auction?.int("currentPrice"),
                     startPrice = auction?.int("startPrice"),
                     bidCount = auction?.int("bidCount"),
@@ -93,7 +93,7 @@ class LiveSocketEventParser(
                 eventType = envelope.eventType,
                 liveBroadcastId = payload.string("liveBroadcastId"),
                 liveTitle = payload.string("title"),
-                streamUrl = payload.string("streamUrl"),
+                streamUrl = payload.string("streamUrl").playableMediaUrl(),
                 status = "LIVE",
                 occurredAt = occurredAt ?: payload.string("startedAt")
             )
@@ -177,3 +177,6 @@ class LiveSocketEventParser(
     private fun JsonObject.boolean(key: String): Boolean? = (get(key) as? JsonPrimitive)?.booleanOrNull
     private fun JsonObject.obj(key: String): JsonObject? = get(key) as? JsonObject
 }
+
+private fun String?.playableMediaUrl(): String? =
+    this?.takeIf { it.startsWith("http://") || it.startsWith("https://") }

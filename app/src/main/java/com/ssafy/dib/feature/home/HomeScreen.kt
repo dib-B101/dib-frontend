@@ -429,7 +429,7 @@ private fun AuctionListCard(
         ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(92.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(auction.priceText, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(auction.meta, color = Colors.Muted, fontSize = 10.sp)
         }
         DibWishlistButton(favorite, onFavorite, auction.name)
@@ -467,7 +467,7 @@ private fun AuctionCard(
         }
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
-            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
+            Text(auction.priceText, color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
             Text(auction.meta, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
@@ -498,7 +498,7 @@ private fun DeadlineSection(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 AuctionUrgencyBadge(deadlineSeconds, compact = true)
                 Text(auction.name, maxLines = 2, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
-                Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
+                Text(auction.priceText, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
                 Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
@@ -532,7 +532,7 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
                 ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(54.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(auction.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("${auction.pricePrefix} ${auction.priceLabel}", fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(auction.priceText, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
                     Text(auction.meta, color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
                 }
             }

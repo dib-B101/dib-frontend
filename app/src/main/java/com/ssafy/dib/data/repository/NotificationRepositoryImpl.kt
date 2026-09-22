@@ -29,7 +29,9 @@ class NotificationRepositoryImpl(private val remote: NotificationRemoteDataSourc
 }
 
 internal fun NotificationDto.toDomain(): DomainNotification {
+    // 우선순위는 서버 Notification.resourceType() 과 같다. 소켓 푸시는 서버가 계산해 주지만 목록 조회는 여기서 만든다
     val (resourceType, resourceId) = when {
+        orderId != null -> "ORDER" to orderId.idValue()
         liveBroadcastId != null -> "LIVE" to liveBroadcastId.idValue()
         auctionId != null -> "AUCTION" to auctionId.idValue()
         productId != null -> "PRODUCT" to productId.idValue()

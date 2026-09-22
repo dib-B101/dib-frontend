@@ -29,6 +29,7 @@ import kotlinx.serialization.json.contentOrNull
 class AuthRepositoryImpl(
     private val remote: AuthRemoteDataSource,
     private val sessionStore: AuthSessionStore,
+    private val deviceId: String,
     private val now: () -> Long = System::currentTimeMillis
 ) : AuthRepository {
     override fun currentSession(): AuthSession? = sessionStore.read()
@@ -84,14 +85,14 @@ class AuthRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun findEmail(phoneVerificationToken: String): ApiResult<String> =
-        when (val result = remote.findEmail(phoneVerificationToken)) {
+    override fun findEmail(phoneVerificationToken: String, phoneNumber: String): ApiResult<String> =
+        when (val result = remote.findEmail(phoneVerificationToken, phoneNumber)) {
             is ApiResult.Success -> ApiResult.Success(result.value.maskedEmail, result.status)
             is ApiResult.Failure -> result
         }
 
-    override fun requestPasswordResetLink(email: String, phoneVerificationToken: String): ApiResult<Unit> =
-        remote.requestPasswordResetLink(PasswordResetLinkRequest(email, phoneVerificationToken))
+    override fun requestPasswordResetLink(email: String, phoneNumber: String, phoneVerificationToken: String): ApiResult<Unit> =
+        remote.requestPasswordResetLink(PasswordResetLinkRequest(email, phoneNumber, phoneVerificationToken))
 
     override fun resetPassword(resetToken: String, newPassword: String): ApiResult<Unit> =
         remote.resetPassword(PasswordResetRequest(resetToken, newPassword))
@@ -106,7 +107,8 @@ class AuthRepositoryImpl(
                 gender = command.gender,
                 birthDate = command.birthDate,
                 phoneNumber = command.phoneNumber,
-                phoneVerificationToken = command.phoneVerificationToken
+                phoneVerificationToken = command.phoneVerificationToken,
+                deviceId = deviceId
             )
         )) {
             is ApiResult.Success -> {

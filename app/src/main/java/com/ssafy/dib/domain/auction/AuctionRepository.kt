@@ -10,6 +10,9 @@ data class AuctionSummary(
     val categoryName: String,
     val currentPrice: Int,
     val startPrice: Int,
+    // 아직 시작가를 정하지 않은 SCHEDULED 경매는 서버가 null 을 내려준다. 0 과 구분해야 "가격 미정" 을 보여줄 수 있다
+    val currentPriceOrNull: Int? = null,
+    val startPriceOrNull: Int? = null,
     val bidCount: Int,
     val auctionTimeSeconds: Long = 0,
     val remainingSeconds: Int,
@@ -17,9 +20,12 @@ data class AuctionSummary(
     val bookmarked: Boolean,
     val isHighestBidder: Boolean? = null,
     val myBidAmount: Int? = null,
+    val myOrderId: String? = null,
     val imageUrls: List<String> = emptyList(),
     val sellerNickname: String? = null,
     val sellerRating: Double? = null,
+    // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
+    val sellerReviewCount: Int? = null,
     val sellerTradeCount: Int? = null,
     val productDescription: String? = null,
     val productCondition: String? = null,
@@ -28,6 +34,15 @@ data class AuctionSummary(
     val productMarketPrice: Long? = null
 )
 
+data class SellerAuction(
+    val auctionId: String,
+    val productId: String,
+    val startPrice: Int,
+    val currentPrice: Int,
+    val bidCount: Int,
+    val status: String,
+    val auctionTimeSeconds: Long
+)
 data class AuctionCommandResult(val auctionId: String, val message: String)
 data class AuctionPage(val items: List<AuctionSummary>, val nextCursor: String?, val hasNext: Boolean)
 data class SaleHistoryItem(val auction: AuctionSummary, val orderId: String?, val orderStatus: String?)
@@ -70,6 +85,7 @@ interface AuctionRepository {
 
     fun getMySales(auctionStatus: String? = null, cursor: String? = null, size: Int = 30): ApiResult<SaleHistoryPage>
     fun getAuction(auctionId: String): ApiResult<AuctionSummary>
+    fun getSellerAuctions(sellerId: String): ApiResult<List<SellerAuction>>
     fun getRecommendations(size: Int = 20): ApiResult<HomeRecommendations>
     fun getBookmarks(cursor: String? = null, size: Int = 30): ApiResult<AuctionPage>
     fun getMyBids(cursor: String? = null, size: Int = 30): ApiResult<BidHistoryPage>
@@ -79,5 +95,6 @@ interface AuctionRepository {
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
     fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>
     fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit>
-    fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String>
+    fun relistAuction(auctionId: String, idempotencyKey: String): ApiResult<AuctionCommandResult>
+    fun startAuction(auctionId: String, idempotencyKey: String, startPrice: Long? = null, auctionTime: Long? = null): ApiResult<String>
 }

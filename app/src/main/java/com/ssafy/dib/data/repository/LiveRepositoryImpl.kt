@@ -1,7 +1,9 @@
 package com.ssafy.dib.data.repository
 
 import com.ssafy.dib.core.network.ApiResult
+import com.ssafy.dib.data.remote.live.LiveItemPlanPayload
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
+import com.ssafy.dib.domain.live.LiveItemPlan
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveFeedPage
 import com.ssafy.dib.domain.live.LiveRepository
@@ -17,6 +19,7 @@ import kotlinx.serialization.json.contentOrNull
 
 class LiveRepositoryImpl(
     private val remote: LiveRemoteDataSource,
+    private val memberIdProvider: () -> String?,
     private val now: () -> Instant = Instant::now
 ) : LiveRepository {
     override fun getFeed(cursor: String?, size: Int): ApiResult<LiveFeedPage> = when (val result = remote.getFeed(cursor, size)) {
@@ -29,7 +32,7 @@ class LiveRepositoryImpl(
                         memberId = live.memberId?.idValue().orEmpty(),
                         title = live.title,
                         description = live.description,
-                        streamUrl = live.streamUrl,
+                        streamUrl = live.streamUrl?.takeIf(String::isPlayableMediaUrl),
                         viewCount = live.viewCount.coerceAtLeast(0),
                         currentAuction = item.activeAuction?.copy(product = item.activeAuction.product ?: item.product)?.toDomain(now())
                     )
@@ -70,7 +73,7 @@ class LiveRepositoryImpl(
                 title = live.title,
                 description = live.description,
                 status = live.status,
-                streamUrl = live.streamUrl,
+                streamUrl = live.streamUrl?.takeIf(String::isPlayableMediaUrl),
                 viewCount = live.viewCount.coerceAtLeast(0),
                 auctions = live.auctions.map { it.toDomain(now()) },
                 currentAuction = live.currentAuction?.toDomain(now())
@@ -79,7 +82,11 @@ class LiveRepositoryImpl(
         is ApiResult.Failure -> result
     }
 
-    override fun getMine(status: String?, cursor: String?, size: Int): ApiResult<LiveBroadcastPage> = when (val result = remote.getMine(status, cursor, size)) {
+    override fun getMine(status: String?, cursor: String?, size: Int): ApiResult<LiveBroadcastPage> {
+        val memberId = memberIdProvider() ?: return ApiResult.Failure(
+            com.ssafy.dib.core.network.ApiFailure(401, "UNAUTHORIZED", "로그인이 필요합니다.")
+        )
+        return when (val result = remote.getMine(memberId, status, cursor, size)) {
         is ApiResult.Success -> ApiResult.Success(
             LiveBroadcastPage(
                 items = result.value.items.map { live ->
@@ -88,8 +95,8 @@ class LiveRepositoryImpl(
                         title = live.title,
                         description = live.description,
                         status = live.status,
-                        streamUrl = live.streamUrl,
-                        scheduledAt = live.scheduledAt,
+                        streamUrl = live.livekitRoomName ?: live.streamUrl?.takeUnless(String::isPlayableMediaUrl),
+                        scheduledAt = live.scheduledAt ?: live.startedAt,
                         viewCount = live.viewCount.coerceAtLeast(0)
                     )
                 },
@@ -99,6 +106,7 @@ class LiveRepositoryImpl(
             result.status
         )
         is ApiResult.Failure -> result
+        }
     }
 
     override fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?, idempotencyKey: String): ApiResult<String> =
@@ -113,14 +121,22 @@ class LiveRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
-        when (val result = remote.setItems(liveBroadcastId, auctionIds)) {
+    override fun setItems(liveBroadcastId: String, items: List<LiveItemPlan>): ApiResult<List<com.ssafy.dib.domain.auction.AuctionSummary>> =
+        when (val result = remote.setItems(liveBroadcastId, items.map { LiveItemPlanPayload(it.auctionId, it.startPrice, it.auctionTime) })) {
             is ApiResult.Success -> ApiResult.Success(result.value.auctions.map { it.toDomain(now()) }, result.status)
             is ApiResult.Failure -> result
         }
 
     override fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSession> = when (val result = remote.prepareStream(liveBroadcastId, idempotencyKey)) {
-        is ApiResult.Success -> ApiResult.Success(LiveStreamSession(result.value.streamUrl, result.value.expiresAt, result.value.provider), result.status)
+        is ApiResult.Success -> ApiResult.Success(
+            LiveStreamSession(
+                serverUrl = result.value.serverUrl,
+                token = result.value.token,
+                roomName = result.value.roomName,
+                participantName = result.value.participantName
+            ),
+            result.status
+        )
         is ApiResult.Failure -> result
     }
 
@@ -142,3 +158,5 @@ class LiveRepositoryImpl(
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
+
+private fun String.isPlayableMediaUrl(): Boolean = startsWith("http://") || startsWith("https://")

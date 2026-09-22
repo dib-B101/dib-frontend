@@ -45,7 +45,18 @@ data class AuctionSearchFilters(
     val categoryId: String?,
     val minPrice: Long?,
     val maxPrice: Long?,
-    val status: String
+    val status: String,
+    val sort: String = "LATEST"
+)
+
+// 서버 sort 파라미터 값과 화면 라벨. 순서가 곧 칩 노출 순서다
+val auctionSortOptions = listOf(
+    "LATEST" to "최신순",
+    "ENDING_SOON" to "마감임박순",
+    "POPULAR" to "인기순",
+    "PRICE_ASC" to "낮은가격순",
+    "PRICE_DESC" to "높은가격순",
+    "BID_COUNT" to "입찰많은순"
 )
 
 /** 가격 필터 구간. [minExclusive]보다 크고 [maxInclusive] 이하인 가격을 포함한다. null은 제한 없음. */
@@ -92,6 +103,7 @@ fun AuctionSearchScreen(
     var category by rememberSaveable { mutableStateOf("전체") }
     var price by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("진행 중") }
+    var sort by rememberSaveable { mutableStateOf("LATEST") }
     val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
     val fallbackCategories = DefaultProductCategories
     val categories = remoteCategories ?: fallbackCategories
@@ -101,7 +113,8 @@ fun AuctionSearchScreen(
         categoryId = selectedCategoryId,
         minPrice = selectedPriceRange.minPriceParam,
         maxPrice = selectedPriceRange.maxPriceParam,
-        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" }
+        status = when (status) { "예정" -> "SCHEDULED"; "종료" -> "ENDED"; else -> "ACTIVE" },
+        sort = sort
     )
     fun submit() {
         submitted = true
@@ -187,6 +200,14 @@ fun AuctionSearchScreen(
                         DiscoveryFilterButton(active = category != "전체" || price != "전체") { showFilters = true }
                     }
                 }
+                // 정렬을 바꾸면 submit()이 커서를 초기화하고 첫 페이지부터 다시 받는다.
+                item {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        auctionSortOptions.forEach { (value, label) ->
+                            DiscoveryFilterChip(sort == value, { if (sort != value) { sort = value; submit() } }, label)
+                        }
+                    }
+                }
                 if(results.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=80.dp), horizontalAlignment=Alignment.CenterHorizontally) { Text(if (browseOnOpen && query.isBlank()) "조건에 맞는 경매가 없어요" else "검색 결과가 없어요",fontSize=18.sp,fontWeight=FontWeight.Bold); Text("검색어나 필터를 바꿔보세요",Modifier.padding(top=8.dp),color=Colors.Muted,fontSize=12.sp) } }
                 if (contentView == DibContentView.Grid) {
                     items(results.chunked(2).size) { rowIndex -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){ results.chunked(2)[rowIndex].forEach { auction -> SearchAuctionCard(auction,{onProductClick(auction.id)},Modifier.weight(1f)) }; if(results.chunked(2)[rowIndex].size==1) Spacer(Modifier.weight(1f)) } }
@@ -220,7 +241,7 @@ fun AuctionSearchScreen(
     }
 }
 
-@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clip(RoundedCornerShape(14.dp)).background(Colors.Background).clickable(onClick=onClick).padding(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.fillMaxWidth().height(132.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=if(auction.status=="SCHEDULED")Colors.NavySoft else if(auction.status=="ENDED")Colors.Surface else Colors.MintSoft,shape=RoundedCornerShape(10.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=if(auction.status=="SCHEDULED")Colors.Navy else if(auction.status=="ENDED")Colors.Muted else Colors.MintInk,fontSize=10.sp,fontWeight=FontWeight.Bold)}};Text(auction.name,Modifier.padding(horizontal=10.dp),color=Colors.Text,fontSize=13.sp,fontWeight=FontWeight.Bold,maxLines=1);Text("${auction.pricePrefix} ${auction.priceLabel}",Modifier.padding(horizontal=10.dp),color=Colors.Navy,fontSize=14.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}회",Modifier.padding(horizontal=10.dp),color=Colors.Muted,fontSize=10.sp)}}
+@Composable private fun SearchAuctionCard(auction:HomeAuction,onClick:()->Unit,modifier:Modifier=Modifier){val statusLabel=when(auction.status){"SCHEDULED"->"예정";"ENDED"->"종료";else->"진행중"};Column(modifier.clip(RoundedCornerShape(14.dp)).background(Colors.Background).clickable(onClick=onClick).padding(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.fillMaxWidth().height(132.dp)){ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxSize());Surface(Modifier.padding(8.dp),color=if(auction.status=="SCHEDULED")Colors.NavySoft else if(auction.status=="ENDED")Colors.Surface else Colors.MintSoft,shape=RoundedCornerShape(10.dp)){Text(statusLabel,Modifier.padding(horizontal=8.dp,vertical=5.dp),color=if(auction.status=="SCHEDULED")Colors.Navy else if(auction.status=="ENDED")Colors.Muted else Colors.MintInk,fontSize=10.sp,fontWeight=FontWeight.Bold)}};Text(auction.name,Modifier.padding(horizontal=10.dp),color=Colors.Text,fontSize=13.sp,fontWeight=FontWeight.Bold,maxLines=1);Text(auction.priceText,Modifier.padding(horizontal=10.dp),color=Colors.Navy,fontSize=14.sp,fontWeight=FontWeight.Bold);Text("입찰 ${auction.bidCount}회",Modifier.padding(horizontal=10.dp),color=Colors.Muted,fontSize=10.sp)}}
 @Composable private fun SearchAuctionListCard(auction: HomeAuction, onClick: () -> Unit) {
     val statusLabel = when (auction.status) { "SCHEDULED" -> "예정"; "ENDED" -> "종료"; else -> "진행 중" }
     Row(
@@ -235,7 +256,7 @@ fun AuctionSearchScreen(
                 Text(statusLabel, Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = if (auction.status == "SCHEDULED") Colors.Navy else if (auction.status == "ENDED") Colors.Muted else Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             Text(auction.name, color = Colors.Text, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2)
-            Text("${auction.pricePrefix} ${auction.priceLabel}", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(auction.priceText, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text("입찰 ${auction.bidCount}회 · ${remainingTimeLabel(auction.remainingSeconds)} 남음", color = Colors.Muted, fontSize = 10.sp)
         }
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))

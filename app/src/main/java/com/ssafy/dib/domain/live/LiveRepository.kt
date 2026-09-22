@@ -60,7 +60,19 @@ data class LiveBroadcastPage(
     val hasNext: Boolean
 )
 
-data class LiveStreamSession(val streamUrl: String, val expiresAt: String?, val provider: String?)
+data class LiveItemPlan(
+    val auctionId: String,
+    val startPrice: Long? = null,
+    val auctionTime: Long? = null
+)
+
+data class LiveStreamSession(
+    val serverUrl: String,
+    val token: String,
+    val roomName: String,
+    val participantName: String,
+    val provider: String = "LIVEKIT"
+)
 
 interface LiveRepository {
     fun getFeed(cursor: String? = null, size: Int = 20): ApiResult<LiveFeedPage>
@@ -68,7 +80,7 @@ interface LiveRepository {
     fun getMine(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<LiveBroadcastPage>
     fun create(title: String, description: String?, scheduledAt: String, streamUrl: String?, idempotencyKey: String): ApiResult<String>
     fun update(liveBroadcastId: String, title: String, description: String?, scheduledAt: String, streamUrl: String?): ApiResult<String>
-    fun setItems(liveBroadcastId: String, auctionIds: List<String>): ApiResult<List<AuctionSummary>>
+    fun setItems(liveBroadcastId: String, items: List<LiveItemPlan>): ApiResult<List<AuctionSummary>>
     fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSession>
     fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<String>
     fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<String>

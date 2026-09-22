@@ -282,7 +282,7 @@ fun ProductDetailScreen(
             item {
                 ProductGallery(product.photo, productImages, onImageClick)
             }
-            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition) }
+            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
             item {
                 AuctionBidHistorySection(
                     items = bidHistory,
@@ -470,10 +470,12 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImage
                 }
             }
         }
-        Surface(
-            color = Colors.Background.copy(alpha = .9f),
-            shape = RoundedCornerShape(8.dp),
+        // Surface 는 onClick 이 없어도 뒤로 터치를 안 넘긴다. 사진 뷰어(pager) 위에 얹혀 있어서
+        // 이 모서리에서 시작한 스와이프가 먹히지 않았다. Box 로 바꾼다
+        Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Colors.Background.copy(alpha = .9f))
         ) {
             Text(
                 "${pagerState.currentPage + 1} / $pageCount",
@@ -506,7 +508,8 @@ private fun ProductSummary(
     bidCount: Int,
     remainingSeconds: Int,
     state: DetailAuctionState,
-    condition: String?
+    condition: String?,
+    priceUndecided: Boolean = false
 ) {
     Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -531,7 +534,7 @@ private fun ProductSummary(
                     DetailAuctionState.Cancelled -> "취소 시점 가격"
                     DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
                 },
-                "%,d원".format(price),
+                if (priceUndecided) "가격 미정" else "%,d원".format(price),
                 Colors.Navy,
                 22,
                 Modifier.weight(1f)
@@ -556,7 +559,7 @@ private fun ProductSummary(
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(if (priceUndecided) "시작가 미정" else "시작가 ${"%,d".format(startPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Text("${bidCount}회 입찰", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (state == DetailAuctionState.Active) {

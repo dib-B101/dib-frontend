@@ -1,12 +1,10 @@
 package com.ssafy.dib.feature.auction
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,64 +14,64 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
-private data class SellerReview(val buyer: String, val age: String, val type: String, val body: String)
-private data class SellerListing(val id: String, val name: String, val price: Int, val active: Boolean)
-
-private val reviews = listOf(
-    SellerReview("구매자A", "2일 전", "구매 후기", "상품 상태가 설명과 같고 포장도 꼼꼼했어요."),
-    SellerReview("구매자B", "5일 전", "판매 후기", "응답이 빠르고 약속 시간을 잘 지켜주셨어요."),
-    SellerReview("구매자C", "1주 전", "구매 후기", "배송이 빠르고 상품도 만족스러워요."),
-    SellerReview("구매자D", "2주 전", "판매 후기", "친절하고 안전하게 거래했어요.")
+data class SellerListing(
+    val productId: String,
+    val title: String,
+    val thumbnailUrl: String?,
+    val currentPrice: Int,
+    val bidCount: Int,
+    val status: String
 )
 
-private val listings = listOf(
-    SellerListing("camera", "빈티지 필름 카메라", 34_500, true),
-    SellerListing("headphones", "무선 헤드폰", 52_000, true),
-    SellerListing("cross-bag", "가죽 크로스백", 28_500, false),
-    SellerListing("retro-console", "레트로 게임기", 63_000, false)
-)
-
-/** Figma 01_Wireframe / 03M_Seller_Reviews. */
+/** Figma 01_Wireframe / 03M_Seller_Reviews. 후기 API 가 아직 없어 빈 상태만 보여준다. */
 @Composable
 fun SellerReviewsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val filters = listOf("전체", "구매 후기", "판매 후기")
-    var selectedFilter by rememberSaveable { mutableIntStateOf(0) }
-    val visibleReviews = reviews.filter { selectedFilter == 0 || it.type == filters[selectedFilter] }
-
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매 후기", onBack) }
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            item { Text("★ 4.8  ·  후기 32개", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            item { Text("최근 거래 후기를 확인해보세요.", color = Colors.Muted, fontSize = 12.sp) }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    filters.forEachIndexed { index, label ->
-                        FilterChip(label, selectedFilter == index) { selectedFilter = index }
-                    }
-                }
-            }
-            items(visibleReviews) { review -> ReviewItem(review) }
+            Text("아직 후기 기능이 준비 중이에요", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "거래 후기가 공개되면 이곳에서 확인할 수 있어요.",
+                Modifier.padding(top = 8.dp),
+                color = Colors.Muted,
+                fontSize = 12.sp
+            )
         }
     }
 }
 
 /** Figma 01_Wireframe / 03N_Seller_Listings. */
 @Composable
-fun SellerListingsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, modifier: Modifier = Modifier) {
-    val filters = listOf("전체", "경매중", "종료")
+fun SellerListingsScreen(
+    listings: List<SellerListing>?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    onProductClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val filters = listOf("전체", "진행중", "예정", "종료")
     var selectedFilter by rememberSaveable { mutableIntStateOf(0) }
-    val visibleListings = listings.filter {
-        selectedFilter == 0 || (selectedFilter == 1 && it.active) || (selectedFilter == 2 && !it.active)
+    val all = listings.orEmpty()
+    val visibleListings = all.filter {
+        when (selectedFilter) {
+            1 -> it.status == "ACTIVE"
+            2 -> it.status == "SCHEDULED"
+            3 -> it.status == "ENDED"
+            else -> true
+        }
     }
 
     Scaffold(
@@ -82,21 +80,44 @@ fun SellerListingsScreen(onBack: () -> Unit, onProductClick: (String) -> Unit, m
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매 내역", onBack) }
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item { Text("판매 상품 12개", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            item {
-                Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    filters.forEachIndexed { index, label ->
-                        FilterChip(label, selectedFilter == index) { selectedFilter = index }
+        when {
+            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Colors.Navy)
+            }
+            errorMessage != null -> Column(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(errorMessage, color = Colors.Muted, fontSize = 13.sp)
+                OutlinedButton(onRetry, Modifier.padding(top = 12.dp)) { Text("다시 불러오기") }
+            }
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
+                contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { Text("판매 상품 ${all.size}개", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                item {
+                    Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        filters.forEachIndexed { index, label ->
+                            FilterChip(label, selectedFilter == index) { selectedFilter = index }
+                        }
                     }
                 }
-            }
-            items(visibleListings) { listing ->
-                SellerListingCard(listing) { onProductClick(listing.id) }
+                if (visibleListings.isEmpty()) {
+                    item {
+                        Text(
+                            if (all.isEmpty()) "아직 등록된 판매 상품이 없어요" else "해당 조건의 판매 상품이 없어요",
+                            Modifier.padding(top = 40.dp),
+                            color = Colors.Muted,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                items(visibleListings) { listing ->
+                    SellerListingCard(listing) { onProductClick(listing.productId) }
+                }
             }
         }
     }
@@ -142,40 +163,32 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ReviewItem(review: SellerReview) {
-    Row(Modifier.fillMaxWidth().background(Colors.Background,RoundedCornerShape(16.dp)).padding(16.dp)) {
-        Box(Modifier.size(38.dp).background(Colors.NavySoft, CircleShape))
-        Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(Modifier.fillMaxWidth()) {
-                Text(review.buyer, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(review.age, color = Colors.Muted, fontSize = 11.sp)
-            }
-            Text("★★★★★",color=Colors.Urgent, fontSize = 12.sp)
-            Text(review.body, color = Colors.Muted, fontSize = 13.sp, lineHeight = 20.sp)
-        }
-    }
-}
-
-@Composable
 private fun SellerListingCard(listing: SellerListing, onClick: () -> Unit) {
+    val active = listing.status == "ACTIVE"
+    val statusLabel = when (listing.status) {
+        "ACTIVE" -> "경매중"
+        "SCHEDULED" -> "예정"
+        "ENDED" -> "종료"
+        "CANCELED" -> "취소"
+        else -> "대기"
+    }
     Row(
-        Modifier.fillMaxWidth().height(118.dp).background(Colors.Background,RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().height(118.dp).background(Colors.Background, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(92.dp).background(Colors.Border, RoundedCornerShape(8.dp)))
+        DibNetworkImage(listing.thumbnailUrl, listing.title, Modifier.size(92.dp))
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(listing.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("%,d원".format(listing.price), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(listing.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("%,d원".format(listing.currentPrice), fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (listing.active) Text("3분 24초", Modifier.weight(1f), color = Colors.Urgent, fontSize = 12.sp)
-                else Spacer(Modifier.weight(1f))
-                Surface(color = if (listing.active) Colors.UrgentBackground else Colors.Surface, shape = RoundedCornerShape(12.dp)) {
+                Text("입찰 ${listing.bidCount}회", Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp)
+                Surface(color = if (active) Colors.UrgentBackground else Colors.Surface, shape = RoundedCornerShape(12.dp)) {
                     Text(
-                        if (listing.active) "경매중" else "종료",
+                        statusLabel,
                         Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = if (listing.active) Colors.Urgent else Colors.Muted,
+                        color = if (active) Colors.Urgent else Colors.Muted,
                         fontSize = 11.sp
                     )
                 }

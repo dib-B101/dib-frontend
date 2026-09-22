@@ -49,16 +49,17 @@ data class AuctionDto(
     val title: String? = null,
     val productName: String? = null,
     val categoryName: String? = null,
-    val startPrice: Long = 0,
-    val currentPrice: Long = 0,
+    val startPrice: Long? = null,
+    val currentPrice: Long? = null,
     val bidCount: Int = 0,
-    val auctionTime: Long = 0,
+    val auctionTime: Long? = null,
     val scheduledEndAt: String? = null,
     val endedAt: String? = null,
     val serverTime: String? = null,
     val status: String = "",
     val bookmarked: Boolean = false,
     val myBid: MyBidDto? = null,
+    val myOrderId: JsonElement? = null,
     val product: AuctionProductDto? = null,
     val sellerSummary: ProductSellerSummaryDto? = null,
     val liveBroadcastId: JsonElement? = null
@@ -88,9 +89,8 @@ data class AuctionProductDto(
 @Serializable data class CreateAuctionRequest(val productId: JsonElement, val startPrice: Long, val auctionTime: Long)
 @Serializable data class UpdateAuctionRequest(val startPrice: Long, val auctionTime: Long, val liveBroadcastId: JsonElement? = null)
 @Serializable data class AuctionCommandResponse(val auctionId: JsonElement? = null, val message: String = "")
+@Serializable data class StartAuctionRequest(val startPrice: Long? = null, val auctionTime: Long? = null)
 @Serializable data class StartAuctionResponse(val message: String = "")
-@Serializable data class BookmarkListResponse(val items: List<BookmarkItemDto> = emptyList())
-@Serializable data class BookmarkItemDto(val productId: JsonElement)
 @Serializable data class BookmarkResponse(val bookmarked: Boolean)
 
 @Serializable
@@ -134,4 +134,16 @@ data class AuctionBidSnapshotResponse(
     val bidderCount: Int = 0,
     val isHighestBidder: Boolean = false,
     val serverTime: String? = null
+)
+
+@Serializable
+data class SellerAuctionDto(
+    val auctionId: JsonElement? = null,
+    val productId: JsonElement? = null,
+    val startPrice: Long? = null,
+    val currentPrice: Long? = null,
+    val auctionTime: Long? = null,
+    val status: String? = null,
+    val bidCount: Int? = null,
+    val bidderCount: Int? = null
 )

@@ -48,4 +48,19 @@ class NotificationContractTest {
         assertEquals("31", notification.resourceId)
         assertEquals(NotificationCategory.Trade, notification.category)
     }
+
+    // 알림 목록(REST)에서 평가 요청을 탭하면 그 주문 화면으로 가야 한다.
+    @Test
+    fun mapsPersistedReviewRequestToOrder() {
+        val page = DibJson.instance.decodeFromString(
+            NotificationPageResponse.serializer(),
+            """{"items":[{"notificationId":90,"type":"REVIEW_REQUEST","title":"판매자는 어떠셨나요?","content":"거래가 끝났습니다.","isRead":false,"orderId":17,"createdAt":"2026-09-21T03:00:00"}],"nextCursor":null,"hasNext":false}"""
+        )
+
+        val notification = page.items.single().toDomain()
+
+        assertEquals("ORDER", notification.resourceType)
+        assertEquals("17", notification.resourceId)
+        assertEquals(NotificationCategory.Trade, notification.category)
+    }
 }

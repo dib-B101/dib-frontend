@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -28,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
@@ -80,6 +83,10 @@ fun TransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    addressSubmitting: Boolean,
+    addressSubmitError: String?,
+    savedAddresses: List<com.ssafy.dib.domain.member.MemberAddress>,
+    onSubmitShippingAddress: (com.ssafy.dib.domain.order.OrderAddressInput) -> Unit,
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
@@ -90,7 +97,13 @@ fun TransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
+    reportSubmitting: Boolean = false,
+    reportError: String? = null,
+    reportCompleted: Boolean = false,
+    onReportOrder: (String, String) -> Unit = { _, _ -> },
+    onDismissReport: () -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -113,6 +126,10 @@ fun TransactionScreen(
             shippingAddress = shippingAddress,
             shippingAddressLoading = shippingAddressLoading,
             shippingAddressError = shippingAddressError,
+            addressSubmitting = addressSubmitting,
+            addressSubmitError = addressSubmitError,
+            savedAddresses = savedAddresses,
+            onSubmitShippingAddress = onSubmitShippingAddress,
             shippingCarriers = shippingCarriers,
             shippingCarriersLoading = shippingCarriersLoading,
             shippingCarriersError = shippingCarriersError,
@@ -123,7 +140,13 @@ fun TransactionScreen(
             onRefreshShipment = onRefreshShipment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
+            onOpenReview = onOpenReview,
             onOpenChat = onOpenChat,
+            reportSubmitting = reportSubmitting,
+            reportError = reportError,
+            reportCompleted = reportCompleted,
+            onReportOrder = onReportOrder,
+            onDismissReport = onDismissReport,
             onBack = onBack,
             modifier = modifier
         )
@@ -151,6 +174,10 @@ private fun RemoteTransactionScreen(
     shippingAddress: OrderShippingAddress?,
     shippingAddressLoading: Boolean,
     shippingAddressError: String?,
+    addressSubmitting: Boolean,
+    addressSubmitError: String?,
+    savedAddresses: List<com.ssafy.dib.domain.member.MemberAddress>,
+    onSubmitShippingAddress: (com.ssafy.dib.domain.order.OrderAddressInput) -> Unit,
     shippingCarriers: List<ShippingCarrier>?,
     shippingCarriersLoading: Boolean,
     shippingCarriersError: String?,
@@ -161,11 +188,19 @@ private fun RemoteTransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
+    reportSubmitting: Boolean,
+    reportError: String?,
+    reportCompleted: Boolean,
+    onReportOrder: (String, String) -> Unit,
+    onDismissReport: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier
 ) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
+    var showReport by rememberSaveable(order?.orderId) { mutableStateOf(false) }
+    var showAddressInput by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     var selectedCarrier by rememberSaveable(order?.orderId) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
@@ -200,6 +235,9 @@ private fun RemoteTransactionScreen(
                 }
                 order != null -> {
                     val presentation = orderPresentation(order.status, role == "seller")
+                    // 서버가 신고 접수 시 heldAt 을 채우고, 그 동안 구매확정·송장등록을 409(ORDER_ON_HOLD)로 막는다
+                    val onHold = order.heldAt != null
+                    if (onHold) item { OrderHoldBanner(order.heldAt) }
                     item { StatusHero(presentation.icon, presentation.title, presentation.description, presentation.background) }
                     item { ProductSummary(order.finalPrice, order.title, order.orderId, order.thumbnailUrl) }
                     item {
@@ -231,21 +269,71 @@ private fun RemoteTransactionScreen(
                     }
                     if (shippingAddressLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
                     shippingAddressError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
-                    shippingAddress?.let { destination ->
+                    shippingAddress?.takeIf { it.isRegistered }?.let { destination ->
                         item {
                             InfoCard(
                                 listOf(
-                                    "배송지 이름" to destination.name,
+                                    "받는 사람" to destination.name,
                                     "연락처" to (destination.phoneNumber ?: "-"),
                                     "우편번호" to destination.postalCode.ifBlank { "-" },
-                                    "주소" to destination.address.ifBlank { "주소 정보 없음" }
+                                    "주소" to destination.address
                                 ),
                                 "배송지"
                             )
                         }
                     }
+                    // 배송지는 결제(PAID) 된 뒤 구매자가 한 번 입력한다. 이게 없으면 판매자가 송장을 못 넣는다
+                    if (order.status.uppercase() == "PAID" && shippingAddress?.isRegistered != true && !shippingAddressLoading) {
+                        if (role == "seller") {
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("구매자가 배송지를 입력하기 전이에요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("배송지가 등록되어야 송장을 넣을 수 있어요. 거래 채팅으로 안내해보세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                }
+                            }
+                        } else {
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("배송지를 입력해주세요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("배송지를 등록해야 판매자가 상품을 발송할 수 있어요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                }
+                            }
+                            item {
+                                Button(
+                                    onClick = { showAddressInput = true },
+                                    enabled = !addressSubmitting,
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) {
+                                    if (addressSubmitting) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                    else Text("배송지 입력", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            addressSubmitError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
+                        }
+                    }
                     if (order.status.uppercase() !in setOf("PENDING", "CANCELLED", "CANCELED", "REFUNDED")) {
                         item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
+                    }
+                    if (order.status.uppercase() !in setOf("PENDING", "CONFIRMED", "CANCELLED", "CANCELED", "REFUNDED")) {
+                        item {
+                            OutlinedButton(
+                                onClick = { showReport = true },
+                                enabled = !onHold && !reportSubmitting,
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text(if (onHold) "신고 접수됨" else "거래 신고", color = if (onHold) Colors.Muted else Colors.Urgent, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (!onHold) item { Text("상품 상태나 미발송, 거래 채팅에서 문제가 있었다면 신고해주세요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp) }
                     }
                     confirmationError?.let { message ->
                         item { Text(message, color = Colors.Urgent, fontSize = 12.sp) }
@@ -264,6 +352,10 @@ private fun RemoteTransactionScreen(
                             ) {
                                 Text("자동결제를 완료하지 못했어요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Text("등록한 카드 상태를 확인한 뒤 낙찰 금액 결제를 다시 요청해주세요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                                // 기한이 지나면 주문이 자동 취소되므로 마감 시각을 그대로 노출한다
+                                formatServerTime(order.paymentDue)?.let { deadline ->
+                                    Text("결제 기한: $deadline", color = Colors.Urgent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                         item {
@@ -284,13 +376,41 @@ private fun RemoteTransactionScreen(
                         item {
                             Button(
                                 onClick = { showConfirm = true },
-                                enabled = !confirmationLoading,
+                                enabled = !confirmationLoading && !onHold,
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                             ) {
                                 if (confirmationLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
                                 else Text("구매 확정", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (onHold) item { Text(ORDER_HOLD_BLOCK_MESSAGE, color = Colors.Urgent, fontSize = 12.sp, lineHeight = 18.sp) }
+                    }
+                    // 거래가 끝난 뒤에만 평가할 수 있다. 서버도 CONFIRMED 가 아니면 거절한다
+                    if (role != "seller" && order.status.uppercase() == "CONFIRMED") {
+                        item {
+                            if (order.myRating != null) {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("내가 남긴 평가", color = Colors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        (1..5).joinToString("") { if (order.myRating >= it) "★" else "☆" },
+                                        color = Colors.Live,
+                                        fontSize = 20.sp
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = onOpenReview,
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) {
+                                    Text("판매자 평가하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -333,7 +453,7 @@ private fun RemoteTransactionScreen(
                         item {
                             Button(
                                 onClick = { onRegisterShipment(selectedCarrier, trackingNumber.trim()) },
-                                enabled = selectedCarrier.isNotBlank() && trackingNumber.isNotBlank() && !shipmentLoading,
+                                enabled = selectedCarrier.isNotBlank() && trackingNumber.isNotBlank() && !shipmentLoading && !onHold,
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
@@ -342,6 +462,7 @@ private fun RemoteTransactionScreen(
                                 else Text("배송 정보 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                        if (onHold) item { Text(ORDER_HOLD_BLOCK_MESSAGE, color = Colors.Urgent, fontSize = 12.sp, lineHeight = 18.sp) }
                     }
                     if (order.status.uppercase() in setOf("SHIPPED", "DELIEVERED", "DELIVERED") && shipment != null) {
                         item {
@@ -367,9 +488,40 @@ private fun RemoteTransactionScreen(
                             }
                         }
                     }
+                    // 서버는 구매 확정 전까지 settlement 블록을 null 로 준다
+                    val settlement = order.settlement
+                    if (role == "seller" && settlement != null) {
+                        item {
+                            InfoCard(
+                                listOf(
+                                    "정산 예정 금액" to (settlement.netAmount?.let { amount -> "${"%,d".format(amount)}원" } ?: "정산 준비 중"),
+                                    "지급 예정일" to (formatServerTime(settlement.payoutAt) ?: "지급 일정 확인 중")
+                                ),
+                                "정산 정보"
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+    if (showAddressInput) {
+        OrderAddressDialog(
+            submitting = addressSubmitting,
+            errorMessage = addressSubmitError,
+            savedAddresses = savedAddresses,
+            onSubmit = { input -> showAddressInput = false; onSubmitShippingAddress(input) },
+            onDismiss = { showAddressInput = false }
+        )
+    }
+    if (showReport) {
+        OrderReportDialog(
+            submitting = reportSubmitting,
+            errorMessage = reportError,
+            completed = reportCompleted,
+            onSubmit = onReportOrder,
+            onDismiss = { showReport = false; onDismissReport() }
+        )
     }
     if (showConfirm) {
         AlertDialog(
@@ -382,6 +534,156 @@ private fun RemoteTransactionScreen(
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("취소") } }
         )
     }
+}
+
+internal const val ORDER_HOLD_BLOCK_MESSAGE =
+    "신고 처리 중인 거래예요. 처리가 끝나면 이어서 진행할 수 있어요."
+
+@Composable
+private fun OrderHoldBanner(heldAt: String?) {
+    Column(
+        Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(16.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            "신고 처리 중",
+            Modifier.background(Colors.Urgent, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text("이 거래는 신고가 접수돼 보류됐어요", color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(ORDER_HOLD_BLOCK_MESSAGE, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        formatServerTime(heldAt)?.let { at ->
+            Text("보류 시작 " + at, color = Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+private const val ORDER_REPORT_TYPE_ORDER = "ORDER"
+private const val ORDER_REPORT_TYPE_CHATTING = "CHATTING"
+private const val ORDER_REPORT_DETAIL_MIN = 10
+private const val ORDER_REPORT_CONTENT_MAX = 500
+
+private val orderProblemReasons = listOf(
+    "상품이 설명과 달라요",
+    "상품이 파손·불량 상태예요",
+    "판매자가 상품을 보내지 않아요",
+    "주문한 것과 다른 상품이 왔어요",
+    "기타"
+)
+
+private val orderChattingReasons = listOf(
+    "비매너·욕설 등 부적절한 언행",
+    "외부 거래·직거래 유도",
+    "거래 약속 불이행",
+    "기타"
+)
+
+private fun orderReportReasonsFor(type: String): List<String> =
+    if (type == ORDER_REPORT_TYPE_CHATTING) orderChattingReasons else orderProblemReasons
+
+// 상세 내용을 사유 뒤에 붙여 보내므로 사유 길이를 뺀 만큼만 입력할 수 있다
+private fun orderReportDetailLimitFor(reason: String): Int =
+    (ORDER_REPORT_CONTENT_MAX - ("[신고 사유] " + reason + "\n[상세 내용] ").length).coerceAtLeast(0)
+
+private fun buildOrderReportContent(reason: String, detail: String): String =
+    ("[신고 사유] " + reason + "\n[상세 내용] " + detail.trim()).take(ORDER_REPORT_CONTENT_MAX)
+
+@Composable
+private fun OrderReportDialog(
+    submitting: Boolean,
+    errorMessage: String?,
+    completed: Boolean,
+    onSubmit: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var reportType by rememberSaveable { mutableStateOf(ORDER_REPORT_TYPE_ORDER) }
+    var reason by rememberSaveable { mutableStateOf("") }
+    var detail by rememberSaveable { mutableStateOf("") }
+    val reasons = orderReportReasonsFor(reportType)
+    val detailLimit = orderReportDetailLimitFor(reason)
+    val detailValid = detail.trim().length >= ORDER_REPORT_DETAIL_MIN
+    AlertDialog(
+        onDismissRequest = { if (!submitting) onDismiss() },
+        title = { Text(if (completed) "신고가 접수됐어요" else "거래 신고") },
+        text = {
+            if (completed) {
+                Text("검토 후 필요한 조치를 진행할게요. 처리가 끝날 때까지 이 거래는 보류돼요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp)
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("무엇에 대한 신고인가요?", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    listOf(
+                        ORDER_REPORT_TYPE_ORDER to "거래 자체 문제 (상품 상태·미발송 등)",
+                        ORDER_REPORT_TYPE_CHATTING to "거래 채팅에서의 문제"
+                    ).forEach { (value, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable(enabled = !submitting) {
+                                if (reportType != value) {
+                                    reportType = value
+                                    reason = ""
+                                }
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = reportType == value, onClick = null, enabled = !submitting)
+                            Text(label, color = Colors.Text, fontSize = 13.sp)
+                        }
+                    }
+                    HorizontalDivider(color = Colors.Border)
+                    Text("신고 이유를 선택해주세요", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    reasons.forEach { candidate ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable(enabled = !submitting) {
+                                reason = candidate
+                                detail = detail.take(orderReportDetailLimitFor(candidate))
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = reason == candidate, onClick = null, enabled = !submitting)
+                            Text(candidate, color = Colors.Text, fontSize = 13.sp)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = detail,
+                        onValueChange = { detail = it.take(detailLimit) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        enabled = !submitting && reason.isNotBlank(),
+                        label = { Text("상세 내용") },
+                        placeholder = { Text("상황을 자세히 알려주세요.") },
+                        shape = RoundedCornerShape(12.dp),
+                        supportingText = {
+                            Text(
+                                if (detailValid) "${detail.length}/${detailLimit}자" else "${ORDER_REPORT_DETAIL_MIN}자 이상 입력해주세요",
+                                color = if (detailValid) Colors.Muted else Colors.Urgent,
+                                fontSize = 11.sp
+                            )
+                        }
+                    )
+                    Text("접수되면 관리자 확인이 끝날 때까지 이 거래는 보류되고, 구매확정과 송장등록이 막혀요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                    Text("허위 신고 또는 반복적인 악의적 신고는 서비스 이용에 제한이 있을 수 있어요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                    errorMessage?.let { message -> Text(message, color = Colors.Urgent, fontSize = 11.sp) }
+                }
+            }
+        },
+        confirmButton = {
+            if (completed) {
+                TextButton(onClick = onDismiss) { Text("확인") }
+            } else {
+                TextButton(
+                    onClick = { onSubmit(buildOrderReportContent(reason, detail), reportType) },
+                    enabled = reason.isNotBlank() && detailValid && !submitting
+                ) { Text(if (submitting) "접수 중" else "신고하기") }
+            }
+        },
+        dismissButton = {
+            if (!completed) TextButton(onClick = onDismiss, enabled = !submitting) { Text("취소") }
+        }
+    )
 }
 
 private fun shipmentStatusLabel(status: String): String = when (status.uppercase()) {

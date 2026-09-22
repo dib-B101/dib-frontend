@@ -17,11 +17,12 @@ class PasswordResetContractTest {
         )
         val request = DibJson.instance.encodeToString(
             PasswordResetLinkRequest.serializer(),
-            PasswordResetLinkRequest("member@example.com", "verified-phone-token")
+            PasswordResetLinkRequest("member@example.com", "01012345678", "verified-phone-token")
         )
 
         assertTrue(verification.contains("\"purpose\":\"RESET_PASSWORD\""))
         assertTrue(request.contains("\"email\":\"member@example.com\""))
+        assertTrue(request.contains("\"phoneNumber\":\"01012345678\""))
         assertTrue(request.contains("\"phoneVerificationToken\":\"verified-phone-token\""))
     }
 

@@ -9,6 +9,7 @@ import com.ssafy.dib.domain.auction.AuctionPage
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.auction.SaleHistoryPage
 import com.ssafy.dib.domain.auction.AuctionCommandResult
+import com.ssafy.dib.domain.auction.SellerAuction
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.BidHistoryPage
 import com.ssafy.dib.domain.auction.AuctionBidHistoryItem
@@ -79,12 +80,12 @@ class AuctionRepositoryImpl(
                         .filter { it.liveBroadcastId == null }
                         .filter { status.isBlank() || it.status.equals(status, ignoreCase = true) }
                         .filter { categoryId.isNullOrBlank() || it.categoryId?.idValue() == categoryId }
-                        .filter { minPrice == null || it.currentPrice >= minPrice }
-                        .filter { maxPrice == null || it.currentPrice <= maxPrice }
+                        .filter { minPrice == null || (it.currentPrice ?: 0L) >= minPrice }
+                        .filter { maxPrice == null || (it.currentPrice ?: 0L) <= maxPrice }
                         .let { items ->
                             when (sort?.uppercase()) {
-                                "PRICE_ASC" -> items.sortedBy(AuctionDto::currentPrice)
-                                "PRICE_DESC" -> items.sortedByDescending(AuctionDto::currentPrice)
+                                "PRICE_ASC" -> items.sortedBy { it.currentPrice ?: 0L }
+                                "PRICE_DESC" -> items.sortedByDescending { it.currentPrice ?: 0L }
                                 "ENDING_SOON" -> items.sortedBy { it.endedAt.orEmpty() }
                                 else -> items
                             }
@@ -103,6 +104,25 @@ class AuctionRepositoryImpl(
     override fun getAuction(auctionId: String): ApiResult<AuctionSummary> =
         when (val result = remote.getAuction(auctionId)) {
             is ApiResult.Success -> ApiResult.Success(result.value.toDomain(now()), result.status)
+            is ApiResult.Failure -> result
+        }
+
+    override fun getSellerAuctions(sellerId: String): ApiResult<List<SellerAuction>> =
+        when (val result = remote.getSellerAuctions(sellerId)) {
+            is ApiResult.Success -> ApiResult.Success(
+                result.value.map { dto ->
+                    SellerAuction(
+                        auctionId = dto.auctionId?.idValue().orEmpty(),
+                        productId = dto.productId?.idValue().orEmpty(),
+                        startPrice = (dto.startPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        currentPrice = (dto.currentPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                        bidCount = (dto.bidCount ?: 0).coerceAtLeast(0),
+                        status = dto.status.orEmpty(),
+                        auctionTimeSeconds = (dto.auctionTime ?: 0L).coerceAtLeast(0)
+                    )
+                },
+                result.status
+            )
             is ApiResult.Failure -> result
         }
 
@@ -127,26 +147,16 @@ class AuctionRepositoryImpl(
         }
 
     override fun getBookmarks(cursor: String?, size: Int): ApiResult<AuctionPage> =
-        when (val bookmarks = remote.getBookmarks()) {
-            is ApiResult.Success -> {
-                val productIds = bookmarks.value.items.map { it.productId.idValue() }.toSet()
-                when (val auctions = remote.getAuctions(scope = "", status = "", cursor = null, size = 100)) {
-                    is ApiResult.Success -> ApiResult.Success(
-                        AuctionPage(
-                            items = auctions.value.items.asSequence()
-                                .filter { it.productId?.idValue() in productIds }
-                                .take(size)
-                                .map { it.copy(bookmarked = true).toDomain(now()) }
-                                .toList(),
-                            nextCursor = null,
-                            hasNext = false
-                        ),
-                        bookmarks.status
-                    )
-                    is ApiResult.Failure -> auctions
-                }
-            }
-            is ApiResult.Failure -> bookmarks
+        when (val result = remote.getBookmarks(cursor, size)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionPage(
+                    items = result.value.items.map { it.copy(bookmarked = true).toDomain(now()) },
+                    nextCursor = result.value.nextCursor,
+                    hasNext = result.value.hasNext
+                ),
+                result.status
+            )
+            is ApiResult.Failure -> result
         }
 
     override fun getMyBids(cursor: String?, size: Int): ApiResult<BidHistoryPage> =
@@ -215,7 +225,16 @@ class AuctionRepositoryImpl(
 
     override fun cancelAuction(auctionId: String, idempotencyKey: String) = remote.cancelAuction(auctionId, idempotencyKey)
 
-    override fun startAuction(auctionId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.startAuction(auctionId, idempotencyKey)) {
+    override fun relistAuction(auctionId: String, idempotencyKey: String): ApiResult<AuctionCommandResult> =
+        when (val result = remote.relistAuction(auctionId, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(
+                AuctionCommandResult(result.value.auctionId?.idValue() ?: auctionId, result.value.message),
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
+    override fun startAuction(auctionId: String, idempotencyKey: String, startPrice: Long?, auctionTime: Long?): ApiResult<String> = when (val result = remote.startAuction(auctionId, idempotencyKey, startPrice, auctionTime)) {
         is ApiResult.Success -> ApiResult.Success(result.value.message, result.status)
         is ApiResult.Failure -> result
     }
@@ -225,7 +244,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
     val referenceTime = serverTime.toInstantOrNull() ?: now
     val endTime = scheduledEndAt.toInstantOrNull() ?: endedAt.toInstantOrNull()
     val remaining = endTime?.let { Duration.between(referenceTime, it).seconds.coerceAtLeast(0) }
-        ?: auctionTime.coerceAtLeast(0)
+        ?: (auctionTime ?: 0L).coerceAtLeast(0)
     val detailedImages = product?.images.orEmpty().mapNotNull { image ->
         (image as? JsonPrimitive)?.contentOrNull
             ?: runCatching {
@@ -239,18 +258,22 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         productId = productId?.idValue() ?: product?.productId?.idValue().orEmpty(),
         title = title ?: productName ?: product?.title ?: product?.name ?: "경매 상품",
         categoryName = categoryName ?: product?.categoryName ?: "기타",
-        currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-        startPrice = startPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        currentPrice = (currentPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        startPrice = (startPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+        currentPriceOrNull = currentPrice?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
+        startPriceOrNull = startPrice?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
         bidCount = bidCount.coerceAtLeast(0),
-        auctionTimeSeconds = auctionTime.coerceAtLeast(0),
+        auctionTimeSeconds = (auctionTime ?: 0L).coerceAtLeast(0),
         remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
         status = status,
         bookmarked = bookmarked,
         isHighestBidder = myBid?.isHighestBidder,
         myBidAmount = myBid?.amount?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt(),
+        myOrderId = myOrderId?.idValue()?.takeIf { it.isNotBlank() && it != "null" },
         imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname,
         sellerRating = sellerSummary?.rating,
+        sellerReviewCount = sellerSummary?.reviewCount,
         sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,
         productDescription = product?.description,
         productCondition = product?.condition,

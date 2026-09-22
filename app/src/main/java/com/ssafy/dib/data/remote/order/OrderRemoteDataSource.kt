@@ -39,6 +39,16 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         client.execute(client.requestBuilder(path).get().build(), OrderShippingAddressResponse.serializer())
     }
 
+    fun updateShippingAddress(orderId: String, request: UpdateOrderAddressRequest): ApiResult<OrderShippingAddressResponse> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/address"
+        when (val updated = client.executeUnit(
+            client.requestBuilder(path).patch(client.jsonBody(request, UpdateOrderAddressRequest.serializer())).build()
+        )) {
+            is ApiResult.Failure -> updated
+            is ApiResult.Success -> getShippingAddress(orderId)
+        }
+    }
+
     fun getShippingCarriers(): ApiResult<List<CarrierDto>> = configured {
         client.execute(
             client.requestBuilder(ApiRoutes.CARRIERS).get().build(),
@@ -52,13 +62,15 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
             ShipmentRegistrationRequest.serializer(),
             ShipmentRegistrationRequest(carrier, trackingNumber)
         ).toRequestBody("application/json".toMediaType())
-        client.execute(
+        when (val registered = client.executeUnit(
             client.requestBuilder(path)
                 .header("Idempotency-Key", idempotencyKey)
                 .post(body)
-                .build(),
-            ShipmentResponse.serializer()
-        )
+                .build()
+        )) {
+            is ApiResult.Failure -> registered
+            is ApiResult.Success -> getShipment(orderId)
+        }
     }
 
     fun getMessages(orderId: String, beforeChattingId: String?, size: Int): ApiResult<OrderMessageListResponse> = configured {
@@ -73,6 +85,16 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         client.execute(
             client.requestBuilder(path).post(okhttp3.RequestBody.EMPTY).build(),
             OrderConfirmationResponse.serializer()
+        )
+    }
+
+    // 후기는 별점만. 서버가 구매확정 상태·구매자 본인·중복 여부를 검사한다
+    fun writeReview(orderId: String, rating: Int): ApiResult<Unit> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/review"
+        client.executeUnit(
+            client.requestBuilder(path)
+                .post(client.jsonBody(WriteReviewRequest(rating), WriteReviewRequest.serializer()))
+                .build()
         )
     }
 

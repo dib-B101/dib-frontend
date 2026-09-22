@@ -30,6 +30,7 @@ class DibHttpClient(
             accessTokenProvider.accessToken()?.takeIf(String::isNotBlank)?.let {
                 builder.header("Authorization", "Bearer $it")
             } ?: guestSessionProvider.guestSessionId()?.takeIf(String::isNotBlank)?.let {
+                // 백엔드가 아직 읽지 않는 헤더지만, 비회원 조회 추적에 쓸 여지가 있어 남겨둔다
                 builder.header("X-Guest-Session-Id", it)
             }
             chain.proceed(builder.build())
@@ -131,7 +132,8 @@ class DibHttpClient(
 
 internal fun Json.responsePayload(body: String): JsonElement {
     val root = parseToJsonElement(body)
-    return (root as? JsonObject)?.get("data") ?: root
+    val objectRoot = root as? JsonObject
+    return objectRoot?.get("data") ?: objectRoot?.get("response") ?: root
 }
 
 fun interface AccessTokenRefresher {

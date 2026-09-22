@@ -35,6 +35,12 @@ class ReportRepositoryImpl(private val remote: ReportRemoteDataSource) : ReportR
             is ApiResult.Failure -> result
         }
 
+    override fun reportOrder(orderId: String, content: String, type: String, idempotencyKey: String): ApiResult<String> =
+        when (val result = remote.reportOrder(orderId, content, type, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun reportLiveParticipant(liveBroadcastId: String, memberId: String, content: String, idempotencyKey: String): ApiResult<String> =
         when (val result = remote.reportLiveParticipant(liveBroadcastId, memberId, content, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(result.value.reportId.idValue(), result.status)
@@ -47,21 +53,26 @@ internal fun ReportDto.toDomain() = ReportSummary(
     type = type,
     content = content,
     status = status,
-    targetLabel = when {
-        auctionId != null -> "경매 ${auctionId.idValue()}"
-        targetMemberId != null -> "회원 ${targetMemberId.idValue()}"
-        orderId != null -> "주문 ${orderId.idValue()}"
-        chattingId != null -> "채팅 ${chattingId.idValue()}"
-        reportTargetId != null -> when (type.uppercase()) {
-            "MEMBER" -> "회원 ${reportTargetId.idValue()}"
-            "AUCTION" -> "경매 ${reportTargetId.idValue()}"
-            "ORDER", "CHATTING" -> "주문 ${reportTargetId.idValue()}"
-            else -> "신고 대상 ${reportTargetId.idValue()}"
-        }
-        else -> "신고 대상"
-    },
-    createdAt = createdAt
+    targetLabel = targetLabel(),
+    createdAt = createdAt,
+    processedAt = processedAt
 )
+
+// 대상 표기는 서버가 내려준 type을 기준으로 고른다. id 필드가 채워진 순서로 고르면 회원 신고가 "주문 N"으로 표시된다.
+private fun ReportDto.targetLabel(): String {
+    val targetId = targetMemberId ?: reportTargetId
+    val targetName = reportTargetNickname?.takeIf { it.isNotBlank() } ?: targetId?.idValue()
+    return when (type.uppercase()) {
+        "MEMBER" -> "회원 " + (targetName ?: "대상")
+        "AUCTION" -> auctionId?.let { "경매 ${it.idValue()}" } ?: "경매 신고"
+        "ORDER" -> orderId?.let { "주문 ${it.idValue()}" } ?: "주문 신고"
+        "CHATTING" -> chattingId?.let { "채팅 ${it.idValue()}" }
+            ?: orderId?.let { "주문 ${it.idValue()}" }
+            ?: targetName?.let { "채팅 $it" }
+            ?: "채팅 신고"
+        else -> targetName?.let { "신고 대상 $it" } ?: "신고 대상"
+    }
+}
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
