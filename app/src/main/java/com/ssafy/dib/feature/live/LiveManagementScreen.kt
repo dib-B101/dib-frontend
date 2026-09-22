@@ -263,9 +263,14 @@ private fun LiveItemDialog(
     onSave: (List<LiveItemPlan>) -> Unit
 ) {
     val choices = remember(current, available) { (current + available).distinctBy(AuctionSummary::auctionId) }
-    val drafts = remember(current) {
-        mutableStateMapOf<String, LiveItemDraft>().apply {
-            current.forEach { auction -> put(auction.auctionId, auction.toLiveItemDraft()) }
+    // 편성 목록이 갱신될 때마다 초안을 통째로 새로 만들면 입력 중인 값이 사라진다.
+    // 사용자가 건드린 항목은 그대로 두고, 새로 들어온 항목만 서버 값으로 채운다.
+    val drafts = remember { mutableStateMapOf<String, LiveItemDraft>() }
+    var touchedIds by remember { mutableStateOf(setOf<String>()) }
+    fun touch(id: String) { touchedIds = touchedIds + id }
+    LaunchedEffect(current) {
+        current.forEach { auction ->
+            if (auction.auctionId !in drafts && auction.auctionId !in touchedIds) drafts[auction.auctionId] = auction.toLiveItemDraft()
         }
     }
     val invalidCount = choices.count { auction ->
@@ -286,6 +291,7 @@ private fun LiveItemDialog(
                     Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(10.dp)) {
                         Row(
                             Modifier.fillMaxWidth().clickable {
+                                touch(auction.auctionId)
                                 if (draft != null) drafts.remove(auction.auctionId)
                                 else if (drafts.size < 10) drafts[auction.auctionId] = auction.toLiveItemDraft()
                             }.padding(vertical = 6.dp),
@@ -304,7 +310,7 @@ private fun LiveItemDialog(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
                                     draft.startPrice,
-                                    { value -> drafts[auction.auctionId] = draft.copy(startPrice = value.filter(Char::isDigit).take(10)) },
+                                    { value -> touch(auction.auctionId); drafts[auction.auctionId] = draft.copy(startPrice = value.filter(Char::isDigit).take(10)) },
                                     Modifier.weight(1.2f),
                                     label = { Text("시작가", fontSize = 11.sp) },
                                     suffix = { Text("원") },
@@ -313,17 +319,28 @@ private fun LiveItemDialog(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
                                 OutlinedTextField(
-                                    draft.minutes,
-                                    { value -> drafts[auction.auctionId] = draft.copy(minutes = value.filter(Char::isDigit).take(5)) },
+                                    draft.seconds,
+                                    { value -> touch(auction.auctionId); drafts[auction.auctionId] = draft.copy(seconds = value.filter(Char::isDigit).take(3)) },
                                     Modifier.weight(.8f),
                                     label = { Text("시간", fontSize = 11.sp) },
-                                    suffix = { Text("분") },
+                                    suffix = { Text("초") },
                                     singleLine = true,
-                                    isError = draft.minutes.isNotBlank() && !draft.isMinutesValid(),
+                                    isError = draft.seconds.isNotBlank() && !draft.isSecondsValid(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
                             }
-                            if (!draft.isValid()) Text("시작가는 1,000원 이상, 경매 시간은 5분 이상이어야 해요.", color = Colors.Urgent, fontSize = 11.sp)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(30L to "30초", 60L to "1분", 120L to "2분", 180L to "3분", 300L to "5분").forEach { (s, label) ->
+                                    FilterChip(
+                                        selected = draft.seconds == s.toString(),
+                                        onClick = { touch(auction.auctionId); drafts[auction.auctionId] = draft.copy(seconds = s.toString()) },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(containerColor = Color.White, labelColor = Colors.Muted, selectedContainerColor = Colors.Navy, selectedLabelColor = Color.White),
+                                        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = draft.seconds == s.toString(), borderColor = Colors.Border, selectedBorderColor = Colors.Navy)
+                                    )
+                                }
+                            }
+                            if (!draft.isValid()) Text("시작가는 1,000원 이상, 경매 시간은 30초 이상 5분(300초) 이하여야 해요.", color = Colors.Urgent, fontSize = 11.sp)
                         }
                     }
                 }
@@ -352,7 +369,7 @@ private fun LiveItemDialog(
                         choices.mapNotNull { auction ->
                             val draft = drafts[auction.auctionId] ?: return@mapNotNull null
                             if (auction.isLiveAuctionActive()) LiveItemPlan(auction.auctionId)
-                            else LiveItemPlan(auction.auctionId, draft.startPrice.toLongOrNull(), draft.minutes.toLongOrNull()?.times(60))
+                            else LiveItemPlan(auction.auctionId, draft.startPrice.toLongOrNull(), draft.seconds.toLongOrNull())
                         }
                     )
                 },
@@ -365,15 +382,17 @@ private fun LiveItemDialog(
     )
 }
 
-private data class LiveItemDraft(val startPrice: String, val minutes: String) {
+private data class LiveItemDraft(val startPrice: String, val seconds: String) {
+    companion object { const val MIN_SECONDS = 30L; const val MAX_SECONDS = 300L }
     fun isStartPriceValid(): Boolean = (startPrice.toLongOrNull() ?: 0L) >= 1_000L
-    fun isMinutesValid(): Boolean = (minutes.toLongOrNull() ?: 0L) >= 5L
-    fun isValid(): Boolean = isStartPriceValid() && isMinutesValid()
+    fun isSecondsValid(): Boolean = (seconds.toLongOrNull() ?: 0L) in MIN_SECONDS..MAX_SECONDS
+    fun isValid(): Boolean = isStartPriceValid() && isSecondsValid()
 }
 
 private fun AuctionSummary.toLiveItemDraft() = LiveItemDraft(
     startPrice = startPriceOrNull?.toString().orEmpty(),
-    minutes = auctionTimeSeconds.takeIf { it > 0 }?.let { (it / 60).coerceAtLeast(5).toString() }.orEmpty()
+    // 서버가 준 초 값을 그대로 보여준다. 분 단위로 올리면 2분 저장이 5분으로 보였다.
+    seconds = auctionTimeSeconds.takeIf { it > 0 }?.toString().orEmpty()
 )
 
 private fun AuctionSummary.isLiveAuctionActive(): Boolean = status.equals("ACTIVE", ignoreCase = true)

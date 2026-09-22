@@ -65,6 +65,7 @@ import com.ssafy.dib.feature.live.LiveManagementScreen
 import com.ssafy.dib.feature.live.LiveBroadcastConsoleScreen
 import com.ssafy.dib.feature.live.LiveWatchScreen
 import com.ssafy.dib.feature.live.LiveBidNotice
+import com.ssafy.dib.feature.live.LiveAuctionResult
 import com.ssafy.dib.feature.home.HomeScreen
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.toHomeAuction
@@ -3656,6 +3657,10 @@ fun AppNavHost(
             var consoleChatError by remember(liveId) { mutableStateOf<String?>(null) }
             var consoleState by remember(liveId) { mutableStateOf<RealtimeConnectionState?>(null) }
             var consoleEnded by remember(liveId) { mutableStateOf(false) }
+            // LIVE_AUCTION_CLOSED 직후 재조회 응답이 늦거나 아직 ACTIVE 로 내려오는 사이에 종료 상태를 지키기 위한 낙관적 표시
+            var consoleClosedAuctionIds by remember(liveId) { mutableStateOf(setOf<String>()) }
+            var consoleStaleRetried by remember(liveId) { mutableStateOf(false) }
+            var consoleLastResult by remember(liveId) { mutableStateOf<LiveAuctionResult?>(null) }
             var consoleActionLoading by remember(liveId) { mutableStateOf(false) }
             var consoleActionError by remember(liveId) { mutableStateOf<String?>(null) }
             var consoleActionErrorCode by remember(liveId) { mutableStateOf<String?>(null) }
@@ -3665,6 +3670,8 @@ fun AppNavHost(
 
             LaunchedEffect(liveId, consoleRevision, signedIn, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured || liveId.isBlank()) {
+                    // 개발 미리보기는 서버 조회를 건너뛰므로 샘플 편성을 콘솔에도 채워야 화면을 확인할 수 있다.
+                    if (previewMode && consoleAuctions.isEmpty()) consoleAuctions = previewLiveAuctions()
                     consoleLoading = false
                     return@LaunchedEffect
                 }
@@ -3678,7 +3685,18 @@ fun AppNavHost(
                         consoleStatus = detail.status
                         consoleRoomName = detail.streamUrl
                         consoleViewerCount = detail.viewCount
-                        consoleAuctions = detail.auctions
+                        // LIVE_AUCTION_CLOSED 이후 재조회가 아직 ACTIVE 를 내려주면 서버가 종료를 반영하지 못한 것 — 낙관적으로 ENDED 를 지킨다
+                        val stale = detail.auctions.filter { it.auctionId in consoleClosedAuctionIds && it.status.equals("ACTIVE", ignoreCase = true) }
+                        consoleAuctions = detail.auctions.map { auction -> if (auction in stale) auction.copy(status = "ENDED", remainingSeconds = 0) else auction }
+                        if (stale.isNotEmpty() && !consoleStaleRetried) {
+                            consoleStaleRetried = true
+                            delay(2_000)
+                            consoleRevision++
+                        } else if (stale.isEmpty()) {
+                            // 서버 값이 이긴다
+                            consoleClosedAuctionIds = emptySet()
+                            consoleStaleRetried = false
+                        }
                         consoleEnded = detail.status.equals("ENDED", ignoreCase = true)
                     }
                     is ApiResult.Failure -> {
@@ -3727,12 +3745,27 @@ fun AppNavHost(
                                     SocketEventTypes.LIVE_STARTED -> consoleStatus = "LIVE"
                                     SocketEventTypes.LIVE_AUCTION_OPENED, SocketEventTypes.LIVE_AUCTION_CLOSED -> consoleRevision++
                                 }
+                                if (update.eventType == SocketEventTypes.LIVE_AUCTION_CLOSED && update.auctionId != null) {
+                                    val closedAuctionId = update.auctionId
+                                    // 재조회가 늦게 오는 동안에도 이 상품은 계속 ENDED 로 그린다
+                                    consoleClosedAuctionIds = consoleClosedAuctionIds + closedAuctionId
+                                    consoleLastResult = LiveAuctionResult(
+                                        auctionId = closedAuctionId,
+                                        title = consoleAuctions.firstOrNull { it.auctionId == closedAuctionId }?.title ?: "상품",
+                                        finalPrice = update.currentPrice,
+                                        sold = update.auctionResult == "SOLD",
+                                        winnerId = update.winnerId,
+                                        occurredAt = update.occurredAt
+                                    )
+                                }
                                 update.auctionId?.let { auctionId ->
                                     consoleAuctions = consoleAuctions.map { auction ->
                                         if (auction.auctionId != auctionId) auction else auction.copy(
                                             currentPrice = update.currentPrice ?: auction.currentPrice,
                                             bidCount = update.bidCount ?: auction.bidCount,
                                             remainingSeconds = update.remainingSeconds ?: auction.remainingSeconds,
+                                            // 절대 종료 시각을 갱신해야 채팅 탭을 왔다갔다 해도 카운트다운이 되감기지 않는다
+                                            endedAt = update.endedAt ?: auction.endedAt,
                                             status = update.status ?: auction.status
                                         )
                                     }
@@ -3796,13 +3829,41 @@ fun AppNavHost(
                 chatError = consoleChatError,
                 currentMemberId = memberProfile?.memberId,
                 liveEnded = consoleEnded,
+                lastResult = consoleLastResult,
                 onRetry = { consoleRevision++ },
                 onStartAuction = startConsoleAuction@ { auctionId ->
                     if (previewMode) {
+                        // 서버가 없어 실제 auctionTimeSeconds 를 못 받아오는 상품도 있어 0/음수면 300초로 대체한다
+                        val previewDurationSeconds = consoleAuctions.firstOrNull { it.auctionId == auctionId }
+                            ?.auctionTimeSeconds?.takeIf { it > 0 } ?: 300L
                         consoleAuctions = consoleAuctions.map { auction ->
-                            if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE", remainingSeconds = 300) else auction
+                            if (auction.auctionId == auctionId) {
+                                // 미리보기도 새 카운트다운 로직(종료 절대 시각 기준)을 타도록 endedAt 을 채운다
+                                auction.copy(
+                                    status = "ACTIVE",
+                                    remainingSeconds = 300,
+                                    endedAt = java.time.Instant.now().plusSeconds(300).toString()
+                                )
+                            } else auction
                         }
                         consoleActionMessage = "개발 미리보기 상품 경매를 시작했어요."
+                        // 백엔드가 없는 미리보기에서 LIVE_AUCTION_CLOSED 를 흉내만 낸다 — 다음 상품은 절대 자동으로 시작하지 않는다
+                        coroutineScope.launch {
+                            delay(previewDurationSeconds * 1_000L)
+                            if (!previewMode) return@launch
+                            val endedAuction = consoleAuctions.firstOrNull { it.auctionId == auctionId }
+                            consoleAuctions = consoleAuctions.map { auction ->
+                                if (auction.auctionId == auctionId) auction.copy(status = "ENDED", remainingSeconds = 0) else auction
+                            }
+                            consoleLastResult = LiveAuctionResult(
+                                auctionId = auctionId,
+                                title = endedAuction?.title ?: "상품",
+                                finalPrice = endedAuction?.currentPrice,
+                                sold = true,
+                                winnerId = null,
+                                occurredAt = java.time.Instant.now().toString()
+                            )
+                        }
                         return@startConsoleAuction
                     }
                     val command = "live-start-auction:$liveId:$auctionId"
@@ -3910,6 +3971,8 @@ fun AppNavHost(
             var watchChatError by remember(liveId) { mutableStateOf<String?>(null) }
             var watchState by remember(liveId) { mutableStateOf<RealtimeConnectionState?>(null) }
             var watchEnded by remember(liveId) { mutableStateOf(false) }
+            // 낙찰자 축하 연출/결과 카드에 쓸 마지막 LIVE_AUCTION_CLOSED 결과. 다음 경매가 열리면 비운다
+            var watchLastResult by remember(liveId) { mutableStateOf<LiveAuctionResult?>(null) }
             var watchConnection by remember(liveId) { mutableStateOf<com.ssafy.dib.data.remote.socket.LiveChatConnection?>(null) }
             var watchPendingBidCommandId by remember(liveId) { mutableStateOf<String?>(null) }
             var watchBidFeedback by remember(liveId) { mutableStateOf<RealtimeBidFeedback?>(null) }
@@ -3972,6 +4035,18 @@ fun AppNavHost(
                                 }
                                 if (update.eventType == SocketEventTypes.LIVE_AUCTION_OPENED && update.auctionId != null) {
                                     watchRevision++
+                                    // 다음 경매가 열렸으니 지난 결과/축하 카드는 치운다
+                                    watchLastResult = null
+                                }
+                                if (update.eventType == SocketEventTypes.LIVE_AUCTION_CLOSED && update.auctionId != null) {
+                                    watchLastResult = LiveAuctionResult(
+                                        auctionId = update.auctionId,
+                                        title = watchAuction?.title ?: "상품",
+                                        finalPrice = update.currentPrice,
+                                        sold = update.auctionResult == "SOLD",
+                                        winnerId = update.winnerId,
+                                        occurredAt = update.occurredAt
+                                    )
                                 }
                                 val current = watchAuction
                                 if (current != null && update.auctionId == current.auctionId) {
@@ -3979,6 +4054,8 @@ fun AppNavHost(
                                         currentPrice = update.currentPrice ?: current.currentPrice,
                                         bidCount = update.bidCount ?: current.bidCount,
                                         remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
+                                        // 절대 종료 시각을 갱신해야 탭 전환 뒤에도 카운트다운이 정확하다
+                                        endedAt = update.endedAt ?: current.endedAt,
                                         status = update.status ?: current.status,
                                         isHighestBidder = when {
                                             update.isHighestBidder != null -> update.isHighestBidder
@@ -4057,6 +4134,7 @@ fun AppNavHost(
                 currentMemberId = memberProfile?.memberId,
                 sellerMemberId = watchSellerMemberId,
                 liveEnded = watchEnded,
+                lastResult = watchLastResult,
                 onRetry = { watchRevision++ },
                 onBid = { auctionId, amount ->
                     if (previewMode) {

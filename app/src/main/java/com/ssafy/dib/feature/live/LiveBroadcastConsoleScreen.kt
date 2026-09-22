@@ -58,6 +58,9 @@ data class LiveBidNotice(
     val time: String
 )
 
+/** LIVE_AUCTION_CLOSED 한 건의 표시용 결과. winnerId 는 서버가 아직 안 주면 null 이고, 그때는 낙찰자 연출을 하지 않는다. */
+data class LiveAuctionResult(val auctionId: String, val title: String, val finalPrice: Int?, val sold: Boolean, val winnerId: String?, val occurredAt: String?)
+
 internal sealed interface LiveConsoleFeedEntry {
     val entryKey: String
     val entryTime: String
@@ -108,6 +111,13 @@ internal fun liveAuctionStatusLabel(status: String): String = when (status.upper
     else -> status
 }
 
+/** 상품 카드의 경매 시간 표기. 분 단위로만 보이면 300초/60초처럼 1분 미만 상품이 "0분"으로 뭉개진다. */
+internal fun liveDurationLabel(seconds: Long): String = when {
+    seconds < 60 -> "${seconds}초"
+    seconds % 60 == 0L -> "${seconds / 60}분"
+    else -> "${seconds / 60}분 ${seconds % 60}초"
+}
+
 internal fun liveConnectionLabel(state: RealtimeConnectionState?): String = when (state) {
     RealtimeConnectionState.Connecting -> "연결 중"
     RealtimeConnectionState.Connected -> "실시간 연결됨"
@@ -137,6 +147,7 @@ fun LiveBroadcastConsoleScreen(
     chatError: String?,
     currentMemberId: String?,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult? = null,
     onRetry: () -> Unit,
     onStartAuction: (String) -> Unit,
     onEndLive: () -> Unit,
@@ -155,7 +166,11 @@ fun LiveBroadcastConsoleScreen(
     // 종료가 막혔을 때 버튼을 흐리게만 두면 왜 안 되는지 알 방법이 없다 — 눌리게 두고 사유를 띄운다
     var showEndBlocked by rememberSaveable { mutableStateOf(false) }
     val activeAuction = auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
+    // 차단 다이얼로그도 같은 절대 시각 기준 카운트다운을 써야 "약 2분"이 카드 타이머와 같이 움직인다
+    val activeRemaining = rememberLiveCountdown(activeAuction?.auctionId, activeAuction?.remainingSeconds ?: 0, activeAuction?.endedAt, running = activeAuction != null)
     val priceRequired = actionErrorCode == "AUCTION_PRICE_REQUIRED"
+    // 경매가 끝나 진행 중 상품이 사라지면 차단 사유도 사라진다
+    LaunchedEffect(activeAuction?.auctionId) { if (activeAuction == null) showEndBlocked = false }
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
@@ -192,7 +207,10 @@ fun LiveBroadcastConsoleScreen(
                     roomName = roomName,
                     liveEnded = liveEnded,
                     streamTokenProvider = streamTokenProvider,
-                    modifier = Modifier.padding(16.dp)
+                    // 카메라가 꺼져 있거나 연결 전일 때 검은 화면 대신 보여줄 대표 이미지 — 진행 중 상품이 없으면 편성 목록의 첫 상품으로 대체
+                    coverImageUrl = (activeAuction ?: auctions.firstOrNull())?.imageUrls?.firstOrNull(),
+                    // 영상이 화면의 주인공이 되도록 16dp 패딩을 없애고 weight 로 세로 공간을 더 배분한다 (#24)
+                    modifier = Modifier.fillMaxWidth().weight(1.15f)
                 )
                 if (liveEnded) LiveConsoleBanner("방송이 종료됐어요.", Colors.Urgent, Color(0xFFFFE9E9))
                 actionMessage?.let { LiveConsoleBanner(it, Colors.MintInk, Color(0xFFDDF8F0)) }
@@ -218,6 +236,7 @@ fun LiveBroadcastConsoleScreen(
                     hasActiveAuction = activeAuction != null,
                     actionLoading = actionLoading,
                     liveEnded = liveEnded,
+                    lastResult = lastResult,
                     onStartAuction = onStartAuction,
                     onOpenItemPlan = onOpenItemPlan,
                     modifier = Modifier.weight(1f)
@@ -258,7 +277,7 @@ fun LiveBroadcastConsoleScreen(
                     append("‘")
                     append(activeAuction?.title.orEmpty().ifBlank { "진행 중인 상품" })
                     append("’ 경매가 진행 중이에요.")
-                    activeAuction?.remainingSeconds?.takeIf { it > 0 }?.let {
+                    activeRemaining.takeIf { it > 0 }?.let {
                         append(" 약 ")
                         append(remainingLabel(it))
                         append(" 남았어요.")
@@ -327,6 +346,7 @@ private fun LiveBroadcastVideoPanel(
     roomName: String?,
     liveEnded: Boolean,
     streamTokenProvider: (suspend () -> Result<LiveStreamSession>)?,
+    coverImageUrl: String?,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -362,81 +382,111 @@ private fun LiveBroadcastVideoPanel(
     val videoEnabled = streamTokenProvider != null && !isEmulator && permissionGranted && !liveEnded
     val session = rememberLiveVideoSession(LiveVideoRole.PUBLISHER, videoEnabled, streamTokenProvider)
     val streaming = session.state == LiveVideoState.Connected || session.state == LiveVideoState.Reconnecting
+    // 실제 영상이 그려질 때만 대표 이미지를 감춘다 — 나머지 모든 안내 분기(에뮬레이터·권한없음·연결끊김·카메라꺼짐 등)에서는 대표 이미지를 계속 보여준다
+    val showingLiveSurface = videoEnabled &&
+        (session.state == LiveVideoState.Connected || session.state == LiveVideoState.Reconnecting) &&
+        session.cameraEnabled && session.videoTrack != null
+    val controlsVisible = !isEmulator && permissionGranted && !liveEnded && streamTokenProvider != null
 
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF17212D)),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                isEmulator -> LiveVideoNotice(
-                    "카메라 송출은 실기기에서 테스트해주세요",
-                    "에뮬레이터에서는 송출을 시도하지 않아요. 채팅과 경매 진행은 그대로 동작해요."
+    // 버튼을 영상 아래에 별도로 두면 영상 높이가 그만큼 줄어든다 — 버튼을 영상 위 오버레이로 옮기고 패널은 Box 하나로만 구성한다 (#24)
+    Box(
+        modifier.fillMaxSize().background(Color(0xFF17212D)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!showingLiveSurface) LiveCoverBackdrop(coverImageUrl)
+        when {
+            isEmulator -> LiveVideoNotice(
+                "카메라 송출은 실기기에서 테스트해주세요",
+                "에뮬레이터에서는 송출을 시도하지 않아요. 채팅과 경매 진행은 그대로 동작해요."
+            )
+            streamTokenProvider == null -> LiveVideoNotice(
+                "영상 송출을 사용할 수 없어요",
+                "지금은 채팅과 경매 진행만 동작해요"
+            )
+            liveEnded -> LiveVideoNotice("방송이 종료됐어요", "영상 송출이 중지됐어요")
+            !permissionGranted -> LiveCameraPermissionNotice(
+                blocked = permissionBlocked,
+                onRequest = { permissionLauncher.launch(LiveMediaPermissions.REQUIRED) },
+                onOpenSettings = { openAppSettings(context) }
+            )
+            else -> when (val state = session.state) {
+                is LiveVideoState.Failed -> LiveVideoNotice(
+                    "영상을 연결하지 못했어요",
+                    state.message,
+                    action = "다시 시도" to session::retry
                 )
-                streamTokenProvider == null -> LiveVideoNotice(
-                    "영상 송출을 사용할 수 없어요",
-                    "지금은 채팅과 경매 진행만 동작해요"
+                LiveVideoState.Disconnected -> LiveVideoNotice(
+                    "영상 연결이 끊겼어요",
+                    "채팅과 경매 진행은 그대로 동작해요",
+                    action = "다시 연결" to session::retry
                 )
-                liveEnded -> LiveVideoNotice("방송이 종료됐어요", "영상 송출이 중지됐어요")
-                !permissionGranted -> LiveCameraPermissionNotice(
-                    blocked = permissionBlocked,
-                    onRequest = { permissionLauncher.launch(LiveMediaPermissions.REQUIRED) },
-                    onOpenSettings = { openAppSettings(context) }
-                )
-                else -> when (val state = session.state) {
-                    is LiveVideoState.Failed -> LiveVideoNotice(
-                        "영상을 연결하지 못했어요",
-                        state.message,
-                        action = "다시 시도" to session::retry
-                    )
-                    LiveVideoState.Disconnected -> LiveVideoNotice(
-                        "영상 연결이 끊겼어요",
-                        "채팅과 경매 진행은 그대로 동작해요",
-                        action = "다시 연결" to session::retry
-                    )
-                    LiveVideoState.Connected, LiveVideoState.Reconnecting ->
-                        if (session.cameraEnabled && session.videoTrack != null) LiveVideoSurface(
-                            room = session.room,
-                            videoTrack = session.videoTrack,
-                            mirror = session.usingFrontCamera,
-                            modifier = Modifier.fillMaxSize()
-                        ) else LiveVideoNotice("카메라가 꺼져 있어요", "아래 버튼으로 다시 켤 수 있어요")
-                    else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(color = Colors.Mint, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
-                        Text("영상을 연결하는 중이에요", color = Color.White, fontSize = 12.sp)
-                    }
+                LiveVideoState.Connected, LiveVideoState.Reconnecting ->
+                    if (session.cameraEnabled && session.videoTrack != null) LiveVideoSurface(
+                        room = session.room,
+                        videoTrack = session.videoTrack,
+                        mirror = session.usingFrontCamera,
+                        modifier = Modifier.fillMaxSize()
+                    ) else LiveVideoNotice("카메라가 꺼져 있어요", "대표 이미지를 보여주고 있어요 · 아래 버튼으로 다시 켤 수 있어요")
+                else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(color = Colors.Mint, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
+                    Text("영상을 연결하는 중이에요", color = Color.White, fontSize = 12.sp)
                 }
             }
-            roomName?.takeIf(String::isNotBlank)?.let {
-                Text(
-                    "room · " + it,
-                    Modifier.align(Alignment.BottomStart).padding(8.dp),
-                    color = Colors.Mint,
-                    fontSize = 9.sp
-                )
-            }
         }
-        if (!isEmulator && permissionGranted && !liveEnded && streamTokenProvider != null) Row(
-            Modifier.fillMaxWidth(),
+        // 하단 컨트롤 오버레이와 겹치지 않도록 room 라벨을 위쪽으로 옮긴다
+        roomName?.takeIf(String::isNotBlank)?.let {
+            Text(
+                "room · " + it,
+                Modifier.align(Alignment.TopStart).padding(8.dp),
+                color = Colors.Mint,
+                fontSize = 9.sp
+            )
+        }
+        if (controlsVisible) Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedButton(
-                onClick = { session.updateCameraEnabled(!session.cameraEnabled) },
-                modifier = Modifier.weight(1f),
-                enabled = streaming
-            ) { Text(if (session.cameraEnabled) "카메라 끄기" else "카메라 켜기", fontSize = 12.sp) }
-            OutlinedButton(
-                onClick = { session.updateMicrophoneEnabled(!session.microphoneEnabled) },
-                modifier = Modifier.weight(1f),
-                enabled = streaming
-            ) { Text(if (session.microphoneEnabled) "음소거" else "음소거 해제", fontSize = 12.sp) }
-            OutlinedButton(
-                onClick = session::switchCamera,
-                modifier = Modifier.weight(1f),
-                enabled = streaming && session.cameraEnabled
-            ) { Text(if (session.usingFrontCamera) "후면 전환" else "전면 전환", fontSize = 12.sp) }
+            LiveVideoControlPill(
+                label = if (session.cameraEnabled) "카메라 끄기" else "카메라 켜기",
+                enabled = streaming,
+                onClick = { session.updateCameraEnabled(!session.cameraEnabled) }
+            )
+            LiveVideoControlPill(
+                label = if (session.microphoneEnabled) "음소거" else "음소거 해제",
+                enabled = streaming,
+                onClick = { session.updateMicrophoneEnabled(!session.microphoneEnabled) }
+            )
+            LiveVideoControlPill(
+                label = if (session.usingFrontCamera) "후면 전환" else "전면 전환",
+                enabled = streaming && session.cameraEnabled,
+                onClick = session::switchCamera
+            )
         }
     }
+}
+
+/** 영상 위 오버레이용 작은 알약 버튼. OutlinedButton 을 그대로 쓰면 영상을 가리는 불투명한 흰 배경이 생겨 반투명 검정 배경으로 직접 그린다. */
+@Composable
+private fun LiveVideoControlPill(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.graphicsLayer(alpha = if (enabled) 1f else .5f),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Black.copy(alpha = .45f),
+        contentColor = Color.White
+    ) {
+        Text(label, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 라이브 영상이 그려지지 않는 동안(대기·오류·카메라 꺼짐 등) 검은 화면 대신 상품 대표 이미지를 배경으로 보여준다. */
+@Composable
+private fun LiveCoverBackdrop(url: String?) {
+    // 응답에 이미지가 없으면 문구만 남긴다
+    if (url.isNullOrBlank()) return
+    DibNetworkImage(url, null, Modifier.fillMaxSize())
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)))
 }
 
 /** 영상 영역 안에서만 쓰는 어두운 배경용 안내. */
@@ -503,6 +553,7 @@ private fun LiveConsoleProductTab(
     hasActiveAuction: Boolean,
     actionLoading: Boolean,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult?,
     onStartAuction: (String) -> Unit,
     onOpenItemPlan: () -> Unit,
     modifier: Modifier = Modifier
@@ -520,6 +571,10 @@ private fun LiveConsoleProductTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 다음 경매가 아직 안 켜진 동안, 방금 끝난 경매의 결과를 먼저 보여준다 — 자동 시작은 없다는 것도 여기서 알린다
+        if (!hasActiveAuction && lastResult != null) item(key = "console-last-result:${lastResult.auctionId}:${lastResult.occurredAt}") {
+            LiveConsoleResultCard(lastResult)
+        }
         items(auctions, key = AuctionSummary::auctionId) { auction ->
             LiveConsoleProductRow(
                 auction = auction,
@@ -533,13 +588,39 @@ private fun LiveConsoleProductTab(
 }
 
 @Composable
+private fun LiveConsoleResultCard(result: LiveAuctionResult) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("‘${result.title}’ 경매가 종료됐어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(
+            buildString {
+                append(if (result.sold) "낙찰 · 최종가 %,d원".format(result.finalPrice ?: 0) else "유찰 · 입찰이 없었어요")
+                if (result.winnerId != null) append(" · 낙찰자에게 결과를 알렸어요")
+            },
+            color = Colors.Text,
+            fontSize = 12.sp
+        )
+        Text(
+            "다음 상품은 아래 카드의 ‘지금 시작’을 눌러야 시작돼요. 자동으로 시작되지 않아요.",
+            color = Colors.Muted,
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
 private fun LiveConsoleProductRow(
     auction: AuctionSummary,
     startEnabled: Boolean,
     onStartAuction: (String) -> Unit
 ) {
     val active = auction.status.equals("ACTIVE", ignoreCase = true)
-    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, active)
+    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, auction.endedAt, active)
     Column(
         Modifier.fillMaxWidth()
             .background(Color.White, RoundedCornerShape(14.dp))
@@ -553,7 +634,7 @@ private fun LiveConsoleProductRow(
                 Text(auction.title, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
                     "시작가 " + (auction.startPriceOrNull?.let { "%,d원".format(it) } ?: "가격 미정") +
-                        " · " + (auction.auctionTimeSeconds.takeIf { it > 0 }?.let { "${it / 60}분" } ?: "시간 미정"),
+                        " · " + (auction.auctionTimeSeconds.takeIf { it > 0 }?.let { liveDurationLabel(it) } ?: "시간 미정"),
                     color = Colors.Muted,
                     fontSize = 11.sp
                 )
@@ -586,16 +667,36 @@ private fun LiveConsoleProductRow(
     }
 }
 
-/** 남은 시간은 서버 값으로 맞추고, 진행 중일 때만 1초마다 줄인다. */
+/** 서버 시각 문자열을 Instant 로 복구한다. core/time 의 포맷터와 같은 순서(Instant → OffsetDateTime → LocalDateTime)를 따른다. */
+internal fun parseLiveInstant(value: String?): java.time.Instant? = value?.takeIf(String::isNotBlank)?.let { raw ->
+    runCatching { java.time.Instant.parse(raw) }
+        .recoverCatching { java.time.OffsetDateTime.parse(raw).toInstant() }
+        .recoverCatching { java.time.LocalDateTime.parse(raw).atZone(java.time.ZoneId.systemDefault()).toInstant() }
+        .getOrNull()
+}
+
+internal fun remainingSecondsUntil(endedAt: String?, now: java.time.Instant = java.time.Instant.now()): Int? =
+    parseLiveInstant(endedAt)?.let { java.time.Duration.between(now, it).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt() }
+
+/**
+ * 남은 시간은 종료 절대 시각(endedAt) 기준으로 매 틱 다시 계산한다.
+ * 정수 초를 그대로 들고 있으면 채팅 탭으로 갔다가 돌아왔을 때 컴포지션이 그 정수부터 다시 세기 시작해
+ * 카운트다운이 과거 값으로 되감긴다 — endedAt 이 있으면 그 문제 자체가 생기지 않는다.
+ * endedAt 이 없거나 파싱에 실패하면 기존 정수 카운트다운으로 폴백한다.
+ */
 @Composable
-internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, running: Boolean): Int {
-    var remaining by remember(key) { mutableIntStateOf(remainingSeconds) }
-    LaunchedEffect(key, remainingSeconds, running) {
-        remaining = remainingSeconds
+internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, endedAt: String?, running: Boolean): Int {
+    val endInstant = remember(endedAt) { parseLiveInstant(endedAt) }
+    var remaining by remember(key) {
+        mutableIntStateOf(endInstant?.let { remainingSecondsUntil(endedAt) } ?: remainingSeconds)
+    }
+    LaunchedEffect(key, remainingSeconds, endedAt, running) {
+        // (재)컴포지션 시점에도 즉시 다시 계산해야 탭을 벗어났다 돌아온 순간의 값이 정확하다
+        remaining = endInstant?.let { remainingSecondsUntil(endedAt) } ?: remainingSeconds
         if (!running) return@LaunchedEffect
         while (remaining > 0) {
             delay(1_000)
-            remaining--
+            remaining = endInstant?.let { remainingSecondsUntil(endedAt) } ?: (remaining - 1)
         }
     }
     return remaining
@@ -660,6 +761,7 @@ private fun LiveSellerNoticeBar(notice: LiveChatMessage) {
     HorizontalDivider(color = Colors.Border)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LiveChatPanel(
     chatMessages: List<LiveChatMessage>,
@@ -681,6 +783,11 @@ internal fun LiveChatPanel(
     var draft by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(feed.size) {
         if (feed.isNotEmpty()) listState.animateScrollToItem(feed.lastIndex)
+    }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        // 키보드가 올라오면 목록 높이가 줄어 마지막 메시지가 가려진다. 열릴 때 맨 아래로 다시 붙인다
+        if (imeVisible && feed.isNotEmpty()) listState.animateScrollToItem(feed.lastIndex)
     }
     Column(modifier.fillMaxSize()) {
         pinnedNotice?.let { LiveSellerNoticeBar(it) }
@@ -744,8 +851,9 @@ internal fun LiveChatPanel(
         }
         chatError?.let { Text(it, Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Colors.Urgent, fontSize = 11.sp) }
         HorizontalDivider(color = Colors.Border)
+        // Scaffold 의 safeDrawingPadding 이 이미 IME 인셋을 포함하므로 여기서 다시 밀면 입력창이 키보드 위로 두 배 뜬다
         Row(
-            Modifier.fillMaxWidth().background(Colors.Background).imePadding().padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {

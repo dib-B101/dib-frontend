@@ -1,10 +1,13 @@
 package com.ssafy.dib.feature.live
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +61,7 @@ fun LiveWatchScreen(
     currentMemberId: String?,
     sellerMemberId: String?,
     liveEnded: Boolean,
+    lastResult: LiveAuctionResult? = null,
     onRetry: () -> Unit,
     onBid: (String, Int) -> Boolean,
     onSendChat: (String) -> Boolean,
@@ -107,7 +111,10 @@ fun LiveWatchScreen(
                 LiveWatchVideoPanel(
                     liveEnded = liveEnded,
                     streamTokenProvider = streamTokenProvider,
-                    modifier = Modifier.padding(16.dp)
+                    // 방송 대기·카메라 꺼짐일 때 검은 화면 대신 보여줄 대표 이미지
+                    coverImageUrl = activeAuction?.imageUrls?.firstOrNull(),
+                    // 영상이 화면의 주인공이 되도록 16dp 패딩을 없애고 weight 로 세로 공간을 더 배분한다 (#24)
+                    modifier = Modifier.fillMaxWidth().weight(1f)
                 )
                 if (liveEnded) Text(
                     "방송이 종료됐어요",
@@ -119,6 +126,8 @@ fun LiveWatchScreen(
                 ) else LiveWatchAuctionCard(
                     auction = activeAuction,
                     bidEnabled = bidEnabled,
+                    lastResult = lastResult,
+                    currentMemberId = currentMemberId,
                     onBidRequest = { if (isAuthenticated) showBidSheet = true else onLoginRequired() }
                 )
                 feedbackMessage?.let { message ->
@@ -205,6 +214,7 @@ private fun LiveWatchHeader(
 private fun LiveWatchVideoPanel(
     liveEnded: Boolean,
     streamTokenProvider: (suspend () -> Result<LiveStreamSession>)?,
+    coverImageUrl: String?,
     modifier: Modifier = Modifier
 ) {
     // 시청자는 구독만 하므로 카메라·마이크 권한을 요청하지 않는다
@@ -213,10 +223,15 @@ private fun LiveWatchVideoPanel(
         enabled = streamTokenProvider != null && !liveEnded,
         tokenProvider = streamTokenProvider
     )
+    // 실제 영상이 그려질 때만 대표 이미지를 감춘다 — 대기·오류·연결끊김·카메라꺼짐 등 나머지 분기에서는 계속 보여준다
+    val showingLiveSurface = streamTokenProvider != null && !liveEnded &&
+        (session.state == LiveVideoState.Connected || session.state == LiveVideoState.Reconnecting) &&
+        session.videoTrack != null
     Box(
-        modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF17212D)),
+        modifier.fillMaxSize().background(Color(0xFF17212D)),
         contentAlignment = Alignment.Center
     ) {
+        if (!showingLiveSurface) LiveCoverBackdrop(coverImageUrl)
         when {
             liveEnded -> LiveVideoNotice("방송이 종료됐어요", "다시보기는 아직 준비 중이에요")
             streamTokenProvider == null -> LiveVideoNotice("영상을 불러올 수 없어요", "채팅과 입찰로 참여할 수 있어요")
@@ -237,7 +252,7 @@ private fun LiveWatchVideoPanel(
                         videoTrack = session.videoTrack,
                         mirror = false,
                         modifier = Modifier.fillMaxSize()
-                    ) else LiveVideoNotice("방송 화면을 기다리는 중이에요", "판매자가 카메라를 켜면 바로 보여요")
+                    ) else LiveVideoNotice("카메라가 꺼져 있어요", "판매자가 카메라를 켜면 바로 보여요")
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     CircularProgressIndicator(color = Colors.Mint, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
                     Text("영상을 불러오는 중이에요", color = Color.White, fontSize = 12.sp)
@@ -247,25 +262,85 @@ private fun LiveWatchVideoPanel(
     }
 }
 
+/** 라이브 영상이 그려지지 않는 동안(대기·오류·카메라 꺼짐 등) 검은 화면 대신 상품 대표 이미지를 배경으로 보여준다. */
+@Composable
+private fun LiveCoverBackdrop(url: String?) {
+    // 응답에 이미지가 없으면 문구만 남긴다
+    if (url.isNullOrBlank()) return
+    DibNetworkImage(url, null, Modifier.fillMaxSize())
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)))
+}
+
 @Composable
 private fun LiveWatchAuctionCard(
     auction: AuctionSummary?,
     bidEnabled: Boolean,
+    lastResult: LiveAuctionResult?,
+    currentMemberId: String?,
     onBidRequest: () -> Unit
 ) {
     if (auction == null || !auction.status.equals("ACTIVE", ignoreCase = true)) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
-                .padding(16.dp)
-        ) {
-            Text("다음 경매를 준비하고 있어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("판매자가 경매를 시작하면 바로 입찰할 수 있어요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 11.sp)
+        // 낙찰자만 축하 연출을 본다 — 나머지 시청자에게 "당신이 낙찰됐다"고 착각하게 하면 안 된다
+        val isWinner = lastResult?.winnerId != null && lastResult.winnerId == currentMemberId
+        when {
+            lastResult != null && isWinner -> AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + scaleIn(initialScale = .85f)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        .background(Colors.MintSoft, RoundedCornerShape(14.dp))
+                        .border(1.dp, Colors.Mint, RoundedCornerShape(14.dp))
+                        .padding(16.dp)
+                ) {
+                    Text("🎉 낙찰을 축하해요!", color = Colors.MintInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "‘${lastResult.title}’ · 최종가 %,d원".format(lastResult.finalPrice ?: 0),
+                        Modifier.padding(top = 4.dp),
+                        color = Colors.Navy,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "거래 상세에서 결제와 배송을 확인해주세요",
+                        Modifier.padding(top = 4.dp),
+                        color = Colors.Muted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+            lastResult != null -> Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    .background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text("‘${lastResult.title}’ 경매가 종료됐어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (lastResult.sold) "최종가 %,d원에 낙찰됐어요".format(lastResult.finalPrice ?: 0) else "입찰이 없어 유찰됐어요",
+                    Modifier.padding(top = 4.dp),
+                    color = Colors.Muted,
+                    fontSize = 11.sp
+                )
+                Text(
+                    "다음 상품은 판매자가 시작하면 바로 보여요",
+                    Modifier.padding(top = 4.dp),
+                    color = Colors.Muted,
+                    fontSize = 11.sp
+                )
+            }
+            else -> Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    .background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text("다음 경매를 준비하고 있어요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("판매자가 경매를 시작하면 바로 입찰할 수 있어요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 11.sp)
+            }
         }
         return
     }
-    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, true)
+    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, auction.endedAt, true)
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             .background(Color.White, RoundedCornerShape(14.dp))
