@@ -20,6 +20,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
 class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : ProductRepository {
+    override fun getPopularKeywords(size: Int): ApiResult<List<String>> = remote.getPopularKeywords(size)
+
     override fun getCategories(): ApiResult<List<ProductCategory>> =
         when (val result = remote.getCategories()) {
             is ApiResult.Success -> ApiResult.Success(result.value.items.map(CategoryDto::toDomain), result.status)

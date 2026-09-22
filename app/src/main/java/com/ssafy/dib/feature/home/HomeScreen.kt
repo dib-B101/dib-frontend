@@ -293,12 +293,17 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
         SectionHeader("LIVE", "전체 보기", onLiveClick)
         val cards = remoteLives?.take(2)?.map { item ->
             val isLive = item.status.equals("LIVE", ignoreCase = true)
+            // 영상 미리보기 대신 편성 상품 하나의 사진·제목을 보여준다. 방송 제목은 작게 위에 둔다
             HomeLiveCard(
                 title = item.title,
-                description = item.description ?: "Live 상품을 확인해보세요",
+                description = item.firstItemTitle ?: item.description ?: "Live 상품을 확인해보세요",
                 isLive = isLive,
-                footer = if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt),
-                photo = null
+                footer = listOfNotNull(
+                    item.itemCount?.takeIf { it > 0 }?.let { "상품 ${it}개" },
+                    if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt)
+                ).joinToString(" · "),
+                photo = null,
+                imageUrl = item.firstItemThumbnailUrl
             )
         } ?: listOf(
             HomeLiveCard("오디오마켓 라이브", "노이즈 캔슬링 헤드폰", true, "상품 5개 · 눌러서 보기", ProductPhoto.Headphones),
@@ -317,14 +322,18 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                     shadowElevation = 0.dp
                 ) {
                     Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    // 가로로 길던 썸네일을 정방형에 가깝게 — 카드 두 장이 나란히 있을 때 세로가 너무 눌려 보였다
-                    Box(Modifier.fillMaxWidth().aspectRatio(1.15f).clip(RoundedCornerShape(12.dp)).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
-                        card.photo?.let { ProductPhoto(it, modifier = Modifier.matchParentSize()) } ?: Image(
-                            painter = painterResource(R.drawable.live_video),
-                            contentDescription = null,
-                            modifier = Modifier.align(Alignment.Center).size(38.dp),
-                            colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
-                        )
+                    // 홈 상품 카드와 같은 정방형 썸네일. 대표 상품 사진이 없을 때만 방송 아이콘을 그린다
+                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(if (card.imageUrl != null) Colors.Image else if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
+                        when {
+                            card.imageUrl != null -> DibNetworkImage(card.imageUrl, card.description, Modifier.matchParentSize())
+                            card.photo != null -> ProductPhoto(card.photo, modifier = Modifier.matchParentSize())
+                            else -> Image(
+                                painter = painterResource(R.drawable.live_video),
+                                contentDescription = null,
+                                modifier = Modifier.align(Alignment.Center).size(38.dp),
+                                colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
+                            )
+                        }
                         Surface(Modifier.padding(7.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(9.dp)) {
                             Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(12.dp))
@@ -347,7 +356,8 @@ private data class HomeLiveCard(
     val description: String,
     val isLive: Boolean,
     val footer: String,
-    val photo: ProductPhoto?
+    val photo: ProductPhoto?,
+    val imageUrl: String? = null
 )
 
 internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.systemDefault()): String =

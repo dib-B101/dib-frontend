@@ -33,7 +33,11 @@ data class LiveBroadcastDto(
     val scheduledAt: String? = null,
     val startedAt: String? = null,
     val endedAt: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    // 홈 LIVE 카드용 대표 상품(첫 편성 상품). 예전 서버 응답에는 없어 null 허용
+    val itemCount: Int? = null,
+    val firstItemTitle: String? = null,
+    val firstItemThumbnailUrl: String? = null
 )
 
 @Serializable data class LiveBroadcastListResponse(val items: List<LiveBroadcastDto> = emptyList(), val nextCursor: String? = null, val hasNext: Boolean = false)

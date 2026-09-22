@@ -90,6 +90,11 @@ fun AuctionSearchScreen(
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    // 최근 검색어는 기기에 저장된 실제 기록, 인기 검색어는 서버 집계(null 이면 불러오는 중)
+    recentSearches: List<String>,
+    onAddRecentSearch: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
+    popularKeywords: List<String>?,
     remoteCategories: List<ProductCategory>?,
     remoteAuctions: List<HomeAuction>?,
     isLoading: Boolean,
@@ -104,7 +109,6 @@ fun AuctionSearchScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var submitted by rememberSaveable(browseOnOpen) { mutableStateOf(browseOnOpen) }
-    var recent by rememberSaveable { mutableStateOf(listOf("필름 카메라", "머그컵", "작가 핸드메이드")) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     var category by rememberSaveable { mutableStateOf("전체") }
@@ -127,7 +131,7 @@ fun AuctionSearchScreen(
     )
     fun submit() {
         submitted = true
-        if (query.isNotBlank()) recent = (listOf(query.trim()) + recent).distinct().take(5)
+        if (query.isNotBlank()) onAddRecentSearch(query.trim())
         onSearch(filters())
     }
     LaunchedEffect(browseOnOpen) {
@@ -168,11 +172,16 @@ fun AuctionSearchScreen(
                 )
             }
             if (!submitted) {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("최근 검색어"); Text("전체 삭제", Modifier.clickable { recent = emptyList() }.padding(8.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium) } }
-                if (recent.isNotEmpty()) item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { recent.forEach { word -> DiscoveryFilterChip(selected=false,onClick={query=word; submit()},label=word) } } }
+                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("최근 검색어"); if (recentSearches.isNotEmpty()) Text("전체 삭제", Modifier.clickable { onClearRecentSearches() }.padding(8.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium) } }
+                if (recentSearches.isNotEmpty()) item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { recentSearches.forEach { word -> DiscoveryFilterChip(selected=false,onClick={query=word; submit()},label=word) } } }
                 else item { Text("최근 검색어가 없어요", color = Colors.Muted, fontSize = 13.sp) }
                 item { SectionTitle("인기 검색어") }
-                items(5) { index -> val word=listOf("빈티지 카메라","핸드메이드 도자기","한정판 스니커즈","원화 작품","레트로 게임기")[index]; Row(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).clickable { query=word; submit() }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) Colors.Live else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,Modifier.weight(1f),color=Colors.Text,fontSize=14.sp,fontWeight=if(index<3)FontWeight.SemiBold else FontWeight.Normal);Image(painterResource(R.drawable.chevron_right),null,Modifier.size(16.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
+                // 서버가 검색 키워드를 누적한 상위 목록. 비어 있으면 아직 아무도 검색하지 않은 것
+                when {
+                    popularKeywords == null -> item { Text("인기 검색어를 불러오고 있어요", color = Colors.Muted, fontSize = 13.sp) }
+                    popularKeywords.isEmpty() -> item { Text("아직 인기 검색어가 없어요. 첫 검색을 남겨보세요", color = Colors.Muted, fontSize = 13.sp) }
+                    else -> items(popularKeywords.size) { index -> val word = popularKeywords[index]; Row(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).clickable { query=word; submit() }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) Colors.Live else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,Modifier.weight(1f),color=Colors.Text,fontSize=14.sp,fontWeight=if(index<3)FontWeight.SemiBold else FontWeight.Normal);Image(painterResource(R.drawable.chevron_right),null,Modifier.size(16.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
+                }
             } else if (isLoading) {
                 item { LoadingContent("경매를 불러오고 있어요") }
             } else if (errorMessage != null) {

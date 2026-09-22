@@ -132,6 +132,7 @@ data class ProductSearchFilter(
 
 interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
+    fun getPopularKeywords(size: Int = 10): ApiResult<List<String>>
     fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun getSellerProducts(memberId: String): ApiResult<List<RegisteredProduct>>

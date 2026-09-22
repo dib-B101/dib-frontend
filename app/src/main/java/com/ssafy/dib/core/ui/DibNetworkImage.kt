@@ -62,6 +62,8 @@ fun DibNetworkImage(
     }
 }
 
+private const val IMAGE_USER_AGENT = "DIB-Android/1.0 (Android; auction app image loader)"
+
 private object DibBitmapLoader {
     private const val CACHE_KILOBYTES = 32 * 1024
     private const val MAX_DIMENSION = 1_600
@@ -74,7 +76,8 @@ private object DibBitmapLoader {
 
     fun load(url: String): Bitmap? = runCatching {
         val resolvedUrl = resolveImageUrl(url)
-        client.newCall(Request.Builder().url(resolvedUrl).get().build()).execute().use { response ->
+        // 위키미디어 커먼즈처럼 기본 라이브러리 UA(okhttp/x)를 403 으로 막는 CDN 이 있어 앱을 밝히는 UA 를 보낸다
+        client.newCall(Request.Builder().url(resolvedUrl).header("User-Agent", IMAGE_USER_AGENT).get().build()).execute().use { response ->
             if (!response.isSuccessful) return@use null
             val bytes = response.body.bytes()
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
