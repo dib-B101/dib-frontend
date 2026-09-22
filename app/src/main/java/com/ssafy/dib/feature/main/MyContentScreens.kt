@@ -61,6 +61,7 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.support.InquiryDetail
@@ -163,7 +164,8 @@ fun RegisteredProductsScreen(
     var filter by rememberSaveable { mutableStateOf("전체") }
     val selectingAuctionProduct = selectionPurpose == "auction"
     MyListScaffold(if (selectingAuctionProduct) "경매 상품 선택" else "등록 상품 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (selectingAuctionProduct) item {
                 Column(Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(16.dp)).padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("시작할 경매를 선택해주세요", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -220,6 +222,7 @@ fun RegisteredProductsScreen(
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
             }
             item { Button(onRegister, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("새 상품 등록", fontWeight = FontWeight.Bold) } }
+            }
         }
     }
     deleteCandidate?.let { product ->
@@ -277,7 +280,8 @@ fun FavoriteAuctionsScreen(
     }
     val favorites = remoteFavorites ?: if (showSampleContent) sampleFavorites else emptyList()
     MyListScaffold("찜한 경매", onBack, onTabSelected, modifier) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             Text("찜한 경매 ${favorites.size}개", Modifier.padding(vertical = 16.dp), color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             if (isLoading) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
@@ -322,6 +326,7 @@ fun FavoriteAuctionsScreen(
                         HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
                     }
                 }
+            }
             }
         }
     }
@@ -369,7 +374,8 @@ fun InquiryHistoryScreen(
     var formOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(submissionRevision) { if (submissionRevision > 0) formOpen = false }
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text("문의 답변은 등록한 이메일로도 알려드려요",Modifier.fillMaxWidth().background(Colors.NavySoft,RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
             if (isLoading) item { Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
@@ -382,6 +388,7 @@ fun InquiryHistoryScreen(
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
             }
             item { Button({ formOpen = true }, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("문의하기", fontWeight = FontWeight.Bold) } }
+            }
         }
     }
     if (formOpen) {
@@ -453,7 +460,8 @@ fun ReportHistoryScreen(
             ReportDetailContent(report, Modifier.fillMaxSize().padding(padding))
             return@SimpleHeaderScaffold
         }
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
                 isLoading -> item { Row(Modifier.fillMaxWidth().padding(40.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null -> item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
@@ -474,6 +482,7 @@ fun ReportHistoryScreen(
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
                 }
                 HistoryLoadMore(isLoadingMore, loadMoreError, onLoadMore)
+            }
             }
         }
     }

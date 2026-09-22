@@ -53,6 +53,7 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -94,11 +95,12 @@ fun MyAuctionManagementScreen(
         topBar = { MyAuctionHeader(onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             actionMessage?.let { message ->
                 item { Text(message, Modifier.fillMaxWidth().background(Colors.Mint.copy(alpha = .18f), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.MintInk, fontSize = 12.sp) }
             }
@@ -152,6 +154,7 @@ fun MyAuctionManagementScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

@@ -22,6 +22,7 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.auction.RecommendedLive
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -53,7 +54,7 @@ fun LiveListScreen(
         },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
-        PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
+        DibPullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

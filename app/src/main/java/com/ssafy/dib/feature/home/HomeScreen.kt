@@ -31,6 +31,7 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
@@ -136,7 +137,7 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        PullToRefreshBox(isRefreshing = remoteLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+        DibPullToRefreshBox(isRefreshing = remoteLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),

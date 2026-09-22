@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -112,15 +113,16 @@ fun OrderChatScreen(
             }}
         }
     ) { padding ->
-        when {
-            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
-            errorMessage != null && orderedMessages.isEmpty() -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            when {
+            isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
+            errorMessage != null && orderedMessages.isEmpty() -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text(errorMessage, color = Colors.Muted)
                 OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기") }
             }
             else -> LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal=16.dp,vertical=18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -164,6 +166,7 @@ fun OrderChatScreen(
                         Text(formatServerTime(message.time) ?: message.time.take(16).replace('T', ' '),Modifier.padding(top=3.dp), color = Colors.Muted, fontSize = 9.sp)
                     }
                 }
+            }
             }
         }
     }

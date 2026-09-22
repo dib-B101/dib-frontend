@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 data class SellerListing(
@@ -80,12 +81,13 @@ fun SellerListingsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuctionSubAppBar("판매 내역", onBack) }
     ) { padding ->
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
         when {
-            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Colors.Navy)
             }
             errorMessage != null -> Column(
-                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -93,7 +95,7 @@ fun SellerListingsScreen(
                 OutlinedButton(onRetry, Modifier.padding(top = 12.dp)) { Text("다시 불러오기") }
             }
             else -> LazyColumn(
-                Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
+                Modifier.fillMaxSize().padding(horizontal = 18.dp),
                 contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -119,6 +121,7 @@ fun SellerListingsScreen(
                     SellerListingCard(listing) { onProductClick(listing.productId) }
                 }
             }
+        }
         }
     }
 }

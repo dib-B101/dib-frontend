@@ -30,6 +30,7 @@ class OrderContractTest {
     }
     @Test
     fun terminalOrdersDisableChatSending() {
+        assertEquals(true, isOrderChatWritable("PENDING"))
         assertEquals(true, isOrderChatWritable("SHIPPED"))
         assertEquals(false, isOrderChatWritable("SHIPPED", serverReadOnly = true))
         assertEquals(false, isOrderChatWritable("CONFIRMED"))

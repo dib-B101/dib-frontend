@@ -59,6 +59,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.payment.PaymentMethod
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import org.json.JSONObject
@@ -86,11 +87,12 @@ fun PaymentMethodsScreen(
     var billingAgreementAccepted by remember { mutableStateOf(false) }
 
     SettingsScaffold("결제수단 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Column(
                     Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp))
@@ -197,6 +199,7 @@ fun PaymentMethodsScreen(
                         item { Text("개발 환경에 DIB_TOSS_CLIENT_KEY가 설정되지 않았어요.", color = Colors.Urgent, fontSize = 11.sp) }
                     }
                 }
+            }
             }
         }
     }

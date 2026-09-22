@@ -29,6 +29,7 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibViewModeToggle
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.DefaultProductCategories
@@ -142,7 +143,12 @@ fun AuctionSearchScreen(
         topBar = { DiscoveryAppBar(if (browseOnOpen) "전체 경매" else "검색", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        DibPullToRefreshBox(
+            isRefreshing = isLoading,
+            onRefresh = onRetry,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             item {
                 TextField(
                     value = query, onValueChange = { query = it; submitted = false },
@@ -229,6 +235,7 @@ fun AuctionSearchScreen(
                     }
                 }
             }
+            }
         }
     }
     if(showFilters) ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=Colors.Background){
@@ -291,7 +298,8 @@ fun NotificationCenterScreen(
     var offerToConfirm by remember { mutableStateOf<DomainNotification?>(null) }
     val shown = if (filter == "전체") notifications else notifications.filter { it.category.label == filter }
     Scaffold(modifier.fillMaxSize().safeDrawingPadding(),containerColor=Colors.Canvas,contentWindowInsets=WindowInsets(0,0,0,0),topBar={DiscoveryAppBar("알림",onBack,"설정",onSettingsClick)},bottomBar={DibBottomNavigation(DibMainTab.Home,onTabSelected)}){padding->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=14.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+        DibPullToRefreshBox(isRefreshing=isLoading,onRefresh=onRetry,modifier=Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=14.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
             item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("전체","라이브","찜","거래").forEach{DiscoveryFilterChip(filter==it,{filter=it},it)}}}
             if (notifications.any { !it.isRead }) {
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) { Text("읽지 않은 알림 ${notifications.count { !it.isRead }}개",color=Colors.Muted,fontSize=12.sp); TextButton(onClick = onMarkAllRead, enabled = actionNotificationId == null) { Text("모두 읽음", color = Colors.Navy,fontWeight=FontWeight.SemiBold) } } }
@@ -355,6 +363,7 @@ fun NotificationCenterScreen(
                         loadMoreError != null -> { Text(loadMoreError, color = Colors.Muted, fontSize = 11.sp); TextButton(onClick = onLoadMore) { Text("더 불러오기") } }
                     }
                 }
+            }
             }
         }
     }

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.settlement.SettlementAccount
 import com.ssafy.dib.domain.member.MemberAddress
@@ -78,7 +79,8 @@ fun AddressManagementScreen(
     var deletingAddress by remember { mutableStateOf<MemberAddress?>(null) }
     var addingAddress by remember { mutableStateOf(false) }
     SettingsScaffold("배송지 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             actionMessage?.let { message -> item { Text("완료 · $message", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
             actionError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Urgent, fontSize = 12.sp) } }
             when {
@@ -103,6 +105,7 @@ fun AddressManagementScreen(
                 }
             }
             item { OutlinedButton({ addingAddress = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) { Text("새 배송지 추가", fontWeight = FontWeight.Bold) } }
+            }
         }
     }
     if (addingAddress) {
@@ -209,7 +212,8 @@ fun SettlementAccountsScreen(
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(actionRevision) { if (actionRevision > 0) editorOpen = false }
     SettingsScaffold("정산 계좌 관리", onBack, onTabSelected, modifier) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             when {
                 isLoading -> item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
                 errorMessage != null && account == null -> item { Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onRetry, Modifier.padding(top = 10.dp)) { Text("다시 불러오기") } } }
@@ -224,6 +228,7 @@ fun SettlementAccountsScreen(
             }
             item { Text("안전 확인 · 계좌 추가·변경 시 예금주 일치 여부를 확인해요", Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(16.dp), color = Colors.MintInk, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             item { Button({ editorOpen = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !isLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text(if (account == null) "정산 계좌 등록" else "정산 계좌 변경", fontWeight = FontWeight.Bold) } }
+            }
         }
     }
     if (editorOpen) {

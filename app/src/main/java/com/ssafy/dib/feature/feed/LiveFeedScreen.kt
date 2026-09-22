@@ -27,7 +27,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -59,6 +58,7 @@ import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.feature.live.LiveVideoRole
 import com.ssafy.dib.feature.live.LiveVideoState
 import com.ssafy.dib.feature.live.LiveVideoSurface
@@ -223,7 +223,7 @@ private fun LiveFeedMessage(
     onRefresh: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    PullToRefreshBox(
+    DibPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize()
@@ -294,7 +294,7 @@ private fun LiveFeedPager(
                     onLoadMore()
                 }
             }
-            PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
+            DibPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
                 VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
                     LiveFeedPage(
                     liveItem = items[page],
