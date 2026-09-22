@@ -2,12 +2,25 @@ package com.ssafy.dib
 
 import com.ssafy.dib.feature.auth.SignupForm
 import com.ssafy.dib.feature.auth.SignupValidator
+import com.ssafy.dib.feature.auth.BirthDateVisualTransformation
+import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SignupValidatorTest {
+    @Test
+    fun birthDateFormattingKeepsMonthAndDayCursorPositions() {
+        val transformed = BirthDateVisualTransformation.filter(AnnotatedString("20000131"))
+
+        assertEquals("2000-01-31", transformed.text.text)
+        assertEquals(5, transformed.offsetMapping.originalToTransformed(4))
+        assertEquals(8, transformed.offsetMapping.originalToTransformed(6))
+        assertEquals(4, transformed.offsetMapping.transformedToOriginal(5))
+        assertEquals(6, transformed.offsetMapping.transformedToOriginal(8))
+    }
+
     private val validForm = SignupForm(
         phoneNumber = "01012345678",
         email = "member@example.com",

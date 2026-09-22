@@ -126,6 +126,7 @@ data class MaskedBidHistoryDto(
 @Serializable
 data class AuctionBidSnapshotResponse(
     val auctionId: JsonElement,
+    val status: String = "ACTIVE",
     val currentPrice: Long,
     val auctionTime: Long,
     val startedAt: String? = null,

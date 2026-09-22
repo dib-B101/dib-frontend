@@ -174,4 +174,15 @@ class AuctionContractTest {
         assertEquals(9, response.bidCount)
         assertTrue(response.isHighestBidder)
     }
+
+    @Test
+    fun endedBidSnapshotCannotRestoreRemainingTime() {
+        val response = DibJson.instance.decodeFromString(
+            AuctionBidSnapshotResponse.serializer(),
+            """{"auctionId":12,"status":"ENDED","currentPrice":42500,"auctionTime":3600,"scheduledEndAt":"2026-09-13T10:10:30Z","serverTime":"2026-09-13T10:09:00Z"}"""
+        ).toDomain(Instant.EPOCH)
+
+        assertEquals("ENDED", response.status)
+        assertEquals(0, response.remainingSeconds)
+    }
 }

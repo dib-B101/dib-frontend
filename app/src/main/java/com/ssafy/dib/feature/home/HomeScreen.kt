@@ -73,16 +73,19 @@ fun HomeScreen(
 ) {
     val listState = rememberLazyListState()
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
-    var deadlineSeconds by rememberSaveable { mutableIntStateOf(204) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
     val homeRecommendations = displayedAuctions.take(4)
     val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
-    val closingAuctions = remoteAuctions?.distinctBy(HomeAuction::id)?.sortedBy(HomeAuction::remainingSeconds)?.take(5)
+    val closingAuctions = remoteAuctions?.filter { it.status.equals("ACTIVE", ignoreCase = true) && it.remainingSeconds > 0 }
+        ?.distinctBy(HomeAuction::id)?.sortedBy(HomeAuction::remainingSeconds)?.take(5)
         ?: if (showSampleContent) listOf(deadlineAuction, recommended[0], allAuctions[0], allAuctions[1]) else emptyList()
     val highlightedDeadline = closingAuctions.firstOrNull()
     val followingDeadlines = closingAuctions.drop(1)
+    var deadlineSeconds by rememberSaveable(highlightedDeadline?.id) {
+        mutableIntStateOf(highlightedDeadline?.remainingSeconds ?: 0)
+    }
 
     LaunchedEffect(remoteAuctions) {
         remoteAuctions?.let { auctions ->
@@ -95,13 +98,15 @@ fun HomeScreen(
         if (tabReselectSignal > 0) listState.animateScrollToItem(0)
     }
 
-    LaunchedEffect(highlightedDeadline?.id) {
+    LaunchedEffect(highlightedDeadline?.id, highlightedDeadline?.remainingSeconds) {
         val deadline = highlightedDeadline ?: return@LaunchedEffect
         deadlineSeconds = deadline.remainingSeconds
         while (deadlineSeconds > 0) {
             delay(1_000)
             deadlineSeconds--
         }
+        delay(1_500)
+        onRetry()
     }
 
     fun updateFavorite(id: String, selected: Boolean) {
@@ -189,6 +194,15 @@ fun HomeScreen(
                             onAction = onViewAllAuctions
                         )
                     }
+                }
+            } else if (closingSoon && remoteError == null) {
+                item {
+                    Text(
+                        "곧 마감되는 경매가 없어요",
+                        Modifier.fillMaxWidth().padding(vertical = 72.dp),
+                        color = Colors.Muted,
+                        fontSize = 14.sp
+                    )
                 }
             } else if (remoteError == null) {
                 item { HomeLiveSection(displayedLives, onLiveClick) }
@@ -517,12 +531,17 @@ private fun DeadlineSection(
                 Text("입찰 ${auction.bidCount}회", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Button(
                     onClick = onProductClick,
+                    enabled = deadlineSeconds > 0,
                     modifier = Modifier.fillMaxWidth().height(34.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = if (deadlineSeconds <= 15) Colors.Live else Colors.Navy),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text(if (deadlineSeconds <= 15) "지금 입찰" else "바로 입찰하기", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(when {
+                        deadlineSeconds <= 0 -> "경매 종료"
+                        deadlineSeconds <= 15 -> "지금 입찰"
+                        else -> "바로 입찰하기"
+                    }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

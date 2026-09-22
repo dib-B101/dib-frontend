@@ -36,9 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -139,7 +143,7 @@ fun SignupScreen(
     var name by rememberSaveable { mutableStateOf("") }
     var nickname by rememberSaveable(initialNickname) { mutableStateOf(initialNickname) }
     var gender by rememberSaveable { mutableStateOf("") }
-    var birthDate by rememberSaveable { mutableStateOf("") }
+    var birthDateDigits by rememberSaveable { mutableStateOf("") }
     var attempted by rememberSaveable { mutableStateOf(false) }
     var retryRemaining by rememberSaveable { mutableIntStateOf(0) }
 
@@ -158,7 +162,7 @@ fun SignupScreen(
         name = name.trim(),
         nickname = nickname.trim(),
         gender = gender,
-        birthDate = birthDate
+        birthDate = formatBirthDate(birthDateDigits)
     )
     val phoneConfirmed = state.phoneVerified && state.requestedPhone == phone
     val emailConfirmed = mode == SignupMode.KAKAO ||
@@ -291,11 +295,12 @@ fun SignupScreen(
             if (attempted && gender !in setOf("MALE", "FEMALE")) FeedbackText("성별을 선택해주세요.")
             SignupField(
                 "생년월일",
-                birthDate,
-                { birthDate = formatBirthDate(it) },
+                birthDateDigits,
+                { birthDateDigits = it.filter(Char::isDigit).take(8) },
                 "YYYY-MM-DD",
                 KeyboardType.Number,
-                errorMessage = "생년월일을 확인해주세요.".takeIf { attempted && !SignupValidator.isBirthDateValid(birthDate) }
+                errorMessage = "생년월일을 확인해주세요.".takeIf { attempted && !SignupValidator.isBirthDateValid(form.birthDate) },
+                visualTransformation = BirthDateVisualTransformation
             )
 
             if (attempted && !canSubmit) {
@@ -357,7 +362,8 @@ private fun SignupField(
     enabled: Boolean = true,
     password: Boolean = false,
     errorMessage: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -370,7 +376,7 @@ private fun SignupField(
             singleLine = true,
             isError = errorMessage != null,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            visualTransformation = if (password) PasswordVisualTransformation() else visualTransformation,
             shape = RoundedCornerShape(15.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Colors.Navy,
@@ -415,5 +421,20 @@ private fun formatBirthDate(input: String): String {
             if (index == 4 || index == 6) append('-')
             append(char)
         }
+    }
+}
+
+internal object BirthDateVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val formatted = formatBirthDate(digits)
+        return TransformedText(AnnotatedString(formatted), object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                (offset + (if (digits.length > 4 && offset >= 4) 1 else 0) +
+                    (if (digits.length > 6 && offset >= 6) 1 else 0)).coerceAtMost(formatted.length)
+
+            override fun transformedToOriginal(offset: Int): Int =
+                formatted.take(offset).count(Char::isDigit).coerceAtMost(digits.length)
+        })
     }
 }
