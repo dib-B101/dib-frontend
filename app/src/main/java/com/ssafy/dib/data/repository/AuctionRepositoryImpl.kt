@@ -48,8 +48,8 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
-    override fun getAuctions(scope: String, status: String, cursor: String?, size: Int): ApiResult<AuctionPage> =
-        when (val result = remote.getAuctions(scope, status, cursor, size)) {
+    override fun getAuctions(scope: String, status: String, mine: Boolean, cursor: String?, size: Int): ApiResult<AuctionPage> =
+        when (val result = remote.getAuctions(scope, status, mine, cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
                 AuctionPage(
                     items = result.value.items

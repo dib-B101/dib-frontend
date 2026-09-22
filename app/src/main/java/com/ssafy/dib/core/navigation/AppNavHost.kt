@@ -3328,11 +3328,12 @@ fun AppNavHost(
                 availableLiveAuctionsHasNext = false
                 availableLiveAuctionsLoadingMore = false
                 availableLiveAuctionsLoadMoreError = null
-                val profile = memberProfile ?: when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
-                    is ApiResult.Success -> result.value.also { memberProfile = it }
-                    is ApiResult.Failure -> {
-                        if (result.error.requiresLogin) signedIn = false
-                        null
+                // 후보 필터링은 서버(mine=true)가 하므로 memberId 는 더 필요 없지만,
+                // 프로필 캐시와 로그인 만료 감지는 여기서 계속 해준다
+                if (memberProfile == null) {
+                    when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
+                        is ApiResult.Success -> memberProfile = result.value
+                        is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
                     }
                 }
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMine() }) {
@@ -3354,10 +3355,10 @@ fun AppNavHost(
                         if (result.error.requiresLogin) signedIn = false
                     }
                 }
-                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED") }) {
-                    is ApiResult.Success -> availableLiveAuctions = profile?.memberId?.let { memberId ->
-                        result.value.items.filter { auction -> auction.sellerMemberId == memberId }
-                    }.orEmpty().also {
+                // mine=true 로 서버가 내 경매만 준다. 예전처럼 받아서 거르면 한 페이지가 전부 남의
+                // 경매일 때 후보가 비어 보이고, 저장 때 LIVE_BROADCAST_NOT_OWNED 로 튕겼다
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true) }) {
+                    is ApiResult.Success -> availableLiveAuctions = result.value.items.also {
                         availableLiveAuctionsCursor = result.value.nextCursor
                         availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
                     }
@@ -3429,12 +3430,10 @@ fun AppNavHost(
                         availableLiveAuctionsLoadMoreError = null
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", cursor = cursor)
+                                auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true, cursor = cursor)
                             }) {
                                 is ApiResult.Success -> {
-                                    val memberId = memberProfile?.memberId
-                                    val nextItems = result.value.items.filter { it.sellerMemberId == memberId }
-                                    availableLiveAuctions = (availableLiveAuctions + nextItems)
+                                    availableLiveAuctions = (availableLiveAuctions + result.value.items)
                                         .distinctBy { it.auctionId }
                                     availableLiveAuctionsCursor = result.value.nextCursor
                                     availableLiveAuctionsHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)

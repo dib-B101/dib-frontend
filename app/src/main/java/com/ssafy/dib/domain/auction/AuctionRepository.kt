@@ -65,9 +65,11 @@ data class AuctionBidSnapshot(
 )
 
 interface AuctionRepository {
+    // mine=true 는 라이브 편성 후보처럼 내 경매만 필요한 화면이 쓴다
     fun getAuctions(
         scope: String,
         status: String,
+        mine: Boolean = false,
         cursor: String? = null,
         size: Int = 30
     ): ApiResult<AuctionPage>

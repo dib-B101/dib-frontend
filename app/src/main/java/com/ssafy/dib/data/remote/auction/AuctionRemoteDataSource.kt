@@ -14,11 +14,14 @@ import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.RequestBody
 
 class AuctionRemoteDataSource(private val client: DibHttpClient) {
-    fun getAuctions(scope: String, status: String, cursor: String?, size: Int): ApiResult<AuctionListResponse> = configured {
+    fun getAuctions(scope: String, status: String, mine: Boolean, cursor: String?, size: Int): ApiResult<AuctionListResponse> = configured {
         val urlBuilder = client.urlBuilder(ApiRoutes.AUCTIONS)
             .addQueryParameter("scope", scope)
             .addQueryParameter("status", status)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
+        // mine=true 면 서버가 내가 판매자인 경매만 준다. 받아서 거르면 한 페이지가 통째로
+        // 남의 경매일 때 편성 후보가 비어 보인다
+        if (mine) urlBuilder.addQueryParameter("mine", "true")
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
         val url = urlBuilder.build()
         client.execute(client.requestBuilder(ApiRoutes.AUCTIONS).url(url).get().build(), JsonElement.serializer())
