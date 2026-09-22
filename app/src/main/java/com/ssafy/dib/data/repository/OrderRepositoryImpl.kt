@@ -142,6 +142,7 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         finalPrice = (finalPrice ?: amount ?: core?.finalPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
         status = resolvedStatus,
         updatedAt = updatedAt ?: core?.updatedAt ?: createdAt ?: core?.createdAt,
+        thumbnailUrl = thumbnailUrl ?: product?.thumbnailUrl,
         paymentId = payment?.paymentId.idValue().takeIf(String::isNotBlank),
         chattingReadOnly = chattingReadOnly ?: !isOrderChatWritable(resolvedStatus)
     )

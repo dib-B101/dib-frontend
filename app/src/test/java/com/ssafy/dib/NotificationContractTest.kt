@@ -34,4 +34,18 @@ class NotificationContractTest {
         assertEquals(true, notification.isRunnerUpOffer)
         assertEquals(false, notification.isRead)
     }
+
+    @Test
+    fun mapsRefundNotificationToOrder() {
+        val page = DibJson.instance.decodeFromString(
+            NotificationPageResponse.serializer(),
+            """{"items":[{"notificationId":82,"type":"SYSTEM","title":"환불 완료","content":"환불되었습니다.","isRead":false,"orderId":31,"createdAt":"2026-09-16T03:00:00"}]}"""
+        )
+
+        val notification = page.items.single().toDomain()
+
+        assertEquals("ORDER", notification.resourceType)
+        assertEquals("31", notification.resourceId)
+        assertEquals(NotificationCategory.Trade, notification.category)
+    }
 }

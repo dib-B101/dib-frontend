@@ -24,9 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -87,7 +84,6 @@ import com.ssafy.dib.core.network.ApiErrorCodes
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.core.network.ApiFailure
 import com.ssafy.dib.core.network.RetriableCommandKeys
-import com.ssafy.dib.core.session.SessionInactivityTracker
 import com.ssafy.dib.data.AuthDependencies
 import com.ssafy.dib.domain.auth.SignUpCommand
 import com.ssafy.dib.domain.auth.KakaoAuthenticationResult
@@ -95,6 +91,7 @@ import com.ssafy.dib.domain.auth.KakaoSignupCommand
 import com.ssafy.dib.core.auth.KakaoOAuthCallback
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.order.OrderSummary
+import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
@@ -115,13 +112,11 @@ import kotlin.math.max
 
 @Composable
 fun AppNavHost(
-    sessionInactivityTracker: SessionInactivityTracker,
     oauthCallbackUri: Uri? = null,
     onOAuthCallbackConsumed: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
-    val lifecycleOwner = context as? LifecycleOwner
     val auth = remember(context) { AuthDependencies(context) }
     val coroutineScope = rememberCoroutineScope()
     val notificationSnackbar = remember { SnackbarHostState() }
@@ -147,7 +142,7 @@ fun AppNavHost(
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
     var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
-    var saleOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
+    var saleOrders by remember { mutableStateOf<List<SaleHistoryItem>?>(null) }
     var purchaseOrdersCursor by remember { mutableStateOf<String?>(null) }
     var saleOrdersCursor by remember { mutableStateOf<String?>(null) }
     var purchaseOrdersHasNext by remember { mutableStateOf(false) }
@@ -186,16 +181,6 @@ fun AppNavHost(
     }
     var wishlistNotificationsEnabled by remember {
         mutableStateOf(notificationPreferences.getBoolean("wishlist_enabled", false))
-    }
-
-    fun expireInactiveSession() {
-        if (signedIn != true) return
-        sessionInactivityTracker.endSession()
-        signedIn = false
-        coroutineScope.launch(Dispatchers.IO) { auth.repository.logout(auth.deviceId) }
-        navController.navigate(Screen.Welcome.route) {
-            popUpTo(Screen.Home.route) { inclusive = true }
-        }
     }
 
     fun navigateMain(tab: DibMainTab) {
@@ -354,28 +339,6 @@ fun AppNavHost(
     }
 
     LaunchedEffect(signedIn) {
-        if (signedIn == true) {
-            sessionInactivityTracker.startSession()
-            while (signedIn == true) {
-                delay(5_000L)
-                if (sessionInactivityTracker.hasExpired()) expireInactiveSession()
-            }
-        } else if (signedIn == false) {
-            sessionInactivityTracker.endSession()
-        }
-    }
-
-    DisposableEffect(signedIn, lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && signedIn == true && sessionInactivityTracker.hasExpired()) {
-                expireInactiveSession()
-            }
-        }
-        lifecycleOwner?.lifecycle?.addObserver(observer)
-        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
-    }
-
-    LaunchedEffect(signedIn) {
         if (signedIn != true) {
             memberProfile = null
             domainNotifications = emptyList()
@@ -430,6 +393,9 @@ fun AppNavHost(
                 realtime.start(
                     onNotification = { notification ->
                         coroutineScope.launch {
+                            if (notification.resourceType.equals("ORDER", ignoreCase = true)) {
+                                ordersRevision++
+                            }
                             if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = mergeNotifications(listOf(notification), domainNotifications)
                                 unreadNotificationCount = if (unreadNotificationCount < Int.MAX_VALUE) {
@@ -517,7 +483,7 @@ fun AppNavHost(
         saleOrdersLoadMoreError = null
         val (buyerResult, sellerResult) = withContext(Dispatchers.IO) {
             auth.orderRepository.getOrders(OrderRole.BUYER) to
-                auth.orderRepository.getOrders(OrderRole.SELLER)
+                auth.auctionRepository.getMySales()
         }
         when (buyerResult) {
             is ApiResult.Success -> {
@@ -575,10 +541,6 @@ fun AppNavHost(
                         val current = auth.repository.currentSession()
                         when {
                             current == null -> false
-                            sessionInactivityTracker.hasExpired() -> {
-                                auth.repository.logout(auth.deviceId)
-                                false
-                            }
                             !current.needsRefresh(System.currentTimeMillis()) -> true
                             else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
                         }
@@ -2194,24 +2156,33 @@ fun AppNavHost(
                         ordersLoadingMoreRole = role
                         if (role == OrderRole.BUYER) purchaseOrdersLoadMoreError = null else saleOrdersLoadMoreError = null
                         coroutineScope.launch {
-                            when (val result = withContext(Dispatchers.IO) {
-                                auth.orderRepository.getOrders(role, cursor)
-                            }) {
-                                is ApiResult.Success -> {
-                                    if (role == OrderRole.BUYER) {
+                            if (role == OrderRole.BUYER) {
+                                when (val result = withContext(Dispatchers.IO) {
+                                    auth.orderRepository.getOrders(role, cursor)
+                                }) {
+                                    is ApiResult.Success -> {
                                         purchaseOrders = (purchaseOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
                                         purchaseOrdersCursor = result.value.nextCursor
                                         purchaseOrdersHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
-                                    } else {
-                                        saleOrders = (saleOrders.orEmpty() + result.value.items).distinctBy { it.orderId }
+                                    }
+                                    is ApiResult.Failure -> {
+                                        purchaseOrdersLoadMoreError = result.error.message.ifBlank { "다음 구매 내역을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
+                                }
+                            } else {
+                                when (val result = withContext(Dispatchers.IO) {
+                                    auth.auctionRepository.getMySales(cursor = cursor)
+                                }) {
+                                    is ApiResult.Success -> {
+                                        saleOrders = (saleOrders.orEmpty() + result.value.items).distinctBy { it.auction.auctionId }
                                         saleOrdersCursor = result.value.nextCursor
                                         saleOrdersHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
                                     }
-                                }
-                                is ApiResult.Failure -> {
-                                    val message = result.error.message.ifBlank { "다음 거래 내역을 불러오지 못했어요." }
-                                    if (role == OrderRole.BUYER) purchaseOrdersLoadMoreError = message else saleOrdersLoadMoreError = message
-                                    if (result.error.requiresLogin) signedIn = false
+                                    is ApiResult.Failure -> {
+                                        saleOrdersLoadMoreError = result.error.message.ifBlank { "다음 판매 내역을 불러오지 못했어요." }
+                                        if (result.error.requiresLogin) signedIn = false
+                                    }
                                 }
                             }
                             ordersLoadingMoreRole = null
@@ -2251,7 +2222,7 @@ fun AppNavHost(
             var shippingCarriersError by remember(orderId) { mutableStateOf<String?>(null) }
             var shippingCarriersRevision by remember(orderId) { mutableStateOf(0) }
 
-            LaunchedEffect(orderId, orderDetailRevision, previewMode) {
+            LaunchedEffect(orderId, orderDetailRevision, ordersRevision, previewMode) {
                 if (previewMode || orderId == "sample") {
                     orderDetailLoading = false
                     return@LaunchedEffect
@@ -2715,7 +2686,7 @@ fun AppNavHost(
                                 paymentMethodActionMessage = "자동결제 카드가 등록됐어요."
                             }
                             is ApiResult.Failure -> {
-                                paymentMethodActionError = result.error.message.ifBlank { "카드를 등록하지 못했어요." }
+                                paymentMethodActionError = paymentMethodRegistrationErrorMessage(result.error)
                                 if (result.error.requiresLogin) signedIn = false
                             }
                         }
@@ -4592,4 +4563,12 @@ internal fun productSubmissionMessage(error: ApiFailure): String = when (error.c
     "S3_UPLOAD_FAILED" -> "사진 업로드에 실패했어요. 다시 시도해주세요."
     "DUPLICATE_REQUEST" -> "이미 처리된 상품 등록 요청이에요."
     else -> error.message.ifBlank { "상품을 등록하지 못했어요. 잠시 후 다시 시도해주세요." }
+}
+
+internal fun paymentMethodRegistrationErrorMessage(error: ApiFailure): String = when (error.code) {
+    "BILLING_KEY_ISSUE_FAILED" -> "카드 인증 정보를 확인하지 못했어요. 잠시 후 다시 등록해주세요."
+    "PAYMENT_METHOD_ALREADY_EXISTS" -> "이미 등록된 카드가 있어요. 기존 카드를 삭제한 뒤 다시 시도해주세요."
+    ApiErrorCodes.NETWORK_UNAVAILABLE -> "네트워크 연결을 확인한 뒤 다시 시도해주세요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    else -> error.message.ifBlank { "카드를 등록하지 못했어요. 다시 시도해주세요." }
 }

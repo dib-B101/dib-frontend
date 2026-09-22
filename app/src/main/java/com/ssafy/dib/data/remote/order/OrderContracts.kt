@@ -61,7 +61,8 @@ data class OrderAuctionDto(
 data class OrderProductDto(
     val productId: JsonElement? = null,
     val title: String? = null,
-    val name: String? = null
+    val name: String? = null,
+    val thumbnailUrl: String? = null
 )
 
 @Serializable

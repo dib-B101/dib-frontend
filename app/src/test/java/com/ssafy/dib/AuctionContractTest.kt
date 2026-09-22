@@ -38,6 +38,17 @@ class AuctionContractTest {
     }
 
     @Test
+    fun sellerHistoryKeepsAuctionWithoutOrder() {
+        val response = DibJson.instance.decodeFromString(
+            SaleHistoryResponse.serializer(),
+            """{"items":[{"auction":{"auctionId":4,"productId":9,"startPrice":20000,"currentPrice":20000,"auctionTime":3600,"status":"ACTIVE"},"product":{"productId":9,"title":"진행 중 경매"}}]}"""
+        )
+
+        assertEquals("4", response.items.single().auction.auctionId.toString())
+        assertEquals(null, response.items.single().order)
+    }
+
+    @Test
     fun numericIdsAndNestedProductMapToHomeSummary() {
         val response = DibJson.instance.decodeFromString(
             AuctionListResponse.serializer(),
