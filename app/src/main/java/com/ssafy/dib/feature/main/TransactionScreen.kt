@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
@@ -238,7 +239,7 @@ private fun RemoteTransactionScreen(
                     val onHold = order.heldAt != null
                     if (onHold) item { OrderHoldBanner(order.heldAt) }
                     item { StatusHero(presentation.icon, presentation.title, presentation.description, presentation.background) }
-                    item { ProductSummary(order.finalPrice, order.title, order.orderId) }
+                    item { ProductSummary(order.finalPrice, order.title, order.orderId, order.thumbnailUrl) }
                     item {
                         InfoCard(
                             listOf(
@@ -873,13 +874,17 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
 @Composable private fun ProductSummary(
     amount: Int,
     title: String = "빈티지 필름 카메라",
-    orderId: String = "2026-0903"
+    orderId: String = "2026-0903",
+    imageUrl: String? = null
 ) {
     Row(
         Modifier.fillMaxWidth().height(96.dp).background(Colors.Background, RoundedCornerShape(16.dp)).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(68.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text("상품 이미지", color = Colors.Muted, fontSize = 9.sp) }
+        Box(Modifier.size(68.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+            if (imageUrl.isNullOrBlank()) Text("상품 이미지", color = Colors.Muted, fontSize = 9.sp)
+            else DibNetworkImage(imageUrl, title, Modifier.fillMaxSize())
+        }
         Column(Modifier.padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text("낙찰가 ${"%,d".format(amount)}원 · 주문 $orderId", color = Colors.Muted, fontSize = 11.sp)

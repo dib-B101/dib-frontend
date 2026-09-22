@@ -35,6 +35,7 @@ internal fun NotificationDto.toDomain(): DomainNotification {
         liveBroadcastId != null -> "LIVE" to liveBroadcastId.idValue()
         auctionId != null -> "AUCTION" to auctionId.idValue()
         productId != null -> "PRODUCT" to productId.idValue()
+        orderId != null -> "ORDER" to orderId.idValue()
         else -> "SYSTEM" to notificationId.idValue()
     }
     return DomainNotification(

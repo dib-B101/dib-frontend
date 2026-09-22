@@ -9,15 +9,14 @@ REST와 WebSocket 주소는 저장소에 커밋하지 않고 Gradle property로 
 ```properties
 DIB_API_BASE_URL=https://assigned-api-host
 DIB_WS_URL=wss://assigned-api-host/ws
-DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 ```
 
 주소가 없는 개발 빌드는 공개 화면 확인용 샘플 데이터를 사용한다. 주소가 설정된 빌드는 서버 오류를 샘플 데이터로 숨기지 않고 로딩·빈 상태·재시도를 표시한다.
-비활동 세션 만료 시간은 기본 30분이며, 서버 정책이 확정되면 `DIB_SESSION_IDLE_TIMEOUT_MINUTES`로 맞춘다.
+앱은 사용자 비활동 시간을 이유로 세션을 종료하지 않는다. Access Token 만료 시 Refresh Token rotation을 한 번 수행하고, Refresh Token이 만료되거나 폐기된 경우에만 로그인 화면으로 이동한다.
 
 ## 연결 완료
 
-- 인증: 휴대전화 인증, 이메일 확인, 회원가입, 로그인, 비밀번호 재설정 링크·변경, 토큰 재발급, 비활동 자동 로그아웃, 로그아웃, Keystore 암호화 저장
+- 인증: 휴대전화 인증, 이메일 확인, 회원가입, 로그인, 비밀번호 재설정 링크·변경, 토큰 자동 재발급, 로그아웃, Keystore 암호화 저장
 - 회원: 내 정보 조회·닉네임 수정·탈퇴 제한 확인과 탈퇴
 - 상품: 카테고리, 등록·수정·삭제, 내 상품 cursor 목록, 상품 검색 cursor 목록
 - 경매: 추천, 검색·필터·카테고리 cursor 목록, 상세, 찜과 찜 cursor 목록, 내 입찰·공개 입찰 이력

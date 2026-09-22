@@ -35,7 +35,21 @@ class NotificationContractTest {
         assertEquals(false, notification.isRead)
     }
 
-    // 알림 목록(REST)에서 평가 요청을 탭하면 그 주문 화면으로 가야 한다. orderId 를 안 읽으면 SYSTEM 이 돼 아무 데도 못 간다
+    @Test
+    fun mapsRefundNotificationToOrder() {
+        val page = DibJson.instance.decodeFromString(
+            NotificationPageResponse.serializer(),
+            """{"items":[{"notificationId":82,"type":"SYSTEM","title":"환불 완료","content":"환불되었습니다.","isRead":false,"orderId":31,"createdAt":"2026-09-16T03:00:00"}]}"""
+        )
+
+        val notification = page.items.single().toDomain()
+
+        assertEquals("ORDER", notification.resourceType)
+        assertEquals("31", notification.resourceId)
+        assertEquals(NotificationCategory.Trade, notification.category)
+    }
+
+    // 알림 목록(REST)에서 평가 요청을 탭하면 그 주문 화면으로 가야 한다.
     @Test
     fun mapsPersistedReviewRequestToOrder() {
         val page = DibJson.instance.decodeFromString(

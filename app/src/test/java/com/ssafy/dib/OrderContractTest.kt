@@ -108,6 +108,16 @@ class OrderContractTest {
     }
 
     @Test
+    fun keepsThumbnailUrlFromNestedOrderDetail() {
+        val response = DibJson.instance.decodeFromString(
+            com.ssafy.dib.data.remote.order.OrderSummaryDto.serializer(),
+            """{"order":{"orderId":"order-1","status":"PAID"},"product":{"productId":9,"title":"필름 카메라","thumbnailUrl":"https://cdn.example/product-9.jpg"}}"""
+        ).toDomain()
+
+        assertEquals("https://cdn.example/product-9.jpg", response.thumbnailUrl)
+    }
+
+    @Test
     fun shipmentRegistrationPayloadContainsTrackingNumber() {
         val encoded = DibJson.instance.encodeToString(
             ShipmentRegistrationRequest.serializer(),

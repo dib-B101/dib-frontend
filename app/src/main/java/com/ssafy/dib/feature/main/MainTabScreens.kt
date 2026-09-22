@@ -45,6 +45,7 @@ import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.auction.BidHistoryItem
+import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.member.MemberProfile
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductRegistrationResult
@@ -71,7 +72,7 @@ fun MyTradesScreen(
     onProductClick: (String) -> Unit,
     onTransactionClick: (role: String, orderId: String) -> Unit,
     remotePurchaseOrders: List<OrderSummary>?,
-    remoteSaleOrders: List<OrderSummary>?,
+    remoteSaleOrders: List<SaleHistoryItem>?,
     remoteBids: List<BidHistoryItem>?,
     showSampleContent: Boolean,
     remoteLoading: Boolean,
@@ -107,7 +108,7 @@ fun MyTradesScreen(
             TradeItem("배송 중", "노이즈 캔슬링 헤드폰", "판매자가 상품을 발송했어요", "배송 조회하기 →", TradeTone.Positive),
             TradeItem("구매 완료", "레더 카드지갑", "거래가 안전하게 완료됐어요", "거래 내역 보기 →", TradeTone.Neutral)
         )
-        TradeTab.Sale -> remoteSaleOrders?.map { it.toTradeItem(isSeller = true) }
+        TradeTab.Sale -> remoteSaleOrders?.map(SaleHistoryItem::toTradeItem)
             ?: if (!showSampleContent || remoteLoading || remoteError != null) emptyList() else listOf(
             TradeItem("경매 진행 중", "빈티지 스니커즈", "현재가 58,000원 · 입찰 12회", "경매 상태 보기 →", TradeTone.Positive),
             TradeItem("발송 필요", "빈티지 필름 카메라", "구매자 결제 완료 · 1일 남음", "배송 정보 입력하기 →", TradeTone.Urgent),
@@ -280,13 +281,50 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
     )
 }
 
+private fun SaleHistoryItem.toTradeItem(): TradeItem {
+    val normalizedOrderStatus = orderStatus?.uppercase()
+    val normalizedAuctionStatus = auction.status.uppercase()
+    val statusLabel = when (normalizedOrderStatus) {
+        "PENDING" -> "결제 대기"
+        "PAID", "PREPARING" -> "발송 필요"
+        "SHIPPED" -> "배송 중"
+        "DELIEVERED", "DELIVERED" -> "배송 완료"
+        "CONFIRMED" -> "판매 완료"
+        "CANCELLED", "CANCELED" -> "거래 취소"
+        "REFUNDED" -> "환불 완료"
+        else -> when (normalizedAuctionStatus) {
+            "PENDING" -> "검수 대기"
+            "SCHEDULED" -> "경매 예정"
+            "ACTIVE" -> "경매 진행 중"
+            "ENDED" -> "경매 종료"
+            "CANCELLED", "CANCELED" -> "경매 취소"
+            else -> normalizedAuctionStatus.ifBlank { "판매 경매" }
+        }
+    }
+    val tone = when {
+        normalizedOrderStatus in setOf("PENDING", "PAID", "DELIEVERED", "DELIVERED") -> TradeTone.Urgent
+        normalizedOrderStatus in setOf("PREPARING", "SHIPPED") || normalizedAuctionStatus == "ACTIVE" -> TradeTone.Positive
+        else -> TradeTone.Neutral
+    }
+    val priceLabel = if (auction.currentPrice > 0) "현재가 ${"%,d".format(auction.currentPrice)}원" else "시작가 ${"%,d".format(auction.startPrice)}원"
+    return TradeItem(
+        status = statusLabel,
+        title = auction.title,
+        meta = "$priceLabel · 입찰 ${auction.bidCount}회",
+        action = if (orderId.isNullOrBlank()) "경매 상태 보기 →" else "거래 상세 보기 →",
+        tone = tone,
+        orderId = orderId.orEmpty(),
+        auctionId = auction.auctionId
+    )
+}
+
 private fun openTradeItem(
     selected: TradeTab,
     item: TradeItem,
     onProductClick: (String) -> Unit,
     onTransactionClick: (role: String, orderId: String) -> Unit
 ) {
-    if (selected == TradeTab.Bid) {
+    if (selected == TradeTab.Bid || (selected == TradeTab.Sale && item.orderId.isBlank())) {
         onProductClick(item.auctionId.takeIf { it != "sample" } ?: if (item.status == "경매 종료") "lost" else if (item.title.contains("카메라")) "camera" else "sneakers")
     } else {
         onTransactionClick(if (selected == TradeTab.Sale) "seller" else "buyer", item.orderId)
