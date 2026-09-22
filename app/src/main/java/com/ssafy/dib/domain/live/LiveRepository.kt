@@ -13,6 +13,9 @@ data class LiveFeedItem(
     val currentAuction: AuctionSummary?
 )
 
+// 라이브 상품 경매 시작 응답. 콘솔이 소켓 이벤트를 기다리지 않고 바로 카운트다운을 그릴 수 있게 종료 시각을 함께 받는다
+data class LiveAuctionStart(val status: String, val scheduledEndAt: String?)
+
 data class LiveFeedPage(
     val items: List<LiveFeedItem>,
     val nextCursor: String?,
@@ -83,7 +86,7 @@ interface LiveRepository {
     fun setItems(liveBroadcastId: String, items: List<LiveItemPlan>): ApiResult<List<AuctionSummary>>
     fun prepareStream(liveBroadcastId: String, idempotencyKey: String): ApiResult<LiveStreamSession>
     fun start(liveBroadcastId: String, idempotencyKey: String): ApiResult<String>
-    fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<String>
+    fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<LiveAuctionStart>
     fun end(liveBroadcastId: String, idempotencyKey: String): ApiResult<String>
     fun getMessages(liveBroadcastId: String, beforeLiveChattingId: String? = null, size: Int = 50): ApiResult<LiveChatMessagePage>
 }

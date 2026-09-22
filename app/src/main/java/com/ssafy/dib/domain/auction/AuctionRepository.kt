@@ -43,15 +43,37 @@ data class SellerAuction(
     val currentPrice: Int,
     val bidCount: Int,
     val status: String,
-    val auctionTimeSeconds: Long
+    val auctionTimeSeconds: Long,
+    // 판매 내역 카드용. 판매자 상품 목록에는 SOLD 상품이 빠져 있어 경매 응답이 직접 들고 온다
+    val title: String? = null,
+    val thumbnailUrl: String? = null
 )
 data class AuctionCommandResult(val auctionId: String, val message: String)
+
+// 목록 API 의 status 필터와 같은 뜻으로 맞춘 판정. OPEN 은 진행 중 + 예정, ALL 은 전부다
+fun String.matchesAuctionStatusFilter(filter: String): Boolean = when (filter.uppercase()) {
+    "OPEN" -> equals("ACTIVE", ignoreCase = true) || equals("SCHEDULED", ignoreCase = true)
+    "ALL" -> true
+    else -> equals(filter, ignoreCase = true)
+}
 data class AuctionPage(val items: List<AuctionSummary>, val nextCursor: String?, val hasNext: Boolean)
 data class SaleHistoryItem(val auction: AuctionSummary, val orderId: String?, val orderStatus: String?)
 data class SaleHistoryPage(val items: List<SaleHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
-data class BidHistoryItem(val bidId: String, val auctionId: String, val amount: Int, val createdAt: String)
+data class BidHistoryItem(
+    val bidId: String,
+    val auctionId: String,
+    val amount: Int,
+    val createdAt: String,
+    // 아래는 내 거래 카드용. 예전 서버 응답에는 없던 값이라 전부 null 허용
+    val productId: String? = null,
+    val title: String? = null,
+    val thumbnailUrl: String? = null,
+    val auctionStatus: String? = null,
+    val currentPrice: Int? = null
+)
 data class BidHistoryPage(val items: List<BidHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
-data class AuctionBidHistoryItem(val bidId: String, val maskedBidderId: String, val amount: Int, val createdAt: String)
+// bidderNickname 이 없으면(예전 서버, 탈퇴 회원) maskedBidderId 를 그대로 보여준다
+data class AuctionBidHistoryItem(val bidId: String, val maskedBidderId: String, val amount: Int, val createdAt: String, val bidderNickname: String? = null)
 data class AuctionBidHistoryPage(val items: List<AuctionBidHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
 data class RecommendedLive(val liveBroadcastId: String, val title: String, val description: String?, val status: String, val scheduledAt: String?)
 data class HomeRecommendations(val liveItems: List<RecommendedLive>, val generalItems: List<AuctionSummary>)

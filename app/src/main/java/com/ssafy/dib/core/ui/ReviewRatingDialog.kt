@@ -56,10 +56,11 @@ fun ReviewRatingDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     (1..5).forEach { star ->
+                        // 안 고른 별을 Border 색으로 그렸더니 다이얼로그 배경과 거의 같아 별이 안 보였다
                         Text(
                             text = if (rating >= star) "★" else "☆",
                             fontSize = 30.sp,
-                            color = if (rating >= star) Colors.Live else Colors.Border,
+                            color = if (rating >= star) Colors.Star else Colors.Muted,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable(enabled = !submitting) { rating = star }
@@ -76,7 +77,7 @@ fun ReviewRatingDialog(
                     Text(
                         if (rating == 0) "0점 선택됨" else "0점 주기",
                         fontSize = 11.sp,
-                        color = if (rating == 0) Colors.Live else Colors.Muted,
+                        color = if (rating == 0) Colors.Star else Colors.Muted,
                         fontWeight = if (rating == 0) FontWeight.Bold else FontWeight.Normal
                     )
                 }
@@ -113,7 +114,7 @@ fun SellerRatingLabel(
 ) {
     if (rating == null || (reviewCount ?: 0) <= 0) return
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("★", color = Colors.Live, fontSize = fontSize.sp)
+        Text("★", color = Colors.Star, fontSize = fontSize.sp)
         Text(
             " ${String.format("%.1f", rating)} (${reviewCount})",
             color = Colors.Muted,

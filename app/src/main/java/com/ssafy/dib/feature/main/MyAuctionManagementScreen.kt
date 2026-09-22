@@ -276,7 +276,8 @@ internal fun AuctionConditionDialog(
     var minutes by rememberSaveable(dialogKey) { mutableStateOf(auctionTimeSeconds?.let { (it / 60).coerceAtLeast(MIN_AUCTION_MINUTES).toString() }.orEmpty()) }
     val parsedPrice = price.toLongOrNull()
     val parsedMinutes = minutes.toLongOrNull()
-    val priceValid = parsedPrice != null && parsedPrice >= MIN_AUCTION_START_PRICE
+    // 서버(TradeInputValidator)와 같은 10원 단위 규칙. 1001원으로 시작하면 첫 입찰 최소 금액이 10원 단위에 걸려 아무도 입찰할 수 없다
+    val priceValid = parsedPrice != null && parsedPrice >= MIN_AUCTION_START_PRICE && parsedPrice % 10L == 0L
     val minutesValid = parsedMinutes != null && parsedMinutes >= MIN_AUCTION_MINUTES
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
@@ -285,7 +286,7 @@ internal fun AuctionConditionDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 description?.let { Text(it, color = Colors.Muted, fontSize = 12.sp) }
                 OutlinedTextField(price, { price = it.filter(Char::isDigit).take(10) }, label = { Text("시작가") }, suffix = { Text("원") }, singleLine = true, isError = price.isNotBlank() && !priceValid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                Text("시작가는 1,000원 이상이어야 해요.", color = if (price.isNotBlank() && !priceValid) Colors.Urgent else Colors.Muted, fontSize = 11.sp)
+                Text("시작가는 1,000원 이상, 10원 단위여야 해요.", color = if (price.isNotBlank() && !priceValid) Colors.Urgent else Colors.Muted, fontSize = 11.sp)
                 OutlinedTextField(minutes, { minutes = it.filter(Char::isDigit).take(5) }, label = { Text("진행 시간") }, suffix = { Text("분") }, singleLine = true, isError = minutes.isNotBlank() && !minutesValid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Text("경매 시간은 5분 이상이어야 해요.", color = if (minutes.isNotBlank() && !minutesValid) Colors.Urgent else Colors.Muted, fontSize = 11.sp)
             }

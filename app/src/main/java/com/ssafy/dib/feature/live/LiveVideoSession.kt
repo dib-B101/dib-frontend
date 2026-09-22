@@ -138,11 +138,14 @@ class LiveVideoSession internal constructor(
     }
 
     private suspend fun publishLocalMedia(target: Room) {
-        runCatching { target.localParticipant.setMicrophoneEnabled(true) }
-            .onSuccess { microphoneEnabled = true }
-        runCatching { target.localParticipant.setCameraEnabled(true) }
-            .onSuccess { cameraEnabled = true }
-        bindLocalCameraTrack()
+        // 방송자가 직전에 꺼 둔 카메라·마이크는 꺼진 채로 다시 붙는다 (LiveHostMediaPreference)
+        val wantMicrophone = LiveHostMediaPreference.microphoneEnabled
+        val wantCamera = LiveHostMediaPreference.cameraEnabled
+        runCatching { target.localParticipant.setMicrophoneEnabled(wantMicrophone) }
+            .onSuccess { microphoneEnabled = wantMicrophone }
+        runCatching { target.localParticipant.setCameraEnabled(wantCamera) }
+            .onSuccess { cameraEnabled = wantCamera }
+        if (wantCamera) bindLocalCameraTrack()
     }
 
     private fun onRoomEvent(event: RoomEvent) {
@@ -183,6 +186,7 @@ class LiveVideoSession internal constructor(
             runCatching { target.localParticipant.setCameraEnabled(enabled) }
                 .onSuccess {
                     cameraEnabled = enabled
+                    if (role == LiveVideoRole.PUBLISHER) LiveHostMediaPreference.remember(camera = enabled)
                     if (enabled) bindLocalCameraTrack() else videoTrack = null
                 }
         }
@@ -192,7 +196,10 @@ class LiveVideoSession internal constructor(
         val target = room ?: return
         scope.launch {
             runCatching { target.localParticipant.setMicrophoneEnabled(enabled) }
-                .onSuccess { microphoneEnabled = enabled }
+                .onSuccess {
+                    microphoneEnabled = enabled
+                    if (role == LiveVideoRole.PUBLISHER) LiveHostMediaPreference.remember(microphone = enabled)
+                }
         }
     }
 
@@ -231,6 +238,28 @@ class LiveVideoSession internal constructor(
     private companion object {
         const val DEFAULT_TOKEN_ERROR = "영상 연결 정보를 받지 못했어요."
         const val DEFAULT_CONNECT_ERROR = "영상 서버에 연결하지 못했어요."
+    }
+}
+
+/**
+ * 방송자의 카메라·마이크 켬/끔을 화면 밖에 기억한다.
+ * 콘솔을 나가면 세션이 release 되고 다시 들어오면 새 세션이 무조건 둘 다 켰다 — 카메라를 꺼 두고 방송하다
+ * 알림으로 돌아온 판매자의 카메라가 저절로 켜지던 문제다. 방송이 끝나면 reset 해 다음 방송은 기본값(둘 다 켬)으로 시작한다.
+ */
+object LiveHostMediaPreference {
+    var cameraEnabled: Boolean = true
+        private set
+    var microphoneEnabled: Boolean = true
+        private set
+
+    fun remember(camera: Boolean = cameraEnabled, microphone: Boolean = microphoneEnabled) {
+        cameraEnabled = camera
+        microphoneEnabled = microphone
+    }
+
+    fun reset() {
+        cameraEnabled = true
+        microphoneEnabled = true
     }
 }
 

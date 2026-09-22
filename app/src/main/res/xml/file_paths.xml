@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 촬영한 상품 사진을 잠시 두는 곳. 등록이 끝나면 캐시라서 시스템이 알아서 지운다 -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>

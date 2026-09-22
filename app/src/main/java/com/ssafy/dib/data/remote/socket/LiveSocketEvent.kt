@@ -1,6 +1,6 @@
 package com.ssafy.dib.data.remote.socket
 
-import java.time.Duration
+import com.ssafy.dib.core.time.remainingWholeSeconds
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -187,7 +187,7 @@ class LiveSocketEventParser(
                 ?.plusSeconds(auctionTimeSeconds?.toLong() ?: return null)
             ?: return null
         val reference = serverTime?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: now()
-        return Duration.between(reference, end).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+        return remainingWholeSeconds(reference, end)
     }
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.contentOrNull

@@ -48,6 +48,17 @@
                     android:path="${kakaoRedirectPath}" />
             </intent-filter>
         </activity>
+
+        <!-- 상품 사진 촬영: 카메라 앱에 저장 위치를 넘길 때 file:// 는 API 24+ 에서 막혀 있어 FileProvider URI 를 쓴다 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

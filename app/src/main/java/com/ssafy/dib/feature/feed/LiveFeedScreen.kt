@@ -47,6 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.feature.auction.BidSubmission
+import com.ssafy.dib.feature.auction.isValidBidAmount
+import com.ssafy.dib.feature.auction.minimumBidAmount
+import com.ssafy.dib.feature.auction.roundUpToBidUnit
+import com.ssafy.dib.feature.auction.steppedBidAmount
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.home.formatClock
 import com.ssafy.dib.domain.live.LiveFeedItem
@@ -112,6 +116,8 @@ fun LiveFeedScreen(
     onDismissReport: () -> Unit,
     onRefresh: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
+    // 홈 "지금 LIVE" 에서 고른 방송. 목록에 있으면 그 페이지로 바로 넘긴다
+    focusLiveBroadcastId: String? = null,
     modifier: Modifier = Modifier
 ) {
     // 라이브를 실제로 보고 있을 때만 몰입 모드(전체 화면)로 둔다.
@@ -170,6 +176,7 @@ fun LiveFeedScreen(
             onReportAuction = onReportAuction,
             onReportParticipant = onReportParticipant,
             onDismissReport = onDismissReport,
+            focusLiveBroadcastId = focusLiveBroadcastId,
             modifier = modifier
         )
         return
@@ -283,11 +290,17 @@ private fun LiveFeedPager(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
+    focusLiveBroadcastId: String? = null,
     modifier: Modifier = Modifier
 ) {
     // null 이면 표본 한 장. 기존 동작을 그대로 옮긴 것이다.
     val items = remoteItems ?: listOf(null)
     val pagerState = rememberPagerState(pageCount = items::size)
+            // 홈에서 고른 방송으로 바로 넘긴다. 목록이 채워진 뒤에야 인덱스를 알 수 있어 items 도 키에 둔다
+            LaunchedEffect(focusLiveBroadcastId, items) {
+                val index = focusLiveBroadcastId?.let { id -> items.indexOfFirst { it?.liveBroadcastId == id } } ?: -1
+                if (index >= 0 && index != pagerState.currentPage) pagerState.scrollToPage(index)
+            }
             LaunchedEffect(pagerState.currentPage, remoteItems, hasNextPage, isLoadingMore, loadMoreError) {
                 items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
                 if (remoteItems != null && hasNextPage && !isLoadingMore && loadMoreError == null && pagerState.currentPage >= items.lastIndex - 1) {
@@ -735,8 +748,9 @@ private fun LiveFeedPage(
             )
             LiveReportTypeAction(
                 title = "상품 신고",
-                description = "현재 경매 상품의 정보·설명을 신고",
-                enabled = auctionKey != null
+                // 내 방송의 내 상품은 신고 대상이 아니다 (서버도 SELF_REPORT_NOT_ALLOWED 로 막는다)
+                description = if (isOwnAuction) "내 상품은 신고할 수 없어요" else "현재 경매 상품의 정보·설명을 신고",
+                enabled = auctionKey != null && !isOwnAuction
             ) {
                 showReportTypes = false
                 reportAuctionId = auctionKey
@@ -939,7 +953,7 @@ private fun LiveFeedPage(
             }
         }
     }
-    if (showBidSheet) LiveBidSheet(currentPrice, { showBidSheet = false }) { submission ->
+    if (showBidSheet) LiveBidSheet(currentPrice, activeAuction?.bidCount ?: 0, { showBidSheet = false }) { submission ->
         when {
             !realtimeBiddingEnabled -> {
                 bidFeedbackAccepted = false
@@ -1227,24 +1241,23 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun LiveBidSheet(currentPrice: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
-    val minimum = currentPrice + 1
-    var amount by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
-    val parsed = amount.toIntOrNull() ?: 0
-    val valid = parsed >= minimum
+@Composable private fun LiveBidSheet(currentPrice: Int, bidCount: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
+    // 상품 상세와 같은 규칙(서버 Auction.minNextBid 구간 + 10원 단위). 예전 currentPrice+1 은 서버가 전부 거절하는 금액이었다
+    val minimum = minimumBidAmount(currentPrice, bidCount)
+    var amountText by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
+    val typedAmount = amountText.toIntOrNull() ?: 0
+    val amount = roundUpToBidUnit(typedAmount)
+    val snapped = typedAmount > 0 && amount != typedAmount
+    val valid = typedAmount > 0 && isValidBidAmount(amount, minimum)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("라이브 입찰", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("현재가 ${"%,d".format(currentPrice)}원 · ${"%,d".format(minimum)}원 이상", color = Color.Gray, fontSize = 12.sp)
-            OutlinedTextField(amount, { amount = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amount.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(amountText, { amountText = it.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth(), suffix = { Text("원") }, isError = amountText.isNotBlank() && !valid, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1_000, 5_000, 10_000).forEach { increment ->
                     Button(
-                        onClick = {
-                            val enteredAmount = amount.toIntOrNull()
-                            val baseAmount = if (enteredAmount == null || enteredAmount == minimum) currentPrice else enteredAmount
-                            amount = (baseAmount + increment).toString()
-                        },
+                        onClick = { amountText = steppedBidAmount(amountText.toIntOrNull() ?: minimum, increment, minimum).toString() },
                         modifier = Modifier.weight(1f).height(40.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
@@ -1252,8 +1265,9 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
                     ) { Text("+%,d원".format(increment), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                 }
             }
-            Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 30초 이내 입찰 시 종료 시간이 15초 연장돼요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
-            Button({ onConfirm(BidSubmission(parsed)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(parsed)}원 입찰하기", fontWeight = FontWeight.Bold) }
+            if (snapped) Text("10원 단위로 올려 ${"%,d".format(amount)}원으로 입찰돼요", color = Colors.MintInk, fontSize = 11.sp)
+            Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 15초 이내 입찰 시 남은 시간이 15초로 다시 맞춰져요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
+            Button({ onConfirm(BidSubmission(amount)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(amount)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
     }
 }

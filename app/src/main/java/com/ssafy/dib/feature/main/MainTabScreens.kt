@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
-import android.graphics.BitmapFactory
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -250,14 +252,20 @@ fun MyTradesScreen(
     }
 }
 
-private fun BidHistoryItem.toTradeItem() = TradeItem(
-    status = "입찰 참여",
-    title = "경매 #$auctionId",
-    meta = "내 입찰가 ${"%,d".format(amount)}원 · ${formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')}",
-    action = "경매 상태 보기 →",
-    tone = TradeTone.Positive,
-    auctionId = auctionId
-)
+private fun BidHistoryItem.toTradeItem(): TradeItem {
+    val ended = auctionStatus?.uppercase() in setOf("ENDED", "CANCELED", "CANCELLED")
+    val price = currentPrice?.takeIf { it > 0 }?.let { "현재가 ${"%,d".format(it)}원 · " }.orEmpty()
+    return TradeItem(
+        status = if (ended) "경매 종료" else "입찰 참여",
+        // 서버가 상품명을 안 주던 시절의 표기가 "경매 #id" 다. 예전 서버와 붙으면 지금도 그 표기로 떨어진다
+        title = title ?: "경매 #$auctionId",
+        meta = "${price}내 입찰가 ${"%,d".format(amount)}원 · ${formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')}",
+        action = "경매 상태 보기 →",
+        tone = if (ended) TradeTone.Neutral else TradeTone.Positive,
+        auctionId = auctionId,
+        thumbnailUrl = thumbnailUrl
+    )
+}
 
 private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
     val normalized = status.uppercase()
@@ -321,7 +329,8 @@ private fun SaleHistoryItem.toTradeItem(): TradeItem {
         action = if (orderId.isNullOrBlank()) "경매 상태 보기 →" else "거래 상세 보기 →",
         tone = tone,
         orderId = orderId.orEmpty(),
-        auctionId = auction.auctionId
+        auctionId = auction.auctionId,
+        thumbnailUrl = auction.imageUrls.firstOrNull()
     )
 }
 
@@ -523,6 +532,8 @@ fun ProductRegisterScreen(
 ) {
     var step by rememberSaveable { mutableIntStateOf(1) }
     val photoUris = remember { mutableStateListOf<Uri>() }
+    // 사진별 사용자 회전(도). 사진을 지우면 같이 지운다
+    val photoRotations = remember { mutableStateMapOf<Uri, Int>() }
     var name by rememberSaveable { mutableStateOf("") }
     var categoryId by rememberSaveable { mutableStateOf("") }
     var condition by rememberSaveable { mutableStateOf("") }
@@ -537,7 +548,8 @@ fun ProductRegisterScreen(
     val context = LocalContext.current
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
     val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris ->
+    // \uc568\ubc94 \uc120\ud0dd\uacfc \ucd2c\uc601\uc774 \uac19\uc740 \uac80\uc99d(\uc7a5\uc218\u00b7\ud615\uc2dd\u00b7\uc6a9\ub7c9)\uc744 \uac70\uce58\ub3c4\ub85d \ud55c\uacf3\uc5d0 \ubaa8\uc558\ub2e4
+    fun addPickedPhotos(uris: List<Uri>) {
         val remaining = (10 - photoUris.size).coerceAtLeast(0)
         val selectedUris = uris.filterNot { photoUris.contains(it) }.take(remaining)
         val validationMessage = when {
@@ -550,6 +562,28 @@ fun ProductRegisterScreen(
         } else {
             photoUris.addAll(selectedUris)
         }
+    }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)) { uris -> addPickedPhotos(uris) }
+    // \ucd2c\uc601: \uc2dc\uc2a4\ud15c \uce74\uba54\ub77c \uc571\uc5d0 FileProvider URI \ub97c \ub118\uaca8 \ucc0d\ub294\ub2e4. \ub9e4\ub2c8\ud398\uc2a4\ud2b8\uc5d0 CAMERA \uad8c\ud55c\uc744 \uc120\uc5b8\ud55c \uc571\uc740 \uce74\uba54\ub77c \uc571\uc744 \ubd80\ub97c \ub54c\ub3c4
+    // \uadf8 \uad8c\ud55c\uc744 \uc2e4\uc81c\ub85c \ub4e4\uace0 \uc788\uc5b4\uc57c \ud574\uc11c(SecurityException) \uba3c\uc800 \uad8c\ud55c\uc744 \ubc1b\ub294\ub2e4. \ucd2c\uc601 \uc911 \ud504\ub85c\uc138\uc2a4\uac00 \uc8fd\uc5b4\ub3c4 URI \ub97c \uc783\uc9c0 \uc54a\uac8c \uc800\uc7a5\ud574 \ub454\ub2e4
+    var pendingCameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var showPhotoSource by rememberSaveable { mutableStateOf(false) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (saved && uri != null) addPickedPhotos(listOf(uri))
+    }
+    fun launchCamera() {
+        val uri = createProductCameraUri(context)
+        if (uri == null) {
+            imageValidationMessage = "\ucd2c\uc601 \ud30c\uc77c\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \uc568\ubc94\uc5d0\uc11c \uc120\ud0dd\ud574\uc8fc\uc138\uc694."
+            return
+        }
+        pendingCameraUri = uri
+        cameraLauncher.launch(uri)
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else imageValidationMessage = "\uce74\uba54\ub77c \uad8c\ud55c\uc744 \ud5c8\uc6a9\ud574\uc57c \ucd2c\uc601\ud560 \uc218 \uc788\uc5b4\uc694."
     }
 
     if (showPhotoReorder) {
@@ -630,7 +664,7 @@ fun ProductRegisterScreen(
                                 .height(if (photoError) 112.dp else 88.dp)
                                 .background(Colors.Background, RoundedCornerShape(16.dp))
                                 .border(if (photoError) 2.dp else 1.dp, if (photoError) Colors.Urgent else Colors.Border, RoundedCornerShape(12.dp))
-                                .clickable(enabled = !photoFull) { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                .clickable(enabled = !photoFull) { showPhotoSource = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -665,8 +699,10 @@ fun ProductRegisterScreen(
                             itemsIndexed(photoUris, key = { _, uri -> uri.toString() }) { index, uri ->
                                 ProductImageThumbnail(
                                     uri = uri,
+                                    rotation = photoRotations[uri] ?: 0,
                                     representative = index == 0,
-                                    onRemove = { photoUris.remove(uri) },
+                                    onRemove = { photoUris.remove(uri); photoRotations.remove(uri) },
+                                    onRotate = { photoRotations[uri] = ((photoRotations[uri] ?: 0) + 90) % 360 },
                                     onMakeRepresentative = if (index == 0) null else ({
                                         val current = photoUris.indexOf(uri)
                                         if (current > 0) moveProductImage(photoUris, current, 0)
@@ -706,7 +742,7 @@ fun ProductRegisterScreen(
                         if (step == 1) {
                             if (canContinue) step = 2 else validationRequested = true
                         } else {
-                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), photoUris.map { ProductImageSelection(it) }))
+                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), photoUris.map { ProductImageSelection(it, photoRotations[it] ?: 0) }))
                         }
                     },
                     enabled = !submitLoading,
@@ -723,6 +759,24 @@ fun ProductRegisterScreen(
             }
         }
     }
+    if (showPhotoSource) AlertDialog(
+        onDismissRequest = { showPhotoSource = false },
+        title = { Text("사진 추가") },
+        text = {
+            Column {
+                Text("앨범에서 선택", Modifier.fillMaxWidth().clickable {
+                    showPhotoSource = false
+                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }.padding(vertical = 14.dp), color = Colors.Navy)
+                Text("카메라로 촬영", Modifier.fillMaxWidth().clickable {
+                    showPhotoSource = false
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
+                    else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }.padding(vertical = 14.dp), color = Colors.Navy)
+            }
+        },
+        confirmButton = { TextButton({ showPhotoSource = false }) { Text("닫기") } }
+    )
     if (categoryDialog) AlertDialog(
         onDismissRequest = { categoryDialog = false },
         title = { Text("카테고리 선택") },
@@ -865,9 +919,10 @@ private fun SortableProductPhotoRow(uri: Uri, index: Int, count: Int, onMove: (I
 @Composable
 private fun rememberProductBitmap(uri: Uri): androidx.compose.ui.graphics.ImageBitmap? {
     val context = LocalContext.current
+    // EXIF 회전을 반영해 세운 미리보기 (원본 크기로 풀지 않는다)
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
         value = withContext(Dispatchers.IO) {
-            context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)?.asImageBitmap()
+            decodeProductImagePreview(context.contentResolver, uri)?.asImageBitmap()
         }
     }
     return bitmap
@@ -884,11 +939,12 @@ data class ProductRegistrationForm(
 )
 
 @Composable
-private fun ProductImageThumbnail(uri: Uri, representative: Boolean, onRemove: () -> Unit, onMakeRepresentative: (() -> Unit)?) {
+private fun ProductImageThumbnail(uri: Uri, rotation: Int, representative: Boolean, onRemove: () -> Unit, onRotate: () -> Unit, onMakeRepresentative: (() -> Unit)?) {
     val context = LocalContext.current
-    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
+    // EXIF·사용자 회전을 반영해 세운 미리보기. 회전 버튼을 누르면 키가 바뀌어 다시 디코딩된다
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri, rotation) {
         value = withContext(Dispatchers.IO) {
-            context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)?.asImageBitmap()
+            decodeProductImagePreview(context.contentResolver, uri, rotation)?.asImageBitmap()
         }
     }
     Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -906,6 +962,14 @@ private fun ProductImageThumbnail(uri: Uri, representative: Boolean, onRemove: (
                     modifier = Modifier.padding(3.dp).size(14.dp),
                     colorFilter = ColorFilter.tint(Color.White)
                 )
+            }
+            // 눕거나 뒤집혀 올라온 사진을 등록 전에 바로잡는다. 한 번에 90도씩 돈다
+            Surface(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).clickable(onClick = onRotate),
+                color = Color(0xCC1A1A1A),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("↻ 회전", Modifier.padding(horizontal = 6.dp, vertical = 3.dp), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
         Surface(

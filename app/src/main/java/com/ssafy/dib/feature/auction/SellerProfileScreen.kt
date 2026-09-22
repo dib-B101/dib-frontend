@@ -36,6 +36,8 @@ fun SellerProfileScreen(
     onReviewsClick: () -> Unit,
     onListingsClick: () -> Unit,
     onReportClick: () -> Unit,
+    // 내 프로필이면 신고 행을 감춘다. 서버도 SELF_REPORT_NOT_ALLOWED 로 막지만 버튼이 보이면 눌러보고 나서야 안다
+    isOwnProfile: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -135,8 +137,8 @@ fun SellerProfileScreen(
                     }
                 }
             }
-            item { HorizontalDivider(color = Colors.Border) }
-            item {
+            if (!isOwnProfile) item { HorizontalDivider(color = Colors.Border) }
+            if (!isOwnProfile) item {
                 Text(
                     "이 판매자 신고 · 차단",
                     Modifier.clickable(onClick = onReportClick).padding(vertical = 4.dp),
