@@ -3,6 +3,7 @@ package com.ssafy.dib.data.repository
 import com.ssafy.dib.core.network.ApiResult
 import com.ssafy.dib.data.remote.live.LiveItemPlanPayload
 import com.ssafy.dib.data.remote.live.LiveRemoteDataSource
+import com.ssafy.dib.domain.live.LiveAuctionStart
 import com.ssafy.dib.domain.live.LiveItemPlan
 import com.ssafy.dib.domain.live.LiveFeedItem
 import com.ssafy.dib.domain.live.LiveFeedPage
@@ -145,8 +146,8 @@ class LiveRepositoryImpl(
         is ApiResult.Failure -> result
     }
 
-    override fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<String> = when (val result = remote.startAuction(liveBroadcastId, auctionId, idempotencyKey)) {
-        is ApiResult.Success -> ApiResult.Success(result.value.status, result.status)
+    override fun startAuction(liveBroadcastId: String, auctionId: String, idempotencyKey: String): ApiResult<LiveAuctionStart> = when (val result = remote.startAuction(liveBroadcastId, auctionId, idempotencyKey)) {
+        is ApiResult.Success -> ApiResult.Success(LiveAuctionStart(result.value.status, result.value.scheduledEndAt), result.status)
         is ApiResult.Failure -> result
     }
 

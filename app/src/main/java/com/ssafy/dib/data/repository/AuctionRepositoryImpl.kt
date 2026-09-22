@@ -17,6 +17,7 @@ import com.ssafy.dib.domain.auction.AuctionBidHistoryPage
 import com.ssafy.dib.domain.auction.HomeRecommendations
 import com.ssafy.dib.domain.auction.RecommendedLive
 import com.ssafy.dib.domain.auction.AuctionBidSnapshot
+import com.ssafy.dib.domain.auction.matchesAuctionStatusFilter
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -78,7 +79,8 @@ class AuctionRepositoryImpl(
                 AuctionPage(
                     items = result.value.items.asSequence()
                         .filter { it.liveBroadcastId == null }
-                        .filter { status.isBlank() || it.status.equals(status, ignoreCase = true) }
+                        // OPEN 은 서버가 진행 중+예정을 함께 내려주는 값이라 둘 다 통과시킨다
+                        .filter { status.isBlank() || it.status.matchesAuctionStatusFilter(status) }
                         .filter { categoryId.isNullOrBlank() || it.categoryId?.idValue() == categoryId }
                         .filter { minPrice == null || (it.currentPrice ?: 0L) >= minPrice }
                         .filter { maxPrice == null || (it.currentPrice ?: 0L) <= maxPrice }
@@ -118,7 +120,9 @@ class AuctionRepositoryImpl(
                         currentPrice = (dto.currentPrice ?: 0L).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
                         bidCount = (dto.bidCount ?: 0).coerceAtLeast(0),
                         status = dto.status.orEmpty(),
-                        auctionTimeSeconds = (dto.auctionTime ?: 0L).coerceAtLeast(0)
+                        auctionTimeSeconds = (dto.auctionTime ?: 0L).coerceAtLeast(0),
+                        title = dto.productTitle?.takeIf(String::isNotBlank),
+                        thumbnailUrl = dto.thumbnailUrl?.takeIf(String::isNotBlank)
                     )
                 },
                 result.status
@@ -168,7 +172,12 @@ class AuctionRepositoryImpl(
                             bidId = bid.bidId.idValue(),
                             auctionId = bid.auctionId.idValue(),
                             amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                            createdAt = bid.createdAt
+                            createdAt = bid.createdAt,
+                            productId = bid.productId?.idValue(),
+                            title = bid.productTitle?.takeIf(String::isNotBlank),
+                            thumbnailUrl = bid.thumbnailUrl?.takeIf(String::isNotBlank),
+                            auctionStatus = bid.auctionStatus,
+                            currentPrice = bid.currentPrice?.coerceIn(0, Int.MAX_VALUE.toLong())?.toInt()
                         )
                     },
                     nextCursor = result.value.nextCursor,
@@ -188,7 +197,8 @@ class AuctionRepositoryImpl(
                             bidId = bid.bidId.idValue(),
                             maskedBidderId = bid.maskedBidderId,
                             amount = bid.amount.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                            createdAt = bid.createdAt
+                            createdAt = bid.createdAt,
+                            bidderNickname = bid.bidderNickname?.takeIf(String::isNotBlank)
                         )
                     },
                     nextCursor = result.value.nextCursor,

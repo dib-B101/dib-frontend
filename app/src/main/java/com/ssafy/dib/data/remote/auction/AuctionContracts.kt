@@ -105,7 +105,12 @@ data class BidHistoryDto(
     val bidId: JsonElement,
     val auctionId: JsonElement,
     val amount: Long,
-    val createdAt: String
+    val createdAt: String,
+    val productId: JsonElement? = null,
+    val productTitle: String? = null,
+    val thumbnailUrl: String? = null,
+    val auctionStatus: String? = null,
+    val currentPrice: Long? = null
 )
 
 @Serializable
@@ -120,7 +125,8 @@ data class MaskedBidHistoryDto(
     val bidId: JsonElement,
     val maskedBidderId: String,
     val amount: Long,
-    val createdAt: String
+    val createdAt: String,
+    val bidderNickname: String? = null
 )
 
 @Serializable
@@ -146,5 +152,7 @@ data class SellerAuctionDto(
     val auctionTime: Long? = null,
     val status: String? = null,
     val bidCount: Int? = null,
-    val bidderCount: Int? = null
+    val bidderCount: Int? = null,
+    val productTitle: String? = null,
+    val thumbnailUrl: String? = null
 )

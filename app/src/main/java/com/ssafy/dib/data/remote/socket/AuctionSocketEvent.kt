@@ -1,6 +1,6 @@
 package com.ssafy.dib.data.remote.socket
 
-import java.time.Duration
+import com.ssafy.dib.core.time.remainingWholeSeconds
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -49,14 +49,15 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 auctionId = auctionId,
                 currentPrice = payload.int("currentPrice"),
                 bidCount = payload.int("bidCount"),
-                remainingSeconds = remaining(payload.string("endedAt")),
+                remainingSeconds = remaining(payload.string("endedAt"), occurredAt),
                 occurredAt = occurredAt
             )
             SocketEventTypes.AUCTION_EXTENDED -> AuctionRealtimeUpdate(
                 eventType = envelope.eventType,
                 auctionId = auctionId,
-                remainingSeconds = remaining(payload.string("endedAt")),
-                message = "마감 시간이 ${payload.int("extensionSeconds") ?: 15}초 연장됐어요.",
+                remainingSeconds = remaining(payload.string("endedAt"), occurredAt),
+                // 서버 규칙은 "연장" 이 아니라 남은 시간을 15초로 되돌리는 것이다 (Auction.EXTEND_WINDOW_SECONDS)
+                message = "마감까지 남은 시간이 ${payload.int("extensionSeconds") ?: 15}초로 다시 맞춰졌어요.",
                 occurredAt = occurredAt
             )
             SocketEventTypes.AUCTION_ENDED -> AuctionRealtimeUpdate(
@@ -74,7 +75,7 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 auctionId = auctionId,
                 commandId = payload.string("commandId") ?: envelope.commandId,
                 currentPrice = payload.int("newCurrentPrice"),
-                remainingSeconds = remaining(payload.string("endedAt")),
+                remainingSeconds = remaining(payload.string("endedAt"), occurredAt),
                 isHighestBidder = payload.boolean("isHighestBidder"),
                 message = "입찰이 접수됐어요.",
                 occurredAt = occurredAt
@@ -84,7 +85,7 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
                 auctionId = auctionId,
                 commandId = payload.string("commandId") ?: envelope.commandId,
                 currentPrice = payload.int("currentPrice"),
-                remainingSeconds = remaining(payload.string("endedAt")),
+                remainingSeconds = remaining(payload.string("endedAt"), occurredAt),
                 message = payload.string("message") ?: "입찰이 반영되지 않았어요.",
                 errorCode = payload.string("code"),
                 minAllowedAmount = payload.int("minAllowedAmount"),
@@ -94,10 +95,11 @@ class AuctionSocketEventParser(private val now: () -> Instant = Instant::now) {
         }
     }
 
+    // 기준 시각은 서버가 준 값(serverTime 또는 이벤트 발생 시각)을 우선한다. 단말 시계로 재면 전송 지연만큼 항상 짧게 나온다
     private fun remaining(endedAt: String?, serverTime: String? = null): Int? {
         val end = endedAt.toInstantOrNull() ?: return null
         val reference = serverTime.toInstantOrNull() ?: now()
-        return Duration.between(reference, end).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+        return remainingWholeSeconds(reference, end)
     }
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.contentOrNull
