@@ -88,6 +88,7 @@ data class ProductDetailDto(
 data class ProductSellerSummaryDto(
     val nickname: String? = null,
     val rating: Double? = null,
+    val reviewCount: Int? = null,
     val tradeCount: Int? = null,
     val completedTradeCount: Int? = null
 )

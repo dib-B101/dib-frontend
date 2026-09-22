@@ -14,7 +14,8 @@ data class MemberProfileResponse(
     val birthDate: String,
     val status: String,
     val role: String,
-    val score: Double = 0.0
+    // 받은 별점 평균(0~5). 후기가 없으면 서버가 null 을 준다 — 0.0 으로 받으면 "0점" 이라는 가짜 숫자가 된다
+    val score: Double? = null
 )
 
 @Serializable data class MemberProfileUpdateRequest(val nickname: String)

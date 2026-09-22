@@ -393,7 +393,8 @@ fun MyPageScreen(
                     }
                     HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Colors.Border)
                     Text(
-                        profile?.let { "신뢰 점수 ${it.score}점" } ?: "신뢰 점수를 불러오는 중",
+                        profile?.let { p -> p.score?.let { "받은 평점 ★ %.1f".format(it) } ?: "아직 받은 평점이 없어요" }
+                            ?: "평점을 불러오는 중",
                         color = Colors.Navy,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold

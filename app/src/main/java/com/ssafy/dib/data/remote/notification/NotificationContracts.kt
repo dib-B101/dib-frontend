@@ -24,5 +24,6 @@ data class NotificationDto(
     val productId: JsonElement? = null,
     val liveBroadcastId: JsonElement? = null,
     val bidId: JsonElement? = null,
+    val orderId: JsonElement? = null,
     val createdAt: String
 )

@@ -96,6 +96,7 @@ fun TransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
     reportSubmitting: Boolean = false,
     reportError: String? = null,
@@ -138,6 +139,7 @@ fun TransactionScreen(
             onRefreshShipment = onRefreshShipment,
             onRetry = onRetry,
             onConfirmPurchase = onConfirmPurchase,
+            onOpenReview = onOpenReview,
             onOpenChat = onOpenChat,
             reportSubmitting = reportSubmitting,
             reportError = reportError,
@@ -185,6 +187,7 @@ private fun RemoteTransactionScreen(
     onRefreshShipment: () -> Unit,
     onRetry: () -> Unit,
     onConfirmPurchase: () -> Unit,
+    onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
     reportSubmitting: Boolean,
     reportError: String?,
@@ -382,6 +385,33 @@ private fun RemoteTransactionScreen(
                             }
                         }
                         if (onHold) item { Text(ORDER_HOLD_BLOCK_MESSAGE, color = Colors.Urgent, fontSize = 12.sp, lineHeight = 18.sp) }
+                    }
+                    // 거래가 끝난 뒤에만 평가할 수 있다. 서버도 CONFIRMED 가 아니면 거절한다
+                    if (role != "seller" && order.status.uppercase() == "CONFIRMED") {
+                        item {
+                            if (order.myRating != null) {
+                                Column(
+                                    Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("내가 남긴 평가", color = Colors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        (1..5).joinToString("") { if (order.myRating >= it) "★" else "☆" },
+                                        color = Colors.Live,
+                                        fontSize = 20.sp
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = onOpenReview,
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                                ) {
+                                    Text("판매자 평가하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                     if (role == "seller" && order.status.uppercase() in setOf("PAID", "PREPARING")) {
                         item {

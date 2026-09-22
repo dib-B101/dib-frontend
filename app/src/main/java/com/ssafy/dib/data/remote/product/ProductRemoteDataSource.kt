@@ -7,6 +7,7 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.ApiRoutes
 import com.ssafy.dib.domain.product.ProductRegistration
+import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.ProductUpdate
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
@@ -78,22 +79,26 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
         }
     }
 
-    fun searchProducts(query: String, categoryId: String?, cursor: String?, size: Int): ApiResult<ProductListResponse> = configured {
+    // 예전에는 서버가 keyword 만 받아서 카테고리를 앱에서 걸렀는데, 한 페이지 안에서만 거르니
+    // 페이지 경계 밖의 결과가 통째로 사라졌다. 이제 조건을 전부 서버로 넘긴다
+    fun searchProducts(
+        query: String,
+        filter: ProductSearchFilter,
+        cursor: String?,
+        size: Int
+    ): ApiResult<ProductListResponse> = configured {
         val path = "${ApiRoutes.PRODUCTS}/search"
         val urlBuilder = client.urlBuilder(path)
-            .addQueryParameter("keyword", query)
             .addQueryParameter("size", size.coerceIn(1, 100).toString())
+        query.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("keyword", it) }
+        filter.categoryId?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("categoryId", it) }
+        filter.minPrice?.let { urlBuilder.addQueryParameter("minPrice", it.toString()) }
+        filter.maxPrice?.let { urlBuilder.addQueryParameter("maxPrice", it.toString()) }
+        filter.condition?.let { urlBuilder.addQueryParameter("condition", it) }
+        if (filter.onAuctionOnly) urlBuilder.addQueryParameter("onAuctionOnly", "true")
         cursor?.takeIf(String::isNotBlank)?.let { urlBuilder.addQueryParameter("cursor", it) }
-        when (val result = client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
-            .decodePayload(::decodeProductList)) {
-            is ApiResult.Failure -> result
-            is ApiResult.Success -> {
-                val filtered = categoryId?.takeIf(String::isNotBlank)?.let { wanted ->
-                    result.value.items.filter { it.categoryId?.toString()?.trim('"') == wanted }
-                } ?: result.value.items
-                ApiResult.Success(result.value.copy(items = filtered), result.status)
-            }
-        }
+        client.execute(client.requestBuilder(path).url(urlBuilder.build()).get().build(), JsonElement.serializer())
+            .decodePayload(::decodeProductList)
     }
 
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductCreateResponse> = configured {

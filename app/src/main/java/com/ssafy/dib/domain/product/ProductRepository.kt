@@ -81,6 +81,8 @@ data class ProductDetail(
     val imageUrls: List<String>,
     val sellerNickname: String?,
     val sellerRating: Double?,
+    // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
+    val sellerReviewCount: Int? = null,
     val sellerTradeCount: Int?,
     val moderationReason: String? = null,
     val moderationStage: String? = null,
@@ -108,13 +110,34 @@ data class RegisteredProductPage(
     val hasNext: Boolean
 )
 
+// 검색 필터. 전부 선택이고 기본값이면 조건 없이 전체를 훑는다.
+// 정렬은 여기 없다 — 커서 페이징이 product_id 역순을 전제해서 가격순을 섞으면 "더 보기" 가 깨진다
+data class ProductSearchFilter(
+    val categoryId: String? = null,
+    val minPrice: Long? = null,
+    val maxPrice: Long? = null,
+    /** GOOD | NORMAL | BAD */
+    val condition: String? = null,
+    /** 지금 입찰할 수 있는 것만 */
+    val onAuctionOnly: Boolean = false
+) {
+    val isActive: Boolean
+        get() = categoryId != null || minPrice != null || maxPrice != null ||
+            condition != null || onAuctionOnly
+}
+
 interface ProductRepository {
     fun getCategories(): ApiResult<List<ProductCategory>>
     fun getMyProducts(status: String? = null, cursor: String? = null, size: Int = 30): ApiResult<RegisteredProductPage>
     fun getProduct(productId: String): ApiResult<ProductDetail>
     fun getSellerProducts(memberId: String): ApiResult<List<RegisteredProduct>>
     fun getSimilarProducts(productId: String, size: Int = 20): ApiResult<List<RegisteredProduct>>
-    fun searchProducts(query: String, categoryId: String? = null, cursor: String? = null, size: Int = 100): ApiResult<RegisteredProductPage>
+    fun searchProducts(
+        query: String,
+        filter: ProductSearchFilter = ProductSearchFilter(),
+        cursor: String? = null,
+        size: Int = 100
+    ): ApiResult<RegisteredProductPage>
     fun registerProduct(registration: ProductRegistration, idempotencyKey: String): ApiResult<ProductRegistrationResult>
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResult>
     fun deleteProduct(productId: String, idempotencyKey: String): ApiResult<Unit>

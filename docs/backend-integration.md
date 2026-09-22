@@ -8,7 +8,7 @@ REST와 WebSocket 주소는 저장소에 커밋하지 않고 Gradle property로 
 
 ```properties
 DIB_API_BASE_URL=https://assigned-api-host
-DIB_WS_URL=wss://assigned-api-host/ws/v1
+DIB_WS_URL=wss://assigned-api-host/ws
 DIB_SESSION_IDLE_TIMEOUT_MINUTES=30
 ```
 

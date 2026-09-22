@@ -109,6 +109,9 @@ class OrderRepositoryImpl(private val remote: OrderRemoteDataSource) : OrderRepo
             is ApiResult.Failure -> result
         }
 
+    override fun writeReview(orderId: String, rating: Int): ApiResult<Unit> =
+        remote.writeReview(orderId, rating)
+
     override fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptance> =
         when (val result = remote.acceptRunnerUpOffer(auctionId)) {
             is ApiResult.Success -> ApiResult.Success(
@@ -168,6 +171,7 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         paymentDue = paymentDue ?: core?.paymentDue,
         heldAt = (heldAt ?: core?.heldAt)?.takeIf(String::isNotBlank),
         holdReportId = (holdReportId ?: core?.holdReportId).idValue().takeIf(String::isNotBlank),
+        myRating = myRating,
         settlement = settlement?.let { block ->
             OrderSettlementSummary(
                 settlementId = block.settlementId.idValue().takeIf(String::isNotBlank),

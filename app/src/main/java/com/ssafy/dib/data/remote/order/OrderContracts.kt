@@ -30,7 +30,9 @@ data class OrderSummaryDto(
     val settlement: OrderSettlementDto? = null,
     val chattingReadOnly: Boolean? = null,
     val heldAt: String? = null,
-    val holdReportId: JsonElement? = null
+    val holdReportId: JsonElement? = null,
+    // 이 거래에 남긴 별점(0~5). null 이면 아직 평가 전
+    val myRating: Int? = null
 )
 
 @Serializable
@@ -94,6 +96,10 @@ data class OrderOfferAcceptanceResponse(
 
 @Serializable
 data class ShipmentRegistrationRequest(val carrier: String, val trackingNumber: String)
+
+// POST /orders/{orderId}/review — 별점만. 코멘트 필드는 일부러 없다
+@Serializable
+data class WriteReviewRequest(val rating: Int)
 
 // PATCH /orders/{orderId}/address - detail 을 뺀 나머지는 서버에서 @NotBlank
 @Serializable

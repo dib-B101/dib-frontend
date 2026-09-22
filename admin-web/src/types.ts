@@ -10,7 +10,7 @@ export interface AdminMember {
   name: string
   status: MemberStatus
   role: 'USER' | 'ADMIN'
-  score: number
+  score: number | null   // 받은 별점 평균(0~5). 평가가 없으면 null → 화면엔 '—'
   warningCount: number
   suspendedAt?: string | null
   createdAt: string

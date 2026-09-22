@@ -24,6 +24,8 @@ data class AuctionSummary(
     val imageUrls: List<String> = emptyList(),
     val sellerNickname: String? = null,
     val sellerRating: Double? = null,
+    // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
+    val sellerReviewCount: Int? = null,
     val sellerTradeCount: Int? = null,
     val productDescription: String? = null,
     val productCondition: String? = null,

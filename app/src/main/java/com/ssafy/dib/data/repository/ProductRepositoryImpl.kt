@@ -14,6 +14,7 @@ import com.ssafy.dib.domain.product.ProductUpdateResult
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.product.RegisteredProductPage
 import com.ssafy.dib.domain.product.ProductRepository
+import com.ssafy.dib.domain.product.ProductSearchFilter
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -56,8 +57,13 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
             is ApiResult.Failure -> result
         }
 
-    override fun searchProducts(query: String, categoryId: String?, cursor: String?, size: Int): ApiResult<RegisteredProductPage> =
-        when (val result = remote.searchProducts(query, categoryId, cursor, size)) {
+    override fun searchProducts(
+        query: String,
+        filter: ProductSearchFilter,
+        cursor: String?,
+        size: Int
+    ): ApiResult<RegisteredProductPage> =
+        when (val result = remote.searchProducts(query, filter, cursor, size)) {
             is ApiResult.Success -> ApiResult.Success(
                 RegisteredProductPage(
                     items = result.value.items.map(ProductCardDto::toDomain),
@@ -143,6 +149,7 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         imageUrls = imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname ?: product.nickname,
         sellerRating = sellerSummary?.rating,
+        sellerReviewCount = sellerSummary?.reviewCount,
         sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,
         moderationReason = product.moderationReason,
         moderationStage = product.moderationStage,

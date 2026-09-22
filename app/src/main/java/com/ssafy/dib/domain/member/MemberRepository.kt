@@ -12,7 +12,7 @@ data class MemberProfile(
     val birthDate: String,
     val status: String,
     val role: String,
-    val score: Double
+    val score: Double?   // 받은 별점 평균(0~5). 평가가 없으면 null
 )
 
 data class MemberProfileUpdate(val memberId: String, val nickname: String, val updatedAt: String)

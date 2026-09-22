@@ -26,7 +26,9 @@ data class OrderSummary(
     val settlement: OrderSettlementSummary? = null,
     // 신고 접수로 보류된 주문은 서버가 heldAt 을 채워준다. 구매확정·송장등록이 막힌다
     val heldAt: String? = null,
-    val holdReportId: String? = null
+    val holdReportId: String? = null,
+    // 구매자가 이 거래에 남긴 별점(0~5). null 이면 아직 평가 전
+    val myRating: Int? = null
 )
 
 fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =
@@ -95,5 +97,8 @@ interface OrderRepository {
     fun registerShipment(orderId: String, carrier: String, trackingNumber: String, idempotencyKey: String): ApiResult<OrderShipment>
     fun getMessages(orderId: String, beforeChattingId: String? = null, size: Int = 50): ApiResult<OrderMessagePage>
     fun confirmPurchase(orderId: String): ApiResult<String>
+
+    /** 구매확정된 거래에 별점(0~5)을 남긴다. 코멘트는 받지 않는다 */
+    fun writeReview(orderId: String, rating: Int): ApiResult<Unit>
     fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptance>
 }

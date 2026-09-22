@@ -22,10 +22,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Dib">
+    <!-- launchMode: 라이브 브랜치(singleTask)와 카카오 브랜치(singleTop)가 각각 추가해
+         머지에서 둘 다 남아 매니페스트가 깨졌었다. singleTask 로 통일한다 —
+         카카오 Custom Tab 이 같은 태스크 위에 올라오면 singleTop 은 MainActivity 를
+         새로 만들어서 OAuth·결제 콜백(onNewIntent)을 놓친다. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:theme="@style/Theme.Dib"

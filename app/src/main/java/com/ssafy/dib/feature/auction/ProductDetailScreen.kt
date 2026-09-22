@@ -470,10 +470,12 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, onImage
                 }
             }
         }
-        Surface(
-            color = Colors.Background.copy(alpha = .9f),
-            shape = RoundedCornerShape(8.dp),
+        // Surface 는 onClick 이 없어도 뒤로 터치를 안 넘긴다. 사진 뷰어(pager) 위에 얹혀 있어서
+        // 이 모서리에서 시작한 스와이프가 먹히지 않았다. Box 로 바꾼다
+        Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Colors.Background.copy(alpha = .9f))
         ) {
             Text(
                 "${pagerState.currentPage + 1} / $pageCount",

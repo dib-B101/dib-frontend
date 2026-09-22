@@ -1,5 +1,6 @@
 package com.ssafy.dib.feature.live
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -145,8 +146,14 @@ fun LiveBroadcastConsoleScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 시스템 뒤로가기(제스처·버튼)는 화면의 뒤로가기 버튼과 달리 onBack 을 타지 않고 백스택만 pop 한다.
+    // 그러면 방송 편성 화면으로 떨어지고 "방송 켜져 있다" 안내도 안 뜬다. 같은 경로로 모아 준다
+    BackHandler { onBack() }
+
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showEndConfirm by rememberSaveable { mutableStateOf(false) }
+    // 종료가 막혔을 때 버튼을 흐리게만 두면 왜 안 되는지 알 방법이 없다 — 눌리게 두고 사유를 띄운다
+    var showEndBlocked by rememberSaveable { mutableStateOf(false) }
     val activeAuction = auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
     val priceRequired = actionErrorCode == "AUCTION_PRICE_REQUIRED"
 
@@ -174,9 +181,11 @@ fun LiveBroadcastConsoleScreen(
                     viewerCount = viewerCount,
                     connectionState = connectionState,
                     liveEnded = liveEnded,
-                    endEnabled = !liveEnded && !actionLoading && activeAuction == null,
+                    endEnabled = !liveEnded && !actionLoading,
                     onBack = onBack,
-                    onEndRequest = { showEndConfirm = true }
+                    onEndRequest = {
+                        if (activeAuction != null) showEndBlocked = true else showEndConfirm = true
+                    }
                 )
                 HorizontalDivider(color = Colors.Border)
                 LiveBroadcastVideoPanel(
@@ -229,7 +238,7 @@ fun LiveBroadcastConsoleScreen(
     if (showEndConfirm) AlertDialog(
         onDismissRequest = { if (!actionLoading) showEndConfirm = false },
         title = { Text("방송을 종료할까요?") },
-        text = { Text("종료하면 시청자의 채팅과 입찰이 모두 닫혀요. 진행 중인 경매가 있으면 먼저 끝내야 해요.", fontSize = 13.sp) },
+        text = { Text("종료하면 시청자의 채팅과 입찰이 모두 닫혀요.", fontSize = 13.sp) },
         confirmButton = {
             TextButton(
                 onClick = { showEndConfirm = false; onEndLive() },
@@ -238,7 +247,33 @@ fun LiveBroadcastConsoleScreen(
         },
         dismissButton = { TextButton({ showEndConfirm = false }, enabled = !actionLoading) { Text("계속 방송") } }
     )
+
+    // 진행 중인 경매를 두고 방송을 끊으면 입찰자는 낙찰되고도 화면이 사라진다. 막되, 왜 막혔는지는 알려준다
+    if (showEndBlocked) AlertDialog(
+        onDismissRequest = { showEndBlocked = false },
+        title = { Text("아직 종료할 수 없어요") },
+        text = {
+            Text(
+                buildString {
+                    append("‘")
+                    append(activeAuction?.title.orEmpty().ifBlank { "진행 중인 상품" })
+                    append("’ 경매가 진행 중이에요.")
+                    activeAuction?.remainingSeconds?.takeIf { it > 0 }?.let {
+                        append(" 약 ")
+                        append(remainingLabel(it))
+                        append(" 남았어요.")
+                    }
+                    append("\n\n경매가 끝나면 방송을 종료할 수 있어요. 입찰자가 낙찰을 확인하기 전에 방송이 끊기지 않게 하려는 거예요.")
+                },
+                fontSize = 13.sp
+            )
+        },
+        confirmButton = { TextButton({ showEndBlocked = false }) { Text("알겠어요") } }
+    )
 }
+
+private fun remainingLabel(seconds: Int): String =
+    if (seconds >= 60) "${seconds / 60}분 ${seconds % 60}초" else "${seconds}초"
 
 @Composable
 private fun LiveConsoleHeader(

@@ -88,6 +88,16 @@ class OrderRemoteDataSource(private val client: DibHttpClient) {
         )
     }
 
+    // 후기는 별점만. 서버가 구매확정 상태·구매자 본인·중복 여부를 검사한다
+    fun writeReview(orderId: String, rating: Int): ApiResult<Unit> = configured {
+        val path = "${ApiRoutes.ORDERS}/$orderId/review"
+        client.executeUnit(
+            client.requestBuilder(path)
+                .post(client.jsonBody(WriteReviewRequest(rating), WriteReviewRequest.serializer()))
+                .build()
+        )
+    }
+
     fun acceptRunnerUpOffer(auctionId: String): ApiResult<OrderOfferAcceptanceResponse> = configured {
         val path = "${ApiRoutes.AUCTIONS}/$auctionId/orders/accept"
         client.execute(

@@ -36,6 +36,9 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibCreateMenuSheet
+import com.ssafy.dib.core.ui.AssistantNotice
+import com.ssafy.dib.core.ui.DibFloatingAssistant
+import com.ssafy.dib.core.ui.ReviewRatingDialog
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
@@ -111,6 +114,7 @@ import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.domain.product.ProductImageUpload
 import com.ssafy.dib.domain.product.ProductRegistration
 import com.ssafy.dib.domain.product.ProductRegistrationResult
+import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
@@ -200,7 +204,15 @@ fun AppNavHost(
     }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
 
-    suspend fun activeLiveConsoleRoute(): String? {
+    // 띱이 말풍선에 떠 있는 알림. 사용자가 처리하거나 닫을 때까지 남는다
+    var assistantNotice by remember { mutableStateOf<AssistantNotice?>(null) }
+
+    // 내가 켠 방송의 id. 화면을 강제로 바꾸는 데 쓰지 않고 우상단 표시에만 쓴다.
+    // 라이브 피드 화면 안에도 같은 뜻으로 읽히는 activeLiveBroadcastId 가 따로 있는데
+    // 그건 "지금 보고 있는 남의 방송" 이라 반대 개념이다. 섀도잉으로 헷갈리지 않게 이름을 갈라 둔다
+    var myLiveBroadcastId by remember { mutableStateOf<String?>(null) }
+
+    suspend fun fetchMyLiveBroadcastId(): String? {
         if (!auth.networkConfig.isRestConfigured) return null
         return when (val result = withContext(Dispatchers.IO) {
             auth.liveRepository.getMine(status = "LIVE", size = 10)
@@ -209,15 +221,34 @@ fun AppNavHost(
                 .firstOrNull { it.status.equals("LIVE", ignoreCase = true) }
                 ?.liveBroadcastId
                 ?.takeIf(String::isNotBlank)
-                ?.let(Screen.LiveBroadcastConsole::createRoute)
             is ApiResult.Failure -> null
         }
     }
 
-    suspend fun postSignInRoute(): String = activeLiveConsoleRoute()
-        ?: navigationPreferences.getString(LAST_AUTHENTICATED_ROUTE_KEY, null)
+    suspend fun refreshMyLiveBroadcast() {
+        myLiveBroadcastId = fetchMyLiveBroadcastId()
+    }
+
+    // 방송 중이어도 콘솔로 끌고 오지 않는다. 방송하면서 다른 화면을 보는 건 정상적인 사용이고,
+    // 놓치지 않게 하는 건 우상단 LIVE 표시(LiveBroadcastIndicator)가 맡는다
+    suspend fun postSignInRoute(): String {
+        refreshMyLiveBroadcast()
+        return navigationPreferences.getString(LAST_AUTHENTICATED_ROUTE_KEY, null)
             ?.takeIf(::isRestorableAuthenticatedRoute)
-        ?: Screen.Home.route
+            ?: Screen.Home.route
+    }
+
+    // 마지막으로 보던 화면으로 복귀시킬 때, 그 화면 하나만 백스택에 넣으면
+    // 뒤로가기 버튼이 갈 곳이 없어 아무 반응도 안 한다(navigateUp 이 false 를 돌려준다).
+    // 상품 등록처럼 깊은 화면으로 복귀하면 그 화면에 갇히는 셈이라, 홈을 밑에 깔아 준다.
+    fun navigateAfterSignIn(destination: String, clearRoute: String) {
+        navController.navigate(Screen.Home.route) {
+            popUpTo(clearRoute) { inclusive = true }
+        }
+        if (destination != Screen.Home.route) {
+            navController.navigate(destination)
+        }
+    }
 
     LaunchedEffect(currentBackStackEntry, signedIn) {
         if (signedIn == true) {
@@ -226,6 +257,16 @@ fun AppNavHost(
             }
         } else if (signedIn == false) {
             navigationPreferences.edit().remove(LAST_AUTHENTICATED_ROUTE_KEY).apply()
+        }
+    }
+
+    // 우상단 LIVE 표시의 근거 상태. 로그아웃하면 남아 있으면 안 된다
+    LaunchedEffect(signedIn) {
+        if (signedIn == true) {
+            refreshMyLiveBroadcast()
+        } else {
+            myLiveBroadcastId = null
+            assistantNotice = null
         }
     }
 
@@ -319,7 +360,15 @@ fun AppNavHost(
         notification.resourceType.uppercase() in setOf(
             "LIVE", "LIVE_BROADCAST", "AUCTION", "ORDER", "PAYMENT", "SHIPMENT",
             "DELIVERY", "SETTLEMENT", "TRANSACTION", "PRODUCT"
-        )
+        ) && notification.resourceId.isNotBlank()
+
+    // 띱이 말풍선은 "지금 당장 뭘 해야 하는" 알림만 띄운다. 나머지는 알림 목록과 뱃지로 충분하다.
+    //   OUTBID         — 몇 초 안에 다시 안 지르면 놓친다
+    //   AUCTION_WON    — 낙찰. 카드가 결제되고 배송지를 넣어야 한다 (차순위 낙찰 제안도 같은 타입)
+    //   REVIEW_REQUEST — 구매확정 직후가 평가를 받을 수 있는 유일한 순간이다. 알림함에 묻히면 아무도 안 쓴다
+    // LIVE_STARTED / BOOKMARK_STARTED / SYSTEM 은 알려주면 좋지만 놓쳐도 되는 것들이라 뺐다
+    fun deservesAssistant(notification: DomainNotification): Boolean =
+        notification.type.uppercase() in setOf("OUTBID", "AUCTION_WON", "REVIEW_REQUEST")
 
     fun mergeNotifications(first: List<DomainNotification>, second: List<DomainNotification>): List<DomainNotification> =
         (first + second).distinctBy(DomainNotification::eventId).sortedByDescending(DomainNotification::occurredAt).take(100)
@@ -330,7 +379,10 @@ fun AppNavHost(
             "AUCTION" -> navController.navigate(Screen.ProductDetail.createRoute(notification.resourceId))
             "PRODUCT" -> navController.navigate(Screen.RegisteredProducts.route)
             "SETTLEMENT" -> navController.navigate(Screen.SettlementDetail.createRoute(notification.resourceId))
-            "ORDER", "PAYMENT", "SHIPMENT", "DELIVERY", "TRANSACTION" ->
+            // 주문 알림은 이제 orderId 를 들고 온다. 거래 탭 목록이 아니라 그 주문으로 바로 간다.
+            // (평가 요청 알림이 여기로 온다 — 목록에 떨어뜨리면 어느 거래인지 다시 찾아야 한다)
+            "ORDER" -> navController.navigate(Screen.Transaction.createRoute("buyer", notification.resourceId))
+            "PAYMENT", "SHIPMENT", "DELIVERY", "TRANSACTION" ->
                 navigateMain(DibMainTab.Trades)
         }
     }
@@ -412,13 +464,9 @@ fun AppNavHost(
                 if (sessionInactivityTracker.hasExpired()) {
                     expireInactiveSession()
                 } else {
-                    coroutineScope.launch {
-                        activeLiveConsoleRoute()?.let { route ->
-                            if (currentBackStackEntry?.persistedRoute() != route) {
-                                navController.navigate(route) { launchSingleTop = true }
-                            }
-                        }
-                    }
+                    // 예전에는 여기서 콘솔로 navigate 했다. 앱을 잠깐 내렸다 올릴 때마다 보던 화면이
+                    // 방송 콘솔로 바뀌어서 뒤로 가기가 소용없었다. 이제는 표시 상태만 새로 읽는다
+                    coroutineScope.launch { refreshMyLiveBroadcast() }
                 }
             }
         }
@@ -488,16 +536,17 @@ fun AppNavHost(
                                 } else {
                                     Int.MAX_VALUE
                                 }
-                                val result = notificationSnackbar.showSnackbar(
-                                    message = listOf(notification.title, notification.body)
-                                        .filter(String::isNotBlank)
-                                        .joinToString("\n")
-                                        .ifBlank { "새 알림이 도착했어요" },
-                                    actionLabel = if (canOpenNotification(notification)) "보기" else null,
-                                    withDismissAction = true,
-                                    duration = SnackbarDuration.Long
-                                )
-                                if (result == SnackbarResult.ActionPerformed) openNotification(notification)
+                                // 스낵바로 띄우던 걸 띱이 말풍선으로 옮겼다. 스낵바는 몇 초 뒤 사라져서
+                                // 다른 걸 보고 있었으면 놓치면 끝이었다. 말풍선은 처리하거나 닫을 때까지 남는다.
+                                // 뒤 알림이 앞 알림을 덮어쓰는데, 목록에 다 남으니 여기선 최신 한 건만 보여도 된다
+                                if (deservesAssistant(notification)) {
+                                    assistantNotice = AssistantNotice(
+                                        id = notification.eventId,
+                                        title = notification.title.ifBlank { "새 알림이 도착했어요" },
+                                        body = notification.body,
+                                        actionable = canOpenNotification(notification)
+                                    )
+                                }
                             }
                         }
                     },
@@ -636,8 +685,12 @@ fun AppNavHost(
                     }
                     val destination = if (restored) postSignInRoute() else Screen.Welcome.route
                     signedIn = restored
-                    navController.navigate(destination) {
-                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    if (restored) {
+                        navigateAfterSignIn(destination, Screen.Splash.route)
+                    } else {
+                        navController.navigate(destination) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
                     }
                 }
             })
@@ -699,9 +752,7 @@ fun AppNavHost(
                             is ApiResult.Success -> {
                                 val destination = postSignInRoute()
                                 signedIn = true
-                                navController.navigate(destination) {
-                                    popUpTo(Screen.Welcome.route) { inclusive = true }
-                                }
+                                navigateAfterSignIn(destination, Screen.Welcome.route)
                             }
                             is ApiResult.Failure -> {
                                 loginError = when (result.error.code) {
@@ -1139,9 +1190,16 @@ fun AppNavHost(
                 var cursorRestarted = false
                 do {
                     when (val products = withContext(Dispatchers.IO) {
+                        // 두 경로(상품 검색 → 경매 조회)가 같은 조건을 봐야 결과가 어긋나지 않는다.
+                        // 예전엔 여기서 keyword 만 보내고 카테고리를 앱에서 걸러서, 페이지 밖의 결과가 사라졌다
                         auth.productRepository.searchProducts(
                             query = filters.query,
-                            categoryId = filters.categoryId,
+                            filter = ProductSearchFilter(
+                                categoryId = filters.categoryId,
+                                minPrice = filters.minPrice,
+                                maxPrice = filters.maxPrice,
+                                onAuctionOnly = filters.status == "ACTIVE"
+                            ),
                             cursor = cursor
                         )
                     }) {
@@ -2070,6 +2128,7 @@ fun AppNavHost(
                     if (sellerMemberId.isNotBlank()) {
                         backStackEntry.savedStateHandle["sellerNickname"] = remoteProduct?.sellerNickname ?: remoteDetail?.sellerNickname
                         backStackEntry.savedStateHandle["sellerRating"] = remoteProduct?.sellerRating ?: remoteDetail?.sellerRating
+                        backStackEntry.savedStateHandle["sellerReviewCount"] = remoteProduct?.sellerReviewCount ?: remoteDetail?.sellerReviewCount
                         backStackEntry.savedStateHandle["sellerTradeCount"] = remoteProduct?.sellerTradeCount ?: remoteDetail?.sellerTradeCount
                         navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId))
                     } else {
@@ -2339,6 +2398,9 @@ fun AppNavHost(
             var orderDetailRevision by remember(orderId) { mutableStateOf(0) }
             var confirmationLoading by remember(orderId) { mutableStateOf(false) }
             var confirmationError by remember(orderId) { mutableStateOf<String?>(null) }
+            var showReviewDialog by remember(orderId) { mutableStateOf(false) }
+            var reviewSubmitting by remember(orderId) { mutableStateOf(false) }
+            var reviewError by remember(orderId) { mutableStateOf<String?>(null) }
             var paymentLoading by remember(orderId) { mutableStateOf(false) }
             var paymentError by remember(orderId) { mutableStateOf<String?>(null) }
             var completedPayment by remember(orderId) { mutableStateOf<com.ssafy.dib.domain.payment.Payment?>(null) }
@@ -2599,6 +2661,7 @@ fun AppNavHost(
                         confirmationLoading = false
                     }
                 },
+                onOpenReview = { showReviewDialog = true },
                 onOpenChat = { navController.navigate(Screen.OrderChat.createRoute(orderId)) },
                 reportSubmitting = orderReportSubmitting,
                 reportError = orderReportError,
@@ -2633,6 +2696,42 @@ fun AppNavHost(
                     orderReportCompleted = false
                 },
                 onBack = navController::navigateUp
+            )
+
+            if (showReviewDialog) ReviewRatingDialog(
+                productTitle = remoteOrder?.title.orEmpty().ifBlank { "거래한 상품" },
+                submitting = reviewSubmitting,
+                errorMessage = reviewError,
+                onDismiss = {
+                    showReviewDialog = false
+                    reviewError = null
+                },
+                onSubmit = { rating ->
+                    reviewSubmitting = true
+                    reviewError = null
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            auth.orderRepository.writeReview(orderId, rating)
+                        }) {
+                            is ApiResult.Success -> {
+                                // 서버를 다시 부르지 않고 화면부터 바꾼다. 응답에 주문 전체가 오지 않는다
+                                remoteOrder = remoteOrder?.copy(myRating = rating)
+                                showReviewDialog = false
+                            }
+                            is ApiResult.Failure -> {
+                                reviewError = when (result.error.code) {
+                                    "REVIEW_ALREADY_WRITTEN" -> "이미 평가한 거래예요."
+                                    "REVIEW_NOT_ALLOWED" -> "구매 확정된 거래만 평가할 수 있어요."
+                                    "REVIEW_NOT_BUYER" -> "구매자만 평가할 수 있어요."
+                                    "REVIEW_RATING_INVALID" -> "별점은 0~5 사이여야 해요."
+                                    else -> result.error.message.ifBlank { "평가를 보내지 못했어요." }
+                                }
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                        reviewSubmitting = false
+                    }
+                }
             )
         }
         composable(
@@ -3429,6 +3528,7 @@ fun AppNavHost(
                                 commandKeys.complete(command)
                                 liveActionMessage = "Live 방송을 시작했어요."
                                 liveManagementRevision++
+                                myLiveBroadcastId = liveId   // 우상단 LIVE 표시 켜기
                                 navController.navigate(Screen.LiveBroadcastConsole.createRoute(liveId))
                             }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
@@ -3470,7 +3570,12 @@ fun AppNavHost(
                     liveActionMessage = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.liveRepository.end(liveId, idempotencyKey) }) {
-                            is ApiResult.Success -> { commandKeys.complete(command); liveActionMessage = "Live 방송을 종료했어요."; liveManagementRevision++ }
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                liveActionMessage = "Live 방송을 종료했어요."
+                                liveManagementRevision++
+                                if (myLiveBroadcastId == liveId) myLiveBroadcastId = null   // 우상단 LIVE 표시 끄기
+                            }
                             is ApiResult.Failure -> { liveActionError = liveControlError(result.error); if (result.error.requiresLogin) signedIn = false }
                         }
                         liveActionLoading = false
@@ -3692,6 +3797,7 @@ fun AppNavHost(
                                 commandKeys.complete(command)
                                 consoleEnded = true
                                 consoleStatus = "ENDED"
+                                if (myLiveBroadcastId == liveId) myLiveBroadcastId = null   // 우상단 LIVE 표시 끄기
                                 navController.navigateUp()
                             }
                             is ApiResult.Failure -> {
@@ -3714,7 +3820,23 @@ fun AppNavHost(
                     consoleActionError = null
                     consoleActionErrorCode = null
                 },
-                onBack = navController::navigateUp
+                // 방송 콘솔에서 뒤로 가면 홈으로 보낸다. navigateUp 이면 방송 편성 화면 같은
+                // "방송 준비" 맥락으로 돌아가는데, 방송은 이미 켜져 있어서 맞지 않는다.
+                // 대신 방송이 켜진 채라면 띱이가 그 사실을 말풍선으로 붙들고 있는다
+                onBack = {
+                    if (!consoleEnded && myLiveBroadcastId != null) {
+                        assistantNotice = AssistantNotice(
+                            id = "$HOSTING_NOTICE_PREFIX$liveId",
+                            title = "회원님이 호스팅 중인 라이브가 있어요!",
+                            body = "방송은 계속 켜져 있어요. 눌러서 방송 화면으로 돌아갈 수 있어요.",
+                            actionable = true
+                        )
+                    }
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable(
@@ -4938,6 +5060,7 @@ fun AppNavHost(
                     product?.let { detail ->
                         backStackEntry.savedStateHandle["sellerNickname"] = detail.sellerNickname
                         detail.sellerRating?.let { backStackEntry.savedStateHandle["sellerRating"] = it }
+                        detail.sellerReviewCount?.let { backStackEntry.savedStateHandle["sellerReviewCount"] = it }
                         detail.sellerTradeCount?.let { backStackEntry.savedStateHandle["sellerTradeCount"] = it }
                     }
                     navController.navigate(Screen.SellerProfile.createRoute(memberId))
@@ -5001,6 +5124,7 @@ fun AppNavHost(
             SellerProfileScreen(
                 sellerNickname = sourceState?.get<String>("sellerNickname"),
                 sellerRating = sourceState?.get<Double>("sellerRating"),
+                sellerReviewCount = sourceState?.get<Int>("sellerReviewCount"),
                 sellerTradeCount = sourceState?.get<Int>("sellerTradeCount"),
                 activeCount = sellerAuctions?.count { it.status == "ACTIVE" },
                 endedCount = sellerAuctions?.count { it.status == "ENDED" },
@@ -5167,9 +5291,44 @@ fun AppNavHost(
                 }
             )
         }
+
+        // 떠 있는 띱이. 방송 중이라는 표시와 새 알림을 둘 다 맡는다.
+        // 콘솔 화면에서는 방송 중 표시가 중복이라 알림이 있을 때만 나온다
+        DibFloatingAssistant(
+            live = signedIn == true
+                && myLiveBroadcastId != null
+                && currentBackStackEntry?.destination?.route != Screen.LiveBroadcastConsole.route,
+            notice = assistantNotice.takeIf { signedIn == true },
+            onOpenLive = {
+                myLiveBroadcastId?.let { liveId ->
+                    navController.navigate(Screen.LiveBroadcastConsole.createRoute(liveId)) {
+                        launchSingleTop = true
+                    }
+                }
+            },
+            onOpenNotice = { notice ->
+                assistantNotice = null
+                if (notice.id.startsWith(HOSTING_NOTICE_PREFIX)) {
+                    // 서버에서 온 알림이 아니라 "방송 켜 둔 채 나왔다" 를 붙들어 두는 자체 안내다
+                    notice.id.removePrefix(HOSTING_NOTICE_PREFIX).takeIf(String::isNotBlank)?.let { liveId ->
+                        navController.navigate(Screen.LiveBroadcastConsole.createRoute(liveId)) {
+                            launchSingleTop = true
+                        }
+                    }
+                } else {
+                    domainNotifications.firstOrNull { it.eventId == notice.id }
+                        ?.takeIf(::canOpenNotification)
+                        ?.let(::openNotification)
+                }
+            },
+            onDismissNotice = { assistantNotice = null },
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
     }
 }
 
+// 서버 알림이 아니라 "방송 켜 둔 채 콘솔에서 나왔다" 를 띱이가 붙들어 두는 자체 안내의 id 접두사
+private const val HOSTING_NOTICE_PREFIX = "live-hosting:"
 private const val LAST_AUTHENTICATED_ROUTE_KEY = "last_authenticated_route"
 private val ROUTE_ARGUMENT_PATTERN = Regex("\\{([^}]+)\\}")
 private val NON_RESTORABLE_AUTHENTICATED_ROUTES = setOf(
@@ -5273,7 +5432,7 @@ internal fun auctionCommandError(error: ApiFailure): String = when (error.code) 
     "INVALID_AUCTION", "LIVE_RULES_INVALID" -> "시작가와 경매 시간을 다시 확인해주세요."
     "AUCTION_PRICE_REQUIRED" -> "시작가와 경매 시간을 먼저 정해주세요."
     "AUCTION_PRICE_INVALID" -> "시작가는 1,000원 이상이어야 해요."
-    "AUCTION_SCHEDULE_INVALID" -> "경매 시간은 5분 이상이어야 해요."
+    "AUCTION_SCHEDULE_INVALID" -> "경매 시간은 5분 이상이어야 해요. (라이브 편성 상품은 30초~5분)"
     "AUCTION_NOT_RELISTABLE" -> "유찰된 경매만 다시 올릴 수 있어요."
     else -> error.message.ifBlank { "경매 요청을 처리하지 못했어요." }
 }
@@ -5293,7 +5452,7 @@ internal fun liveControlError(error: ApiFailure): String = when (error.code) {
     "LIVE_RULES_INVALID" -> "Live 경매의 시작가와 진행 시간을 확인해주세요."
     "AUCTION_PRICE_REQUIRED" -> "시작가와 경매 시간을 먼저 정해주세요."
     "AUCTION_PRICE_INVALID" -> "시작가는 1,000원 이상이어야 해요."
-    "AUCTION_SCHEDULE_INVALID" -> "경매 시간은 5분 이상이어야 해요."
+    "AUCTION_SCHEDULE_INVALID" -> "라이브 경매 시간은 30초~5분이어야 해요."
     "AUCTION_NOT_ACTIVE" -> "선택한 경매를 시작할 수 있는 상태가 아니에요."
     "NOT_BROADCASTER" -> "이 방송을 관리할 권한이 없어요."
     else -> error.message.ifBlank { "Live 요청을 처리하지 못했어요." }
