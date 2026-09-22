@@ -97,7 +97,7 @@ private fun StartConfirmationContent(
     Column(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("시작가와 시간을 정하고\n경매를 시작할까요?", color = Colors.Text, fontSize = 25.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
         Text(
-            moderationStatusLabel(product.status),
+            productModerationStatusLabel(product.status, product.moderationStage, product.moderatedAt),
             color = if (approved) Colors.MintInk else Colors.Urgent,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
@@ -203,15 +203,6 @@ internal fun isScheduledAuctionReady(
     auctionStatus?.uppercase() == "SCHEDULED" &&
     (startPrice ?: 0L) >= 1_000L &&
     (auctionTimeSeconds ?: 0L) >= 300L
-
-internal fun moderationStatusLabel(status: String): String = when (status.uppercase()) {
-    "REGISTERED", "APPROVED" -> "AI 검수 승인 완료"
-    "PENDING", "PENDING_REVIEW" -> "AI 검수 중"
-    "REJECTED", "REVIEW_REJECTED" -> "AI 검수 거절"
-    "ON_AUCTION" -> "이미 경매가 진행 중"
-    "SOLD" -> "판매 완료"
-    else -> status.ifBlank { "검수 상태 확인 필요" }
-}
 
 internal fun formatAuctionDuration(seconds: Long): String = when {
     seconds % 3_600L == 0L -> "${seconds / 3_600L}시간"

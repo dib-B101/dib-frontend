@@ -101,7 +101,9 @@ data class RegisteredProduct(
     val currentPrice: Long? = null,
     val auctionTimeSeconds: Long? = null,
     val auctionStatus: String? = null,
-    val bidCount: Int? = null
+    val bidCount: Int? = null,
+    val moderationStage: String? = null,
+    val moderatedAt: String? = null
 )
 
 data class RegisteredProductPage(

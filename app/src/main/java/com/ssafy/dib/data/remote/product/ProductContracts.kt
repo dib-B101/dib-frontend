@@ -112,7 +112,9 @@ data class ProductCardDto(
     val auctionTime: Long? = null,
     val auctionStatus: String? = null,
     val bidCount: Int? = null,
-    val bidderCount: Int? = null
+    val bidderCount: Int? = null,
+    val moderationStage: String? = null,
+    val moderatedAt: String? = null
 )
 
 @Serializable

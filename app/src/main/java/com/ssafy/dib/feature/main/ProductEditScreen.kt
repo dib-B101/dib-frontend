@@ -29,6 +29,7 @@ import com.ssafy.dib.domain.product.ProductUpdate
 import com.ssafy.dib.domain.product.ProductUpdateResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.feature.auction.productModerationStatusLabel
 
 @Composable
 fun ProductEditScreen(
@@ -133,7 +134,12 @@ private fun ProductEditForm(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(if (rejected) "등록 거절" else "검수 중", color = if (rejected) Colors.Urgent else Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    productModerationStatusLabel(moderationStatus, detail.moderationStage, detail.moderatedAt),
+                    color = if (rejected) Colors.Urgent else Colors.Navy,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     detail.moderationReason?.takeIf(String::isNotBlank)
                         ?: if (rejected) "거절 사유가 전달되지 않았어요. 내용을 수정한 뒤 다시 검수를 받아주세요."
@@ -171,7 +177,23 @@ private fun ProductEditForm(
         item { EditField("상품명", title, { title = it }, KeyboardType.Text) }
         item { EditField("상품 설명", description, { description = it }, KeyboardType.Text, singleLine = false) }
         item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name ?: "카테고리 선택") } }
-        item { Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("GOOD" to "좋음", "NORMAL" to "보통", "BAD" to "사용감 있음").forEach { (value, label) -> FilterChip(condition == value, { condition = value }, { Text(label) }) } } }
+        item {
+            Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "GOOD" to "상 · 사용감 적음",
+                    "NORMAL" to "중 · 일반 사용감",
+                    "BAD" to "하 · 하자 있음"
+                ).forEach { (value, label) ->
+                    FilterChip(
+                        selected = condition == value,
+                        onClick = { condition = value },
+                        label = { Text(label, fontSize = 10.sp, lineHeight = 13.sp) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
         item { EditField("모델명 (선택)", modelName, { modelName = it }, KeyboardType.Text) }
         item { EditField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
         if (auctionEditable) {
