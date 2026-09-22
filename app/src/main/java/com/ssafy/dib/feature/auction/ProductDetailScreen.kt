@@ -3,6 +3,7 @@ package com.ssafy.dib.feature.auction
 import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -258,7 +259,7 @@ fun ProductDetailScreen(
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
-            realtimeStatus?.let { status ->
+            realtimeStatus?.takeUnless { it == "실시간 연결됨" }?.let { status ->
                 item {
                     Text(
                         "● $status",
@@ -285,6 +286,16 @@ fun ProductDetailScreen(
             }
             item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
             item {
+                ProductInformation(
+                    productName = productName,
+                    category = product.category,
+                    auction = product,
+                    detail = productDetail,
+                    canReport = !isOwnAuction,
+                    onReport = onReportClick
+                )
+            }
+            item {
                 AuctionBidHistorySection(
                     items = bidHistory,
                     isLoading = bidHistoryLoading,
@@ -296,16 +307,6 @@ fun ProductDetailScreen(
             }
             item {
                 SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
-            }
-            item {
-                ProductInformation(
-                    productName = productName,
-                    category = product.category,
-                    auction = product,
-                    detail = productDetail,
-                    canReport = !isOwnAuction,
-                    onReport = onReportClick
-                )
             }
             if (similarProductsLoading || similarProductsError != null || !similarProducts.isNullOrEmpty()) {
                 item {
@@ -370,7 +371,7 @@ private fun SimilarProductsSection(
         if (products.isNotEmpty()) {
             LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(products, key = { it.productId }) { product ->
-                    Column(Modifier.width(144.dp).clickable { onProductClick(product.productId) }) {
+                    Column(Modifier.width(144.dp).clickable { product.auctionId?.let(onProductClick) }) {
                         DibNetworkImage(product.thumbnailUrl, product.title, Modifier.fillMaxWidth().height(144.dp))
                         Text(product.title, Modifier.padding(top = 8.dp), maxLines = 2, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
                         Text(productConditionLabelForCard(product.condition), color = Colors.Muted, fontSize = 10.sp)
@@ -581,9 +582,6 @@ private fun ProductSummary(
                 Modifier.weight(1f)
             )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${bidCount}회 입찰", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-        }
         if (state == DetailAuctionState.Active) {
             Row(Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -662,8 +660,8 @@ private fun ProductInformation(
         ?: auction.productModelName?.takeIf(String::isNotBlank)
     val releaseYear = detail?.releaseYear ?: auction.productReleaseYear
     val marketPrice = detail?.marketPrice ?: auction.productMarketPrice
-    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Badge("안전배송")
@@ -671,7 +669,7 @@ private fun ProductInformation(
             }
         }
         InfoBlock("상품 설명", description)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("상품 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Colors.Border)) {
                 InfoRow("상품 상태", conditionLabel(condition))
@@ -684,8 +682,8 @@ private fun ProductInformation(
         }
         Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("입찰 전, 확인해주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 최소 입찰가 이상을 10원 단위로 입력해요\n• 입찰 후에는 취소할 수 없어요\n• 종료 30초 이내 새 입찰 시 15초 연장돼요\n• 낙찰 직후 등록된 카드로 낙찰가 전액을 자동결제해요\n• 카드 미등록·승인 실패 시 거래 상세에서 재결제할 수 있어요",
+            Text("입찰 전에 확인해 주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            Text("• 최소 입찰가 이상을 10원 단위로 입력해 주세요.\n• 입찰한 금액은 취소할 수 없어요.\n• 종료 30초 이내에 새 입찰이 들어오면 경매가 15초 연장돼요.\n• 낙찰되면 등록된 카드로 낙찰가 전액이 자동 결제돼요.\n• 결제가 실패하면 거래 상세에서 다시 결제할 수 있어요.",
                 color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
         if (canReport) {
@@ -717,7 +715,7 @@ private fun InfoRow(label: String, value: String) {
 
 @Composable
 private fun InfoBlock(title: String, body: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
         Text(body, color = Colors.Muted, fontSize = 14.sp, lineHeight = 22.sp)
     }
@@ -843,10 +841,6 @@ private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, subm
                         Text("+%,d원".format(increment), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { amountText = (amount - 10).coerceAtLeast(minimum).toString() }, modifier = Modifier.weight(1f)) { Text("−10원") }
-                OutlinedButton(onClick = { amountText = (amount.toLong() + 10).coerceAtMost(999_999_999).toString() }, modifier = Modifier.weight(1f)) { Text("+10원") }
             }
             Text("입찰 후에는 취소할 수 없고, 낙찰되면 등록된 카드로 자동결제돼요.\n종료 30초 이내 새 입찰 시 경매가 15초 연장돼요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
             Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),

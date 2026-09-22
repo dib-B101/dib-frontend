@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,6 +85,7 @@ fun CategoryScreen(
 ) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
+    val auctionGridState = rememberLazyGridState()
     val visibleCategories = remoteCategories?.takeIf { it.isNotEmpty() }?.mapIndexed { index, category ->
         val style = categoryStyle(category.name, index)
         CategoryItem(category.categoryId, style.icon, category.name, style.tint, style.surface)
@@ -106,7 +109,7 @@ fun CategoryScreen(
                     Text("카테고리", Modifier.weight(1f), color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
                 IconButton(onClick = onNotificationsClick) {
-                    Image(painterResource(R.drawable.notification), "알림", Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Text))
+                    Image(painterResource(R.drawable.notification_vector), "알림", Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Text))
                 }
             }
             HorizontalDivider(color = Colors.Border)
@@ -182,6 +185,7 @@ fun CategoryScreen(
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
+                    state = auctionGridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -192,7 +196,7 @@ fun CategoryScreen(
                             Modifier.background(Colors.Background, RoundedCornerShape(14.dp)).clickable { onProductClick(auction.id) }.padding(bottom = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().height(132.dp))
+                            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().aspectRatio(1.05f))
                             Text(auction.name, Modifier.padding(horizontal = 10.dp), color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                             Text("${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음", Modifier.padding(horizontal = 10.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }

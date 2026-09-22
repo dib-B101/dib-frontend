@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -297,7 +298,7 @@ fun FavoriteAuctionsScreen(
                 LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(favorites, key = HomeAuction::id) { auction ->
                         Column(Modifier.clickable { onProductClick(auction.id) }) {
-                            Box(Modifier.fillMaxWidth().height(122.dp).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
+                            Box(Modifier.fillMaxWidth().aspectRatio(1.05f).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
                                 DibNetworkImage(auction.imageUrls.firstOrNull(), auction.name, Modifier.fillMaxSize())
                                 DibWishlistButton(
                                     selected = true,
@@ -496,7 +497,6 @@ private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modi
                         Text(reportStatusLabel(report.status), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("신고 상세 내용을 확인하고 있어요", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         item {
@@ -511,7 +511,7 @@ private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modi
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("처리 현황", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    if (report.status.equals("PENDING", true)) "신고 내용을 검토하고 있어요" else "신고 처리가 완료됐어요",
+                    if (report.status.equals("PENDING", true)) "접수한 신고를 검토 중이에요" else "신고 처리가 완료됐어요",
                     color = Colors.Navy,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
@@ -533,7 +533,7 @@ private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modi
 }
 
 @Composable
-private fun dialogFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun dialogFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Colors.Navy,
     unfocusedBorderColor = Colors.Border,
     focusedLabelColor = Colors.Navy,

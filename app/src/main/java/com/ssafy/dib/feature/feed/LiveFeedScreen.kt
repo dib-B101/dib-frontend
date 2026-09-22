@@ -132,6 +132,8 @@ fun LiveFeedScreen(
     if (immersive) {
         LiveFeedPager(
             remoteItems = remoteItems,
+            isRefreshing = isLoading,
+            onRefresh = onRefresh,
             hasNextPage = hasNextPage,
             isLoadingMore = isLoadingMore,
             loadMoreError = loadMoreError,
@@ -174,7 +176,7 @@ fun LiveFeedScreen(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Color(0xFF17212D),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = { DibBottomNavigation(DibMainTab.Feed, onTabSelected) }
@@ -243,6 +245,8 @@ private fun LiveFeedMessage(
 @Composable
 private fun LiveFeedPager(
     remoteItems: List<LiveFeedItem>?,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     hasNextPage: Boolean,
     isLoadingMore: Boolean,
     loadMoreError: String?,
@@ -290,7 +294,7 @@ private fun LiveFeedPager(
                     onLoadMore()
                 }
             }
-            Box(modifier.fillMaxSize()) {
+            PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
                 VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
                     LiveFeedPage(
                     liveItem = items[page],
