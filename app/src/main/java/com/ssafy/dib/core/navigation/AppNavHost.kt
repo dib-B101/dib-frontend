@@ -161,6 +161,15 @@ fun AppNavHost(
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
+    // 피드 갱신 신호. 원래는 피드 화면 안에 있어서 **바깥 사건이 건드릴 수 없었다.**
+    // 탭을 다시 누르거나 앱을 다시 켰을 때 새로 시작한 라이브를 발견할 방법이 없던
+    // 이유가 이것이다 (QA #19). 홈(auctionsRevision)과 같은 자리에 두어 두 탭이
+    // 같은 방식으로 갱신되게 한다.
+    var liveFeedRevision by remember { mutableStateOf(0) }
+    // 같은 탭을 다시 눌렀다는 신호. 값이 바뀌면 각 탭 화면이 목록을 맨 위로 올린다 (QA #21 · #23).
+    var tabReselectSignal by remember { mutableStateOf(0) }
+    // 마지막으로 탭을 갱신한 시각. 탭을 빠르게 오갈 때 요청이 폭주하지 않게 막는다.
+    var lastTabRefreshedAt by remember { mutableStateOf(0L) }
     var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
     var saleOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
     var purchaseOrdersCursor by remember { mutableStateOf<String?>(null) }
@@ -280,6 +289,34 @@ fun AppNavHost(
         }
     }
 
+    /**
+     * 지금 보고 있는 탭의 목록만 다시 읽는다.
+     *
+     * 주기적 폴링은 쓰지 않는다. 라이브는 하루에 몇 번 열리지 않는데 폴링은 배터리와
+     * 서버를 계속 쓴다. 대신 **사용자가 "지금 보겠다" 고 표시한 순간** — 탭을 다시 누르거나
+     * 앱으로 돌아온 순간 — 에만 갱신한다.
+     *
+     * `force` 가 아니면 최소 간격을 둔다. 탭을 빠르게 오가는 동안 요청이 쌓이지 않게 하는
+     * 최소한의 장치이며, 캐시 계층을 따로 만들지는 않는다.
+     */
+    fun refreshCurrentTab(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        // 3초. 사람이 의도적으로 다시 누르는 간격보다는 짧고, 오가는 동안 중복으로
+        // 나가는 요청은 막을 만한 값이다.
+        if (!force && now - lastTabRefreshedAt < 3_000L) return
+        when (navController.currentDestination?.route) {
+            Screen.Home.route -> {
+                lastTabRefreshedAt = now
+                auctionsRevision++
+            }
+            Screen.Feed.route -> {
+                lastTabRefreshedAt = now
+                liveFeedRevision++
+            }
+            else -> Unit
+        }
+    }
+
     fun navigateMain(tab: DibMainTab) {
         if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
             navController.navigate(Screen.Login.route)
@@ -297,10 +334,26 @@ fun AppNavHost(
             DibMainTab.Trades -> Screen.Trades.route
             DibMainTab.My -> Screen.My.route
         }
+        // 이미 그 탭 루트에 서 있으면 "이동" 이 아니라 "다시 누른" 것이다.
+        // 안드로이드 표준 동작대로 맨 위로 올리고 목록을 갱신한다 (QA #21 · #23).
+        // 예전에는 launchSingleTop 때문에 아무 일도 일어나지 않았다.
+        if (navController.currentDestination?.route == route) {
+            tabReselectSignal++
+            refreshCurrentTab()
+            return
+        }
         navController.navigate(route) {
-            if (tab != DibMainTab.Register) popUpTo(Screen.Home.route) { saveState = true }
+            // 탭 루트까지 되감고 **복원하지 않는다.**
+            //
+            // 예전에는 saveState/restoreState 를 켜 두어, 홈 탭을 눌러도 저장해 둔
+            // 하위 화면(상세 등)이 같이 되살아났다 (QA #21). 탭은 언제 눌러도 그 탭의
+            // 루트에서 시작하는 편이 예측 가능하다. 하위 화면으로는 뒤로가기가 아니라
+            // 목록에서 다시 들어가면 된다.
+            //
+            // 되감는 기준이 Home 인 것은 이 그래프가 탭별 중첩 그래프가 아니라 평면이고,
+            // Home 이 탭들의 공통 바닥이기 때문이다.
+            popUpTo(Screen.Home.route)
             launchSingleTop = true
-            restoreState = tab != DibMainTab.Register
         }
     }
 
@@ -456,6 +509,17 @@ fun AppNavHost(
         } else if (signedIn == false) {
             sessionInactivityTracker.endSession()
         }
+    }
+
+    // 앱을 내려둔 사이에 라이브가 새로 시작됐을 수 있다. 돌아온 순간 **보고 있는 탭만**
+    // 다시 읽는다 (QA #19 · #20). 로그인 여부와 무관하게 필요한 갱신이라 아래 세션
+    // 감시 옵저버와 섞지 않고 따로 둔다.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshCurrentTab()
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
     }
 
     DisposableEffect(signedIn, lifecycleOwner, currentBackStackEntry) {
@@ -1079,7 +1143,8 @@ fun AppNavHost(
                 },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
-                onTabSelected = ::navigateMain
+                onTabSelected = ::navigateMain,
+                tabReselectSignal = tabReselectSignal
             )
         }
         composable(Screen.Categories.route) {
@@ -1433,7 +1498,8 @@ fun AppNavHost(
             var liveFeedItems by remember { mutableStateOf<List<com.ssafy.dib.domain.live.LiveFeedItem>?>(null) }
             var liveFeedLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured && !previewMode) }
             var liveFeedError by remember { mutableStateOf<String?>(null) }
-            var liveFeedRevision by remember { mutableStateOf(0) }
+            // liveFeedRevision 은 바깥(AppNavHost 상단)으로 옮겼다. 여기에 두면 탭 재선택·
+            // 포그라운드 복귀 같은 화면 밖 사건이 갱신을 걸 수 없다 (QA #19).
             var liveFeedNextCursor by remember { mutableStateOf<String?>(null) }
             var liveFeedHasNext by remember { mutableStateOf(false) }
             var liveFeedLoadingMore by remember { mutableStateOf(false) }
@@ -1856,7 +1922,10 @@ fun AppNavHost(
                 onDismissReport = {
                     liveReportError = null
                     liveReportCompleted = false
-                }
+                },
+                // 당겨서 새로고침은 사용자가 직접 요구한 갱신이라 최소 간격을 두지 않는다.
+                onRefresh = { liveFeedRevision++ },
+                onTabSelected = ::navigateMain
             )
         }
         composable(

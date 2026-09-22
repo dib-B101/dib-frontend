@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -56,6 +57,8 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.AuctionUrgencyBadge
+import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.feature.live.LiveVideoRole
 import com.ssafy.dib.feature.live.LiveVideoState
 import com.ssafy.dib.feature.live.LiveVideoSurface
@@ -107,22 +110,180 @@ fun LiveFeedScreen(
     onReportAuction: (String, String) -> Unit,
     onReportParticipant: (String, String, String) -> Unit,
     onDismissReport: () -> Unit,
+    onRefresh: () -> Unit,
+    onTabSelected: (DibMainTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    when {
-        isLoading -> Box(modifier.fillMaxSize().background(Color(0xFF17212D)), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Mint) }
-        errorMessage != null -> Column(modifier.fillMaxSize().background(Color(0xFF17212D)), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(errorMessage, color = Color.White)
-            OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기", color = Color.White) }
-            TextButton(onClick = onClose) { Text("닫기", color = Color.White) }
+    // 라이브를 실제로 보고 있을 때만 몰입 모드(전체 화면)로 둔다.
+    //
+    // 예전에는 피드 탭 전체가 몰입 모드였다. 그래서 방송이 하나도 없을 때도 하단 내비가
+    // 없어 **다른 탭으로 갈 방법이 '홈으로' 버튼 하나뿐**이었다 (QA #22).
+    // 화면을 가릴 이유는 재생 중인 영상이 있을 때뿐이므로, 나머지 상태에서는 하단 내비를 둔다.
+    //
+    // `null` 은 "아직 서버를 안 붙였다"(프리뷰·데모)라서 예전처럼 표본 페이지를 보여준다.
+    // 빈 목록(`emptyList`)과 뜻이 다르므로 함께 묶지 않는다.
+    //
+    // 첫 조회 중에는 아직 보여줄 것이 없으니 표본으로 넘어가지 않는다. 반대로 이미 목록을
+    // 받아 둔 상태의 재조회는 당겨서 새로고침의 인디케이터로 보이면 되므로 화면을 가리지 않는다.
+    val isFirstLoad = isLoading && remoteItems == null
+    val immersive = !isFirstLoad && errorMessage == null &&
+        (remoteItems == null || remoteItems.isNotEmpty())
+
+    if (immersive) {
+        LiveFeedPager(
+            remoteItems = remoteItems,
+            hasNextPage = hasNextPage,
+            isLoadingMore = isLoadingMore,
+            loadMoreError = loadMoreError,
+            onLoadMore = onLoadMore,
+            activeLiveBroadcastId = activeLiveBroadcastId,
+            streamTokenProvider = streamTokenProvider,
+            liveComments = liveComments,
+            chatHasMore = chatHasMore,
+            chatLoadingEarlier = chatLoadingEarlier,
+            chatLoadEarlierError = chatLoadEarlierError,
+            liveAuctionsByBroadcast = liveAuctionsByBroadcast,
+            productListLoading = productListLoading,
+            productListError = productListError,
+            reportSubmitting = reportSubmitting,
+            reportError = reportError,
+            reportCompleted = reportCompleted,
+            favoriteError = favoriteError,
+            favoriteUpdatingAuctionIds = favoriteUpdatingAuctionIds,
+            chatError = chatError,
+            chatConnectionState = chatConnectionState,
+            onLiveVisible = onLiveVisible,
+            onLoadEarlierComments = onLoadEarlierComments,
+            onSendComment = onSendComment,
+            isAuthenticated = isAuthenticated,
+            currentMemberId = currentMemberId,
+            realtimeBiddingEnabled = realtimeBiddingEnabled,
+            realtimeBidFeedback = realtimeBidFeedback,
+            onRealtimeBid = onRealtimeBid,
+            onClose = onClose,
+            onProductClick = onProductClick,
+            onFavoriteChange = onFavoriteChange,
+            onDismissFavoriteError = onDismissFavoriteError,
+            onLoginRequired = onLoginRequired,
+            onReportAuction = onReportAuction,
+            onReportParticipant = onReportParticipant,
+            onDismissReport = onDismissReport,
+            modifier = modifier
+        )
+        return
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = Color(0xFF17212D),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = { DibBottomNavigation(DibMainTab.Feed, onTabSelected) }
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                isFirstLoad -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Mint) }
+                errorMessage != null -> LiveFeedMessage(
+                    isRefreshing = isLoading,
+                    onRefresh = onRefresh
+                ) {
+                    Text(errorMessage, color = Color.White)
+                    OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기", color = Color.White) }
+                }
+                // 방송이 없는 것은 오류가 아니다. 당겨서 새로고침으로 **판매자가 방금 시작한
+                // 방송을 직접 확인**할 수 있게 한다 (QA #19).
+                else -> LiveFeedMessage(
+                    isRefreshing = isLoading,
+                    onRefresh = onRefresh
+                ) {
+                    Text("현재 방송 중인 Live가 없어요.", color = Color.White)
+                    Text(
+                        "아래로 당기면 새로고침돼요.",
+                        color = Color.White.copy(alpha = .6f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
         }
-        remoteItems?.isEmpty() == true -> Column(modifier.fillMaxSize().background(Color(0xFF17212D)), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text("현재 방송 중인 Live가 없어요.", color = Color.White)
-            TextButton(onClick = onClose) { Text("홈으로", color = Colors.Mint) }
+    }
+}
+
+/**
+ * 피드의 안내 화면(오류 · 방송 없음) 공통 틀.
+ *
+ * 당겨서 새로고침이 동작하려면 안쪽에 스크롤 가능한 것이 있어야 한다. 화면을 가득 채우는
+ * 항목 하나짜리 `LazyColumn` 을 쓰는 이유가 그것이다 — 내용이 짧아도 제스처가 잡힌다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LiveFeedMessage(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Column(
+                    Modifier.fillParentMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    content = content
+                )
+            }
         }
-        else -> {
-            val items = remoteItems ?: listOf(null)
-            val pagerState = rememberPagerState(pageCount = items::size)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LiveFeedPager(
+    remoteItems: List<LiveFeedItem>?,
+    hasNextPage: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+    onLoadMore: () -> Unit,
+    activeLiveBroadcastId: String?,
+    streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
+    liveComments: List<LiveChatMessage>,
+    chatHasMore: Boolean,
+    chatLoadingEarlier: Boolean,
+    chatLoadEarlierError: String?,
+    liveAuctionsByBroadcast: Map<String, List<AuctionSummary>>,
+    productListLoading: Boolean,
+    productListError: String?,
+    reportSubmitting: Boolean,
+    reportError: String?,
+    reportCompleted: Boolean,
+    favoriteError: String?,
+    favoriteUpdatingAuctionIds: Set<String>,
+    chatError: String?,
+    chatConnectionState: RealtimeConnectionState?,
+    onLiveVisible: (String) -> Unit,
+    onLoadEarlierComments: () -> Unit,
+    onSendComment: (String) -> Boolean,
+    isAuthenticated: Boolean,
+    currentMemberId: String?,
+    realtimeBiddingEnabled: Boolean,
+    realtimeBidFeedback: RealtimeBidFeedback?,
+    onRealtimeBid: (String, Int) -> Boolean,
+    onClose: () -> Unit,
+    onProductClick: (String) -> Unit,
+    onFavoriteChange: (String, Boolean) -> Unit,
+    onDismissFavoriteError: () -> Unit,
+    onLoginRequired: () -> Unit,
+    onReportAuction: (String, String) -> Unit,
+    onReportParticipant: (String, String, String) -> Unit,
+    onDismissReport: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // null 이면 표본 한 장. 기존 동작을 그대로 옮긴 것이다.
+    val items = remoteItems ?: listOf(null)
+    val pagerState = rememberPagerState(pageCount = items::size)
             LaunchedEffect(pagerState.currentPage, remoteItems, hasNextPage, isLoadingMore, loadMoreError) {
                 items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
                 if (remoteItems != null && hasNextPage && !isLoadingMore && loadMoreError == null && pagerState.currentPage >= items.lastIndex - 1) {
@@ -174,8 +335,6 @@ fun LiveFeedScreen(
                     }
                 }
             }
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
