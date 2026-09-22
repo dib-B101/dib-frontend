@@ -155,7 +155,11 @@ fun LiveBroadcastConsoleScreen(
     // 종료가 막혔을 때 버튼을 흐리게만 두면 왜 안 되는지 알 방법이 없다 — 눌리게 두고 사유를 띄운다
     var showEndBlocked by rememberSaveable { mutableStateOf(false) }
     val activeAuction = auctions.firstOrNull { it.status.equals("ACTIVE", ignoreCase = true) }
+    // 차단 다이얼로그도 같은 절대 시각 기준 카운트다운을 써야 "약 2분"이 카드 타이머와 같이 움직인다
+    val activeRemaining = rememberLiveCountdown(activeAuction?.auctionId, activeAuction?.remainingSeconds ?: 0, activeAuction?.endedAt, running = activeAuction != null)
     val priceRequired = actionErrorCode == "AUCTION_PRICE_REQUIRED"
+    // 경매가 끝나 진행 중 상품이 사라지면 차단 사유도 사라진다
+    LaunchedEffect(activeAuction?.auctionId) { if (activeAuction == null) showEndBlocked = false }
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
@@ -258,7 +262,7 @@ fun LiveBroadcastConsoleScreen(
                     append("‘")
                     append(activeAuction?.title.orEmpty().ifBlank { "진행 중인 상품" })
                     append("’ 경매가 진행 중이에요.")
-                    activeAuction?.remainingSeconds?.takeIf { it > 0 }?.let {
+                    activeRemaining.takeIf { it > 0 }?.let {
                         append(" 약 ")
                         append(remainingLabel(it))
                         append(" 남았어요.")
@@ -539,7 +543,7 @@ private fun LiveConsoleProductRow(
     onStartAuction: (String) -> Unit
 ) {
     val active = auction.status.equals("ACTIVE", ignoreCase = true)
-    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, active)
+    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, auction.endedAt, active)
     Column(
         Modifier.fillMaxWidth()
             .background(Color.White, RoundedCornerShape(14.dp))
@@ -586,16 +590,36 @@ private fun LiveConsoleProductRow(
     }
 }
 
-/** 남은 시간은 서버 값으로 맞추고, 진행 중일 때만 1초마다 줄인다. */
+/** 서버 시각 문자열을 Instant 로 복구한다. core/time 의 포맷터와 같은 순서(Instant → OffsetDateTime → LocalDateTime)를 따른다. */
+internal fun parseLiveInstant(value: String?): java.time.Instant? = value?.takeIf(String::isNotBlank)?.let { raw ->
+    runCatching { java.time.Instant.parse(raw) }
+        .recoverCatching { java.time.OffsetDateTime.parse(raw).toInstant() }
+        .recoverCatching { java.time.LocalDateTime.parse(raw).atZone(java.time.ZoneId.systemDefault()).toInstant() }
+        .getOrNull()
+}
+
+internal fun remainingSecondsUntil(endedAt: String?, now: java.time.Instant = java.time.Instant.now()): Int? =
+    parseLiveInstant(endedAt)?.let { java.time.Duration.between(now, it).seconds.coerceIn(0, Int.MAX_VALUE.toLong()).toInt() }
+
+/**
+ * 남은 시간은 종료 절대 시각(endedAt) 기준으로 매 틱 다시 계산한다.
+ * 정수 초를 그대로 들고 있으면 채팅 탭으로 갔다가 돌아왔을 때 컴포지션이 그 정수부터 다시 세기 시작해
+ * 카운트다운이 과거 값으로 되감긴다 — endedAt 이 있으면 그 문제 자체가 생기지 않는다.
+ * endedAt 이 없거나 파싱에 실패하면 기존 정수 카운트다운으로 폴백한다.
+ */
 @Composable
-internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, running: Boolean): Int {
-    var remaining by remember(key) { mutableIntStateOf(remainingSeconds) }
-    LaunchedEffect(key, remainingSeconds, running) {
-        remaining = remainingSeconds
+internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, endedAt: String?, running: Boolean): Int {
+    val endInstant = remember(endedAt) { parseLiveInstant(endedAt) }
+    var remaining by remember(key) {
+        mutableIntStateOf(endInstant?.let { remainingSecondsUntil(endedAt) } ?: remainingSeconds)
+    }
+    LaunchedEffect(key, remainingSeconds, endedAt, running) {
+        // (재)컴포지션 시점에도 즉시 다시 계산해야 탭을 벗어났다 돌아온 순간의 값이 정확하다
+        remaining = endInstant?.let { remainingSecondsUntil(endedAt) } ?: remainingSeconds
         if (!running) return@LaunchedEffect
         while (remaining > 0) {
             delay(1_000)
-            remaining--
+            remaining = endInstant?.let { remainingSecondsUntil(endedAt) } ?: (remaining - 1)
         }
     }
     return remaining

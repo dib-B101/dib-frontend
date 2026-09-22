@@ -265,6 +265,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         bidCount = bidCount.coerceAtLeast(0),
         auctionTimeSeconds = (auctionTime ?: 0L).coerceAtLeast(0),
         remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        endedAt = scheduledEndAt ?: endedAt,
         status = status,
         bookmarked = bookmarked,
         isHighestBidder = myBid?.isHighestBidder,

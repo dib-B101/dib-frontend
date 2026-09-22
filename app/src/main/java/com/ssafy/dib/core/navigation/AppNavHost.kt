@@ -3681,6 +3681,8 @@ fun AppNavHost(
                                             currentPrice = update.currentPrice ?: auction.currentPrice,
                                             bidCount = update.bidCount ?: auction.bidCount,
                                             remainingSeconds = update.remainingSeconds ?: auction.remainingSeconds,
+                                            // 절대 종료 시각을 갱신해야 채팅 탭을 왔다갔다 해도 카운트다운이 되감기지 않는다
+                                            endedAt = update.endedAt ?: auction.endedAt,
                                             status = update.status ?: auction.status
                                         )
                                     }
@@ -3748,7 +3750,14 @@ fun AppNavHost(
                 onStartAuction = startConsoleAuction@ { auctionId ->
                     if (previewMode) {
                         consoleAuctions = consoleAuctions.map { auction ->
-                            if (auction.auctionId == auctionId) auction.copy(status = "ACTIVE", remainingSeconds = 300) else auction
+                            if (auction.auctionId == auctionId) {
+                                // 미리보기도 새 카운트다운 로직(종료 절대 시각 기준)을 타도록 endedAt 을 채운다
+                                auction.copy(
+                                    status = "ACTIVE",
+                                    remainingSeconds = 300,
+                                    endedAt = java.time.Instant.now().plusSeconds(300).toString()
+                                )
+                            } else auction
                         }
                         consoleActionMessage = "개발 미리보기 상품 경매를 시작했어요."
                         return@startConsoleAuction
@@ -3927,6 +3936,8 @@ fun AppNavHost(
                                         currentPrice = update.currentPrice ?: current.currentPrice,
                                         bidCount = update.bidCount ?: current.bidCount,
                                         remainingSeconds = update.remainingSeconds ?: current.remainingSeconds,
+                                        // 절대 종료 시각을 갱신해야 탭 전환 뒤에도 카운트다운이 정확하다
+                                        endedAt = update.endedAt ?: current.endedAt,
                                         status = update.status ?: current.status,
                                         isHighestBidder = when {
                                             update.isHighestBidder != null -> update.isHighestBidder

@@ -50,6 +50,7 @@ class LiveSocketEventParserTest {
         assertEquals("필름 카메라", update.title)
         assertEquals(42_000, update.currentPrice)
         assertEquals(30, update.remainingSeconds)
+        assertEquals("2026-09-14T09:01:00Z", update.endedAt)
         assertEquals(21, update.viewerCount)
         assertEquals(true, update.isHighestBidder)
         assertEquals("https://stream.example/live.m3u8", update.streamUrl)
@@ -93,6 +94,26 @@ class LiveSocketEventParserTest {
         assertEquals("31", update.auctionId)
         assertEquals(30, update.remainingSeconds)
         assertEquals("ACTIVE", update.status)
+    }
+
+    @Test
+    fun `status updated carries endedAt so console countdown does not restart on tab switch`() {
+        val update = parser.parse(
+            SocketEnvelope(
+                eventType = SocketEventTypes.LIVE_AUCTION_STATUS_UPDATED,
+                payload = buildJsonObject {
+                    put("liveBroadcastId", "live-1")
+                    put("auctionId", 31)
+                    put("currentPrice", 45_000)
+                    put("bidCount", 8)
+                    put("status", "ACTIVE")
+                    put("endedAt", "2026-09-14T09:02:00Z")
+                }
+            )
+        )!!
+
+        assertEquals("31", update.auctionId)
+        assertEquals("2026-09-14T09:02:00Z", update.endedAt)
     }
 
     @Test

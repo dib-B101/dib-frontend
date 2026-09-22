@@ -265,7 +265,7 @@ private fun LiveWatchAuctionCard(
         }
         return
     }
-    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, true)
+    val remaining = rememberLiveCountdown(auction.auctionId, auction.remainingSeconds, auction.endedAt, true)
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             .background(Color.White, RoundedCornerShape(14.dp))

@@ -16,6 +16,8 @@ data class AuctionSummary(
     val bidCount: Int,
     val auctionTimeSeconds: Long = 0,
     val remainingSeconds: Int,
+    // 경매 종료 절대 시각(ISO-8601). 남은 초는 화면에서 매 틱 계산해야 탭 전환 뒤에도 정확하다
+    val endedAt: String? = null,
     val status: String,
     val bookmarked: Boolean,
     val isHighestBidder: Boolean? = null,
