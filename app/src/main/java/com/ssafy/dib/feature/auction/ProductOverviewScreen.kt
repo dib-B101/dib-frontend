@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductDetail
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -61,15 +62,7 @@ fun ProductOverviewScreen(
         containerColor = Colors.Background,
         contentColor = Colors.Text,
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Row(
-                Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Navy)) }
-                Text("상품 정보", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        topBar = { DibSubAppBar("상품 정보", onBack) }
     ) { padding ->
         when {
             loading && product == null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

@@ -40,9 +40,9 @@ fun ReviewRatingDialog(
 ) {
     var rating by rememberSaveable { mutableIntStateOf(-1) }
 
-    AlertDialog(
+    DibDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text("판매자는 어떠셨나요?") },
+        title = "판매자는 어떠셨나요?",
         text = {
             Column {
                 Text(
@@ -86,21 +86,8 @@ fun ReviewRatingDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = { if (rating >= 0) onSubmit(rating) },
-                enabled = rating >= 0 && !submitting
-            ) {
-                if (submitting) {
-                    CircularProgressIndicator(Modifier.size(16.dp), color = Colors.Navy, strokeWidth = 2.dp)
-                } else {
-                    Text("평가 보내기", color = Colors.Navy, fontWeight = FontWeight.Bold)
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !submitting) { Text("나중에") }
-        }
+        confirmButton = { DibDialogConfirmButton("평가 보내기", onClick = { if (rating >= 0) onSubmit(rating) }, enabled = rating >= 0, loading = submitting) },
+        dismissButton = { DibDialogDismissButton(onDismiss, label = "나중에", enabled = !submitting) }
     )
 }
 

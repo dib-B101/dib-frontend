@@ -54,6 +54,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ssafy.dib.domain.member.MemberAddress
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.domain.order.OrderAddressInput
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -92,9 +95,9 @@ fun OrderAddressDialog(
         )
     }
 
-    AlertDialog(
+    DibDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text("배송지 입력", fontWeight = FontWeight.Bold) },
+        title = "배송지 입력",
         text = {
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -152,6 +155,8 @@ fun OrderAddressDialog(
                     label = { Text("상세주소 (동/호수)") },
                     enabled = !submitting,
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = dialogFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -161,6 +166,8 @@ fun OrderAddressDialog(
                     enabled = !submitting,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = dialogFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -171,13 +178,16 @@ fun OrderAddressDialog(
                     enabled = !submitting,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = dialogFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 errorMessage?.let { Text(it, color = Colors.Urgent, fontSize = 12.sp) }
             }
         },
         confirmButton = {
-            TextButton(
+            DibDialogConfirmButton(
+                "등록",
                 onClick = {
                     onSubmit(
                         OrderAddressInput(
@@ -189,13 +199,11 @@ fun OrderAddressDialog(
                         )
                     )
                 },
-                enabled = canSubmit
-            ) {
-                if (submitting) CircularProgressIndicator(Modifier.size(18.dp), color = Colors.Navy, strokeWidth = 2.dp)
-                else Text("등록", color = Colors.Navy, fontWeight = FontWeight.Bold)
-            }
+                enabled = canSubmit,
+                loading = submitting
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !submitting) { Text("취소", color = Colors.Muted) } }
+        dismissButton = { DibDialogDismissButton(onDismiss, enabled = !submitting) }
     )
 }
 

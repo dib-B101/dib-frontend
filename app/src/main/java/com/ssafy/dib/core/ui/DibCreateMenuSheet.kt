@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
+/** 하단 탭 가운데 + 버튼의 등록 메뉴. 설명·배지 없이 제목만 둔다 — 각 흐름의 안내는 들어간 화면이 한다 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DibCreateMenuSheet(
@@ -49,41 +50,16 @@ fun DibCreateMenuSheet(
         ) {
             Box(Modifier.size(36.dp, 4.dp).background(Colors.Border, RoundedCornerShape(2.dp)).align(Alignment.CenterHorizontally))
             Text("무엇을 시작할까요?", Modifier.padding(top = 8.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            Text("상품을 등록하면 AI 검수를 먼저 받아요. 승인되면 그때 경매를 시작할 수 있어요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp)
             Spacer(Modifier.height(2.dp))
-            CreateMenuItem(
-                icon = R.drawable.nav_register_full,
-                title = "상품 등록",
-                description = "사진과 상품 정보를 등록하고 AI 검수 받기",
-                badge = "AI 검수 필요",
-                onClick = onProductRegister
-            )
-            CreateMenuItem(
-                icon = R.drawable.timer_outline,
-                title = "일반 경매 시작",
-                description = "검수 승인된 상품의 시작가와 기간을 정해 시작",
-                badge = "승인 상품 필요",
-                onClick = onAuctionRegister
-            )
-            CreateMenuItem(
-                icon = R.drawable.nav_feed_full,
-                title = "Live 방송 준비",
-                description = "방송을 예약하고 상품을 최대 10개 편성",
-                badge = "방송 시작 전 준비",
-                onClick = onLivePrepare
-            )
+            CreateMenuItem(R.drawable.nav_register_full, "상품 등록", onProductRegister)
+            CreateMenuItem(R.drawable.timer_outline, "일반 경매 시작", onAuctionRegister)
+            CreateMenuItem(R.drawable.nav_feed_full, "Live 방송 준비", onLivePrepare)
         }
     }
 }
 
 @Composable
-private fun CreateMenuItem(
-    @DrawableRes icon: Int,
-    title: String,
-    description: String,
-    badge: String,
-    onClick: () -> Unit
-) {
+private fun CreateMenuItem(@DrawableRes icon: Int, title: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick).padding(15.dp),
@@ -93,13 +69,7 @@ private fun CreateMenuItem(
         Box(Modifier.size(48.dp).background(Colors.NavySoft, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
             Image(painterResource(icon), null, Modifier.size(23.dp), colorFilter = ColorFilter.tint(Colors.Navy))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(badge, Modifier.background(Colors.MintSoft, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 3.dp), color = Colors.MintInk, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(description, color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        }
+        Text(title, Modifier.weight(1f), color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(18.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
 }

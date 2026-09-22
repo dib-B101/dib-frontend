@@ -50,6 +50,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibNetworkImage
@@ -205,12 +209,12 @@ fun MyAuctionManagementScreen(
         )
     }
     cancelling?.let { auctionId ->
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { cancelling = null },
-            title = { Text("예정 경매를 취소할까요?") },
-            text = { Text("취소 후 상품은 다른 경매에 다시 등록할 수 있어요.") },
-            confirmButton = { TextButton({ cancelling = null; onCancel(auctionId) }) { Text("경매 취소", color = Colors.Urgent) } },
-            dismissButton = { TextButton({ cancelling = null }) { Text("유지") } }
+            title = "예정 경매를 취소할까요?",
+            text = { Text("취소 후 상품은 다른 경매에 다시 등록할 수 있어요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("경매 취소", { cancelling = null; onCancel(auctionId) }, destructive = true) },
+            dismissButton = { DibDialogDismissButton({ cancelling = null }, label = "유지") }
         )
     }
 }
@@ -279,11 +283,11 @@ internal fun AuctionConditionDialog(
     // 서버(TradeInputValidator)와 같은 10원 단위 규칙. 1001원으로 시작하면 첫 입찰 최소 금액이 10원 단위에 걸려 아무도 입찰할 수 없다
     val priceValid = parsedPrice != null && parsedPrice >= MIN_AUCTION_START_PRICE && parsedPrice % 10L == 0L
     val minutesValid = parsedMinutes != null && parsedMinutes >= MIN_AUCTION_MINUTES
-    AlertDialog(
+    DibDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text(title) },
+        title = title,
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 description?.let { Text(it, color = Colors.Muted, fontSize = 12.sp) }
                 OutlinedTextField(price, { price = it.filter(Char::isDigit).take(10) }, label = { Text("시작가") }, suffix = { Text("원") }, singleLine = true, isError = price.isNotBlank() && !priceValid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Text("시작가는 1,000원 이상, 10원 단위여야 해요.", color = if (price.isNotBlank() && !priceValid) Colors.Urgent else Colors.Muted, fontSize = 11.sp)
@@ -291,8 +295,8 @@ internal fun AuctionConditionDialog(
                 Text("경매 시간은 5분 이상이어야 해요.", color = if (minutes.isNotBlank() && !minutesValid) Colors.Urgent else Colors.Muted, fontSize = 11.sp)
             }
         },
-        confirmButton = { TextButton({ onConfirm(parsedPrice!!, parsedMinutes!! * 60) }, enabled = priceValid && minutesValid && !loading) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소") } }
+        confirmButton = { DibDialogConfirmButton(confirmLabel, onClick = { onConfirm(parsedPrice!!, parsedMinutes!! * 60) }, enabled = priceValid && minutesValid, loading = loading) },
+        dismissButton = { DibDialogDismissButton(onDismiss, enabled = !loading) }
     )
 }
 
@@ -301,13 +305,7 @@ internal const val MIN_AUCTION_MINUTES = 5L
 
 @Composable
 private fun MyAuctionHeader(onBack: () -> Unit) {
-    Column {
-        Row(Modifier.fillMaxWidth().height(52.dp).background(Colors.Background).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))}
-            Text("내 경매 관리", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        }
-        HorizontalDivider(color = Colors.Border)
-    }
+    DibSubAppBar("내 경매 관리", onBack)
 }
 
 internal fun auctionStatusLabel(status: String): String = when (status.uppercase()) {

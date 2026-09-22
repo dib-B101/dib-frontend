@@ -22,7 +22,9 @@ fun DibWishlistButton(
     onSelectedChange: (Boolean) -> Unit,
     productName: String,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    // 상세 하단처럼 이미 카드 배경 위에 놓일 때는 흰 원 없이 하트만 크게 그린다 (테두리가 겹쳐 보이던 문제)
+    plain: Boolean = false
 ) {
     IconToggleButton(
         checked = selected,
@@ -30,6 +32,15 @@ fun DibWishlistButton(
         enabled = enabled,
         modifier = modifier.size(44.dp)
     ) {
+        if (plain) {
+            Image(
+                painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
+                contentDescription = "$productName ${if (selected) "찜 해제" else "찜하기"}",
+                modifier = Modifier.size(28.dp),
+                colorFilter = ColorFilter.tint(if (selected) WireframeColors.Favorite else WireframeColors.Muted)
+            )
+            return@IconToggleButton
+        }
         Surface(
             modifier = Modifier.size(26.dp),
             shape = CircleShape,

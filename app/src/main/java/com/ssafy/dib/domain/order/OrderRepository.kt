@@ -28,7 +28,11 @@ data class OrderSummary(
     val heldAt: String? = null,
     val holdReportId: String? = null,
     // 구매자가 이 거래에 남긴 별점(0~5). null 이면 아직 평가 전
-    val myRating: Int? = null
+    val myRating: Int? = null,
+    // 구매자 화면에 판매자를 보여주기 위한 값. 목록 응답에는 없을 수 있어 null 허용
+    val sellerId: String? = null,
+    val sellerNickname: String? = null,
+    val sellerProfileImageUrl: String? = null
 )
 
 fun isOrderChatWritable(status: String?, serverReadOnly: Boolean = false): Boolean =

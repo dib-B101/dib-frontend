@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
@@ -44,14 +45,7 @@ fun LiveListScreen(
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Row(Modifier.fillMaxWidth().height(56.dp).background(Colors.Background).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
-                }
-                Text("지금 LIVE", color = Colors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        },
+        topBar = { DibSubAppBar("LIVE", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
         DibPullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {

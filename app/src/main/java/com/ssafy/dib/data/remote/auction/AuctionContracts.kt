@@ -156,3 +156,14 @@ data class SellerAuctionDto(
     val productTitle: String? = null,
     val thumbnailUrl: String? = null
 )
+
+@Serializable data class PlaceBidRequest(val amount: Long)
+
+// POST /auctions/{id}/bids 의 data. 서버 BidPlacedDto 중 앱이 쓰는 값만 받는다
+@Serializable
+data class PlaceBidResponse(
+    val currentPrice: Long? = null,
+    val minAllowedAmount: Long? = null,
+    val bidCount: Int? = null,
+    val highestBidder: Boolean = false
+)

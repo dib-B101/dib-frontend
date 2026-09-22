@@ -56,7 +56,11 @@ data class OrderCoreDto(
     val updatedAt: String? = null,
     val createdAt: String? = null,
     val heldAt: String? = null,
-    val holdReportId: JsonElement? = null
+    val holdReportId: JsonElement? = null,
+    // 구매 거래 상세의 판매자 줄. 예전 서버 응답에는 없던 값이라 null 허용
+    val sellerId: JsonElement? = null,
+    val sellerNickname: String? = null,
+    val sellerProfileImageUrl: String? = null
 )
 
 // 주문 상세 응답의 settlement 블록. 확정(CONFIRMED) 전에는 서버가 null 을 준다

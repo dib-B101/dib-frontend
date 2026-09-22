@@ -24,8 +24,17 @@ data class SellerListing(
     val thumbnailUrl: String?,
     val currentPrice: Int,
     val bidCount: Int,
-    val status: String
+    val status: String,
+    // 상세 화면 라우트는 auctionId 를 받는다. 예전 데이터엔 없을 수 있어 null 이면 productId 로 간다
+    val auctionId: String? = null
 )
+
+/** 프로필·판매 내역에서 진행 중 → 예정 → 종료 순으로 보여주기 위한 정렬 키 */
+internal fun sellerListingOrder(status: String): Int = when (status) {
+    "ACTIVE" -> 0
+    "SCHEDULED" -> 1
+    else -> 2
+}
 
 /** Figma 01_Wireframe / 03M_Seller_Reviews. 후기 API 가 아직 없어 빈 상태만 보여준다. */
 @Composable
@@ -118,7 +127,7 @@ fun SellerListingsScreen(
                     }
                 }
                 items(visibleListings) { listing ->
-                    SellerListingCard(listing) { onProductClick(listing.productId) }
+                    SellerListingCard(listing) { onProductClick(listing.auctionId ?: listing.productId) }
                 }
             }
         }

@@ -29,6 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibSeeAllButton
+import com.ssafy.dib.core.ui.DibSnackbarHost
+import com.ssafy.dib.feature.auction.AuctionBidSheet
+import com.ssafy.dib.core.ui.DibNotificationBell
+import com.ssafy.dib.core.ui.DibSearchBar
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
@@ -53,15 +58,17 @@ fun HomeScreen(
     showSampleContent: Boolean,
     remoteLoading: Boolean,
     remoteError: String?,
-    unreadNotificationCount: Int,
     onRetry: () -> Unit,
     onBookmarkChange: (String, Boolean) -> Unit,
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
     onViewAllAuctions: () -> Unit,
-    onNotificationsClick: () -> Unit,
     onCategoryClick: () -> Unit,
+    // 마감 임박 카드에서 바로 입찰. 결과 메시지는 bidNotice 로 돌아오고 토스트로 보여준 뒤 onBidNoticeShown 으로 비운다
+    onPlaceBid: (auctionId: String, amount: Int) -> Unit,
+    bidNotice: String?,
+    onBidNoticeShown: () -> Unit,
     onLoginRequired: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     /**
@@ -77,6 +84,13 @@ fun HomeScreen(
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
     var closingSoon by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
+    var bidTarget by remember { mutableStateOf<HomeAuction?>(null) }
+    val toastHost = remember { SnackbarHostState() }
+    LaunchedEffect(bidNotice) {
+        val notice = bidNotice ?: return@LaunchedEffect
+        toastHost.showSnackbar(notice)
+        onBidNoticeShown()
+    }
     val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
     val homeRecommendations = displayedAuctions.take(4)
     val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
@@ -126,8 +140,9 @@ fun HomeScreen(
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            HomeHeader(unreadNotificationCount, onNotificationsClick)
+            HomeHeader()
         },
+        snackbarHost = { DibSnackbarHost(toastHost) },
         bottomBar = {
             DibBottomNavigation(
                 selectedTab = DibMainTab.Home,
@@ -144,7 +159,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item { SearchField(onSearchClick) }
+            item { DibSearchBar("어떤 상품을 찾고 있나요?", onSearchClick) }
 
             item {
                 HomeAuctionSwitcher(closingSoon, { closingSoon = false }, { closingSoon = true }, onCategoryClick)
@@ -180,6 +195,8 @@ fun HomeScreen(
                         favorite = highlightedDeadline.id in favoriteIds,
                         onFavorite = { updateFavorite(highlightedDeadline.id, it) },
                         onProductClick = { onProductClick(highlightedDeadline.id) },
+                        // 상세로 가지 않고 바로 입찰 시트를 띄운다. 로그인 전이면 로그인으로
+                        onBidClick = { if (isAuthenticated) bidTarget = highlightedDeadline else onLoginRequired() },
                         onViewAllClick = onViewAllAuctions
                     )
                 }
@@ -226,6 +243,19 @@ fun HomeScreen(
         }
         }
     }
+    bidTarget?.let { target ->
+        AuctionBidSheet(
+            productName = target.name,
+            currentPrice = target.price,
+            bidCount = target.bidCount,
+            submissionError = "",
+            onDismiss = { bidTarget = null },
+            onContinue = { submission ->
+                bidTarget = null
+                onPlaceBid(target.id, submission.amount)
+            }
+        )
+    }
 }
 
 @Composable
@@ -260,7 +290,7 @@ private fun HomeAuctionSwitcher(selectedClosing: Boolean, onGeneral: () -> Unit,
 @Composable
 private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader("지금 LIVE", "모두 보기", onLiveClick)
+        SectionHeader("LIVE", "전체 보기", onLiveClick)
         val cards = remoteLives?.take(2)?.map { item ->
             val isLive = item.status.equals("LIVE", ignoreCase = true)
             HomeLiveCard(
@@ -280,14 +310,15 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f).heightIn(min = 170.dp),
+                    modifier = Modifier.weight(1f),
                     color = Colors.Background,
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Colors.Border),
                     shadowElevation = 0.dp
                 ) {
                     Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Box(Modifier.fillMaxWidth().height(78.dp).clip(RoundedCornerShape(12.dp)).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
+                    // 가로로 길던 썸네일을 정방형에 가깝게 — 카드 두 장이 나란히 있을 때 세로가 너무 눌려 보였다
+                    Box(Modifier.fillMaxWidth().aspectRatio(1.15f).clip(RoundedCornerShape(12.dp)).background(if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
                         card.photo?.let { ProductPhoto(it, modifier = Modifier.matchParentSize()) } ?: Image(
                             painter = painterResource(R.drawable.live_video),
                             contentDescription = null,
@@ -327,7 +358,7 @@ internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.syste
     } ?: "방송 예정"
 
 @Composable
-private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () -> Unit) {
+private fun HomeHeader() {
     Row(
         Modifier.fillMaxWidth().height(64.dp).background(Color(0xFFFBF9F4)).padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -339,38 +370,8 @@ private fun HomeHeader(unreadNotificationCount: Int, onNotificationsClick: () ->
             Modifier.size(70.dp, 44.dp).clip(RoundedCornerShape(12.dp)),
             contentScale = ContentScale.Fit
         )
-        Box(Modifier.size(44.dp).clickable(onClick = onNotificationsClick), contentAlignment = Alignment.Center) {
-            Image(
-                painterResource(R.drawable.notification_vector),
-                contentDescription = if (unreadNotificationCount > 0) "새 알림 ${unreadNotificationCount}개" else "알림",
-                modifier = Modifier.size(22.dp),
-                colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .72f))
-            )
-            if (unreadNotificationCount > 0) {
-                Box(
-                    Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = 2.dp).heightIn(min = 17.dp)
-                        .background(Colors.Live, RoundedCornerShape(9.dp)).padding(horizontal = 5.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(if (unreadNotificationCount > 99) "99+" else unreadNotificationCount.toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchField(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().height(48.dp)
-            .background(Colors.Search, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Image(painterResource(R.drawable.search_full), null, Modifier.size(19.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
-        Text("어떤 상품을 찾고 있나요?", color = Colors.Muted, fontSize = 14.sp)
+        // 알림 벨은 모든 헤더가 같은 것을 쓴다 (미읽음 개수·클릭 처리는 AppNavHost 가 제공)
+        DibNotificationBell(tint = Colors.Navy.copy(alpha = .72f))
     }
 }
 
@@ -382,13 +383,7 @@ private fun SectionHeader(title: String, action: String, onClick: () -> Unit = {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Row(
-            Modifier.clickable(onClick = onClick).padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(action, color = Colors.Navy.copy(alpha = .76f), fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
-            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .66f)))
-        }
+        DibSeeAllButton(onClick, label = action)
     }
 }
 
@@ -409,18 +404,13 @@ private fun AuctionGridSection(
             Text(title, Modifier.semantics { heading() }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
             DibViewModeToggle(viewMode, onViewModeChange)
-            actionLabel?.let { label ->
-                Row(Modifier.clickable(onClick = onAction).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Image(painterResource(R.drawable.chevron_right), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.Navy))
-                }
-            }
+            actionLabel?.let { label -> DibSeeAllButton(onAction, label = label) }
         }
         if (viewMode == DibContentView.Grid) {
             auctions.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { auction ->
-                        AuctionCard(
+                        HomeAuctionCard(
                             auction = auction,
                             favorite = auction.id in favoriteIds,
                             onFavorite = { onFavorite(auction.id, it) },
@@ -433,7 +423,7 @@ private fun AuctionGridSection(
             }
         } else {
             auctions.forEach { auction ->
-                AuctionListCard(
+                HomeAuctionListCard(
                     auction = auction,
                     favorite = auction.id in favoriteIds,
                     onFavorite = { onFavorite(auction.id, it) },
@@ -444,70 +434,6 @@ private fun AuctionGridSection(
     }
 }
 
-private fun homeAuctionMeta(auction: HomeAuction): String = "${remainingTimeLabel(auction.remainingSeconds)} 남음"
-
-@Composable
-private fun AuctionListCard(
-    auction: HomeAuction,
-    favorite: Boolean,
-    onFavorite: (Boolean) -> Unit,
-    onClick: () -> Unit
-) {
-    Row(
-        Modifier.fillMaxWidth().height(116.dp)
-            .background(Color.White, RoundedCornerShape(16.dp))
-            .border(1.dp, Colors.Border, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick).padding(10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(92.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(auction.priceText, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(homeAuctionMeta(auction), color = Colors.Muted, fontSize = 10.sp)
-        }
-        DibWishlistButton(favorite, onFavorite, auction.name)
-    }
-}
-
-@Composable
-private fun AuctionCard(
-    auction: HomeAuction,
-    favorite: Boolean,
-    onFavorite: (Boolean) -> Unit,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        color = Colors.Background,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Colors.Border),
-        shadowElevation = 0.dp
-    ) {
-    Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1.05f)
-                .background(Colors.Image, RoundedCornerShape(13.dp))
-        ) {
-            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
-            DibWishlistButton(
-                selected = favorite,
-                onSelectedChange = onFavorite,
-                productName = auction.name,
-                modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
-            )
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(auction.name, maxLines = 1, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
-            Text(auction.priceText, color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
-            Text(homeAuctionMeta(auction), maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
-        }
-    }
-    }
-}
 
 @Composable
 private fun DeadlineSection(
@@ -516,41 +442,74 @@ private fun DeadlineSection(
     favorite: Boolean,
     onFavorite: (Boolean) -> Unit,
     onProductClick: () -> Unit,
+    onBidClick: () -> Unit,
     onViewAllClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeader("마감 임박 경매", "전체 경매", onViewAllClick)
         Row(
-            Modifier.fillMaxWidth().height(168.dp).background(Colors.Background, RoundedCornerShape(18.dp))
+            Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(18.dp))
                 .border(1.dp, Colors.Border, RoundedCornerShape(18.dp))
                 .clickable(onClick = onProductClick).padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(Modifier.width(144.dp).fillMaxHeight().background(Colors.Image, RoundedCornerShape(12.dp))) {
+            Box(Modifier.size(144.dp).background(Colors.Image, RoundedCornerShape(12.dp))) {
                 ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
                 DibWishlistButton(favorite, onFavorite, auction.name, Modifier.align(Alignment.TopEnd))
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                AuctionUrgencyBadge(deadlineSeconds, compact = true)
-                Text(auction.name, maxLines = 2, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 남은 시간은 가격 밑 회색 글자 대신 배지 하나로 보여준다 (일·시·분)
+                DeadlineBadge(deadlineSeconds)
+                Text(auction.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
                 Text(auction.priceText, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
-                Text("${remainingTimeLabel(deadlineSeconds)} 남음", color = Colors.Muted, fontSize = 10.sp, lineHeight = 12.sp)
-                Button(
-                    onClick = onProductClick,
-                    enabled = deadlineSeconds > 0,
-                    modifier = Modifier.fillMaxWidth().height(34.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (deadlineSeconds <= 15) Colors.Live else Colors.Navy),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text(when {
-                        deadlineSeconds <= 0 -> "경매 종료"
-                        deadlineSeconds <= 15 -> "지금 입찰"
-                        else -> "바로 입찰하기"
-                    }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onBidClick,
+                        enabled = deadlineSeconds > 0,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (deadlineSeconds <= 15) Colors.Live else Colors.Navy),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(if (deadlineSeconds <= 0) "경매 종료" else "입찰하기", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = onProductClick,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Colors.Navy),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("상품 보기", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
+    }
+}
+
+/** "마감 임박 · n일 m시간 k분" 배지. 마지막 1분만 초를 보여준다. */
+@Composable
+private fun DeadlineBadge(seconds: Int) {
+    Surface(color = Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(Colors.Urgent))
+            Text(if (seconds <= 0) "마감" else "마감 임박 · ${deadlineCountdownLabel(seconds)}", color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+internal fun deadlineCountdownLabel(seconds: Int): String {
+    val safe = seconds.coerceAtLeast(0)
+    val days = safe / 86_400
+    val hours = safe % 86_400 / 3_600
+    val minutes = safe % 3_600 / 60
+    val remainder = safe % 60
+    return when {
+        days > 0 -> "${days}일 ${hours}시간 ${minutes}분"
+        hours > 0 -> "${hours}시간 ${minutes}분"
+        minutes > 0 -> "${minutes}분 ${remainder}초"
+        else -> "${remainder}초"
     }
 }
 

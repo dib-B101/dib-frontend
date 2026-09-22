@@ -40,6 +40,7 @@ import com.ssafy.dib.R
 import com.ssafy.dib.domain.settlement.SettlementSummary
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -63,12 +64,6 @@ fun SettlementHistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-            item {
-                Column(Modifier.fillMaxWidth().background(Color(0xFFEAF8F4), RoundedCornerShape(14.dp)).padding(16.dp)) {
-                    Text("판매 정산", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("구매 확정 후 지급된 금액과 수수료를 확인할 수 있어요.", Modifier.padding(top = 5.dp), color = Colors.Muted, fontSize = 12.sp)
-                }
-            }
             errorMessage?.let { message -> item { ErrorRow(message, onRetry) } }
             if (settlements.isNullOrEmpty() && isLoading) {
                 item { LoadingBlock() }
@@ -198,7 +193,7 @@ private fun SettlementScaffold(title: String, onBack: () -> Unit, modifier: Modi
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = { Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title,color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold)};HorizontalDivider(color=Colors.Border)} },
+        topBar = { DibSubAppBar(title, onBack) },
         content = content
     )
 }

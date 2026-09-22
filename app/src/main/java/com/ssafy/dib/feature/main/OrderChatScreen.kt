@@ -26,6 +26,7 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
+import com.ssafy.dib.core.ui.DibNotificationBell
 import com.ssafy.dib.domain.order.OrderMessage
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
@@ -87,6 +88,7 @@ fun OrderChatScreen(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
+                DibNotificationBell()
             }
             HorizontalDivider(color=Colors.Border)
             }

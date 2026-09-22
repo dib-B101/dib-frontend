@@ -59,6 +59,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.payment.PaymentMethod
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
@@ -220,12 +223,12 @@ fun PaymentMethodsScreen(
         )
     }
     if (showDeleteConfirmation) {
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("등록 카드를 삭제할까요?") },
-            text = { Text("진행 중인 입찰이나 결제에 사용 중인 카드는 서버 정책에 따라 삭제가 제한될 수 있어요.") },
-            confirmButton = { TextButton({ showDeleteConfirmation = false; onDelete() }) { Text("삭제", color = Colors.Urgent) } },
-            dismissButton = { TextButton({ showDeleteConfirmation = false }) { Text("취소") } }
+            title = "등록 카드를 삭제할까요?",
+            text = { Text("진행 중인 입찰이나 결제에 사용 중인 카드는 서버 정책에 따라 삭제가 제한될 수 있어요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("삭제", { showDeleteConfirmation = false; onDelete() }, destructive = true) },
+            dismissButton = { DibDialogDismissButton({ showDeleteConfirmation = false }) }
         )
     }
 }

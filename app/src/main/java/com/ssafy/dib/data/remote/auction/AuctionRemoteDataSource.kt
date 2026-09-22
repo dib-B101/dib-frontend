@@ -120,6 +120,16 @@ class AuctionRemoteDataSource(private val client: DibHttpClient) {
         client.executeUnit(request)
     }
 
+    // 소켓 없이도 입찰할 수 있는 REST 경로. 홈 마감 임박 카드에서 바로 입찰할 때 쓴다 (서버는 소켓 PLACE_BID 와 같은 서비스)
+    fun placeBid(auctionId: String, amount: Int, idempotencyKey: String): ApiResult<PlaceBidResponse> = configured {
+        val path = "${ApiRoutes.AUCTIONS}/$auctionId/bids"
+        client.execute(
+            client.requestBuilder(path).header("Idempotency-Key", idempotencyKey)
+                .post(client.jsonBody(PlaceBidRequest(amount.toLong()), PlaceBidRequest.serializer())).build(),
+            PlaceBidResponse.serializer()
+        )
+    }
+
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResponse> = configured {
         val id = productId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(productId)
         val body = CreateAuctionRequest(id, startPrice, auctionTime)
