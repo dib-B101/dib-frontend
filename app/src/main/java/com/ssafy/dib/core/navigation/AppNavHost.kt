@@ -1975,11 +1975,20 @@ fun AppNavHost(
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 similarProductsLoading = true
                 similarProductsError = null
-                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getSimilarProducts(sourceProductId) }) {
-                    is ApiResult.Success -> similarProducts = result.value.filter {
+                when (val result = withContext(Dispatchers.IO) {
+                    auth.productRepository.searchProducts(
+                        query = "",
+                        filter = com.ssafy.dib.domain.product.ProductSearchFilter(
+                            categoryId = remoteProduct?.categoryId,
+                            onAuctionOnly = true
+                        ),
+                        size = 21
+                    )
+                }) {
+                    is ApiResult.Success -> similarProducts = result.value.items.filter {
                         it.productId != sourceProductId && !it.auctionId.isNullOrBlank() &&
                             it.auctionStatus.equals("ACTIVE", ignoreCase = true)
-                    }
+                    }.take(20)
                     is ApiResult.Failure -> {
                         similarProductsError = result.error.message.ifBlank { "비슷한 상품을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
