@@ -180,15 +180,11 @@ private fun ProductEditForm(
         item {
             Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "GOOD" to "상 · 사용감 적음",
-                    "NORMAL" to "중 · 일반 사용감",
-                    "BAD" to "하 · 하자 있음"
-                ).forEach { (value, label) ->
+                PRODUCT_CONDITIONS.forEach { value ->
                     FilterChip(
                         selected = condition == value,
                         onClick = { condition = value },
-                        label = { Text(label, fontSize = 10.sp, lineHeight = 13.sp) },
+                        label = { Text(conditionLabel(value), fontSize = 10.sp, lineHeight = 13.sp) },
                         modifier = Modifier.weight(1f)
                     )
                 }

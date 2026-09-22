@@ -671,10 +671,10 @@ fun ProductRegisterScreen(
                         ) { Text("사진 순서 편집", fontWeight = FontWeight.Bold) }
                     }
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }) }
-                    item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요", "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
+                    item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요", placeholder = selectedCategory == null, errorMessage = "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
-                    item { RegisterSelect("상품 상태 *", conditionLabel(condition), "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
+                    item { RegisterSelect("상품 상태 *", conditionLabel(condition), placeholder = condition.isBlank(), errorMessage = "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { condition = when(condition){"GOOD"->"NORMAL";"NORMAL"->"BAD";else->"GOOD"} } }
                     item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
                     item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
                     item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
@@ -907,7 +907,10 @@ private fun ProductImageThumbnail(uri: Uri, representative: Boolean, onRemove: (
     }
 }
 
-private fun conditionLabel(condition: String) = when (condition) {
+// 등록(RegisterSelect)·수정(FilterChip) 두 화면이 같은 라벨을 쓰도록 여기 한 곳에만 둔다
+internal val PRODUCT_CONDITIONS = listOf("GOOD", "NORMAL", "BAD")
+
+internal fun conditionLabel(condition: String) = when (condition) {
     "GOOD" -> "상 · 사용감 적음"
     "NORMAL" -> "중 · 일반 사용감"
     "BAD" -> "하 · 하자 있음"
@@ -949,7 +952,9 @@ private fun RegisterTextField(
 }
 
 @Composable
-private fun RegisterSelect(label: String, value: String, errorMessage: String? = null, onClick: () -> Unit) {
+// placeholder 여부는 호출부가 상태값으로 판단해 넘긴다. 표시 문자열을 contains 로 추측하면
+// 선택값 "상 · 사용감 적음" 이 안내문 "상 · 중 · 하" 와 같이 걸려 선택해도 회색으로 남았다
+private fun RegisterSelect(label: String, value: String, placeholder: Boolean, errorMessage: String? = null, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().heightIn(min = if (errorMessage == null) 80.dp else 98.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(
@@ -958,7 +963,7 @@ private fun RegisterSelect(label: String, value: String, errorMessage: String? =
                 .clickable(onClick = onClick).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(value, Modifier.weight(1f), color = if (value.contains("선택") || value.contains("상 ·")) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
+            Text(value, Modifier.weight(1f), color = if (placeholder) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)
             Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted))
         }
         errorMessage?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp) }
