@@ -291,8 +291,9 @@ internal fun com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse.toDoma
         ?: auctionTime.coerceAtLeast(0)
     return AuctionBidSnapshot(
         auctionId = auctionId.idValue(),
+        status = status,
         currentPrice = currentPrice.coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-        remainingSeconds = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        remainingSeconds = if (status.equals("ACTIVE", ignoreCase = true)) remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0,
         bidCount = bidCount.coerceAtLeast(0),
         bidderCount = bidderCount.coerceAtLeast(0),
         isHighestBidder = isHighestBidder

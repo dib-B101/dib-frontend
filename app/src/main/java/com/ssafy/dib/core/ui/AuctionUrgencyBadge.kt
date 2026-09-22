@@ -63,7 +63,7 @@ fun AuctionUrgencyBadge(
             .graphicsLayer(scaleX = pulse, scaleY = pulse)
             .background(background, RoundedCornerShape(if (compact) 9.dp else 12.dp))
             .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = if (compact) 4.dp else 7.dp)
-            .semantics { contentDescription = "$label, ${formatRemainingTime(safeSeconds)} 남음" },
+            .semantics { contentDescription = if (safeSeconds == 0) "경매 종료" else "$label, ${formatRemainingTime(safeSeconds)} 남음" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
     ) {

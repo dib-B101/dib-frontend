@@ -307,11 +307,7 @@ fun AppNavHost(
         }
     }
 
-    fun navigateMain(tab: DibMainTab) {
-        if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
-            navController.navigate(Screen.Login.route)
-            return
-        }
+    fun openMainTab(tab: DibMainTab) {
         if (tab == DibMainTab.Register) {
             showCreateMenu = true
             return
@@ -344,6 +340,37 @@ fun AppNavHost(
             // Home 이 탭들의 공통 바닥이기 때문이다.
             popUpTo(Screen.Home.route)
             launchSingleTop = true
+        }
+    }
+
+    fun navigateMain(tab: DibMainTab) {
+        if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
+            coroutineScope.launch {
+                val restored = withContext(Dispatchers.IO) {
+                    val session = auth.repository.currentSession()
+                    when {
+                        session == null -> false
+                        !session.needsRefresh(System.currentTimeMillis()) -> true
+                        else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
+                    }
+                }
+                if (restored) {
+                    signedIn = true
+                    openMainTab(tab)
+                } else {
+                    navController.navigate(Screen.Login.route)
+                }
+            }
+            return
+        }
+        openMainTab(tab)
+    }
+
+    // 한 조회의 401만으로 로그인 상태를 버리지 않는다. 토큰 갱신 실패로 실제 세션이
+    // 지워졌는지 확인한 뒤 화면 접근 상태를 바꾼다.
+    suspend fun signOutIfSessionLost(error: ApiFailure) {
+        if (error.requiresLogin && withContext(Dispatchers.IO) { auth.repository.currentSession() } == null) {
+            signedIn = false
         }
     }
 
@@ -484,7 +511,7 @@ fun AppNavHost(
         if (signedIn == true && auth.networkConfig.isRestConfigured) {
             when (val result = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }) {
                 is ApiResult.Success -> memberProfile = result.value
-                is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                is ApiResult.Failure -> signOutIfSessionLost(result.error)
             }
         }
     }
@@ -620,7 +647,7 @@ fun AppNavHost(
             }
             is ApiResult.Failure -> {
                 notificationsError = result.error.message.ifBlank { "알림을 불러오지 못했어요." }
-                if (result.error.requiresLogin) signedIn = false
+                signOutIfSessionLost(result.error)
             }
         }
         notificationsLoading = false
@@ -643,7 +670,7 @@ fun AppNavHost(
             }
             is ApiResult.Failure -> {
                 auctionsError = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
-                if (result.error.requiresLogin) signedIn = false
+                signOutIfSessionLost(result.error)
             }
         }
         auctionsLoading = false
@@ -677,10 +704,8 @@ fun AppNavHost(
                 ordersError = sellerResult.error.message.ifBlank { "판매 내역을 불러오지 못했어요." }
             }
         }
-        if (
-            (buyerResult is ApiResult.Failure && buyerResult.error.requiresLogin) ||
-            (sellerResult is ApiResult.Failure && sellerResult.error.requiresLogin)
-        ) signedIn = false
+        if (buyerResult is ApiResult.Failure) signOutIfSessionLost(buyerResult.error)
+        if (sellerResult is ApiResult.Failure) signOutIfSessionLost(sellerResult.error)
         ordersLoading = false
     }
 
@@ -697,7 +722,7 @@ fun AppNavHost(
             }
             is ApiResult.Failure -> {
                 bidHistoryError = result.error.message.ifBlank { "입찰 내역을 불러오지 못했어요." }
-                if (result.error.requiresLogin) signedIn = false
+                signOutIfSessionLost(result.error)
             }
         }
         bidHistoryLoading = false
@@ -1035,6 +1060,7 @@ fun AppNavHost(
                 onSignUp = { form ->
                     val token = phoneVerificationToken ?: return@SignupScreen
                     if (signupState.requestedPhone != form.phoneNumber) return@SignupScreen
+                    val emailSignup = kakaoSignupToken == null
                     signupState = signupState.copy(signupLoading = true, signupError = null)
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) {
@@ -1065,6 +1091,27 @@ fun AppNavHost(
                             )
                         }) {
                             is ApiResult.Success -> {
+                                if (emailSignup) {
+                                    val profile = withContext(Dispatchers.IO) { auth.memberRepository.getMe() }
+                                    if (profile is ApiResult.Failure && profile.error.requiresLogin) {
+                                        // 가입 응답의 토큰이 거절되면 같은 자격으로 세션을 다시 발급받는다.
+                                        // 이미 만들어진 계정에 가입 요청을 반복하면 중복 가입 오류만 발생한다.
+                                        val login = withContext(Dispatchers.IO) {
+                                            auth.repository.login(form.email, form.password, auth.deviceId)
+                                        }
+                                        if (login is ApiResult.Failure) {
+                                            signupState = SignupUiState()
+                                            phoneVerificationToken = null
+                                            loginError = "가입은 완료됐어요. 자동 로그인에 실패해 다시 로그인해주세요."
+                                            navController.navigate(Screen.Login.route) {
+                                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                                            }
+                                            return@launch
+                                        }
+                                    } else if (profile is ApiResult.Success) {
+                                        memberProfile = profile.value
+                                    }
+                                }
                                 signupState = SignupUiState()
                                 phoneVerificationToken = null
                                 kakaoSignupToken = null
@@ -1083,7 +1130,13 @@ fun AppNavHost(
                 }
             )
         }
-        composable(Screen.Home.route) {
+        composable(Screen.Home.route) { backStackEntry ->
+            LaunchedEffect(backStackEntry) {
+                if (!previewMode && auth.networkConfig.isRestConfigured && !auctionsLoading) {
+                    remoteAuctions = null
+                    auctionsRevision++
+                }
+            }
             HomeScreen(
                 isAuthenticated = hasAppAccess,
                 remoteAuctions = remoteAuctions,
@@ -1983,6 +2036,7 @@ fun AppNavHost(
                                     price = snapshot.currentPrice,
                                     bidCount = snapshot.bidCount,
                                     remainingSeconds = snapshot.remainingSeconds,
+                                    status = snapshot.status,
                                     isHighestBidder = snapshot.isHighestBidder
                                 )
                             }

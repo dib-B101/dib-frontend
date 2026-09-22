@@ -57,6 +57,7 @@ data class RecommendedLive(val liveBroadcastId: String, val title: String, val d
 data class HomeRecommendations(val liveItems: List<RecommendedLive>, val generalItems: List<AuctionSummary>)
 data class AuctionBidSnapshot(
     val auctionId: String,
+    val status: String,
     val currentPrice: Int,
     val remainingSeconds: Int,
     val bidCount: Int,
