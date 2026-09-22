@@ -123,7 +123,9 @@ internal fun ProductCardDto.toDomain() = RegisteredProduct(
     currentPrice = currentPrice,
     auctionTimeSeconds = auctionTime,
     auctionStatus = auctionStatus,
-    bidCount = bidCount
+    bidCount = bidCount,
+    moderationStage = moderationStage,
+    moderatedAt = moderatedAt
 )
 
 internal fun ProductDetailResponse.toDomain(): ProductDetail {

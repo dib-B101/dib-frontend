@@ -3,6 +3,7 @@ package com.ssafy.dib
 import com.ssafy.dib.feature.auth.SignupForm
 import com.ssafy.dib.feature.auth.SignupValidator
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,6 +35,15 @@ class SignupValidatorTest {
         assertFalse(SignupValidator.isPasswordValid("DIBPASSWORD1!"))
         assertFalse(SignupValidator.isPasswordValid("Dibpassword!"))
         assertFalse(SignupValidator.isPasswordValid("Dibpassword1"))
+    }
+
+    @Test
+    fun reportsEachPasswordRequirementWhileTyping() {
+        val requirements = SignupValidator.passwordRequirements("Dibpassword1")
+
+        assertEquals(listOf("10~64자", "영문 대문자", "영문 소문자", "숫자", "특수문자"), requirements.map { it.label })
+        assertTrue(requirements.take(4).all { it.satisfied })
+        assertFalse(requirements.last().satisfied)
     }
 
     @Test

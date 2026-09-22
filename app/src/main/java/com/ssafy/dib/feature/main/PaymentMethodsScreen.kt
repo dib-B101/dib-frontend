@@ -18,6 +18,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -81,6 +83,7 @@ fun PaymentMethodsScreen(
     var showBillingAuth by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var billingAuthError by remember { mutableStateOf<String?>(null) }
+    var billingAgreementAccepted by remember { mutableStateOf(false) }
 
     SettingsScaffold("결제수단 관리", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(
@@ -160,15 +163,34 @@ fun PaymentMethodsScreen(
                         }
                     }
                     item {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(Color.White, RoundedCornerShape(14.dp))
+                                .border(1.dp, Colors.Border, RoundedCornerShape(14.dp))
+                                .clickable { billingAgreementAccepted = !billingAgreementAccepted }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = billingAgreementAccepted,
+                                onCheckedChange = null
+                            )
+                            Column(Modifier.padding(start = 4.dp)) {
+                                Text("자동결제 카드 등록에 동의해요 (필수)", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("낙찰되면 등록 카드로 낙찰 금액 전액을 자동결제해요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                    item {
                         Button(
                             onClick = { billingAuthError = null; showBillingAuth = true },
-                            enabled = !actionLoading && tossClientKey.isNotBlank() && customerKey.isNotBlank(),
+                            enabled = billingAgreementAccepted && !actionLoading && tossClientKey.isNotBlank() && customerKey.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                         ) {
                             if (actionLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-                            else Text("카드 등록하기", fontWeight = FontWeight.Bold)
+                            else Text(if (billingAgreementAccepted) "카드 등록하기" else "필수 동의 후 등록하기", fontWeight = FontWeight.Bold)
                         }
                     }
                     if (tossClientKey.isBlank()) {

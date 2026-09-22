@@ -124,7 +124,11 @@ private fun ProductOverviewContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(productConditionLabel(product.condition), Modifier.background(Colors.Mint.copy(alpha = .2f), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp), color = Colors.MintInk, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(8.dp))
-                    Text(productStatusLabel(product.status), color = Colors.Muted, fontSize = 11.sp)
+                    Text(
+                        productModerationStatusLabel(product.status, product.moderationStage, product.moderatedAt),
+                        color = Colors.Muted,
+                        fontSize = 11.sp
+                    )
                 }
                 Text(product.title, fontSize = 22.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, color = Colors.Navy)
                 if (isMyProduct) ProductModerationNotice(product, onEditProduct, onRefresh)
@@ -176,15 +180,6 @@ private fun productConditionLabel(condition: String): String = when (condition.u
     else -> condition.ifBlank { "상태 미정" }
 }
 
-private fun productStatusLabel(status: String): String = when (status.uppercase()) {
-    "REGISTERED" -> "등록 완료"
-    "ON_AUCTION" -> "경매 중"
-    "PENDING" -> "검수 중"
-    "REJECTED" -> "등록 거절"
-    "SOLD" -> "판매 완료"
-    else -> status
-}
-
 /** 판매자 본인에게만 AI 검수 상태와 거절 사유를 보여준다. */
 @Composable
 private fun ProductModerationNotice(
@@ -202,7 +197,7 @@ private fun ProductModerationNotice(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
-            if (rejected) "등록 거절" else "검수 중",
+            productModerationStatusLabel(product.status, product.moderationStage, product.moderatedAt),
             color = if (rejected) Colors.Urgent else Colors.Navy,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
@@ -241,4 +236,22 @@ internal fun moderationStageLabel(stage: String): String = when (stage.lowercase
     "fallback" -> "자동 보류"
     "admin" -> "관리자 검토"
     else -> stage
+}
+
+internal fun productModerationStatusLabel(
+    status: String,
+    moderationStage: String?,
+    moderatedAt: String?
+): String = when (status.uppercase()) {
+    "REGISTERED", "APPROVED" -> "검수 완료"
+    "PENDING", "PENDING_REVIEW" -> when {
+        !moderatedAt.isNullOrBlank() -> "관리자 검토 중"
+        moderationStage.equals("fallback", ignoreCase = true) || moderationStage.equals("admin", ignoreCase = true) -> "관리자 검토 중"
+        moderationStage.equals("rule", ignoreCase = true) || moderationStage.equals("ai", ignoreCase = true) -> "AI 검수 중"
+        else -> "검수 중"
+    }
+    "REJECTED", "REVIEW_REJECTED" -> "등록 거절"
+    "ON_AUCTION" -> "경매 중"
+    "SOLD" -> "판매 완료"
+    else -> status.ifBlank { "상품 상태 확인 필요" }
 }

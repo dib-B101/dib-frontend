@@ -80,12 +80,15 @@ object SignupValidator {
     fun isPhoneValid(value: String) = value.length in 10..11 && value.all(Char::isDigit)
     fun isCodeValid(value: String) = value.length == 6 && value.all(Char::isDigit)
     fun isEmailValid(value: String) = emailPattern.matches(value.trim())
-    fun isPasswordValid(value: String) =
-        value.length in 10..64 &&
-            value.any(Char::isUpperCase) &&
-            value.any(Char::isLowerCase) &&
-            value.any(Char::isDigit) &&
-            value.any { !it.isLetterOrDigit() }
+    fun passwordRequirements(value: String): List<PasswordRequirement> = listOf(
+        PasswordRequirement("10~64자", value.length in 10..64),
+        PasswordRequirement("영문 대문자", value.any(Char::isUpperCase)),
+        PasswordRequirement("영문 소문자", value.any(Char::isLowerCase)),
+        PasswordRequirement("숫자", value.any(Char::isDigit)),
+        PasswordRequirement("특수문자", value.any { !it.isLetterOrDigit() })
+    )
+
+    fun isPasswordValid(value: String) = passwordRequirements(value).all(PasswordRequirement::satisfied)
     fun isNameValid(value: String) = value.trim().length in 2..30
     fun isNicknameValid(value: String) = value.trim().length in 2..20
     fun isBirthDateValid(value: String): Boolean = try {
@@ -112,6 +115,8 @@ object SignupValidator {
             isBirthDateValid(form.birthDate) &&
             form.gender in setOf("MALE", "FEMALE")
 }
+
+data class PasswordRequirement(val label: String, val satisfied: Boolean)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -256,10 +261,14 @@ fun SignupScreen(
                     "비밀번호",
                     password,
                     { password = it.take(64) },
-                    "대·소문자, 숫자, 특수문자 포함 10자 이상",
+                    "비밀번호 입력",
                     KeyboardType.Password,
                     password = true,
                     errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { attempted && !SignupValidator.isPasswordValid(password) }
+                )
+                PasswordRequirementChecklist(
+                    requirements = SignupValidator.passwordRequirements(password),
+                    hasInput = password.isNotEmpty()
                 )
                 SignupField(
                     "비밀번호 확인",
@@ -304,6 +313,36 @@ fun SignupScreen(
                 onClick = { attempted = true; if (canSubmit) onSignUp(form) }
             )
             Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun PasswordRequirementChecklist(
+    requirements: List<PasswordRequirement>,
+    hasInput: Boolean
+) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Colors.Background, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text("비밀번호 조건", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        requirements.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { requirement ->
+                    val satisfied = hasInput && requirement.satisfied
+                    Text(
+                        "${if (satisfied) "✓" else "○"} ${requirement.label}",
+                        modifier = Modifier.weight(1f),
+                        color = if (satisfied) Color(0xFF14866D) else Colors.Muted,
+                        fontSize = 11.sp,
+                        fontWeight = if (satisfied) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
