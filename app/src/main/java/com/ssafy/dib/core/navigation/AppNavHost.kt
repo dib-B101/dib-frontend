@@ -1931,6 +1931,8 @@ fun AppNavHost(
                 }
                 auctionBidHistoryLoading = true
                 auctionBidHistoryError = null
+                // 연속된 입찰 이벤트의 재조회는 짧게 묶어 최신 이력 한 번만 가져온다.
+                if (auctionBidHistoryRevision > 0) delay(250L)
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getBidHistory(productId) }) {
                     is ApiResult.Success -> {
                         auctionBidHistory = result.value.items
@@ -1963,7 +1965,8 @@ fun AppNavHost(
                                         SocketEventTypes.BID_ACCEPTED,
                                         SocketEventTypes.BID_REJECTED
                                     )
-                                    if (update.eventType == SocketEventTypes.BID_ACCEPTED) auctionBidHistoryRevision++
+                                    if (update.eventType == SocketEventTypes.BID_ACCEPTED ||
+                                        update.eventType == SocketEventTypes.HIGHEST_BID_UPDATED) auctionBidHistoryRevision++
                                     if (update.eventType == SocketEventTypes.AUCTION_ENDED) {
                                         wonOrderId = update.orderId?.takeIf(String::isNotBlank)
                                     }
