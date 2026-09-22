@@ -29,6 +29,10 @@ import com.ssafy.dib.domain.product.ProductUpdate
 import com.ssafy.dib.domain.product.ProductUpdateResult
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.feature.auction.productModerationStatusLabel
 
 @Composable
@@ -74,7 +78,7 @@ fun ProductEditScreen(
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text)) }; Text("상품 수정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }; HorizontalDivider(color = Colors.Border) } }
+        topBar = { DibSubAppBar("상품 수정", onBack) }
     ) { padding ->
         when {
             isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
@@ -225,7 +229,12 @@ private fun ProductEditForm(
         submitError?.let { item { Text(it, color = Colors.Urgent, fontSize = 12.sp) } }
         item { Button({ onSubmit(ProductUpdate(title.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), null, if (auctionEditable) startPrice.toLongOrNull() else null, if (auctionEditable) auctionMinutes.toIntOrNull()?.let { it * 60 } else null)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정 내용 등록", fontWeight = FontWeight.Bold) } }
     }
-    if (showCategories) AlertDialog(onDismissRequest = { showCategories = false }, title = { Text("카테고리 선택") }, text = { LazyColumn { items(categories) { category -> Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp)) } } }, confirmButton = { TextButton({ showCategories = false }) { Text("닫기") } })
+    if (showCategories) DibDialog(
+        onDismissRequest = { showCategories = false },
+        title = "카테고리 선택",
+        text = { LazyColumn { items(categories) { category -> Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp), color = Colors.Text, fontWeight = if (categoryId == category.categoryId) FontWeight.Bold else FontWeight.Normal) } } },
+        confirmButton = { DibDialogConfirmButton("닫기", { showCategories = false }) }
+    )
     if (showConditions) ProductConditionDialog(
         selected = condition,
         onSelect = { condition = it },

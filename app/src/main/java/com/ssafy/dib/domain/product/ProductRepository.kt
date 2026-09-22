@@ -80,6 +80,8 @@ data class ProductDetail(
     val status: String,
     val imageUrls: List<String>,
     val sellerNickname: String?,
+    // 판매자 프로필 사진. 상세·판매자 프로필·거래 상세가 같은 아바타를 그린다
+    val sellerProfileImageUrl: String? = null,
     val sellerRating: Double?,
     // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
     val sellerReviewCount: Int? = null,

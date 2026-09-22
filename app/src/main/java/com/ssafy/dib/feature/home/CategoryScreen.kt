@@ -45,31 +45,78 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibNotificationBell
+import com.ssafy.dib.core.ui.DibSearchBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
-private data class CategoryItem(val id: String, @param:DrawableRes val icon: Int, val name: String, val tint: Color, val surface: Color)
+private data class CategoryItem(val id: String, @param:DrawableRes val icon: Int, val name: String, val tint: Color, val surface: Color, val order: Int)
+
+// 비슷한 성격의 카테고리는 같은 색을 쓰고 붙어서 나오게 묶음 순서(order)를 둔다
+private data class CategoryStyle(val order: Int, @param:DrawableRes val icon: Int, val tint: Color, val surface: Color)
+
+private val TechInk = Colors.Navy
+private val TechSoft = Colors.NavySoft
+private val HomeInk = Color(0xFF8A5A2B)
+private val HomeSoft = Color(0xFFF6EFE7)
+private val FashionInk = Color(0xFFB53A6E)
+private val FashionSoft = Color(0xFFFBEAF1)
+private val ActiveInk = Colors.MintInk
+private val ActiveSoft = Colors.MintSoft
+private val HobbyInk = Color(0xFF6D4AC2)
+private val HobbySoft = Color(0xFFF0EBFA)
+private val KidsInk = Color(0xFFD98A16)
+private val KidsSoft = Color(0xFFFFF4E0)
+private val FoodInk = Colors.Urgent
+private val FoodSoft = Colors.UrgentBackground
+private val NatureInk = Color(0xFF2E8B57)
+private val NatureSoft = Color(0xFFE9F6EE)
+private val TicketInk = Color(0xFF1F7AB8)
+private val TicketSoft = Color(0xFFE8F3FB)
+
+private fun String.containsAny(vararg keywords: String) = keywords.any { contains(it) }
+
+// 서버 카테고리 이름은 배포 DB(디지털기기·패션·잡화 …)와 시드(디지털·여성의류 …)가 조금씩 달라 키워드로 맞춘다.
+// when 순서가 우선순위다: "생활가전" 은 가전으로, "유아도서" 는 유아로, "건강기능식품" 은 건강으로 간다
+private fun categoryStyle(name: String): CategoryStyle = when {
+    name.containsAny("디지털", "전자", "기기") -> CategoryStyle(0, R.drawable.category_digital, TechInk, TechSoft)
+    name.containsAny("가전") -> CategoryStyle(1, R.drawable.category_home, TechInk, TechSoft)
+    name.containsAny("가구", "인테리어") -> CategoryStyle(2, R.drawable.category_furniture, HomeInk, HomeSoft)
+    name.containsAny("주방", "생활") -> CategoryStyle(3, R.drawable.category_kitchen, HomeInk, HomeSoft)
+    name.containsAny("의류", "패션") -> CategoryStyle(4, R.drawable.category_fashion, FashionInk, FashionSoft)
+    name.containsAny("잡화", "가방", "신발") -> CategoryStyle(5, R.drawable.category_bag, FashionInk, FashionSoft)
+    name.containsAny("뷰티", "미용") -> CategoryStyle(6, R.drawable.category_beauty, FashionInk, FashionSoft)
+    name.containsAny("스포츠", "레저") -> CategoryStyle(7, R.drawable.category_sports, ActiveInk, ActiveSoft)
+    name.containsAny("취미", "게임", "음반") -> CategoryStyle(8, R.drawable.category_game, HobbyInk, HobbySoft)
+    name.containsAny("예술", "창작") -> CategoryStyle(9, R.drawable.category_art, HobbyInk, HobbySoft)
+    name.containsAny("유아", "아동", "키즈") -> CategoryStyle(10, R.drawable.category_kids, KidsInk, KidsSoft)
+    name.containsAny("도서", "책") -> CategoryStyle(11, R.drawable.category_book, KidsInk, KidsSoft)
+    name.containsAny("건강") -> CategoryStyle(12, R.drawable.category_health, FoodInk, FoodSoft)
+    name.containsAny("식품", "음식") -> CategoryStyle(13, R.drawable.category_food, FoodInk, FoodSoft)
+    name.containsAny("반려", "펫") -> CategoryStyle(14, R.drawable.category_pet, NatureInk, NatureSoft)
+    name.containsAny("식물", "플랜트") -> CategoryStyle(15, R.drawable.category_plant, NatureInk, NatureSoft)
+    name.containsAny("티켓", "교환권") -> CategoryStyle(16, R.drawable.category_ticket, TicketInk, TicketSoft)
+    name.containsAny("쿠폰") -> CategoryStyle(17, R.drawable.category_coupon, TicketInk, TicketSoft)
+    else -> CategoryStyle(99, R.drawable.category_etc, Colors.Muted, Colors.Surface)
+}
+
+private fun String.toCategoryItem(id: String): CategoryItem {
+    val style = categoryStyle(this)
+    return CategoryItem(id, style.icon, this, style.tint, style.surface, style.order)
+}
 
 // 서버 카테고리(GET /api/v1/categories)가 오기 전이거나 실패했을 때만 쓰는 대체 목록
-private val categories = listOf(
-    CategoryItem("1", R.drawable.category_digital, "디지털기기", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("2", R.drawable.category_home, "생활가전", Colors.Urgent, Colors.UrgentBackground),
-    CategoryItem("3", R.drawable.category_furniture, "가구·인테리어", Colors.Navy, Colors.NavySoft),
-    CategoryItem("4", R.drawable.category_sports, "스포츠·레저", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("5", R.drawable.category_fashion, "패션·잡화", Colors.Urgent, Colors.UrgentBackground),
-    CategoryItem("6", R.drawable.category_beauty, "뷰티", Colors.Navy, Colors.NavySoft),
-    CategoryItem("7", R.drawable.category_game, "취미·게임", Colors.MintInk, Colors.MintSoft),
-    CategoryItem("8", R.drawable.category_art, "예술·창작", Colors.Urgent, Colors.UrgentBackground)
-)
+private val categories = listOf("디지털기기", "생활가전", "가구·인테리어", "스포츠·레저", "패션·잡화", "뷰티", "취미·게임", "예술·창작")
+    .mapIndexed { index, name -> name.toCategoryItem((index + 1).toString()) }
+    .sortedBy(CategoryItem::order)
 
 @Composable
 fun CategoryScreen(
     onBack: () -> Unit,
     onSearchClick: () -> Unit,
-    onNotificationsClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     remoteCategories: List<ProductCategory>?,
@@ -87,10 +134,11 @@ fun CategoryScreen(
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
     val auctionGridState = rememberLazyGridState()
-    val visibleCategories = remoteCategories?.takeIf { it.isNotEmpty() }?.mapIndexed { index, category ->
-        val style = categoryStyle(category.name, index)
-        CategoryItem(category.categoryId, style.icon, category.name, style.tint, style.surface)
-    } ?: categories
+    // 같은 묶음끼리 붙도록 정렬한다. sortedBy 는 안정 정렬이라 묶음 안에서는 서버 순서가 유지된다
+    val visibleCategories = remoteCategories?.takeIf { it.isNotEmpty() }
+        ?.map { category -> category.name.toCategoryItem(category.categoryId) }
+        ?.sortedBy(CategoryItem::order)
+        ?: categories
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
@@ -109,9 +157,7 @@ fun CategoryScreen(
                     }
                     Text("카테고리", Modifier.weight(1f), color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onNotificationsClick) {
-                    Image(painterResource(R.drawable.notification_vector), "알림", Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Text))
-                }
+                DibNotificationBell()
             }
             HorizontalDivider(color = Colors.Border)
             }
@@ -125,14 +171,8 @@ fun CategoryScreen(
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
             Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth().height(50.dp).background(Colors.Search, RoundedCornerShape(16.dp))
-                    .clickable(onClick = onSearchClick).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Image(painterResource(R.drawable.search_full), "검색", Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Muted))
-                Text("상품을 검색해보세요", Modifier.padding(start = 10.dp), color = Colors.Muted, fontSize = 14.sp)
-            }
+            // 홈과 같은 검색 상자
+            DibSearchBar("어떤 상품을 찾고 있나요?", onSearchClick)
             Spacer(Modifier.height(24.dp))
             Text(if(selectedId == null) "전체 카테고리" else "진행·예정 경매", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             if (selectedId == null) Text("관심 있는 분야의 경매를 둘러보세요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 13.sp)
@@ -183,8 +223,6 @@ fun CategoryScreen(
                     return@Column
                 }
                 val visibleAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter { it.category.contains(selectedName.orEmpty().take(2)) }.ifEmpty { allHomeAuctions.distinctBy(HomeAuction::id).take(6) }
-                Text("진행·예정 경매 ${visibleAuctions.size}개", color = Colors.Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(10.dp))
                 if (visibleAuctions.isEmpty()) {
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("진행 중이거나 예정된 경매가 없어요.", color = Colors.Muted, fontSize = 13.sp) }
                     return@Column
@@ -198,19 +236,8 @@ fun CategoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(visibleAuctions) { auction ->
-                        Column(
-                            Modifier.background(Colors.Background, RoundedCornerShape(14.dp)).clickable { onProductClick(auction.id) }.padding(bottom = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.fillMaxWidth().aspectRatio(1.05f))
-                            Text(auction.name, Modifier.padding(horizontal = 10.dp), color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            // 예정 경매도 이 목록에 들어오므로 남은 시간 대신 "경매 예정" 으로 구분한다 (예정 건의 remainingSeconds 는 진행 시간 그대로다)
-                            Text(
-                                if (auction.status.equals("SCHEDULED", ignoreCase = true)) "${auction.priceLabel} · 경매 예정"
-                                else "${auction.priceLabel} · ${remainingTimeLabel(auction.remainingSeconds)} 남음",
-                                Modifier.padding(horizontal = 10.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                        // 홈과 같은 상품 카드. 이 화면은 찜 상태를 모르므로 하트는 그리지 않는다
+                        HomeAuctionCard(auction, favorite = false, onFavorite = null, onClick = { onProductClick(auction.id) }, showStatus = true)
                     }
                     if (hasNext || isLoadingMore || loadMoreError != null) {
                         item(key = "category-load-more", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
@@ -235,14 +262,3 @@ fun CategoryScreen(
     }
 }
 
-private fun categoryStyle(name: String, fallbackIndex: Int): CategoryItem = when {
-    name.contains("디지털") || name.contains("전자") -> categories[0]
-    name.contains("생활") || name.contains("가전") -> categories[1]
-    name.contains("가구") || name.contains("인테리어") -> categories[2]
-    name.contains("스포츠") || name.contains("레저") -> categories[3]
-    name.contains("패션") || name.contains("잡화") -> categories[4]
-    name.contains("뷰티") || name.contains("미용") -> categories[5]
-    name.contains("취미") || name.contains("게임") -> categories[6]
-    name.contains("예술") || name.contains("창작") -> categories[7]
-    else -> categories[fallbackIndex % categories.size]
-}

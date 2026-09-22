@@ -23,6 +23,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.auction.AuctionSummary
@@ -80,7 +84,7 @@ fun LiveManagementScreen(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Surface,
         topBar = {
-            Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text("Live 방송 관리", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border)}
+            DibSubAppBar("Live 방송 관리", onBack)
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { showCreate = true }, containerColor = Colors.Navy, contentColor = Color.White) {
@@ -232,11 +236,9 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
     var time by rememberSaveable(initial?.liveBroadcastId) { mutableStateOf(initialDateTime.toLocalTime().toString().take(5)) }
     val scheduledLocalDateTime = runCatching { LocalDateTime.parse("${date}T${time}") }.getOrNull()
     val scheduledAt = scheduledLocalDateTime?.takeIf { it.isAfter(LocalDateTime.now()) }?.toString()
-    AlertDialog(
+    DibDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
-        title = { Text(if (initial == null) "새 Live 예약" else "Live 예약 수정", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+        title = if (initial == null) "새 Live 예약" else "Live 예약 수정",
         text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(title, { title = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("방송 제목") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
             OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 3, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
@@ -247,8 +249,8 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
         } },
-        confirmButton = { Button({ scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, null) } }, enabled = title.isNotBlank() && scheduledAt != null && !loading, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text(if (initial == null) "예약" else "저장") } },
-        dismissButton = { TextButton(onDismiss, enabled = !loading) { Text("취소", color = Colors.Muted) } }
+        confirmButton = { DibDialogConfirmButton(if (initial == null) "예약" else "저장", onClick = { scheduledAt?.let { onSubmit(title.trim(), description.trim().ifBlank { null }, it, null) } }, enabled = title.isNotBlank() && scheduledAt != null, loading = loading) },
+        dismissButton = { DibDialogDismissButton(onDismiss, enabled = !loading) }
     )
 }
 

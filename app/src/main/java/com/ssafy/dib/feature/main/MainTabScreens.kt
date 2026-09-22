@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
@@ -39,7 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibNotificationBell
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.core.ui.DibContentView
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibNetworkImage
@@ -143,7 +149,10 @@ fun MyTradesScreen(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
             Column(Modifier.background(Color.White)) {
-                Text("내 거래", Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth().height(60.dp).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("내 거래", Modifier.weight(1f), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    DibNotificationBell()
+                }
                 Row(Modifier.fillMaxWidth().height(45.dp).padding(horizontal = 16.dp)) {
                     TradeTab.entries.forEach { tab ->
                         Column(Modifier.weight(1f).fillMaxHeight().clickable { selected = tab }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
@@ -375,16 +384,17 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
     val chip = when(item.tone){ TradeTone.Urgent -> Colors.UrgentBackground; TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Colors.Urgent; TradeTone.Positive -> Colors.MintInk; TradeTone.Neutral -> Colors.Muted }
     Column(
-        modifier.heightIn(min = 232.dp).background(Color.White, RoundedCornerShape(18.dp))
+        modifier.background(Color.White, RoundedCornerShape(18.dp))
             .border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
+        // 홈 카드와 같은 정방형 썸네일. 가로로 긴 상자에 넣으면 세로가 크게 잘렸다
         if (item.thumbnailUrl.isNullOrBlank()) {
-            Box(Modifier.fillMaxWidth().height(92.dp).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                 Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
             }
         } else {
-            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxWidth().height(92.dp), placeholderText = item.title.take(1))
+            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(13.dp)), placeholderText = item.title.take(1))
         }
         Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -423,7 +433,12 @@ fun MyPageScreen(
     var confirmation by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { Text("마이", Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(horizontal = 18.dp, vertical = 15.dp), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold) },
+        topBar = {
+            Row(Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("마이", Modifier.weight(1f), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                DibNotificationBell()
+            }
+        },
         bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }
     ) { padding ->
         DibPullToRefreshBox(isRefreshing = profileLoading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -493,12 +508,12 @@ fun MyPageScreen(
         }
     }
     confirmation?.let { action ->
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { confirmation = null },
-            title = { Text("$action 할까요?") },
-            text = { Text("현재 계정에서 로그아웃하고 시작 화면으로 이동해요.") },
-            confirmButton = { TextButton({ confirmation = null; onLogout() }) { Text("로그아웃") } },
-            dismissButton = { TextButton({ confirmation = null }) { Text("취소") } }
+            title = "$action 할까요?",
+            text = { Text("현재 계정에서 로그아웃하고 시작 화면으로 이동해요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("로그아웃", { confirmation = null; onLogout() }, destructive = true) },
+            dismissButton = { DibDialogDismissButton({ confirmation = null }) }
         )
     }
 }
@@ -649,7 +664,7 @@ fun ProductRegisterScreen(
     }
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { if(step > 1) step-- else onBack() }) { Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter=ColorFilter.tint(Colors.Text)) }; Text("상품 등록", color=Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }; HorizontalDivider(color=Colors.Border) } }
+        topBar = { DibSubAppBar("상품 등록", onBack = { if (step > 1) step-- else onBack() }) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(if(step == 1) "상품 정보" else "등록 확인", color=Colors.Text,fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("$step / 2", color = Colors.Muted, fontSize = 12.sp) }; LinearProgressIndicator({ step / 2f }, Modifier.fillMaxWidth().padding(top = 10.dp).height(5.dp), color = Colors.Navy, trackColor = Colors.Border) }
@@ -759,9 +774,9 @@ fun ProductRegisterScreen(
             }
         }
     }
-    if (showPhotoSource) AlertDialog(
+    if (showPhotoSource) DibDialog(
         onDismissRequest = { showPhotoSource = false },
-        title = { Text("사진 추가") },
+        title = "사진 추가",
         text = {
             Column {
                 Text("앨범에서 선택", Modifier.fillMaxWidth().clickable {
@@ -775,13 +790,13 @@ fun ProductRegisterScreen(
                 }.padding(vertical = 14.dp), color = Colors.Navy)
             }
         },
-        confirmButton = { TextButton({ showPhotoSource = false }) { Text("닫기") } }
+        confirmButton = { DibDialogConfirmButton("닫기", { showPhotoSource = false }) }
     )
-    if (categoryDialog) AlertDialog(
+    if (categoryDialog) DibDialog(
         onDismissRequest = { categoryDialog = false },
-        title = { Text("카테고리 선택") },
-        text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Navy) } } },
-        confirmButton = { TextButton({ categoryDialog = false }) { Text("닫기") } }
+        title = "카테고리 선택",
+        text = { LazyColumn { items(categories.size) { index -> val category = categories[index]; Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; categoryDialog = false }.padding(vertical = 14.dp), color = Colors.Text, fontWeight = if (categoryId == category.categoryId) FontWeight.Bold else FontWeight.Normal) } } },
+        confirmButton = { DibDialogConfirmButton("닫기", { categoryDialog = false }) }
     )
     if (conditionDialog) ProductConditionDialog(
         selected = condition,
@@ -789,11 +804,11 @@ fun ProductRegisterScreen(
         onDismiss = { conditionDialog = false }
     )
     imageValidationMessage?.let { message ->
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { imageValidationMessage = null },
-            title = { Text("사진을 올릴 수 없어요") },
-            text = { Text(message) },
-            confirmButton = { TextButton({ imageValidationMessage = null }) { Text("확인") } }
+            title = "사진을 올릴 수 없어요",
+            text = { Text(message, color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("확인", { imageValidationMessage = null }) }
         )
     }
 }
@@ -811,7 +826,7 @@ internal fun ProductPhotoReorderScreen(
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Column(Modifier.background(Colors.Background)) { Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text("사진 순서 편집", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border) }
+            DibSubAppBar("사진 순서 편집", onBack)
         },
         bottomBar = {
             Button(
@@ -1002,9 +1017,9 @@ internal fun conditionLabel(condition: String) = when (condition) {
 // 순환하고 수정 화면은 칩 3개라, 같은 값을 고르는데 화면마다 방식이 달랐다
 @Composable
 internal fun ProductConditionDialog(selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    DibDialog(
         onDismissRequest = onDismiss,
-        title = { Text("상품 상태 선택") },
+        title = "상품 상태 선택",
         text = {
             Column {
                 PRODUCT_CONDITIONS.forEach { value ->
@@ -1019,7 +1034,7 @@ internal fun ProductConditionDialog(selected: String, onSelect: (String) -> Unit
                 }
             }
         },
-        confirmButton = { TextButton(onDismiss) { Text("닫기") } }
+        confirmButton = { DibDialogConfirmButton("닫기", onDismiss) }
     )
 }
 

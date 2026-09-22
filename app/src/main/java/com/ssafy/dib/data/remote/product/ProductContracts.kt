@@ -78,6 +78,7 @@ data class ProductDetailDto(
     val status: String = "",
     val images: List<JsonElement> = emptyList(),
     val nickname: String? = null,
+    val profileImageUrl: String? = null,
     // AI 검수 결과. moderationReason 은 사용자에게 그대로 보여줄 수 있는 한국어 문장이다
     val moderationReason: String? = null,
     val moderationStage: String? = null,
@@ -90,7 +91,8 @@ data class ProductSellerSummaryDto(
     val rating: Double? = null,
     val reviewCount: Int? = null,
     val tradeCount: Int? = null,
-    val completedTradeCount: Int? = null
+    val completedTradeCount: Int? = null,
+    val profileImageUrl: String? = null
 )
 
 @Serializable data class ProductListResponse(val items: List<ProductCardDto> = emptyList(), val nextCursor: String? = null, val hasNext: Boolean = false)

@@ -172,6 +172,9 @@ internal fun OrderSummaryDto.toDomain(): OrderSummary {
         heldAt = (heldAt ?: core?.heldAt)?.takeIf(String::isNotBlank),
         holdReportId = (holdReportId ?: core?.holdReportId).idValue().takeIf(String::isNotBlank),
         myRating = myRating,
+        sellerId = core?.sellerId.idValue().takeIf(String::isNotBlank),
+        sellerNickname = core?.sellerNickname?.takeIf(String::isNotBlank),
+        sellerProfileImageUrl = core?.sellerProfileImageUrl?.takeIf(String::isNotBlank),
         settlement = settlement?.let { block ->
             OrderSettlementSummary(
                 settlementId = block.settlementId.idValue().takeIf(String::isNotBlank),

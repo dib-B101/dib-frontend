@@ -9,6 +9,7 @@ import com.ssafy.dib.domain.auction.AuctionPage
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.auction.SaleHistoryPage
 import com.ssafy.dib.domain.auction.AuctionCommandResult
+import com.ssafy.dib.domain.auction.PlacedBid
 import com.ssafy.dib.domain.auction.SellerAuction
 import com.ssafy.dib.domain.auction.BidHistoryItem
 import com.ssafy.dib.domain.auction.BidHistoryPage
@@ -221,6 +222,18 @@ class AuctionRepositoryImpl(
             is ApiResult.Failure -> result
         }
 
+    override fun placeBid(auctionId: String, amount: Int, idempotencyKey: String): ApiResult<PlacedBid> =
+        when (val result = remote.placeBid(auctionId, amount, idempotencyKey)) {
+            is ApiResult.Success -> ApiResult.Success(
+                PlacedBid(
+                    currentPrice = (result.value.currentPrice ?: amount.toLong()).coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                    bidCount = result.value.bidCount ?: 0
+                ),
+                result.status
+            )
+            is ApiResult.Failure -> result
+        }
+
     override fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult> =
         when (val result = remote.createAuction(productId, startPrice, auctionTime, idempotencyKey)) {
             is ApiResult.Success -> ApiResult.Success(AuctionCommandResult(result.value.auctionId?.idValue().orEmpty(), result.value.message), result.status)
@@ -283,6 +296,7 @@ internal fun AuctionDto.toDomain(now: Instant): AuctionSummary {
         myOrderId = myOrderId?.idValue()?.takeIf { it.isNotBlank() && it != "null" },
         imageUrls = detailedImages.ifEmpty { listOfNotNull(product?.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname,
+        sellerProfileImageUrl = sellerSummary?.profileImageUrl,
         sellerRating = sellerSummary?.rating,
         sellerReviewCount = sellerSummary?.reviewCount,
         sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,

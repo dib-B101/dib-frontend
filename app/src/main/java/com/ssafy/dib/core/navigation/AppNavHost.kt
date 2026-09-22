@@ -3,6 +3,7 @@ package com.ssafy.dib.core.navigation
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +52,7 @@ import com.ssafy.dib.feature.auction.SellerListingsScreen
 import com.ssafy.dib.feature.auction.SellerListing
 import com.ssafy.dib.feature.auction.SellerReportScreen
 import com.ssafy.dib.feature.auction.SellerReviewsScreen
+import com.ssafy.dib.feature.auction.sellerListingOrder
 import com.ssafy.dib.feature.auth.LoginScreen
 import com.ssafy.dib.feature.auth.FindEmailScreen
 import com.ssafy.dib.feature.auth.PasswordResetLinkScreen
@@ -63,6 +65,9 @@ import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
 import com.ssafy.dib.feature.live.LiveManagementScreen
 import com.ssafy.dib.feature.live.LiveBroadcastConsoleScreen
+import com.ssafy.dib.core.ui.DibNotificationBellState
+import com.ssafy.dib.core.ui.DibSnackbarHost
+import com.ssafy.dib.core.ui.LocalDibNotificationBell
 import com.ssafy.dib.feature.live.LiveHostMediaPreference
 import com.ssafy.dib.feature.live.remainingSecondsUntil
 import com.ssafy.dib.feature.main.prepareProductImageUpload
@@ -163,6 +168,8 @@ fun AppNavHost(
     var kakaoSignupToken by remember { mutableStateOf<String?>(null) }
     var kakaoNickname by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+    // 홈 마감 임박 카드에서 바로 입찰한 결과 메시지. 홈이 토스트로 보여준 뒤 비운다
+    var homeBidNotice by remember { mutableStateOf<String?>(null) }
     var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
@@ -739,7 +746,16 @@ fun AppNavHost(
         bidHistoryLoading = false
     }
 
+    // 알림 벨은 모든 서브 헤더가 같은 값을 읽는다 (DibSubAppBar). 화면마다 파라미터로 뚫지 않는다
+    fun openNotifications() {
+        if (hasAppAccess) {
+            unreadNotificationCount = 0
+            navController.navigate(Screen.Notifications.route)
+        } else navController.navigate(Screen.Login.route)
+    }
+
     Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(unreadNotificationCount, ::openNotifications)) {
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route
@@ -1155,7 +1171,6 @@ fun AppNavHost(
                 showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
-                unreadNotificationCount = unreadNotificationCount,
                 onRetry = { auctionsRevision++ },
                 onBookmarkChange = ::updateBookmark,
                 onProductClick = { productId ->
@@ -1170,14 +1185,27 @@ fun AppNavHost(
                     browseAllAuctions = true
                     navController.navigate(Screen.Search.route)
                 },
-                onNotificationsClick = {
-                    if (hasAppAccess) {
-                        unreadNotificationCount = 0
-                        navController.navigate(Screen.Notifications.route)
-                    }
-                    else navController.navigate(Screen.Login.route)
-                },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
+                onPlaceBid = { auctionId, amount ->
+                    // 상세 화면은 소켓으로 입찰하지만 홈은 소켓을 붙이지 않아 REST 로 넣는다
+                    val command = "home-bid:$auctionId:$amount"
+                    val idempotencyKey = commandKeys.keyFor(command)
+                    coroutineScope.launch {
+                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.placeBid(auctionId, amount, idempotencyKey) }) {
+                            is ApiResult.Success -> {
+                                commandKeys.complete(command)
+                                homeBidNotice = "${"%,d".format(result.value.currentPrice)}원에 입찰했어요."
+                                auctionsRevision++
+                            }
+                            is ApiResult.Failure -> {
+                                homeBidNotice = bidSubmissionMessage(result.error)
+                                if (result.error.requiresLogin) signedIn = false
+                            }
+                        }
+                    }
+                },
+                bidNotice = homeBidNotice,
+                onBidNoticeShown = { homeBidNotice = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onTabSelected = ::navigateMain,
                 tabReselectSignal = tabReselectSignal
@@ -1256,10 +1284,6 @@ fun AppNavHost(
             CategoryScreen(
                 onBack = navController::navigateUp,
                 onSearchClick = { navController.navigate(Screen.Search.route) },
-                onNotificationsClick = {
-                    if (signedIn == true) navController.navigate(Screen.Notifications.route)
-                    else navController.navigate(Screen.Login.route)
-                },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
                 remoteCategories = categoryList,
@@ -2304,6 +2328,7 @@ fun AppNavHost(
                 onSellerClick = { sellerMemberId ->
                     if (sellerMemberId.isNotBlank()) {
                         backStackEntry.savedStateHandle["sellerNickname"] = remoteProduct?.sellerNickname ?: remoteDetail?.sellerNickname
+                        backStackEntry.savedStateHandle["sellerProfileImageUrl"] = remoteProduct?.sellerProfileImageUrl ?: remoteDetail?.sellerProfileImageUrl
                         backStackEntry.savedStateHandle["sellerRating"] = remoteProduct?.sellerRating ?: remoteDetail?.sellerRating
                         backStackEntry.savedStateHandle["sellerReviewCount"] = remoteProduct?.sellerReviewCount ?: remoteDetail?.sellerReviewCount
                         backStackEntry.savedStateHandle["sellerTradeCount"] = remoteProduct?.sellerTradeCount ?: remoteDetail?.sellerTradeCount
@@ -2845,6 +2870,14 @@ fun AppNavHost(
                 },
                 onOpenReview = { showReviewDialog = true },
                 onOpenChat = { navController.navigate(Screen.OrderChat.createRoute(orderId)) },
+                onSellerClick = { sellerId ->
+                    // 판매자 프로필은 이전 화면의 savedStateHandle 에서 닉네임·사진을 읽는다
+                    navController.currentBackStackEntry?.savedStateHandle?.let { handle ->
+                        handle["sellerNickname"] = remoteOrder?.sellerNickname
+                        handle["sellerProfileImageUrl"] = remoteOrder?.sellerProfileImageUrl
+                    }
+                    navController.navigate(Screen.SellerProfile.createRoute(sellerId))
+                },
                 reportSubmitting = orderReportSubmitting,
                 reportError = orderReportError,
                 reportCompleted = orderReportCompleted,
@@ -5074,6 +5107,7 @@ fun AppNavHost(
                 onSellerClick = { memberId ->
                     product?.let { detail ->
                         backStackEntry.savedStateHandle["sellerNickname"] = detail.sellerNickname
+                        detail.sellerProfileImageUrl?.let { backStackEntry.savedStateHandle["sellerProfileImageUrl"] = it }
                         detail.sellerRating?.let { backStackEntry.savedStateHandle["sellerRating"] = it }
                         detail.sellerReviewCount?.let { backStackEntry.savedStateHandle["sellerReviewCount"] = it }
                         detail.sellerTradeCount?.let { backStackEntry.savedStateHandle["sellerTradeCount"] = it }
@@ -5138,16 +5172,28 @@ fun AppNavHost(
 
             SellerProfileScreen(
                 sellerNickname = sourceState?.get<String>("sellerNickname"),
+                sellerProfileImageUrl = sourceState?.get<String>("sellerProfileImageUrl"),
                 sellerRating = sourceState?.get<Double>("sellerRating"),
                 sellerReviewCount = sourceState?.get<Int>("sellerReviewCount"),
                 sellerTradeCount = sourceState?.get<Int>("sellerTradeCount"),
-                activeCount = sellerAuctions?.count { it.status == "ACTIVE" },
-                endedCount = sellerAuctions?.count { it.status == "ENDED" },
+                // 프로필의 판매 내역 줄. 진행 중 → 예정 → 종료 순으로 앞에서 5개만 화면이 보여준다
+                listings = sellerAuctions?.sortedBy { sellerListingOrder(it.status) }?.map { auction ->
+                    SellerListing(
+                        productId = auction.productId,
+                        title = auction.title ?: "판매 상품",
+                        thumbnailUrl = auction.thumbnailUrl,
+                        currentPrice = auction.currentPrice,
+                        bidCount = auction.bidCount,
+                        status = auction.status,
+                        auctionId = auction.auctionId
+                    )
+                },
                 showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 isOwnProfile = memberId.isNotBlank() && memberId == memberProfile?.memberId,
                 onBack = navController::navigateUp,
                 onReviewsClick = { navController.navigate(Screen.SellerReviews.createRoute(memberId)) },
                 onListingsClick = { navController.navigate(Screen.SellerListings.createRoute(memberId)) },
+                onProductClick = { listing -> navController.navigate(Screen.ProductDetail.createRoute(listing.auctionId ?: listing.productId)) },
                 onReportClick = {
                     if (signedIn == true) navController.navigate(Screen.SellerReport.createRoute(memberId))
                     else navController.navigate(Screen.Login.route)
@@ -5188,7 +5234,8 @@ fun AppNavHost(
                             thumbnailUrl = auction.thumbnailUrl ?: product?.thumbnailUrl,
                             currentPrice = auction.currentPrice,
                             bidCount = auction.bidCount,
-                            status = auction.status
+                            status = auction.status,
+                            auctionId = auction.auctionId
                         )
                     }
                 } else {
@@ -5283,7 +5330,8 @@ fun AppNavHost(
             )
         }
         }
-        SnackbarHost(
+        }
+        DibSnackbarHost(
             hostState = notificationSnackbar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -5473,6 +5521,16 @@ internal fun liveControlError(error: ApiFailure): String = when (error.code) {
     "AUCTION_NOT_ACTIVE" -> "선택한 경매를 시작할 수 있는 상태가 아니에요."
     "NOT_BROADCASTER" -> "이 방송을 관리할 권한이 없어요."
     else -> error.message.ifBlank { "Live 요청을 처리하지 못했어요." }
+}
+
+// REST 입찰 실패 안내. 소켓 BID_REJECTED 의 message 와 같은 말투로 맞춘다
+internal fun bidSubmissionMessage(error: ApiFailure): String = when (error.code) {
+    "BID_TOO_LOW" -> "최소 입찰가보다 낮아요. 현재가를 확인하고 다시 입찰해주세요."
+    "BID_AMOUNT_TAKEN" -> "같은 금액의 입찰이 먼저 들어왔어요."
+    "AUCTION_NOT_ACTIVE" -> "진행 중인 경매가 아니에요."
+    "INVALID_PRICE_UNIT" -> "입찰 금액은 10원 단위여야 해요."
+    "SELF_BID_NOT_ALLOWED", "FORBIDDEN" -> "내 경매에는 입찰할 수 없어요."
+    else -> error.message.ifBlank { "입찰을 접수하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
 
 internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {

@@ -25,6 +25,7 @@ data class AuctionSummary(
     val myOrderId: String? = null,
     val imageUrls: List<String> = emptyList(),
     val sellerNickname: String? = null,
+    val sellerProfileImageUrl: String? = null,
     val sellerRating: Double? = null,
     // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
     val sellerReviewCount: Int? = null,
@@ -49,6 +50,8 @@ data class SellerAuction(
     val thumbnailUrl: String? = null
 )
 data class AuctionCommandResult(val auctionId: String, val message: String)
+// REST 입찰 결과. 홈에서 바로 입찰한 뒤 토스트에 보여줄 값만 담는다
+data class PlacedBid(val currentPrice: Int, val bidCount: Int)
 
 // 목록 API 의 status 필터와 같은 뜻으로 맞춘 판정. OPEN 은 진행 중 + 예정, ALL 은 전부다
 fun String.matchesAuctionStatusFilter(filter: String): Boolean = when (filter.uppercase()) {
@@ -119,6 +122,7 @@ interface AuctionRepository {
     fun getBidHistory(auctionId: String, cursor: String? = null, size: Int = 20): ApiResult<AuctionBidHistoryPage>
     fun getBidSnapshot(auctionId: String): ApiResult<AuctionBidSnapshot>
     fun setBookmark(productId: String, bookmarked: Boolean, idempotencyKey: String): ApiResult<Boolean>
+    fun placeBid(auctionId: String, amount: Int, idempotencyKey: String): ApiResult<PlacedBid>
     fun createAuction(productId: String, startPrice: Long, auctionTime: Long, idempotencyKey: String): ApiResult<AuctionCommandResult>
     fun updateAuction(auctionId: String, startPrice: Long, auctionTime: Long): ApiResult<AuctionCommandResult>
     fun cancelAuction(auctionId: String, idempotencyKey: String): ApiResult<Unit>

@@ -23,6 +23,7 @@ data class HomeAuction(
     val imageUrls: List<String> = emptyList(),
     val startPrice: Int = price,
     val sellerNickname: String? = null,
+    val sellerProfileImageUrl: String? = null,
     val sellerRating: Double? = null,
     // 받은 평가 건수. 0 이면 평점을 화면에 그리지 않는다
     val sellerReviewCount: Int? = null,
@@ -82,6 +83,7 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     startPrice = startPriceOrNull ?: 0,
     priceUndecided = currentPriceOrNull == null && startPriceOrNull == null,
     sellerNickname = sellerNickname,
+    sellerProfileImageUrl = sellerProfileImageUrl,
     sellerRating = sellerRating,
     sellerReviewCount = sellerReviewCount,
     sellerTradeCount = sellerTradeCount,

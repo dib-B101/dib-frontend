@@ -97,7 +97,8 @@ fun DibFloatingAssistant(
     Column(
         modifier = modifier
             .statusBarsPadding()
-            .padding(top = 8.dp, end = 12.dp)
+            // 모든 헤더 오른쪽에 알림 버튼이 생겨서, 기본 자리를 헤더(56dp) 아래로 내린다. 끌어서 옮길 수 있다
+            .padding(top = 64.dp, end = 12.dp)
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
             .onSizeChanged {
                 widthPx = it.width.toFloat()

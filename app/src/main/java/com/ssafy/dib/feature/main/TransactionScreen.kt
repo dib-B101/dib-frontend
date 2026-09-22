@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,7 +55,13 @@ import androidx.compose.ui.res.painterResource
 import com.ssafy.dib.R
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibProfileAvatar
+import com.ssafy.dib.core.ui.DibReportButton
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.order.OrderShipment
 import com.ssafy.dib.domain.order.OrderSummary
@@ -101,6 +108,8 @@ fun TransactionScreen(
     onConfirmPurchase: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
+    // 구매자 화면의 판매자 줄을 누르면 프로필로. null 이면 줄만 보여준다
+    onSellerClick: ((String) -> Unit)? = null,
     reportSubmitting: Boolean = false,
     reportError: String? = null,
     reportCompleted: Boolean = false,
@@ -144,6 +153,7 @@ fun TransactionScreen(
             onConfirmPurchase = onConfirmPurchase,
             onOpenReview = onOpenReview,
             onOpenChat = onOpenChat,
+            onSellerClick = onSellerClick,
             reportSubmitting = reportSubmitting,
             reportError = reportError,
             reportCompleted = reportCompleted,
@@ -192,6 +202,7 @@ private fun RemoteTransactionScreen(
     onConfirmPurchase: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenChat: () -> Unit,
+    onSellerClick: ((String) -> Unit)?,
     reportSubmitting: Boolean,
     reportError: String?,
     reportCompleted: Boolean,
@@ -243,6 +254,11 @@ private fun RemoteTransactionScreen(
                     if (onHold) item { OrderHoldBanner(order.heldAt) }
                     item { StatusHero(presentation.icon, presentation.title, presentation.description, presentation.background) }
                     item { ProductSummary(order.finalPrice, order.title, order.orderId, order.thumbnailUrl) }
+                    // 판매자 줄은 구매자에게만. 서버가 닉네임·프로필 사진을 주문 상세에 함께 준다
+                    if (role != "seller") item {
+                        val sellerId = order.sellerId
+                        SellerRow(order.sellerNickname, order.sellerProfileImageUrl, if (sellerId != null && onSellerClick != null) ({ onSellerClick(sellerId) }) else null)
+                    }
                     item {
                         InfoCard(
                             listOf(
@@ -256,6 +272,7 @@ private fun RemoteTransactionScreen(
                     if (completedPaymentLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
                     completedPaymentError?.let { message -> item { Text(message, color = Colors.Urgent, fontSize = 12.sp) } }
                     completedPayment?.let { payment ->
+                        val receiptUrl = payment.receiptUrl?.takeIf(String::isNotBlank)
                         item {
                             InfoCard(
                                 listOf(
@@ -263,11 +280,10 @@ private fun RemoteTransactionScreen(
                                     "결제 금액" to "${"%,d".format(payment.amount)}원",
                                     "결제 일시" to (formatServerTime(payment.paidAt) ?: "확인 중")
                                 ),
-                                "결제 정보"
+                                "결제 정보",
+                                // 영수증은 결제 정보의 일부라 카드 밖에 따로 두지 않고 카드 맨 아래에 붙인다
+                                footer = receiptUrl?.let { url -> { SecondaryButton("결제 영수증 보기") { runCatching { uriHandler.openUri(url) } } } }
                             )
-                        }
-                        payment.receiptUrl?.takeIf(String::isNotBlank)?.let { receiptUrl ->
-                            item { OutlinedButton(onClick = { runCatching { uriHandler.openUri(receiptUrl) } }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("결제 영수증 보기", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
                         }
                     }
                     if (shippingAddressLoading) item { Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Mint, strokeWidth = 2.dp) } }
@@ -323,19 +339,11 @@ private fun RemoteTransactionScreen(
                         }
                     }
                     if (isOrderChatWritable(order.status, order.chattingReadOnly)) {
-                        item { OutlinedButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("거래 채팅", color = Colors.Navy, fontWeight = FontWeight.Bold) } }
+                        item { SecondaryButton("거래 채팅", onClick = onOpenChat) }
                     }
                     if (order.status.uppercase() !in setOf("PENDING", "CONFIRMED", "CANCELLED", "CANCELED", "REFUNDED")) {
-                        item {
-                            OutlinedButton(
-                                onClick = { showReport = true },
-                                enabled = !onHold && !reportSubmitting,
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text(if (onHold) "신고 접수됨" else "거래 신고", color = if (onHold) Colors.Muted else Colors.Urgent, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        // 상품 상세·판매자 프로필의 신고 버튼과 같은 모양
+                        item { DibReportButton(if (onHold) "신고 접수됨" else "거래 신고", onClick = { showReport = true }, enabled = !onHold && !reportSubmitting) }
                         if (!onHold) item { Text("상품 상태나 미발송, 거래 채팅에서 문제가 있었다면 신고해주세요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp) }
                     }
                     confirmationError?.let { message ->
@@ -479,17 +487,7 @@ private fun RemoteTransactionScreen(
                                 "배송 정보"
                             )
                         }
-                        item {
-                            OutlinedButton(
-                                onClick = onRefreshShipment,
-                                enabled = !shipmentLoading,
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                if (shipmentLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Navy, strokeWidth = 2.dp)
-                                else Text("배송 상태 새로고침", color = Colors.Navy, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        item { SecondaryButton("배송 상태 새로고침", enabled = !shipmentLoading, loading = shipmentLoading, onClick = onRefreshShipment) }
                     }
                     // 서버는 구매 확정 전까지 settlement 블록을 null 로 준다
                     val settlement = order.settlement
@@ -528,15 +526,45 @@ private fun RemoteTransactionScreen(
         )
     }
     if (showConfirm) {
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("구매를 확정할까요?") },
-            text = { Text("확정 후 판매자 정산이 시작되며 단순 변심으로 취소할 수 없습니다.") },
-            confirmButton = {
-                TextButton(onClick = { showConfirm = false; onConfirmPurchase() }) { Text("구매 확정") }
-            },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("취소") } }
+            title = "구매를 확정할까요?",
+            text = { Text("확정 후 판매자 정산이 시작되며 단순 변심으로 취소할 수 없습니다.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("구매 확정", { showConfirm = false; onConfirmPurchase() }) },
+            dismissButton = { DibDialogDismissButton({ showConfirm = false }) }
         )
+    }
+}
+
+/** 구매자 화면의 판매자 줄. 프로필 사진이 없으면 기본 아이콘 */
+@Composable
+private fun SellerRow(nickname: String?, profileImageUrl: String?, onClick: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).clickable(enabled = onClick != null) { onClick?.invoke() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        DibProfileAvatar(profileImageUrl, 44.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("판매자", color = Colors.Muted, fontSize = 11.sp)
+            Text(nickname?.takeIf(String::isNotBlank) ?: "판매자", color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        if (onClick != null) Image(painterResource(R.drawable.chevron_right), null, Modifier.size(18.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+    }
+}
+
+/** 거래 상세의 보조 버튼(채팅·영수증·새로고침). 남색 테두리·남색 글자로 한 가지 모양만 쓴다 */
+@Composable
+private fun SecondaryButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, loading: Boolean = false, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (enabled) Colors.Navy else Colors.Border)
+    ) {
+        if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = Colors.Navy, strokeWidth = 2.dp)
+        else Text(label, color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -608,9 +636,9 @@ private fun OrderReportDialog(
     val reasons = orderReportReasonsFor(reportType)
     val detailLimit = orderReportDetailLimitFor(reason)
     val detailValid = detail.trim().length >= ORDER_REPORT_DETAIL_MIN
-    AlertDialog(
+    DibDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text(if (completed) "신고가 접수됐어요" else "거래 신고") },
+        title = if (completed) "신고가 접수됐어요" else "거래 신고",
         text = {
             if (completed) {
                 Text("검토 후 필요한 조치를 진행할게요. 처리가 끝날 때까지 이 거래는 보류돼요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp)
@@ -675,18 +703,16 @@ private fun OrderReportDialog(
             }
         },
         confirmButton = {
-            if (completed) {
-                TextButton(onClick = onDismiss) { Text("확인") }
-            } else {
-                TextButton(
-                    onClick = { onSubmit(buildOrderReportContent(reason, detail), reportType) },
-                    enabled = reason.isNotBlank() && detailValid && !submitting
-                ) { Text(if (submitting) "접수 중" else "신고하기") }
-            }
+            if (completed) DibDialogConfirmButton("확인", onDismiss)
+            else DibDialogConfirmButton(
+                "신고하기",
+                onClick = { onSubmit(buildOrderReportContent(reason, detail), reportType) },
+                enabled = reason.isNotBlank() && detailValid,
+                loading = submitting,
+                destructive = true
+            )
         },
-        dismissButton = {
-            if (!completed) TextButton(onClick = onDismiss, enabled = !submitting) { Text("취소") }
-        }
+        dismissButton = if (completed) null else ({ DibDialogDismissButton(onDismiss, enabled = !submitting) })
     )
 }
 
@@ -800,12 +826,12 @@ private fun SampleTransactionScreen(role: String, onBack: () -> Unit, modifier: 
         }
     }
     if (showConfirm) {
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("구매를 확정할까요?") },
-            text = { Text("구매 확정 후 판매자 정산이 시작되며 단순 변심으로 결제를 취소할 수 없습니다.") },
-            confirmButton = { TextButton({ showConfirm = false; step = TransactionStep.Complete }) { Text("구매 확정") } },
-            dismissButton = { TextButton({ showConfirm = false }) { Text("취소") } }
+            title = "구매를 확정할까요?",
+            text = { Text("구매 확정 후 판매자 정산이 시작되며 단순 변심으로 결제를 취소할 수 없습니다.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("구매 확정", { showConfirm = false; step = TransactionStep.Complete }) },
+            dismissButton = { DibDialogDismissButton({ showConfirm = false }) }
         )
     }
 }
@@ -912,14 +938,15 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
     }
 }
 
-@Composable private fun InfoCard(rows: List<Pair<String, String>>, title: String? = null) {
+@Composable private fun InfoCard(rows: List<Pair<String, String>>, title: String? = null, footer: (@Composable () -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
         if (title != null) { Text(title,color=Colors.Text,fontSize = 15.sp, fontWeight = FontWeight.Bold); HorizontalDivider(color = Colors.Border) }
         rows.forEach { (label, value) -> Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top) { Text(label, Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp); Text(value,Modifier.weight(1.35f), color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) } }
+        footer?.invoke()
     }
 }
 
-@Composable private fun TransactionAppBar(title:String,onBack:()->Unit){Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title,color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold)};HorizontalDivider(color=Colors.Border)}}
+@Composable private fun TransactionAppBar(title: String, onBack: () -> Unit) { DibSubAppBar(title, onBack) }
 
 @Composable private fun PrimaryButton(label: String, onClick: () -> Unit) {
     Button(onClick, Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {

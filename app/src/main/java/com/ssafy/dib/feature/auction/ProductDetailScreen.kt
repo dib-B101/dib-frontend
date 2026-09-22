@@ -33,6 +33,10 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibSubAppBar
+import com.ssafy.dib.core.ui.DibProfileAvatar
+import com.ssafy.dib.core.ui.DibReportButton
+import com.ssafy.dib.core.ui.DibSnackbarHost
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.time.formatRemainingTime
 import com.ssafy.dib.feature.home.ProductPhoto
@@ -255,7 +259,7 @@ fun ProductDetailScreen(
                 onTransaction = onTransactionClick
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { DibSnackbarHost(snackbar) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
@@ -323,7 +327,7 @@ fun ProductDetailScreen(
     }
 
     if (showBidSheet) {
-        BidSheet(
+        AuctionBidSheet(
             productName = productName,
             currentPrice = currentPrice,
             bidCount = product.bidCount,
@@ -402,11 +406,7 @@ private fun AuctionBidHistorySection(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("입찰 이력", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Text("입찰자 정보는 가려져요", color = Colors.Muted, fontSize = 10.sp, maxLines = 1)
-        }
+        Text("입찰 이력", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
         errorMessage?.let { message ->
             Row(Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
@@ -423,12 +423,19 @@ private fun AuctionBidHistorySection(
             if (isLoading) Text("입찰 이력 갱신 중", color = Colors.Muted, fontSize = 11.sp)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Colors.Border)) {
                 visibleItems.forEachIndexed { index, bid ->
-                    Row(Modifier.fillMaxWidth().background(Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // 첫 줄이 현재 최고 입찰(최신순 = 최고가순). 배경과 배지로 눈에 띄게 한다
+                    val top = index == 0
+                    Row(Modifier.fillMaxWidth().background(if (top) Colors.NavySoft else Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(bid.bidderNickname ?: bid.maskedBidderId, color = Colors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(bid.bidderNickname ?: bid.maskedBidderId, color = if (top) Colors.Navy else Colors.Text, fontSize = if (top) 13.sp else 12.sp, fontWeight = FontWeight.Bold)
+                                if (top) Surface(color = Colors.Navy, shape = RoundedCornerShape(6.dp)) {
+                                    Text("최고 입찰", Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                             Text(formatBidCreatedAt(bid.createdAt), color = Colors.Muted, fontSize = 10.sp)
                         }
-                        Text("${"%,d".format(bid.amount)}원", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("${"%,d".format(bid.amount)}원", color = Colors.Navy, fontSize = if (top) 16.sp else 14.sp, fontWeight = FontWeight.Bold)
                     }
                     if (index < visibleItems.lastIndex) HorizontalDivider(color = Colors.Border)
                 }
@@ -448,17 +455,11 @@ private fun formatBidCreatedAt(value: String): String =
 
 @Composable
 private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
-    Row(Modifier.fillMaxWidth().height(60.dp).background(Colors.Background).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            Image(painterResource(R.drawable.back), "뒤로", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
-        }
-        Text("경매 상세", Modifier.weight(1f), color = Colors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+    DibSubAppBar("경매 상세", onBack, actions = {
         IconButton(onClick = onShare, enabled = shareEnabled) {
             Image(painterResource(R.drawable.share), "공유", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Text))
         }
-    }
-    HorizontalDivider(color = Colors.Border)
+    })
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -539,11 +540,12 @@ private fun ProductSummary(
             }
             Badge("상품 상태 · ${conditionLabel(condition)}")
         }
-        Text(name, fontSize = 21.sp, lineHeight = 29.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
+        Text(name, color = Colors.Text, fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
         Row(
             Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 13.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // 현재가가 가장 중요한 정보라 맨 앞에 가장 크게, 그다음 시작가·남은 시간 순서로 둔다
             Metric(
                 when (state) {
                     DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
@@ -552,8 +554,15 @@ private fun ProductSummary(
                     DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
                 },
                 if (priceUndecided) "가격 미정" else "%,d원".format(price),
-                Colors.Navy,
-                16,
+                Colors.Text,
+                22,
+                Modifier.weight(1.2f)
+            )
+            Metric(
+                "시작가",
+                if (priceUndecided) "가격 미정" else "%,d원".format(startPrice),
+                Colors.Text,
+                18,
                 Modifier.weight(1f)
             )
             Metric(
@@ -571,23 +580,9 @@ private fun ProductSummary(
                     DetailAuctionState.Active, DetailAuctionState.HighestBidder -> formatRemainingTime(remainingSeconds)
                 },
                 if (remainingSeconds in 1..59) Colors.Urgent else Colors.Text,
-                16,
+                18,
                 Modifier.weight(1f)
             )
-            Metric(
-                "시작가",
-                if (priceUndecided) "가격 미정" else "%,d원".format(startPrice),
-                Colors.Text,
-                16,
-                Modifier.weight(1f)
-            )
-        }
-        if (state == DetailAuctionState.Active) {
-            Row(Modifier.fillMaxWidth().background(Colors.MintSoft, RoundedCornerShape(14.dp)).padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Image(painterResource(R.drawable.trending_up), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
-                Text("최소 입찰가 이상을 10원 단위로 입력할 수 있어요", color = Colors.MintInk, fontSize = 12.sp, lineHeight = 18.sp)
-            }
         }
         if (state == DetailAuctionState.Lost) {
             Text("아쉽게 낙찰되지 않았어요", Modifier.fillMaxWidth().background(Color(0xFFF5F5F5), RoundedCornerShape(10.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -619,7 +614,7 @@ private fun Badge(label: String, urgent: Boolean = false, success: Boolean = fal
 private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(label, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-        Text(value, color = color, fontSize = valueSize.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = color, fontSize = valueSize.sp, lineHeight = (valueSize + 6).sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -627,9 +622,7 @@ private fun Metric(label: String, value: String, color: androidx.compose.ui.grap
 private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(Colors.Background).clickable(onClick = onClick).padding(20.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(40.dp).background(Colors.Surface, CircleShape), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.seller), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Colors.Muted))
-        }
+        DibProfileAvatar(detail?.sellerProfileImageUrl ?: auction.sellerProfileImageUrl, 40.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(detail?.sellerNickname ?: auction.sellerNickname ?: "판매자", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
             val sellerMeta = listOfNotNull(
@@ -661,13 +654,6 @@ private fun ProductInformation(
     val releaseYear = detail?.releaseYear ?: auction.productReleaseYear
     val marketPrice = detail?.marketPrice ?: auction.productMarketPrice
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Badge("안전배송")
-                Badge("배송비 포함")
-            }
-        }
         InfoBlock("상품 설명", description)
         Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("상품 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
@@ -680,18 +666,17 @@ private fun ProductInformation(
                 marketPrice?.let { price -> HorizontalDivider(color = Colors.Border); InfoRow("시세", "${"%,d".format(price)}원") }
             }
         }
-        Column(Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("입찰 전에 확인해 주세요", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text("• 최소 입찰가 이상을 10원 단위로 입력해 주세요.\n• 입찰한 금액은 취소할 수 없어요.\n• 종료 15초 이내에 새 입찰이 들어오면 남은 시간이 15초로 다시 맞춰져요.\n• 낙찰되면 등록된 카드로 낙찰가 전액이 자동 결제돼요.\n• 결제가 실패하면 거래 상세에서 다시 결제할 수 있어요.",
-                color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(14.dp)).border(1.dp, Colors.Border, RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("배송 정보", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Badge("안전배송", success = true)
+                Badge("배송비 포함", success = true)
+            }
         }
+        // 입찰 전 안내는 입찰 시트(AuctionBidSheet)에서 한 번만 보여준다
         if (canReport) {
             HorizontalDivider(color = Colors.Border)
-            OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Urgent)) {
-                Text("이 상품 신고하기", color = Colors.Urgent, fontSize = 12.sp)
-            }
+            DibReportButton("이 상품 신고하기", onClick = onReport)
         }
     }
 }
@@ -757,9 +742,7 @@ private fun StickyBidAction(
             return@Column
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(48.dp).background(Colors.Surface, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                DibWishlistButton(favorite, onFavorite, "상품")
-            }
+            DibWishlistButton(favorite, onFavorite, "상품", Modifier.size(48.dp), plain = true)
             Button(
                 onClick = onBid,
                 enabled = state == DetailAuctionState.Active && !submitting && !isOwnAuction && biddingAvailable,
@@ -787,71 +770,3 @@ private fun StickyBidAction(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BidSheet(productName: String, currentPrice: Int, bidCount: Int, submissionError: String, onDismiss: () -> Unit, onContinue: (BidSubmission) -> Unit) {
-    val minimum = minimumBidAmount(currentPrice, bidCount)
-    var amountText by rememberSaveable { mutableStateOf(minimum.toString()) }
-    val typedAmount = amountText.toIntOrNull() ?: 0
-    // 끝자리가 0 이 아니면 막는 대신 10원 단위로 올려서 그 금액으로 입찰한다 — 사용자가 직접 끝자리를 맞추던 불편을 없앤다
-    val amount = roundUpToBidUnit(typedAmount)
-    val snapped = typedAmount > 0 && amount != typedAmount
-    val valid = typedAmount > 0 && isValidBidAmount(amount, minimum)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Colors.Background,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Colors.Border) }
-    ) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("내 가격으로 입찰하기", fontSize = 20.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
-                IconButton(onClick = onDismiss) {
-                    Image(painterResource(R.drawable.close), "닫기", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Muted))
-                }
-            }
-            Text("$productName · 현재가 ${"%,d".format(currentPrice)}원", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            if (submissionError.isNotBlank()) {
-                Text(submissionError, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Color(0xFFD1381F), fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("입찰 금액", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("${"%,d".format(minimum)}원 이상", color = Colors.Muted, fontSize = 12.sp)
-            }
-            OutlinedTextField(
-                value = amountText,
-                onValueChange = { value -> amountText = value.filter(Char::isDigit).take(9) },
-                modifier = Modifier.fillMaxWidth(),
-                suffix = { Text("원", fontWeight = FontWeight.Bold) },
-                isError = amountText.isNotEmpty() && !valid,
-                supportingText = when {
-                    amountText.isNotEmpty() && !valid -> {{ Text("최소 금액 이상으로 입력해주세요") }}
-                    snapped -> {{ Text("10원 단위로 올려 ${"%,d".format(amount)}원으로 입찰돼요") }}
-                    else -> null
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                textStyle = LocalTextStyle.current.copy(color = Colors.Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold),
-                shape = RoundedCornerShape(15.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Colors.Navy, unfocusedBorderColor = Colors.Navy)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1_000, 5_000, 10_000).forEach { increment ->
-                    Button(onClick = {
-                        amountText = steppedBidAmount(amountText.toIntOrNull() ?: minimum, increment, minimum).toString()
-                    },
-                        modifier = Modifier.weight(1f).height(40.dp), shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Surface, contentColor = Colors.Navy),
-                        contentPadding = PaddingValues(0.dp)) {
-                        Text("+%,d원".format(increment), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Text("입찰 후에는 취소할 수 없고, 낙찰되면 등록된 카드로 자동결제돼요.\n종료 15초 이내 새 입찰 시 남은 시간이 15초로 다시 맞춰져요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            Button(onClick = { onContinue(BidSubmission(amount)) }, enabled = valid, modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
-                Text("${"%,d".format(amount)}원 입찰하기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}

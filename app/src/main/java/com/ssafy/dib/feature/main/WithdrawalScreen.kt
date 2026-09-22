@@ -1,6 +1,7 @@
 package com.ssafy.dib.feature.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,10 +39,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.domain.member.MemberWithdrawal
 import com.ssafy.dib.R
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import java.time.Instant
 import java.time.ZoneId
@@ -68,19 +71,37 @@ fun WithdrawalScreen(
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas,
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = { Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick={if(state==WithdrawalState.Requested)onComplete() else onBack()}){Image(painterResource(if(state==WithdrawalState.Requested)R.drawable.close else R.drawable.back),if(state==WithdrawalState.Requested)"닫기" else "뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(if(state==WithdrawalState.Requested)"회원 탈퇴 신청 완료" else "회원 탈퇴",color=Colors.Text,fontSize=17.sp,fontWeight=FontWeight.Bold)};HorizontalDivider(color=Colors.Border)} }
+        topBar = { DibSubAppBar(title = if (state == WithdrawalState.Requested) "회원 탈퇴 신청 완료" else "회원 탈퇴", onBack = { if (state == WithdrawalState.Requested) onComplete() else onBack() }, backIcon = if (state == WithdrawalState.Requested) R.drawable.close else R.drawable.back, backDescription = if (state == WithdrawalState.Requested) "닫기" else "뒤로") }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=18.dp,vertical=20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             when (state) {
                 WithdrawalState.Check -> {
-                    WarningHero("탈퇴 전에 확인해주세요", "진행 중인 입찰·판매·주문이 있으면\n탈퇴할 수 없습니다.")
-                    SectionCard("탈퇴 시 삭제되는 정보", listOf("프로필 및 계정 정보", "찜·최근 본 상품 기록", "문의 및 알림 정보"))
-                    Row(Modifier.fillMaxWidth().height(56.dp).clickable { agreed = !agreed }, verticalAlignment = Alignment.CenterVertically) { Checkbox(agreed, { agreed = it }, colors = CheckboxDefaults.colors(checkedColor = Colors.Navy)); Text("안내 내용을 확인했습니다", fontSize = 13.sp) }
-                    errorMessage?.let { Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, fontSize = 12.sp) }
-                    Spacer(Modifier.weight(1f))
-                    Button(onSubmit, Modifier.fillMaxWidth().height(52.dp), enabled = agreed && !isSubmitting, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF596B))) {
-                        if (isSubmitting) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                        else Text("탈퇴 신청", fontWeight = FontWeight.Bold)
+                    // 경고·삭제 정보·동의·버튼을 흰 카드 하나에 모은다. 버튼은 화면 바닥이 아니라 체크란 바로 아래에 둔다
+                    Column(
+                        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(20.dp)).border(1.dp, Colors.Border, RoundedCornerShape(20.dp)).padding(horizontal = 20.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(Modifier.size(56.dp).background(Colors.UrgentBackground, CircleShape), contentAlignment = Alignment.Center) {
+                            Image(painterResource(R.drawable.warning_outline), null, Modifier.size(28.dp), colorFilter = ColorFilter.tint(Colors.Urgent))
+                        }
+                        Text("탈퇴 전에 확인해주세요", color = Colors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        Text("진행 중인 입찰·판매·주문이 있으면\n탈퇴할 수 없습니다.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp), color = Colors.Border)
+                        // 삭제 항목 목록만 왼쪽 정렬을 유지한다
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("탈퇴 시 삭제되는 정보", color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            listOf("프로필 및 계정 정보", "찜·최근 본 상품 기록", "문의 및 알림 정보").forEach { Text("•  $it", color = Colors.Muted, fontSize = 12.sp) }
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { agreed = !agreed }, verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(agreed, { agreed = it }, colors = CheckboxDefaults.colors(checkedColor = Colors.Navy))
+                            Text("안내 내용을 확인했습니다", fontSize = 13.sp)
+                        }
+                        errorMessage?.let { Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, fontSize = 12.sp) }
+                        Button(onSubmit, Modifier.fillMaxWidth().height(52.dp), enabled = agreed && !isSubmitting, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Urgent)) {
+                            if (isSubmitting) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Text("탈퇴 신청", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 WithdrawalState.Blocked -> {

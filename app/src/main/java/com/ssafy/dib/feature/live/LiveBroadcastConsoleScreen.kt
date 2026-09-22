@@ -42,6 +42,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ssafy.dib.core.device.DeviceEnvironment
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.live.LiveChatMessage
@@ -254,23 +257,18 @@ fun LiveBroadcastConsoleScreen(
         }
     }
 
-    if (showEndConfirm) AlertDialog(
+    if (showEndConfirm) DibDialog(
         onDismissRequest = { if (!actionLoading) showEndConfirm = false },
-        title = { Text("방송을 종료할까요?") },
-        text = { Text("종료하면 시청자의 채팅과 입찰이 모두 닫혀요.", fontSize = 13.sp) },
-        confirmButton = {
-            TextButton(
-                onClick = { showEndConfirm = false; onEndLive() },
-                enabled = !actionLoading
-            ) { Text("방송 종료", color = Colors.Urgent, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton({ showEndConfirm = false }, enabled = !actionLoading) { Text("계속 방송") } }
+        title = "방송을 종료할까요?",
+        text = { Text("종료하면 시청자의 채팅과 입찰이 모두 닫혀요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+        confirmButton = { DibDialogConfirmButton("방송 종료", { showEndConfirm = false; onEndLive() }, enabled = !actionLoading, destructive = true) },
+        dismissButton = { DibDialogDismissButton({ showEndConfirm = false }, label = "계속 방송", enabled = !actionLoading) }
     )
 
     // 진행 중인 경매를 두고 방송을 끊으면 입찰자는 낙찰되고도 화면이 사라진다. 막되, 왜 막혔는지는 알려준다
-    if (showEndBlocked) AlertDialog(
+    if (showEndBlocked) DibDialog(
         onDismissRequest = { showEndBlocked = false },
-        title = { Text("아직 종료할 수 없어요") },
+        title = "아직 종료할 수 없어요",
         text = {
             Text(
                 buildString {
@@ -287,7 +285,7 @@ fun LiveBroadcastConsoleScreen(
                 fontSize = 13.sp
             )
         },
-        confirmButton = { TextButton({ showEndBlocked = false }) { Text("알겠어요") } }
+        confirmButton = { DibDialogConfirmButton("알겠어요", { showEndBlocked = false }) }
     )
 }
 

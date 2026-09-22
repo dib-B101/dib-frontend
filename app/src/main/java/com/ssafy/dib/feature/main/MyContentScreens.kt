@@ -58,6 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
+import com.ssafy.dib.core.ui.DibDialog
+import com.ssafy.dib.core.ui.DibDialogConfirmButton
+import com.ssafy.dib.core.ui.DibDialogDismissButton
+import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
@@ -68,6 +72,8 @@ import com.ssafy.dib.domain.support.InquiryDetail
 import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.feature.home.HomeAuction
+import com.ssafy.dib.feature.home.HomeAuctionCard
+import com.ssafy.dib.feature.home.homeAuctionMeta
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -173,13 +179,6 @@ fun RegisteredProductsScreen(
                 }
             }
             item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("전체", "검수 중", "승인", "등록 거절", "판매 완료").forEach { label -> FilterChip(label, filter == label) { filter = label } } } }
-            // 검수 완료 알림이나 소켓 이벤트가 없어서 사용자가 직접 새로고침하는 것이 상태를 확인하는 유일한 방법이다
-            if (remoteProducts != null) item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("검수는 잠시 걸려요. 결과 알림이 없으니 새로고침으로 확인해주세요.", Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp)
-                    TextButton(onClick = onRetry, enabled = !isLoading) { Text("새로고침", fontSize = 12.sp) }
-                }
-            }
             if (isLoading) item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             if (errorMessage != null) item { Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry) { Text("다시 불러오기") } } }
             deleteError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
@@ -226,12 +225,12 @@ fun RegisteredProductsScreen(
         }
     }
     deleteCandidate?.let { product ->
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { deleteCandidate = null },
-            title = { Text("상품을 삭제할까요?") },
-            text = { Text("${product.title}\n진행 중인 경매나 거래 이력이 있으면 삭제할 수 없어요.") },
-            confirmButton = { TextButton({ deleteCandidate = null; onDeleteProduct(product.productId) }) { Text("삭제", color = Colors.Urgent) } },
-            dismissButton = { TextButton({ deleteCandidate = null }) { Text("취소") } }
+            title = "상품을 삭제할까요?",
+            text = { Text("${product.title}\n진행 중인 경매나 거래 이력이 있으면 삭제할 수 없어요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = { DibDialogConfirmButton("삭제", { deleteCandidate = null; onDeleteProduct(product.productId) }, destructive = true) },
+            dismissButton = { DibDialogDismissButton({ deleteCandidate = null }) }
         )
     }
 }
@@ -242,6 +241,7 @@ private fun productStatusLabel(status: String) = when (status.uppercase()) {
     "REJECTED", "REVIEW_REJECTED" -> "등록 거절"
     "SOLD" -> "판매 완료"
     "ON_AUCTION" -> "경매 중"
+    "CANCELED", "CANCELLED" -> "취소"
     else -> status
 }
 private fun productStatusDescription(status: String) = when (status.uppercase()) {
@@ -250,6 +250,7 @@ private fun productStatusDescription(status: String) = when (status.uppercase())
     "REJECTED", "REVIEW_REJECTED" -> "등록이 거절됐어요 · 사유 확인 후 수정해주세요"
     "SOLD" -> "판매가 완료된 상품"
     "ON_AUCTION" -> "경매가 진행 중인 상품"
+    "CANCELED", "CANCELLED" -> "경매가 취소된 상품"
     else -> "상품 상태 확인 필요"
 }
 internal fun isProductEditable(status: String): Boolean = status.uppercase() in setOf("REGISTERED", "APPROVED", "REJECTED", "REVIEW_REJECTED")
@@ -299,22 +300,17 @@ fun FavoriteAuctionsScreen(
                     }
                 }
             } else {
-                LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyVerticalGrid(columns = GridCells.Fixed(2), contentPadding = PaddingValues(bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(favorites, key = HomeAuction::id) { auction ->
-                        Column(Modifier.clickable { onProductClick(auction.id) }) {
-                            Box(Modifier.fillMaxWidth().aspectRatio(1.05f).background(Color(0xFFD1D4D9), RoundedCornerShape(10.dp))) {
-                                DibNetworkImage(auction.imageUrls.firstOrNull(), auction.name, Modifier.fillMaxSize())
-                                DibWishlistButton(
-                                    selected = true,
-                                    onSelectedChange = { selected -> if (!selected && removingAuctionId == null) onRemove(auction.id) },
-                                    productName = auction.name,
-                                    modifier = Modifier.align(Alignment.TopEnd)
-                                )
-                            }
-                            Text(auction.name, Modifier.padding(top = 6.dp), color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text(auction.priceText, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text(if (removingAuctionId == auction.id) "찜 해제 중" else auction.meta, color = Colors.Muted, fontSize = 9.sp)
-                        }
+                        // 홈과 같은 상품 카드. 하트를 끄면 찜이 해제된다
+                        HomeAuctionCard(
+                            auction = auction,
+                            favorite = true,
+                            onFavorite = { selected -> if (!selected && removingAuctionId == null) onRemove(auction.id) },
+                            onClick = { onProductClick(auction.id) },
+                            showStatus = true,
+                            meta = if (removingAuctionId == auction.id) "찜 해제 중" else homeAuctionMeta(auction)
+                        )
                     }
                     if (hasNext || isLoadingMore || loadMoreError != null) item(
                         key = "favorite-load-more",
@@ -376,11 +372,11 @@ fun InquiryHistoryScreen(
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
         DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { Text("문의 답변은 등록한 이메일로도 알려드려요",Modifier.fillMaxWidth().background(Colors.NavySoft,RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
+            item { Text("답변이 등록되면 이메일로 알려드려요", Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
             if (isLoading) item { Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
             else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }
-            else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().height(108.dp).background(Colors.Background, RoundedCornerShape(16.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Colors.MintInk else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
+            else items(inquiries.size) { index -> val item = inquiries[index]; Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).clickable(enabled = item.questionId != null) { item.questionId?.let(onInquiryClick) }.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Text(item.status, color = if (item.status == "답변 완료") Colors.MintInk else Colors.Urgent, fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(item.title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(item.date, color = Colors.Muted, fontSize = 11.sp) } }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "inquiry-load-more") {
                 LaunchedEffect(inquiries.size, hasNext, isLoadingMore, loadMoreError) {
                     if (hasNext && !isLoadingMore && loadMoreError == null) onLoadMore()
@@ -393,11 +389,9 @@ fun InquiryHistoryScreen(
     }
     if (formOpen) {
         var title by rememberSaveable { mutableStateOf("") }; var body by rememberSaveable { mutableStateOf("") }
-        AlertDialog(
+        DibDialog(
             onDismissRequest = { if (!submitLoading) formOpen = false },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = Color.White,
-            title = { Text("문의하기", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+            title = "문의하기",
             text = {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(title, { title = it.take(100) }, Modifier.fillMaxWidth(), label = { Text("제목") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
@@ -405,25 +399,30 @@ fun InquiryHistoryScreen(
                     submitError?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }
                 }
             },
-            confirmButton = { Button({ onSubmit(title.trim(), body.trim()) }, enabled = title.isNotBlank() && body.isNotBlank() && !submitLoading, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text("등록") } },
-            dismissButton = { TextButton({ formOpen = false }, enabled = !submitLoading) { Text("취소", color = Colors.Muted) } }
+            confirmButton = { DibDialogConfirmButton("등록", onClick = { onSubmit(title.trim(), body.trim()) }, enabled = title.isNotBlank() && body.isNotBlank(), loading = submitLoading) },
+            dismissButton = { DibDialogDismissButton({ formOpen = false }, enabled = !submitLoading) }
         )
     }
     if (detailLoading || detailError != null || selectedInquiry != null) {
-        AlertDialog(
+        DibDialog(
             onDismissRequest = onDetailDismiss,
-            title = { Text(selectedInquiry?.title ?: "문의 상세") },
+            title = selectedInquiry?.title ?: "문의 상세",
             text = {
                 when {
                     detailLoading -> CircularProgressIndicator(color = Colors.Navy)
-                    detailError != null -> Text(detailError, color = Colors.Urgent)
-                    selectedInquiry != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(selectedInquiry.content, color = Colors.Navy)
-                        Text(selectedInquiry.answer ?: "아직 답변을 기다리고 있어요.", Modifier.fillMaxWidth().background(Color(0xFFF1F5FA), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Muted)
+                    detailError != null -> Text(detailError, color = Colors.Urgent, fontSize = 13.sp)
+                    selectedInquiry != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val answered = selectedInquiry.answer != null
+                        Text(if (answered) "답변 완료" else "답변 대기", color = if (answered) Colors.MintInk else Colors.Urgent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(selectedInquiry.content, color = Colors.Text, fontSize = 14.sp, lineHeight = 21.sp)
+                        Column(Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(12.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("답변", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(selectedInquiry.answer ?: "아직 답변을 기다리고 있어요.", color = Colors.Muted, fontSize = 13.sp, lineHeight = 19.sp)
+                        }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDetailDismiss) { Text("닫기") } }
+            confirmButton = { DibDialogConfirmButton("닫기", onDetailDismiss) }
         )
     }
 }
@@ -442,7 +441,6 @@ fun ReportHistoryScreen(
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedReport by remember { mutableStateOf<ReportSummary?>(null) }
     val sampleReports = remember {
         listOf(
             ReportSummary("sample-auction", "AUCTION", "허위 정보가 포함되어 있어요", "ACCEPTED", "빈티지 필름 카메라", "2026-09-08T09:00:00Z"),
@@ -450,16 +448,7 @@ fun ReportHistoryScreen(
         )
     }
     val displayedReports = reports ?: if (showSampleContent) sampleReports else emptyList()
-    BackHandler(enabled = selectedReport != null) { selectedReport = null }
-    SimpleHeaderScaffold(
-        if (selectedReport == null) "신고 내역" else "신고 상세",
-        onBack = { if (selectedReport == null) onBack() else selectedReport = null },
-        modifier = modifier
-    ) { padding ->
-        selectedReport?.let { report ->
-            ReportDetailContent(report, Modifier.fillMaxSize().padding(padding))
-            return@SimpleHeaderScaffold
-        }
+    SimpleHeaderScaffold("신고 내역", onBack, modifier) { padding ->
         DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
@@ -468,13 +457,7 @@ fun ReportHistoryScreen(
                 displayedReports.isEmpty() -> item { Text("접수한 신고가 없어요.", Modifier.fillMaxWidth().padding(vertical = 40.dp), color = Colors.Muted, fontSize = 13.sp) }
                 else -> items(displayedReports.size, key = { displayedReports[it].reportId }) { index ->
                     val report = displayedReports[index]
-                    HistoryCard(
-                        reportTypeLabel(report.type),
-                        report.targetLabel,
-                        reportContentPreview(report.content),
-                        reportStatusLabel(report.status),
-                        onClick = { selectedReport = report }
-                    )
+                    ReportCard(report)
                 }
             }
             if (!isLoading && errorMessage == null && (hasNext || isLoadingMore || loadMoreError != null)) item(key = "report-load-more") {
@@ -488,56 +471,28 @@ fun ReportHistoryScreen(
     }
 }
 
+/** 신고 한 건을 카드 하나에 담는다. 따로 상세로 들어가지 않아도 내용과 처리 현황을 바로 본다 */
 @Composable
-private fun ReportDetailContent(report: ReportSummary, modifier: Modifier = Modifier) {
-    LazyColumn(
-        modifier,
-        contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+private fun ReportCard(report: ReportSummary) {
+    val pending = report.status.equals("PENDING", true)
+    Column(
+        Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            Column(Modifier.fillMaxWidth().background(Colors.Navy, RoundedCornerShape(20.dp)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).background(Color.White.copy(alpha = .14f), CircleShape), contentAlignment = Alignment.Center) {
-                        Image(painterResource(R.drawable.report_outline), null, Modifier.size(21.dp), colorFilter = ColorFilter.tint(Color.White))
-                    }
-                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text("접수된 신고", color = Color.White.copy(alpha = .72f), fontSize = 11.sp)
-                        Text(reportStatusLabel(report.status), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(reportTypeLabel(report.type), Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(
+                reportStatusLabel(report.status),
+                Modifier.background(if (pending) Colors.UrgentBackground else Colors.MintSoft, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
+                color = if (pending) Colors.Urgent else Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.Bold
+            )
         }
-        item {
-            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("신고 정보", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(reportTypeLabel(report.type), color = Colors.Live, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(report.targetLabel, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(reportContentDetail(report.content), color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-            }
-        }
-        item {
-            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Colors.Border, RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("처리 현황", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    if (report.status.equals("PENDING", true)) "접수한 신고를 검토 중이에요" else "신고 처리가 완료됐어요",
-                    color = Colors.Navy,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    if (report.status.equals("PENDING", true)) "처리 결과는 알림에서 확인할 수 있어요." else "현재 상태는 ${reportStatusLabel(report.status)}입니다.",
-                    color = Colors.Muted,
-                    fontSize = 12.sp
-                )
-                report.createdAt?.let { createdAt ->
-                    Text(formatServerTime(createdAt) ?: createdAt, Modifier.fillMaxWidth(), color = Colors.MintInk, fontSize = 11.sp)
-                }
-                report.processedAt?.let { processedAt ->
-                    Text("처리 시각 " + (formatServerTime(processedAt) ?: processedAt), Modifier.fillMaxWidth(), color = Colors.MintInk, fontSize = 11.sp)
-                }
-            }
-        }
+        Text(report.targetLabel, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(reportContentDetail(report.content), color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        HorizontalDivider(color = Colors.Border)
+        Text(if (pending) "접수한 신고를 검토 중이에요" else "신고 처리가 완료됐어요", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        report.createdAt?.let { createdAt -> Text("접수 " + (formatServerTime(createdAt) ?: createdAt), color = Colors.Muted, fontSize = 11.sp) }
+        report.processedAt?.let { processedAt -> Text("처리 " + (formatServerTime(processedAt) ?: processedAt), color = Colors.Muted, fontSize = 11.sp) }
     }
 }
 
@@ -580,19 +535,22 @@ private fun reportStatusLabel(status: String) = when (status.uppercase()) {
     else -> status
 }
 
-private fun reportContentPreview(content: String): String =
-    content.lineSequence().firstOrNull { it.isNotBlank() }?.removePrefix("[신고 사유] ") ?: "신고 내용"
-
 private fun reportContentDetail(content: String): String = content
     .replace("[신고 사유] ", "신고 사유 · ")
     .replace("[신고할 메시지] ", "신고 메시지 · ")
     .replace("[거래 채팅 메시지] ", "거래 메시지 · ")
     .replace("[상세 내용] ", "상세 내용 · ")
 
-@Composable private fun HistoryCard(type: String, target: String, reason: String, status: String, onClick: () -> Unit) { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { Row(Modifier.fillMaxWidth()) { Text(type, Modifier.weight(1f), color = Colors.Muted, fontSize = 11.sp); Text(status, color = Colors.MintInk, fontSize = 11.sp, fontWeight = FontWeight.Bold) }; Text(target, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold); Text(reason, color = Colors.Muted, fontSize = 12.sp) } }
-
-@Composable private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) { Text(label, Modifier.height(32.dp).background(if (selected) Colors.Navy else Color.White, RoundedCornerShape(16.dp)).border(1.dp, if (selected) Colors.Navy else Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 7.dp), color = if (selected) Color.White else Colors.Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+// Text 에 높이와 padding 을 같이 주면 글자가 위로 붙었다. Box 가운데 정렬로 세로 중앙에 둔다
+@Composable private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.height(32.dp).background(if (selected) Colors.Navy else Color.White, RoundedCornerShape(16.dp)).border(1.dp, if (selected) Colors.Navy else Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (selected) Color.White else Colors.Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+    }
+}
 
 @Composable private fun MyListScaffold(title: String, onBack: () -> Unit, onTabSelected: (DibMainTab) -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, bottomBar = { DibBottomNavigation(DibMainTab.My, onTabSelected) }, content = content) }
 @Composable private fun SimpleHeaderScaffold(title: String, onBack: () -> Unit, modifier: Modifier, content: @Composable (PaddingValues) -> Unit) { Scaffold(modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0,0,0,0), topBar = { Header(title, onBack) }, content = content) }
-@Composable private fun Header(title: String, onBack: () -> Unit) { Column(Modifier.background(Colors.Background)){Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal=8.dp), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick=onBack){Image(painterResource(R.drawable.back),"뒤로",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Colors.Text))};Text(title, color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) };HorizontalDivider(color=Colors.Border)} }
+@Composable private fun Header(title: String, onBack: () -> Unit) { DibSubAppBar(title, onBack) }

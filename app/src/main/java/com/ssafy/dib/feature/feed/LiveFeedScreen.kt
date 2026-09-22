@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.feature.auction.BidSubmission
+import com.ssafy.dib.feature.auction.BID_NOTICES
 import com.ssafy.dib.feature.auction.isValidBidAmount
 import com.ssafy.dib.feature.auction.minimumBidAmount
 import com.ssafy.dib.feature.auction.roundUpToBidUnit
@@ -1266,7 +1267,7 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
                 }
             }
             if (snapped) Text("10원 단위로 올려 ${"%,d".format(amount)}원으로 입찰돼요", color = Colors.MintInk, fontSize = 11.sp)
-            Text("입찰 후에는 취소할 수 없어요. 낙찰되면 등록된 카드로 낙찰가 전액을 자동결제해요.\n종료 15초 이내 입찰 시 남은 시간이 15초로 다시 맞춰져요.", color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
+            Text(BID_NOTICES.joinToString("\n") { "• $it" }, color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
             Button({ onConfirm(BidSubmission(amount)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(amount)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
     }

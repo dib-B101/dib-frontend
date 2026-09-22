@@ -150,6 +150,7 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         status = product.status,
         imageUrls = imageUrls.ifEmpty { listOfNotNull(product.thumbnailUrl?.takeIf(String::isNotBlank)) },
         sellerNickname = sellerSummary?.nickname ?: product.nickname,
+        sellerProfileImageUrl = sellerSummary?.profileImageUrl ?: product.profileImageUrl,
         sellerRating = sellerSummary?.rating,
         sellerReviewCount = sellerSummary?.reviewCount,
         sellerTradeCount = sellerSummary?.tradeCount ?: sellerSummary?.completedTradeCount,
