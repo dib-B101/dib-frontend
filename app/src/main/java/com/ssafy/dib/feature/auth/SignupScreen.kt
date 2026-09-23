@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -371,7 +372,8 @@ private fun SignupField(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            // 높이를 56dp 로 묶으면 글자 크기 배율에 따라 안쪽 글자가 잘린다. 최소 높이만 둔다
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 13.sp) },
             singleLine = true,
             isError = errorMessage != null,

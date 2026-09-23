@@ -62,7 +62,8 @@ fun String.matchesAuctionStatusFilter(filter: String): Boolean = when (filter.up
     else -> equals(filter, ignoreCase = true)
 }
 data class AuctionPage(val items: List<AuctionSummary>, val nextCursor: String?, val hasNext: Boolean)
-data class SaleHistoryItem(val auction: AuctionSummary, val orderId: String?, val orderStatus: String?)
+// productStatus 는 상품 검수 상태. 거절된 상품의 경매는 SCHEDULED 로 남아 있어 경매 상태만 보면 "예정"으로 보였다
+data class SaleHistoryItem(val auction: AuctionSummary, val orderId: String?, val orderStatus: String?, val productStatus: String? = null)
 data class SaleHistoryPage(val items: List<SaleHistoryItem>, val nextCursor: String?, val hasNext: Boolean)
 data class BidHistoryItem(
     val bidId: String,

@@ -3,10 +3,13 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- 채운 하트(favorite_selected)와 같은 높이로 내린다. 윤곽 하트만 1dp 가까이 위로 떠 원형 버튼 가운데에서 벗어나 보였다 -->
+    <group android:translateY="0.95">
     <path
         android:fillColor="@android:color/transparent"
         android:pathData="M12,20.4L10.55,19.08C5.4,14.41 2,11.33 2,7.55C2,4.47 4.42,2.05 7.5,2.05C9.24,2.05 10.91,2.86 12,4.14C13.09,2.86 14.76,2.05 16.5,2.05C19.58,2.05 22,4.47 22,7.55C22,11.33 18.6,14.41 13.45,19.09L12,20.4Z"
         android:strokeColor="#FFFFFFFF"
         android:strokeLineJoin="round"
         android:strokeWidth="1.8" />
+    </group>
 </vector>

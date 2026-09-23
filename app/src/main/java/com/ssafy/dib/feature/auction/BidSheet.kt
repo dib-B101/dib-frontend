@@ -2,6 +2,7 @@ package com.ssafy.dib.feature.auction
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -98,6 +101,8 @@ fun AuctionBidSheet(
     val snapped = typedAmount > 0 && amount != typedAmount
     val valid = typedAmount > 0 && isValidBidAmount(amount, minimum)
     val thousands = remember { ThousandsSeparatorTransformation() }
+    // 낙찰되면 카드로 바로 결제된다. 안내 목록 한 줄로만 두면 모르고 입찰했다가 "냅다 결제됐다"는 반응이 나왔다
+    var autoPayAgreed by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -159,9 +164,10 @@ fun AuctionBidSheet(
                 Text("입찰 전에 확인해 주세요", fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
                 BID_NOTICES.forEach { notice -> Text("• $notice", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp) }
             }
+            AutoPayConsentRow(amount, autoPayAgreed) { autoPayAgreed = it }
             Button(
                 onClick = { onContinue(BidSubmission(amount)) },
-                enabled = valid,
+                enabled = valid && autoPayAgreed,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
@@ -169,5 +175,33 @@ fun AuctionBidSheet(
                 Text("${"%,d".format(amount)}원 입찰하기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+/**
+ * 낙찰 시 자동 결제 동의. 입찰 버튼 바로 위에 두고, 체크해야 입찰할 수 있다.
+ * 상품 상세·홈 입찰 시트와 라이브 입찰 시트가 함께 쓴다
+ */
+@Composable
+internal fun AutoPayConsentRow(amount: Int, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .background(if (checked) Colors.MintSoft else Colors.UrgentBackground, RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(checkedColor = Colors.Navy)
+        )
+        Text(
+            "낙찰되면 등록된 카드로 ${"%,d".format(amount)}원이 자동 결제되는 것을 확인했어요",
+            color = if (checked) Colors.MintInk else Colors.Urgent,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }

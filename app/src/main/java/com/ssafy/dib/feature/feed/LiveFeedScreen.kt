@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -40,7 +41,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.feature.auction.BidSubmission
 import com.ssafy.dib.feature.auction.BID_NOTICES
+import com.ssafy.dib.feature.auction.AutoPayConsentRow
 import com.ssafy.dib.feature.auction.isValidBidAmount
 import com.ssafy.dib.feature.auction.minimumBidAmount
 import com.ssafy.dib.feature.auction.roundUpToBidUnit
@@ -68,6 +73,8 @@ import com.ssafy.dib.feature.live.LiveVideoRole
 import com.ssafy.dib.feature.live.LiveVideoState
 import com.ssafy.dib.feature.live.LiveVideoSurface
 import com.ssafy.dib.feature.live.liveChatSpeakerLabel
+import com.ssafy.dib.feature.live.currentLiveNotice
+import com.ssafy.dib.feature.live.isLiveNoticeControl
 import com.ssafy.dib.feature.live.rememberLiveVideoSession
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
@@ -109,6 +116,7 @@ fun LiveFeedScreen(
     onRealtimeBid: (String, Int) -> Boolean,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onSellerClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
@@ -171,6 +179,7 @@ fun LiveFeedScreen(
             onRealtimeBid = onRealtimeBid,
             onClose = onClose,
             onProductClick = onProductClick,
+            onSellerClick = onSellerClick,
             onFavoriteChange = onFavoriteChange,
             onDismissFavoriteError = onDismissFavoriteError,
             onLoginRequired = onLoginRequired,
@@ -285,6 +294,7 @@ private fun LiveFeedPager(
     onRealtimeBid: (String, Int) -> Boolean,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onSellerClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
@@ -337,6 +347,7 @@ private fun LiveFeedPager(
                     onRealtimeBid = onRealtimeBid,
                     onClose = onClose,
                     onProductClick = onProductClick,
+                    onSellerClick = onSellerClick,
                     onFavoriteChange = onFavoriteChange,
                     onDismissFavoriteError = onDismissFavoriteError,
                     onLoginRequired = onLoginRequired,
@@ -384,6 +395,7 @@ private fun LiveFeedPage(
     onRealtimeBid: (String, Int) -> Boolean,
     onClose: () -> Unit,
     onProductClick: (String) -> Unit,
+    onSellerClick: (String) -> Unit,
     onFavoriteChange: (String, Boolean) -> Unit,
     onDismissFavoriteError: () -> Unit,
     onLoginRequired: () -> Unit,
@@ -400,7 +412,8 @@ private fun LiveFeedPage(
         liveItem == null || activeAuction?.status.equals("ACTIVE", ignoreCase = true)
     )
     val sellerMemberId = liveItem?.memberId?.takeIf(String::isNotBlank)
-    val sellerNotice = liveComments.lastOrNull { it.memberId == sellerMemberId && it.content.isNotBlank() }
+    // 판매자가 "공지로 설정"한 댓글만 공지로 띄운다 (규약은 currentLiveNotice 참고)
+    val sellerNotice = currentLiveNotice(liveComments, sellerMemberId)
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
@@ -420,11 +433,16 @@ private fun LiveFeedPage(
         mutableIntStateOf(activeAuction?.remainingSeconds ?: if (isSampleContent) 42 else 0)
     }
     var comment by rememberSaveable { mutableStateOf("") }
+    // 댓글 끄기. 영상만 보고 싶을 때 댓글 목록을 숨긴다(판매자 공지는 그대로 둔다). 방송을 넘겨도 설정을 유지한다
+    var showChat by rememberSaveable { mutableStateOf(true) }
+    // 찜 버튼을 누른 결과 안내. 하트가 "방송 좋아요"가 아니라 "현재 경매 상품 찜"이라는 걸 알려준다
+    var favoriteHint by remember { mutableStateOf<String?>(null) }
     var showBidFeedback by remember { mutableStateOf(false) }
     var showFavoriteBurst by remember { mutableStateOf(false) }
     var bidFeedbackAccepted by remember { mutableStateOf(true) }
     var bidFeedbackMessage by remember { mutableStateOf("") }
     var bidSubmitting by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
+    var autoPayAgreedAuctionId by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf<String?>(null) }
     var reportTarget by remember { mutableStateOf<LiveChatMessage?>(null) }
     var reportContent by rememberSaveable { mutableStateOf("") }
     var memberReportReason by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf("욕설·사기 유도") }
@@ -438,7 +456,14 @@ private fun LiveFeedPage(
     )
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
-    LaunchedEffect(Unit) { while (remaining > 0) { delay(1_000); remaining-- } }
+    // 0초에서 끝내지 않고 계속 돈다. 예전엔 방송에 들어올 때 진행 중인 경매가 없으면(0초) 루프가 바로 끝나,
+    // 판매자가 방송 중에 경매를 시작해 남은 시간이 새로 들어와도 숫자가 멈춰 있었다
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1_000)
+            if (remaining > 0) remaining--
+        }
+    }
     LaunchedEffect(realtimeBidFeedback?.eventKey) {
         realtimeBidFeedback ?: return@LaunchedEffect
         bidSubmitting = false
@@ -477,6 +502,12 @@ private fun LiveFeedPage(
             showBidFeedback = false
         }
     }
+    LaunchedEffect(favoriteHint) {
+        if (favoriteHint != null) {
+            delay(2_200)
+            favoriteHint = null
+        }
+    }
     LaunchedEffect(showFavoriteBurst) {
         if (showFavoriteBurst) {
             delay(700)
@@ -498,19 +529,24 @@ private fun LiveFeedPage(
                 Surface(color = Colors.Live, shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Box(Modifier.size(7.dp).graphicsLayer(alpha = liveDotAlpha).background(Color.White, CircleShape))
-                        Text("LIVE", color = Color.White, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("LIVE", color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("${"%,d".format(liveItem?.viewCount ?: 1_248)}명 시청 중", Modifier.padding(start = 9.dp), color = Color.White.copy(alpha = .9f), fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("${"%,d".format(liveItem?.viewCount ?: 1_248)}명 시청 중", Modifier.padding(start = 9.dp), color = Color.White.copy(alpha = .9f), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }
+            // 방송 제목 줄을 누르면 판매자 프로필로 간다. 예전엔 모양만 프로필이고 눌러도 반응이 없었다
             Row(
-                Modifier.padding(top = 6.dp),
+                Modifier.padding(top = 6.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable(enabled = sellerMemberId != null) { sellerMemberId?.let(onSellerClick) }
+                    .padding(end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(32.dp).background(Color(0xFFBDEEDF), CircleShape), contentAlignment = Alignment.Center) { Text((liveItem?.title ?: "하루공방").take(1), color = Color(0xFF13284B), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                Text(liveItem?.title ?: "하루공방", Modifier.padding(horizontal = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
+                Text(liveItem?.title ?: "하루공방", Modifier.padding(start = 8.dp).weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
+                if (sellerMemberId != null) Image(painterResource(R.drawable.chevron_right), "판매자 프로필 보기", Modifier.padding(start = 2.dp).size(16.dp), colorFilter = ColorFilter.tint(Color.White.copy(alpha = .85f)))
             }
         }
         Column(
@@ -528,24 +564,15 @@ private fun LiveFeedPage(
                         }
                     }
                 } else {
-                    if (liveComments.isNotEmpty()) {
-                        Text(
-                            "댓글 ${liveComments.size} · 전체보기",
-                            Modifier.clickable { showComments = true }.padding(horizontal = 4.dp, vertical = 2.dp),
-                            color = Color.White.copy(alpha = .82f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                     sellerNotice?.let { notice ->
                         Surface(
                             color = Colors.Navy.copy(alpha = .82f),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.clickable { showComments = true }
+                            shape = RoundedCornerShape(10.dp)
                         ) {
+                            // 라벨과 본문의 세로 가운데를 맞춘다. 예전엔 위쪽 정렬이라 라벨이 글자보다 올라가 보였다
                             Row(
                                 Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.Top,
+                                verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
@@ -553,58 +580,66 @@ private fun LiveFeedPage(
                                     Modifier.background(Color.White.copy(alpha = .22f), RoundedCornerShape(4.dp))
                                         .padding(horizontal = 4.dp, vertical = 1.dp),
                                     color = Color.White,
-                                    fontSize = 9.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     notice.content,
                                     color = Color.White,
-                                    fontSize = 10.sp,
-                                    lineHeight = 14.sp,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
-                    liveComments.takeLast(3).forEach { message ->
-                        val fromSeller = sellerMemberId != null && message.memberId == sellerMemberId
-                        Surface(
-                            color = if (fromSeller) Colors.Navy.copy(alpha = .62f) else Color.Black.copy(alpha = .24f),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.clickable(enabled = message.memberId != currentMemberId) {
-                                if (isAuthenticated) {
-                                    reportTarget = message
-                                    reportContent = ""
-                                    onDismissReport()
-                                } else onLoginRequired()
-                            }
-                        ) {
-                            Text(
-                                (if (fromSeller) "[판매자] " else "") +
-                                    liveChatSpeakerLabel(message, currentMemberId, fromSeller = false) + "  " + message.content,
-                                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                color = Color.White,
-                                fontSize = 10.sp
-                            )
+                    // "전체보기" 시트 대신 이 자리에서 위로 올려 지난 댓글을 본다. 최신 댓글이 맨 아래에 붙도록 뒤집어 그린다
+                    if (showChat) LiveCommentList(
+                        comments = liveComments,
+                        sellerMemberId = sellerMemberId,
+                        currentMemberId = currentMemberId,
+                        compact = imeVisible,
+                        hasMore = chatHasMore,
+                        loadingEarlier = chatLoadingEarlier,
+                        loadEarlierError = chatLoadEarlierError,
+                        onLoadEarlier = onLoadEarlierComments,
+                        onMessageClick = { message ->
+                            if (isAuthenticated) {
+                                reportTarget = message
+                                memberReportReason = "욕설·사기 유도"
+                                showMemberReportReasons = false
+                                reportContent = ""
+                                onDismissReport()
+                            } else onLoginRequired()
                         }
-                    }
+                    )
                 }
         }
         AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 236.dp), enter = fadeIn(), exit = fadeOut()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                LiveFavoriteAction(favorite, enabled = auctionKey != null && auctionKey !in favoriteUpdatingAuctionIds) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // 하트는 방송 좋아요가 아니라 "지금 경매 중인 상품 찜"이다. 라벨로 뜻을 밝힌다.
+                // 내 방송의 내 상품은 찜할 이유가 없어 버튼을 뺀다. 편성 상품이 없을 때도 눌러서 이유를 알 수 있게
+                // 버튼은 그대로 두고 안내만 띄운다 (예전엔 말없이 비활성이라 "어떤 라이브는 안 눌린다"로 보였다)
+                if (!isOwnAuction) LiveFavoriteAction(favorite, updating = auctionKey != null && auctionKey in favoriteUpdatingAuctionIds) {
                     when {
                         !isAuthenticated -> onLoginRequired()
-                        auctionKey != null -> {
+                        auctionKey == null -> favoriteHint = "찜할 경매 상품이 아직 없어요"
+                        auctionKey in favoriteUpdatingAuctionIds -> Unit
+                        else -> {
                             val selected = !favorite
                             favorite = selected
                             if (selected) showFavoriteBurst = true
+                            favoriteHint = if (selected) "‘${activeAuction?.title ?: "현재 상품"}’을 찜했어요 · 마이 > 찜한 경매"
+                            else "찜을 해제했어요"
                             onFavoriteChange(auctionKey, selected)
                         }
                     }
                 }
-                LiveAction(R.drawable.report_outline, "신고") {
+                LiveAction(R.drawable.chat_outline, if (showChat) "댓글 끄기" else "댓글 켜기", label = if (showChat) "댓글" else "댓글 꺼짐", dimmed = !showChat) {
+                    showChat = !showChat
+                }
+                LiveAction(R.drawable.report_outline, "신고", label = "신고") {
                     if (isAuthenticated) showReportTypes = true else onLoginRequired()
                 }
             }
@@ -621,6 +656,21 @@ private fun LiveFeedPage(
                 modifier = Modifier.size(96.dp),
                 colorFilter = ColorFilter.tint(Colors.Live)
             )
+        }
+        AnimatedVisibility(
+            visible = favoriteHint != null && favoriteError == null,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 62.dp),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Surface(color = Color.Black.copy(alpha = .72f), shape = RoundedCornerShape(18.dp)) {
+                Text(
+                    favoriteHint.orEmpty(),
+                    Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                    color = Color.White,
+                    fontSize = 12.sp
+                )
+            }
         }
         AnimatedVisibility(
             visible = favoriteError != null,
@@ -649,10 +699,17 @@ private fun LiveFeedPage(
                         Modifier.fillMaxWidth().clickable { showProducts = true }.padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (hasActiveAuction) "진행 중인 경매" else "경매 준비 중", color = Colors.Navy, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(if (hasActiveAuction) "진행 중인 경매" else "경매 준비 중", color = Colors.Navy, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("상품 ${productAuctions.size.coerceAtLeast(if (hasActiveAuction) 1 else 0)}개", color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
-                        Image(painterResource(R.drawable.chevron_right), null, Modifier.size(15.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+                        // 개수와 화살표가 붙어 보이지 않게 칩 하나로 묶고 간격을 둔다
+                        Row(
+                            Modifier.background(Colors.Surface, RoundedCornerShape(12.dp)).padding(start = 10.dp, end = 7.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("상품 ${productAuctions.size.coerceAtLeast(if (hasActiveAuction) 1 else 0)}개 전체보기", color = Colors.Navy, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                        }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         if (isSampleContent) {
@@ -673,8 +730,8 @@ private fun LiveFeedPage(
                             Text(
                                 activeAuction?.title ?: if (isSampleContent) "달빛 유약 머그컵" else "다음 경매를 준비하고 있어요",
                                 color = Colors.Navy,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
+                                fontSize = 14.sp,
+                                lineHeight = 19.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = FontWeight.Bold
@@ -682,8 +739,8 @@ private fun LiveFeedPage(
                             Text(
                                 if (hasActiveAuction) "현재가 ${"%,d".format(currentPrice)}원" else "판매자가 경매를 시작하면 참여할 수 있어요",
                                 color = if (hasActiveAuction) Colors.Navy else Colors.Muted,
-                                fontSize = if (hasActiveAuction) 15.sp else 11.sp,
-                                lineHeight = if (hasActiveAuction) 20.sp else 16.sp,
+                                fontSize = if (hasActiveAuction) 17.sp else 12.sp,
+                                lineHeight = if (hasActiveAuction) 22.sp else 17.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = FontWeight.Bold
@@ -719,7 +776,7 @@ private fun LiveFeedPage(
             }
             if (isAuthenticated && chatConnectionState != RealtimeConnectionState.Connected) Text(chatError ?: "Live 채팅 연결 중", color = Color.White.copy(.75f), fontSize = 9.sp)
             Row(Modifier.fillMaxWidth().height(46.dp).background(Color.Black.copy(.48f), RoundedCornerShape(23.dp)).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(value = comment, onValueChange = { comment = it.take(500) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 12.sp); inner() })
+                BasicTextField(value = comment, onValueChange = { comment = it.take(500) }, Modifier.weight(1f), enabled = isAuthenticated, singleLine = true, textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 14.sp), decorationBox = { inner -> if (comment.isBlank()) Text(if (isAuthenticated) "댓글을 입력하세요" else "로그인 후 댓글을 작성할 수 있어요", color = Color.White.copy(.75f), fontSize = 14.sp); inner() })
                 Box(Modifier.size(34.dp).background(if (comment.isNotBlank()) Colors.Mint else Color.White, CircleShape).clickable { if (!isAuthenticated) onLoginRequired() else if (comment.isNotBlank() && onSendComment(comment)) comment = "" }, contentAlignment = Alignment.Center) {
                     Image(painterResource(R.drawable.send), "댓글 전송", Modifier.size(17.dp), colorFilter = ColorFilter.tint(Colors.Navy))
                 }
@@ -743,7 +800,7 @@ private fun LiveFeedPage(
         ) {
             Text("무엇을 신고할까요?", color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
-                auctionKey?.let { "경매 ID $it" } ?: "현재 진행 중인 경매가 없어요.",
+                if (auctionKey != null) activeAuction?.title ?: "현재 경매 상품" else "현재 진행 중인 경매가 없어요.",
                 color = Colors.Muted,
                 fontSize = 10.sp
             )
@@ -791,8 +848,7 @@ private fun LiveFeedPage(
                 Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(14.dp)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("신고 대상", color = Colors.Muted, fontSize = 10.sp)
-                        Text("현재 경매 상품", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("경매 ID  $auctionId", color = Colors.Muted, fontSize = 10.sp)
+                        Text(activeAuction?.title ?: "현재 경매 상품", color = Colors.Navy, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Surface(
@@ -899,7 +955,8 @@ private fun LiveFeedPage(
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item { Text("Live 댓글", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            // 댓글 전체보기는 없앴다. 이 시트는 신고 유형에서 "회원·채팅 신고"를 골랐을 때 대상 댓글을 고르는 용도다
+            item { Text("신고할 댓글 선택", color = Colors.Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
             if (chatHasMore || chatLoadingEarlier || chatLoadEarlierError != null) {
                 item {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -915,7 +972,13 @@ private fun LiveFeedPage(
                 }
             }
             if (liveComments.isEmpty()) item { Text("아직 작성된 댓글이 없어요.", color = Colors.Muted, fontSize = 13.sp) }
-            items(liveComments.distinctBy(LiveChatMessage::liveChattingId).sortedBy(LiveChatMessage::time), key = LiveChatMessage::liveChattingId) { message ->
+            // 공지·공지 해제 메시지는 판매자가 올린 규약 메시지라 신고할 댓글 목록에서 뺀다
+            items(
+                liveComments.distinctBy(LiveChatMessage::liveChattingId)
+                    .filterNot { isLiveNoticeControl(it, sellerMemberId) }
+                    .sortedBy(LiveChatMessage::time),
+                key = LiveChatMessage::liveChattingId
+            ) { message ->
                 Surface(
                     color = Color(0xFFF4F6F8),
                     shape = RoundedCornerShape(12.dp),
@@ -954,7 +1017,15 @@ private fun LiveFeedPage(
             }
         }
     }
-    if (showBidSheet) LiveBidSheet(currentPrice, activeAuction?.bidCount ?: 0, { showBidSheet = false }) { submission ->
+    // 라이브는 짧은 시간에 여러 번 입찰하므로 같은 경매에서는 자동 결제 동의를 한 번만 받는다.
+    // 시트는 닫히면 사라지므로 동의한 경매 번호를 이 화면이 들고 있는다
+    if (showBidSheet) LiveBidSheet(
+        currentPrice,
+        activeAuction?.bidCount ?: 0,
+        autoPayAgreed = auctionKey != null && autoPayAgreedAuctionId == auctionKey,
+        onAutoPayAgreedChange = { agreed -> autoPayAgreedAuctionId = if (agreed) auctionKey else null },
+        onDismiss = { showBidSheet = false }
+    ) { submission ->
         when {
             !realtimeBiddingEnabled -> {
                 bidFeedbackAccepted = false
@@ -1199,6 +1270,97 @@ private fun LiveVideoConnectionNotice(
     }
 }
 
+// 닉네임마다 고정된 색을 준다. 모두 흰 글씨라 누가 쓴 댓글인지 구분이 안 됐다.
+// 어두운 반투명 배경 위에서 읽히는 밝은 색만 쓴다. 판매자는 민트, 나는 노랑으로 고정한다
+private val liveCommentNameColors = listOf(
+    Color(0xFF8FD3FF),
+    Color(0xFFFFA8B6),
+    Color(0xFFB9E68A),
+    Color(0xFFCDB4FF),
+    Color(0xFFFFC078),
+    Color(0xFF7EE8E0),
+    Color(0xFFFF9EE5)
+)
+
+private fun liveCommentNameColor(memberId: String, fromSeller: Boolean, mine: Boolean): Color = when {
+    fromSeller -> Colors.Mint
+    mine -> Color(0xFFFFE066)
+    else -> liveCommentNameColors[Math.floorMod(memberId.hashCode(), liveCommentNameColors.size)]
+}
+
+@Composable
+private fun LiveCommentList(
+    comments: List<LiveChatMessage>,
+    sellerMemberId: String?,
+    currentMemberId: String?,
+    compact: Boolean,
+    hasMore: Boolean,
+    loadingEarlier: Boolean,
+    loadEarlierError: String?,
+    onLoadEarlier: () -> Unit,
+    onMessageClick: (LiveChatMessage) -> Unit
+) {
+    // 최신이 index 0. reverseLayout 이라 맨 아래에 붙고, 맨 아래를 보고 있으면 새 댓글을 그대로 따라간다
+    val ordered = remember(comments, sellerMemberId) {
+        comments.distinctBy(LiveChatMessage::liveChattingId)
+            .filterNot { isLiveNoticeControl(it, sellerMemberId) }
+            .sortedByDescending(LiveChatMessage::time)
+    }
+    val listState = rememberLazyListState()
+    // 맨 위(가장 오래된 댓글)까지 올리면 이전 댓글을 이어서 불러온다. 사용자가 직접 올려 본 경우에만 부른다
+    val reachedOldest by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+            listState.canScrollBackward && last >= listState.layoutInfo.totalItemsCount - 1
+        }
+    }
+    LaunchedEffect(reachedOldest, hasMore, loadingEarlier, loadEarlierError) {
+        if (reachedOldest && hasMore && !loadingEarlier && loadEarlierError == null) onLoadEarlier()
+    }
+    LazyColumn(
+        Modifier.fillMaxWidth().heightIn(max = if (compact) 96.dp else 190.dp),
+        state = listState,
+        reverseLayout = true,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(ordered, key = LiveChatMessage::liveChattingId) { message ->
+            val fromSeller = sellerMemberId != null && message.memberId == sellerMemberId
+            val mine = currentMemberId != null && message.memberId == currentMemberId
+            Surface(
+                color = if (fromSeller) Colors.Navy.copy(alpha = .62f) else Color.Black.copy(alpha = .28f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.clickable(enabled = !mine) { onMessageClick(message) }
+            ) {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = liveCommentNameColor(message.memberId, fromSeller, mine), fontWeight = FontWeight.Bold)) {
+                            if (fromSeller) append("[판매자] ")
+                            append(liveChatSpeakerLabel(message, currentMemberId, fromSeller = false))
+                        }
+                        append("  ")
+                        append(message.content)
+                    },
+                    Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+            }
+        }
+        if (loadingEarlier || loadEarlierError != null) item(key = "earlier") {
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                if (loadingEarlier) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                else Text(
+                    "이전 댓글을 불러오지 못했어요 · 다시 시도",
+                    Modifier.clickable(onClick = onLoadEarlier).padding(6.dp),
+                    color = Color.White.copy(alpha = .8f),
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun LiveReportTypeAction(title: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     Surface(
@@ -1214,35 +1376,52 @@ private fun LiveReportTypeAction(title: String, description: String, enabled: Bo
     }
 }
 
+// 오른쪽 세로 버튼 아래 작은 글자. 아이콘만으로는 하트가 무엇을 찜하는지 알기 어려웠다
 @Composable
-private fun LiveAction(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
-    Box(
-        Modifier.size(52.dp).background(Color.Black.copy(alpha = .32f), CircleShape).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(painterResource(icon), contentDescription = label, modifier = Modifier.size(28.dp), colorFilter = ColorFilter.tint(Color.White))
+private fun LiveActionLabel(text: String) {
+    Text(text, Modifier.padding(top = 3.dp), color = Color.White, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun LiveAction(@DrawableRes icon: Int, description: String, label: String, dimmed: Boolean = false, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(52.dp).background(Color.Black.copy(alpha = .32f), CircleShape).clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painterResource(icon),
+                contentDescription = description,
+                modifier = Modifier.size(26.dp).graphicsLayer(alpha = if (dimmed) .45f else 1f),
+                colorFilter = ColorFilter.tint(Color.White)
+            )
+        }
+        LiveActionLabel(label)
     }
 }
 
 @Composable
-private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(52.dp).graphicsLayer(alpha = if (enabled) 1f else .45f)
-            .background(Color.Black.copy(alpha = .32f), CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
-            contentDescription = if (selected) "찜 해제" else "찜하기",
-            modifier = Modifier.size(28.dp),
-            colorFilter = ColorFilter.tint(if (selected) Colors.Live else Color.White)
-        )
+private fun LiveFavoriteAction(selected: Boolean, updating: Boolean, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(52.dp).graphicsLayer(alpha = if (updating) .6f else 1f)
+                .background(Color.Black.copy(alpha = .32f), CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
+                contentDescription = if (selected) "현재 상품 찜 해제" else "현재 상품 찜하기",
+                modifier = Modifier.size(28.dp),
+                colorFilter = ColorFilter.tint(if (selected) Colors.Live else Color.White)
+            )
+        }
+        LiveActionLabel("상품 찜")
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun LiveBidSheet(currentPrice: Int, bidCount: Int, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
+@Composable private fun LiveBidSheet(currentPrice: Int, bidCount: Int, autoPayAgreed: Boolean, onAutoPayAgreedChange: (Boolean) -> Unit, onDismiss: () -> Unit, onConfirm: (BidSubmission) -> Unit) {
     // 상품 상세와 같은 규칙(서버 Auction.minNextBid 구간 + 10원 단위). 예전 currentPrice+1 은 서버가 전부 거절하는 금액이었다
     val minimum = minimumBidAmount(currentPrice, bidCount)
     var amountText by rememberSaveable(currentPrice) { mutableStateOf(minimum.toString()) }
@@ -1268,7 +1447,8 @@ private fun LiveFavoriteAction(selected: Boolean, enabled: Boolean, onClick: () 
             }
             if (snapped) Text("10원 단위로 올려 ${"%,d".format(amount)}원으로 입찰돼요", color = Colors.MintInk, fontSize = 11.sp)
             Text(BID_NOTICES.joinToString("\n") { "• $it" }, color = Colors.Muted, fontSize = 11.sp, lineHeight = 17.sp)
-            Button({ onConfirm(BidSubmission(amount)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(amount)}원 입찰하기", fontWeight = FontWeight.Bold) }
+            AutoPayConsentRow(amount, autoPayAgreed, onAutoPayAgreedChange)
+            Button({ onConfirm(BidSubmission(amount)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && autoPayAgreed, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("${"%,d".format(amount)}원 입찰하기", fontWeight = FontWeight.Bold) }
         }
     }
 }
