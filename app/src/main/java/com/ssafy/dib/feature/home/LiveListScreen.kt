@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
@@ -23,6 +24,7 @@ import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibContentView
 import com.ssafy.dib.core.ui.DibMainTab
+import com.ssafy.dib.core.ui.DibNetworkImage
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.domain.auction.RecommendedLive
@@ -84,8 +86,18 @@ private fun LiveListCard(live: RecommendedLive, modifier: Modifier, onLiveClick:
             .clickable(enabled = isLive) { onLiveClick(live.liveBroadcastId) }.padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1.5f).background(Colors.NavySoft, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.live_video), null, Modifier.size(36.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+        // 홈 LIVE 카드와 같이 편성 상품의 대표 사진을 썸네일로 쓴다. 편성 상품이 없을 때만 기본 아이콘을 둔다
+        val thumbnailUrl = live.firstItemThumbnailUrl?.takeIf(String::isNotBlank)
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1.5f).clip(RoundedCornerShape(10.dp))
+                .background(if (thumbnailUrl != null) Colors.Image else Colors.NavySoft),
+            contentAlignment = Alignment.Center
+        ) {
+            if (thumbnailUrl != null) {
+                DibNetworkImage(thumbnailUrl, live.firstItemTitle ?: live.title, Modifier.matchParentSize())
+            } else {
+                Image(painterResource(R.drawable.live_video), null, Modifier.size(36.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+            }
         }
         Text(if (isLive) "● LIVE" else homeLiveScheduleLabel(live.scheduledAt), color = if (isLive) Colors.Live else Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Text(live.title, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Colors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)

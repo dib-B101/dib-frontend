@@ -1,5 +1,7 @@
 package com.ssafy.dib.feature.home
 
+import com.ssafy.dib.core.ui.auctionUrgencyPulse
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -303,7 +305,7 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                     if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt)
                 ).joinToString(" · "),
                 photo = null,
-                imageUrl = item.firstItemThumbnailUrl
+                imageUrl = item.firstItemThumbnailUrl?.takeIf(String::isNotBlank)
             )
         } ?: listOf(
             HomeLiveCard("오디오마켓 라이브", "노이즈 캔슬링 헤드폰", true, "상품 5개 · 눌러서 보기", ProductPhoto.Headphones),
@@ -311,39 +313,52 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
         )
         if (cards.isEmpty()) {
             Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
-        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     color = Colors.Background,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Colors.Border),
                     shadowElevation = 0.dp
                 ) {
-                    Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    // 홈 상품 카드와 같은 정방형 썸네일. 대표 상품 사진이 없을 때만 방송 아이콘을 그린다
-                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(if (card.imageUrl != null) Colors.Image else if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
-                        when {
-                            card.imageUrl != null -> DibNetworkImage(card.imageUrl, card.description, Modifier.matchParentSize())
-                            card.photo != null -> ProductPhoto(card.photo, modifier = Modifier.matchParentSize())
-                            else -> Image(
-                                painter = painterResource(R.drawable.live_video),
-                                contentDescription = null,
-                                modifier = Modifier.align(Alignment.Center).size(38.dp),
-                                colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
-                            )
-                        }
-                        Surface(Modifier.padding(7.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(9.dp)) {
-                            Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(12.dp))
-                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(11.dp)
+                    ) {
+                        // 방송 영상 대신 편성 상품의 대표 사진을 고정 크기로 보여줘 홈 높이를 작게 유지한다.
+                        Box(
+                            Modifier.size(76.dp).clip(RoundedCornerShape(11.dp))
+                                .background(if (card.imageUrl != null) Colors.Image else if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)
+                        ) {
+                            when {
+                                card.imageUrl != null -> DibNetworkImage(card.imageUrl, card.description, Modifier.matchParentSize())
+                                card.photo != null -> ProductPhoto(card.photo, modifier = Modifier.matchParentSize())
+                                else -> Image(
+                                    painter = painterResource(R.drawable.live_video),
+                                    contentDescription = null,
+                                    modifier = Modifier.align(Alignment.Center).size(30.dp),
+                                    colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
+                                )
+                            }
+                            Surface(Modifier.padding(5.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    if(card.isLive) "● LIVE" else "예정",
+                                    Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
-                    }
-                    Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
-                    Text(card.description, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(card.footer, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.MintInk, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(card.description, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
+                            Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.Muted, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(card.footer, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.MintInk, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Text("›", color = Colors.Muted, fontSize = 20.sp)
                     }
                 }
             }
@@ -369,19 +384,25 @@ internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.syste
 
 @Composable
 private fun HomeHeader() {
-    Row(
-        Modifier.fillMaxWidth().height(64.dp).background(Color(0xFFFBF9F4)).padding(horizontal = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painterResource(R.drawable.dib_official_logo),
-            "dib",
-            Modifier.size(70.dp, 44.dp).clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Fit
-        )
-        // 알림 벨은 모든 헤더가 같은 것을 쓴다 (미읽음 개수·클릭 처리는 AppNavHost 가 제공)
-        DibNotificationBell(tint = Colors.Navy.copy(alpha = .72f))
+    // 다른 화면의 공통 헤더(DibSubAppBar)와 같은 흰 바탕·56dp·아래 구분선으로 맞춘다.
+    // 예전엔 로고 이미지의 크림색 배경에 맞춰 헤더만 크림색·64dp 라 본문(회색)과도, 다른 화면 헤더와도 어긋났다.
+    // 로고는 배경을 투명하게 바꿔 어떤 바탕에도 올릴 수 있다
+    Column(Modifier.fillMaxWidth().background(Colors.Background)) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painterResource(R.drawable.dib_official_logo),
+                "dib",
+                Modifier.size(64.dp, 40.dp),
+                contentScale = ContentScale.Fit
+            )
+            // 알림 벨은 모든 헤더가 같은 것을 쓴다 (미읽음 개수·클릭 처리는 AppNavHost 가 제공)
+            DibNotificationBell()
+        }
+        HorizontalDivider(color = Colors.Border)
     }
 }
 
@@ -501,10 +522,11 @@ private fun DeadlineSection(
 /** "마감 임박 · n일 m시간 k분" 배지. 마지막 1분만 초를 보여준다. */
 @Composable
 private fun DeadlineBadge(seconds: Int) {
-    Surface(color = Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+    Surface(Modifier.auctionUrgencyPulse(seconds), color = if (seconds in 1..60) Colors.Urgent else Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+        val foreground = if (seconds in 1..60) Color.White else Colors.Urgent
         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(Colors.Urgent))
-            Text(if (seconds <= 0) "마감" else "마감 임박 · ${deadlineCountdownLabel(seconds)}", color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+            Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(foreground))
+            Text(if (seconds <= 0) "마감" else "마감 임박 · ${deadlineCountdownLabel(seconds)}", color = foreground, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

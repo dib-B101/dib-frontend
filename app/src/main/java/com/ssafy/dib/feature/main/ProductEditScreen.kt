@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -118,6 +119,7 @@ private fun ProductEditForm(
     var condition by rememberSaveable(detail.productId) { mutableStateOf(detail.condition) }
     var modelName by rememberSaveable(detail.productId) { mutableStateOf(detail.modelName.orEmpty()) }
     var releaseYear by rememberSaveable(detail.productId) { mutableStateOf(detail.releaseYear?.toString().orEmpty()) }
+    val focusManager = LocalFocusManager.current
     var showCategories by rememberSaveable { mutableStateOf(false) }
     var showConditions by rememberSaveable { mutableStateOf(false) }
     val moderationStatus = (productStatus ?: detail.status).uppercase()
@@ -179,16 +181,16 @@ private fun ProductEditForm(
                 Text("현재 백엔드 수정 API는 이미지 변경을 지원하지 않아 기존 사진을 그대로 유지해요.", color = Colors.Muted, fontSize = 11.sp)
             }
         }
-        item { EditField("상품명", title, { title = it }, KeyboardType.Text) }
-        item { EditField("상품 설명", description, { description = it }, KeyboardType.Text, singleLine = false) }
-        item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name ?: "카테고리 선택") } }
+        item { EditField("상품명", title, { title = it.take(PRODUCT_TITLE_MAX_LENGTH) }, KeyboardType.Text) }
+        item { EditField("상품 설명", description, { description = it.take(PRODUCT_DESCRIPTION_MAX_LENGTH) }, KeyboardType.Text, singleLine = false, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH) }
+        item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ focusManager.clearFocus(); showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name ?: "카테고리 선택") } }
         item {
             Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            OutlinedButton({ showConditions = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            OutlinedButton({ focusManager.clearFocus(); showConditions = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) {
                 Text(if (condition.isBlank()) "상품 상태 선택" else conditionLabel(condition))
             }
         }
-        item { EditField("모델명 (선택)", modelName, { modelName = it }, KeyboardType.Text) }
+        item { EditField("모델명 (선택)", modelName, { modelName = it.take(PRODUCT_MODEL_NAME_MAX_LENGTH) }, KeyboardType.Text) }
         item { EditField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
         if (auctionEditable) {
             item { EditField("경매 시작가 (원)", startPrice, { startPrice = it.filter(Char::isDigit).take(10) }, KeyboardType.Number) }
@@ -243,9 +245,12 @@ private fun ProductEditForm(
 }
 
 @Composable
-private fun EditField(label: String, value: String, onChange: (String) -> Unit, keyboardType: KeyboardType, singleLine: Boolean = true) {
+private fun EditField(label: String, value: String, onChange: (String) -> Unit, keyboardType: KeyboardType, singleLine: Boolean = true, maxLength: Int? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (maxLength != null) Text("${value.length}/$maxLength", color = Colors.Muted, fontSize = 11.sp)
+        }
         OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), singleLine = singleLine, minLines = if (singleLine) 1 else 4, keyboardOptions = KeyboardOptions(keyboardType = keyboardType), shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor=Colors.Navy,unfocusedBorderColor=Colors.Border,focusedContainerColor=Colors.Background,unfocusedContainerColor=Colors.Background))
     }
 }

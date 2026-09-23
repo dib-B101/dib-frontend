@@ -419,3 +419,25 @@ private fun notificationTimeLabel(occurredAt: String): String = runCatching {
         }
     }
 }
+
+// 서버 알림 문구에는 "주문 #12 결제가 완료되었습니다"처럼 내부 번호가 들어 있다. 사용자에게 번호는 의미가 없다
+private val ORDER_NUMBER_IN_TEXT = Regex("""주문 #(\d+)""")
+private val OTHER_NUMBER_IN_TEXT = Regex("""(문의|신고|상품|경매) #\d+""")
+
+/** 알림 문구 속 "주문 #번호"가 가리키는 주문 번호들. 상품명을 미리 찾아 둘 때 쓴다 */
+internal fun orderIdsInNotificationText(text: String): List<String> =
+    ORDER_NUMBER_IN_TEXT.findAll(text).map { it.groupValues[1] }.toList()
+
+/**
+ * 알림 문구의 내부 번호를 사람이 읽는 말로 바꾼다.
+ * "주문 #12" 는 상품명을 알면 "‘상품명’", 모르면 "주문" 으로, "문의 #3" 같은 나머지는 번호만 뗀다.
+ * 뒤에 "(주문 #12)" 처럼 괄호로 붙은 참조는 상품명이 이미 앞에 있으므로 통째로 지운다
+ */
+internal fun humanizeNotificationText(text: String, orderTitles: Map<String, String>): String =
+    text.replace(Regex("""\s*\(주문 #\d+\)"""), "")
+        .replace(ORDER_NUMBER_IN_TEXT) { match ->
+            orderTitles[match.groupValues[1]]?.takeIf(String::isNotBlank)?.let { "‘$it’" } ?: "주문"
+        }
+        .replace(OTHER_NUMBER_IN_TEXT) { match -> match.groupValues[1] }
+        // 서버 문구의 금액은 쉼표 없이 온다(87000원). 앱의 다른 금액 표기와 맞춘다
+        .replace(Regex("""(\d{4,})원""")) { match -> match.groupValues[1].toLongOrNull()?.let { "%,d원".format(it) } ?: match.value }

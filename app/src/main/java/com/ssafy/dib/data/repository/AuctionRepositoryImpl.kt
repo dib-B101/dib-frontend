@@ -39,7 +39,8 @@ class AuctionRepositoryImpl(
                         SaleHistoryItem(
                             auction = item.auction.copy(product = item.auction.product ?: item.product).toDomain(now()),
                             orderId = item.order?.orderId?.idValue(),
-                            orderStatus = item.order?.status
+                            orderStatus = item.order?.status,
+                            productStatus = (item.product ?: item.auction.product)?.status
                         )
                     },
                     nextCursor = result.value.nextCursor,
@@ -336,7 +337,7 @@ private fun List<AuctionDto>.filterForBackendContract(scope: String, status: Str
         "LIVE" -> auction.liveBroadcastId != null
         else -> true
     }
-    scopeMatches && (status.isBlank() || auction.status.equals(status, ignoreCase = true))
+    scopeMatches && (status.isBlank() || auction.status.matchesAuctionStatusFilter(status))
 }
 
 private fun String?.toInstantOrNull(): Instant? = this?.let { value ->

@@ -193,7 +193,7 @@ fun OrderChatScreen(
                 Surface(Modifier.fillMaxWidth(), color = Color(0xFFF8F9FB), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("상대 회원", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text(target.memberNickname?.takeIf(String::isNotBlank) ?: "회원 ${target.memberId}", color = Colors.Muted, fontSize = 10.sp)
+                        Text(target.memberNickname?.takeIf(String::isNotBlank) ?: "거래 상대", color = Colors.Muted, fontSize = 10.sp)
                         Text("최근 메시지 · “${target.content}”", color = Colors.Muted, fontSize = 11.sp, maxLines = 2)
                     }
                 }

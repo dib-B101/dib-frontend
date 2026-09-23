@@ -58,6 +58,7 @@ import com.ssafy.dib.core.ui.DibDialog
 import com.ssafy.dib.core.ui.DibDialogConfirmButton
 import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.domain.order.OrderAddressInput
+import com.ssafy.dib.domain.order.OrderShippingAddress
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 /**
@@ -70,14 +71,17 @@ fun OrderAddressDialog(
     errorMessage: String?,
     savedAddresses: List<MemberAddress> = emptyList(),
     defaultReceiverName: String = "",
+    // 이미 입력한 배송지를 고칠 때 채워 둘 값. null 이면 새로 입력한다
+    current: OrderShippingAddress? = null,
     onSubmit: (OrderAddressInput) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var zip by remember { mutableStateOf("") }
-    var roadAddress by remember { mutableStateOf("") }
+    var zip by remember { mutableStateOf(current?.postalCode.orEmpty()) }
+    // 서버는 상세주소를 주소에 붙여 돌려준다. 수정할 땐 그 주소를 그대로 두고 상세주소 칸은 비워 둔다
+    var roadAddress by remember { mutableStateOf(current?.address.orEmpty()) }
     var detail by remember { mutableStateOf("") }
-    var receiverName by remember { mutableStateOf(defaultReceiverName) }
-    var receiverPhone by remember { mutableStateOf("") }
+    var receiverName by remember { mutableStateOf(current?.name ?: defaultReceiverName) }
+    var receiverPhone by remember { mutableStateOf(current?.phoneNumber.orEmpty()) }
     var searching by remember { mutableStateOf(false) }
 
     val phoneDigits = receiverPhone.filter { it.isDigit() }
@@ -97,7 +101,7 @@ fun OrderAddressDialog(
 
     DibDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = "배송지 입력",
+        title = if (current != null) "배송지 수정" else "배송지 입력",
         text = {
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -187,7 +191,7 @@ fun OrderAddressDialog(
         },
         confirmButton = {
             DibDialogConfirmButton(
-                "등록",
+                if (current != null) "수정 완료" else "등록",
                 onClick = {
                     onSubmit(
                         OrderAddressInput(
@@ -254,7 +258,8 @@ fun PostcodeSearchDialog(
             // baseUrl 은 위젯이 주소 데이터를 받아오는 도메인과 같게 맞춘다(origin 이 다르면 CORS 로 막힌다).
             // HTML 에 '#' 이나 '%' 를 쓰면 안 된다. WebView 가 data 를 URL 로 해석해서 '#' 에서 문서를 잘라버리기
             // 때문에 스크립트가 통째로 사라지고 흰 화면이 된다. (encoding 을 base64 로 줘도 이 WebView 는 디코딩하지
-            // 않고 base64 문자열을 그대로 그린다.) 그래서 셀렉터는 body>div, 높이는 vh 로 쓴다
+            // 않고 base64 문자열을 그대로 그린다.) 그래서 셀렉터는 body>div, 너비·높이는 vw·vh 로 쓴다.
+            // 위젯 크기를 따로 안 주면 기본 폭으로 그려져 화면 왼쪽에 붙어 보였다. 그래서 화면 크기를 px 로 넘긴다
             loadDataWithBaseURL(POSTCODE_ORIGIN, POSTCODE_HTML, "text/html", "UTF-8", null)
         }
     }
@@ -276,13 +281,15 @@ private const val POSTCODE_ORIGIN = "https://postcode.map.daum.net"
 private const val POSTCODE_HTML = """
 <!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;padding:0;height:100vh}body>div{height:100vh}</style>
+<style>html,body{margin:0;padding:0;width:100vw;height:100vh}body>div{width:100vw;height:100vh}</style>
 <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head><body><div id="wrap"></div>
 <script>
   window.onerror = function (m, u, l) { console.log('postcode error ' + m + ' @' + u + ':' + l); };
   console.log('daum=' + (typeof daum));
   new daum.Postcode({
+    width: document.documentElement.clientWidth,
+    height: document.documentElement.clientHeight,
     oncomplete: function (data) {
       var addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
       window.DibPostcode.onComplete(data.zonecode, addr, data.buildingCode || data.bdMgtSn || addr);

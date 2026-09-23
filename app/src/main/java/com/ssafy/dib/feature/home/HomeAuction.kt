@@ -101,3 +101,11 @@ internal fun remainingTimeLabel(seconds: Int): String = when {
     seconds < 86_400 -> "${seconds / 3_600}시간 ${seconds % 3_600 / 60}분"
     else -> "${seconds / 86_400}일 ${seconds % 86_400 / 3_600}시간 ${seconds % 3_600 / 60}분"
 }
+
+/**
+ * 구매자용 목록(카테고리·검색)에서 시작가도 경매 시간도 정하지 않은 예정 경매를 뺀다.
+ * 이런 건 판매자가 등록만 해 두고 아직 경매를 열지 않은 상품이라 "가격 미정"으로만 보이고 언제 열릴지도 알 수 없다.
+ * 판매자가 조건을 정해 경매를 시작하면 진행 중으로 바뀌어 다시 목록에 나온다. 조건이 정해진 예정 경매는 그대로 둔다
+ */
+internal fun List<HomeAuction>.withoutUndecidedScheduled(): List<HomeAuction> =
+    filterNot { it.status.equals("SCHEDULED", ignoreCase = true) && it.priceUndecided }

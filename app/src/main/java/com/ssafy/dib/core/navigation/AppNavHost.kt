@@ -1,5 +1,11 @@
 package com.ssafy.dib.core.navigation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
@@ -48,6 +54,7 @@ import com.ssafy.dib.feature.auction.ProductImageViewerScreen
 import com.ssafy.dib.feature.auction.ProductOverviewScreen
 import com.ssafy.dib.feature.auction.ProductReportScreen
 import com.ssafy.dib.feature.auction.SellerProfileScreen
+import com.ssafy.dib.feature.auction.visibleSellerAuctions
 import com.ssafy.dib.feature.auction.SellerListingsScreen
 import com.ssafy.dib.feature.auction.SellerListing
 import com.ssafy.dib.feature.auction.SellerReportScreen
@@ -70,16 +77,20 @@ import com.ssafy.dib.core.ui.DibSnackbarHost
 import com.ssafy.dib.core.ui.LocalDibNotificationBell
 import com.ssafy.dib.feature.live.LiveHostMediaPreference
 import com.ssafy.dib.feature.live.remainingSecondsUntil
+import com.ssafy.dib.feature.live.mergeLiveChatMessage
 import com.ssafy.dib.feature.main.prepareProductImageUpload
 import com.ssafy.dib.feature.live.LiveBidNotice
 import com.ssafy.dib.feature.live.LiveAuctionResult
 import com.ssafy.dib.feature.home.HomeScreen
+import com.ssafy.dib.feature.home.humanizeNotificationText
+import com.ssafy.dib.feature.home.orderIdsInNotificationText
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.toHomeAuction
 import com.ssafy.dib.feature.home.AuctionSearchScreen
 import com.ssafy.dib.feature.home.AuctionSearchFilters
 import com.ssafy.dib.feature.home.NotificationCenterScreen
 import com.ssafy.dib.feature.home.CategoryScreen
+import com.ssafy.dib.feature.home.withoutUndecidedScheduled
 import com.ssafy.dib.feature.home.LiveListScreen
 import com.ssafy.dib.feature.main.AddressManagementScreen
 import com.ssafy.dib.feature.main.FavoriteAuctionsScreen
@@ -185,6 +196,14 @@ fun AppNavHost(
     var lastTabRefreshedAt by remember { mutableStateOf(0L) }
     var purchaseOrders by remember { mutableStateOf<List<OrderSummary>?>(null) }
     var saleOrders by remember { mutableStateOf<List<SaleHistoryItem>?>(null) }
+    // 알림 문구의 "주문 #번호"를 상품명으로 바꾸려고 따로 조회해 둔 주문 상품명 (주문 번호 → 상품명)
+    var notificationOrderTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // 낙찰·상회 입찰 알림은 서버 문구에 상품명이 아예 없다(금액만 있다). 경매 번호 → 상품명
+    var notificationAuctionTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    fun knownOrderTitles(): Map<String, String> =
+        purchaseOrders.orEmpty().associate { it.orderId to it.title } +
+            saleOrders.orEmpty().mapNotNull { sale -> sale.orderId?.let { it to sale.auction.title } } +
+            notificationOrderTitles
     var purchaseOrdersCursor by remember { mutableStateOf<String?>(null) }
     var saleOrdersCursor by remember { mutableStateOf<String?>(null) }
     var purchaseOrdersHasNext by remember { mutableStateOf(false) }
@@ -512,7 +531,15 @@ fun AppNavHost(
                     }
                     onResult?.invoke(result.value, null)
                 }
-                is ApiResult.Failure -> {
+                // 이미 찜한 걸 다시 찜하거나 없는 찜을 지우려 한 것은 원하는 상태에 이미 도달한 것이다.
+                // 화면이 찜 여부를 모른 채 시작하면(라이브 응답엔 찜 여부가 없다) 이 경우가 생기는데, 예전엔 실패로 되돌려
+                // 하트가 계속 빈 채로 남고 찜 취소도 할 수 없었다
+                is ApiResult.Failure -> if ((bookmarked && result.error.code == "BOOKMARK_ALREADY_EXISTS") ||
+                    (!bookmarked && result.error.code == "BOOKMARK_NOT_FOUND")
+                ) {
+                    commandKeys.complete(command)
+                    onResult?.invoke(bookmarked, null)
+                } else {
                     remoteAuctions = remoteAuctions?.map { auction ->
                         if (auction.id == auctionId) auction.copy(bookmarked = !bookmarked) else auction
                     }
@@ -628,7 +655,7 @@ fun AppNavHost(
                                     assistantNotice = AssistantNotice(
                                         id = notification.eventId,
                                         title = notification.title.ifBlank { "새 알림이 도착했어요" },
-                                        body = notification.body,
+                                        body = humanizeNotificationText(notification.body, knownOrderTitles()),
                                         actionable = canOpenNotification(notification)
                                     )
                                 }
@@ -761,7 +788,25 @@ fun AppNavHost(
         CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(unreadNotificationCount, ::openNotifications)) {
         NavHost(
             navController = navController,
-            startDestination = Screen.Splash.route
+            startDestination = Screen.Splash.route,
+            // 기본값은 0.7초짜리 겹침 페이드라 두 화면이 반투명하게 오래 겹쳐 보였다.
+            // 하위 화면은 오른쪽에서 밀려 들어오고(뒤로 가면 반대로), 하단 탭끼리는 짧게 페이드만 한다
+            enterTransition = {
+                if (isMainTabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tween(NAV_FADE_MILLIS))
+                else slideInHorizontally(tween(NAV_SLIDE_MILLIS, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(NAV_SLIDE_MILLIS))
+            },
+            exitTransition = {
+                if (isMainTabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tween(NAV_FADE_MILLIS))
+                else slideOutHorizontally(tween(NAV_SLIDE_MILLIS, easing = FastOutSlowInEasing)) { -it / 8 } + fadeOut(tween(NAV_SLIDE_MILLIS))
+            },
+            popEnterTransition = {
+                if (isMainTabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tween(NAV_FADE_MILLIS))
+                else slideInHorizontally(tween(NAV_SLIDE_MILLIS, easing = FastOutSlowInEasing)) { -it / 8 } + fadeIn(tween(NAV_SLIDE_MILLIS))
+            },
+            popExitTransition = {
+                if (isMainTabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tween(NAV_FADE_MILLIS))
+                else slideOutHorizontally(tween(NAV_SLIDE_MILLIS, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(NAV_SLIDE_MILLIS))
+            }
         ) {
         composable(Screen.Splash.route) {
             SplashScreen(onFinished = {
@@ -771,7 +816,13 @@ fun AppNavHost(
                         when {
                             current == null -> false
                             !current.needsRefresh(System.currentTimeMillis()) -> true
-                            else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
+                            // 자동 로그인: 갱신이 네트워크·서버 문제로만 실패했으면 저장된 세션을 그대로 쓴다.
+                            // 예전엔 이때도 시작 화면으로 보내 앱을 켤 때마다 다시 로그인해야 하는 것처럼 보였다.
+                            // 리프레시 토큰이 만료·폐기된 경우(requiresLogin)만 세션이 지워지고 로그인으로 간다
+                            else -> when (val refreshed = auth.repository.refresh(auth.deviceId)) {
+                                is ApiResult.Success -> true
+                                is ApiResult.Failure -> !refreshed.error.requiresLogin
+                            }
                         }
                     }
                     val destination = if (restored) postSignInRoute() else Screen.Welcome.route
@@ -1256,7 +1307,7 @@ fun AppNavHost(
                         auth.auctionRepository.getGeneralAuctions(size = 20, categoryId = categoryId, status = "OPEN", cursor = cursor)
                     }) {
                         is ApiResult.Success -> {
-                            val mapped = result.value.items.map { it.toHomeAuction() }
+                            val mapped = result.value.items.map { it.toHomeAuction() }.withoutUndecidedScheduled()
                             categoryAuctions = if (append) (categoryAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             categoryCursor = result.value.nextCursor
                             categoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
@@ -1412,7 +1463,7 @@ fun AppNavHost(
                             } else {
                                 result.value.items.filter { it.title.contains(filters.query, ignoreCase = true) }
                             }
-                            val mapped = filtered.map { it.toHomeAuction() }
+                            val mapped = filtered.map { it.toHomeAuction() }.withoutUndecidedScheduled()
                             searchAuctions = if (append) (searchAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             val nextCursor = result.value.nextCursor
                             searchCursor = nextCursor
@@ -1487,8 +1538,38 @@ fun AppNavHost(
             )
         }
         composable(Screen.Notifications.route) {
+            // 목록에 나온 주문 중 상품명을 모르는 것만 주문 상세로 한 번씩 조회한다
+            LaunchedEffect(domainNotifications) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                val known = knownOrderTitles()
+                val missing = domainNotifications
+                    .flatMap { orderIdsInNotificationText(it.title + " " + it.body) }
+                    .distinct().filterNot(known::containsKey).take(20)
+                missing.forEach { orderId ->
+                    (withContext(Dispatchers.IO) { auth.orderRepository.getOrder(orderId) } as? ApiResult.Success)
+                        ?.value?.title?.takeIf(String::isNotBlank)
+                        ?.let { notificationOrderTitles = notificationOrderTitles + (orderId to it) }
+                }
+                val missingAuctions = domainNotifications
+                    .filter { it.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in it.body }
+                    .map { it.resourceId }.filter(String::isNotBlank)
+                    .distinct().filterNot(notificationAuctionTitles::containsKey).take(20)
+                missingAuctions.forEach { auctionId ->
+                    (withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(auctionId) } as? ApiResult.Success)
+                        ?.value?.title?.takeIf(String::isNotBlank)
+                        ?.let { notificationAuctionTitles = notificationAuctionTitles + (auctionId to it) }
+                }
+            }
+            val orderTitles = knownOrderTitles()
             NotificationCenterScreen(
-                notifications = domainNotifications,
+                notifications = domainNotifications.map { notification ->
+                    val auctionTitle = notificationAuctionTitles[notification.resourceId]
+                        ?.takeIf { notification.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in notification.body }
+                    notification.copy(
+                        title = humanizeNotificationText(notification.title, orderTitles),
+                        body = (auctionTitle?.let { "‘$it’ " }.orEmpty()) + humanizeNotificationText(notification.body, orderTitles)
+                    )
+                },
                 connectionState = notificationConnectionState,
                 isLoading = notificationsLoading,
                 errorMessage = notificationsError,
@@ -1697,6 +1778,23 @@ fun AppNavHost(
                     }
                 }
             }
+            // 라이브 응답에는 "내가 찜했는지"가 없어 하트가 늘 빈 채로 시작했다. 그래서 찜해 둔 상품을 다시 누르면
+            // 서버가 중복으로 거절하고, 찜 취소도 할 수 없었다. 방송(과 편성 목록)이 바뀔 때 내 찜 목록으로 맞춘다
+            val activeLiveAuctionIds = activeLiveBroadcastId?.let { id ->
+                (liveAuctionLists[id].orEmpty().map { it.auctionId } +
+                    listOfNotNull(liveFeedItems?.firstOrNull { it.liveBroadcastId == id }?.currentAuction?.auctionId)).distinct()
+            }.orEmpty()
+            LaunchedEffect(activeLiveAuctionIds, signedIn) {
+                if (activeLiveAuctionIds.isEmpty() || signedIn != true || previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+                val bookmarks = (withContext(Dispatchers.IO) { auth.auctionRepository.getBookmarks(size = 100) } as? ApiResult.Success)
+                    ?.value?.items ?: return@LaunchedEffect
+                val bookmarkedAuctionIds = bookmarks.map { it.auctionId }.toSet()
+                val bookmarkedProductIds = bookmarks.map { it.productId }.filter(String::isNotBlank).toSet()
+                fun com.ssafy.dib.domain.auction.AuctionSummary.withBookmark() =
+                    if (auctionId in activeLiveAuctionIds) copy(bookmarked = auctionId in bookmarkedAuctionIds || productId in bookmarkedProductIds) else this
+                liveFeedItems = liveFeedItems?.map { item -> item.copy(currentAuction = item.currentAuction?.withBookmark()) }
+                liveAuctionLists = liveAuctionLists.mapValues { (_, auctions) -> auctions.map { it.withBookmark() } }
+            }
             LaunchedEffect(activeLiveBroadcastId, liveFeedRevision, previewMode) {
                 val liveId = activeLiveBroadcastId ?: return@LaunchedEffect
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
@@ -1736,7 +1834,7 @@ fun AppNavHost(
                             liveBroadcastId = liveId,
                             activeAuctionId = liveFeedItems?.firstOrNull { it.liveBroadcastId == liveId }?.currentAuction?.auctionId,
                             onMessage = { message -> coroutineScope.launch {
-                                liveComments = (liveComments + message).distinctBy { it.liveChattingId }
+                                liveComments = mergeLiveChatMessage(liveComments, message, memberProfile?.memberId, memberProfile?.nickname)
                             } },
                             onUpdate = { update -> coroutineScope.launch {
                                 val targetLiveId = update.liveBroadcastId ?: liveId
@@ -1984,6 +2082,20 @@ fun AppNavHost(
                 },
                 onClose = { navController.navigateUp() },
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onSellerClick = { sellerMemberId ->
+                    // 방송 응답엔 판매자 정보가 따로 없다. 진행 중 경매의 판매자 요약을 먼저 쓰고,
+                    // 없으면 판매자가 방송에서 쓴 댓글의 닉네임을 넘긴다. 둘 다 없으면 프로필 화면이 직접 채운다
+                    val sellerAuction = liveFeedItems?.firstOrNull { it.memberId == sellerMemberId }?.currentAuction
+                    navController.currentBackStackEntry?.savedStateHandle?.let { handle ->
+                        handle["sellerNickname"] = sellerAuction?.sellerNickname
+                            ?: liveComments.lastOrNull { it.memberId == sellerMemberId && !it.nickname.isNullOrBlank() }?.nickname
+                        handle["sellerProfileImageUrl"] = sellerAuction?.sellerProfileImageUrl
+                        handle["sellerRating"] = sellerAuction?.sellerRating
+                        handle["sellerReviewCount"] = sellerAuction?.sellerReviewCount
+                        handle["sellerTradeCount"] = sellerAuction?.sellerTradeCount
+                    }
+                    navController.navigate(Screen.SellerProfile.createRoute(sellerMemberId))
+                },
                 onFavoriteChange = { auctionId, bookmarked ->
                     liveFavoriteError = null
                     liveFavoriteUpdatingAuctionIds = liveFavoriteUpdatingAuctionIds + auctionId
@@ -2516,6 +2628,12 @@ fun AppNavHost(
             )
         }
         composable(Screen.Trades.route) {
+            // 탭에 들어올 때마다 판매·구매 현황을 새로 받는다. 예전엔 로그인 때 한 번 받고 주문 알림이 와야만 갱신돼,
+            // 알림을 못 받은 판매자는 경매가 낙찰로 끝나도 판매 현황에 결과가 나오지 않았다
+            LaunchedEffect(Unit) {
+                ordersRevision++
+                bidHistoryRevision++
+            }
             MyTradesScreen(
                 onTabSelected = ::navigateMain,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
@@ -3540,7 +3658,7 @@ fun AppNavHost(
                 }
                 // mine=true 로 서버가 내 경매만 준다. 예전처럼 받아서 거르면 한 페이지가 전부 남의
                 // 경매일 때 후보가 비어 보이고, 저장 때 LIVE_BROADCAST_NOT_OWNED 로 튕겼다
-                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true) }) {
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("ALL", "LIVE_AVAILABLE", mine = true) }) {
                     is ApiResult.Success -> availableLiveAuctions = result.value.items.also {
                         availableLiveAuctionsCursor = result.value.nextCursor
                         availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
@@ -3613,7 +3731,7 @@ fun AppNavHost(
                         availableLiveAuctionsLoadMoreError = null
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true, cursor = cursor)
+                                auth.auctionRepository.getAuctions("ALL", "LIVE_AVAILABLE", mine = true, cursor = cursor)
                             }) {
                                 is ApiResult.Success -> {
                                     availableLiveAuctions = (availableLiveAuctions + result.value.items)
@@ -3914,7 +4032,7 @@ fun AppNavHost(
                             liveBroadcastId = liveId,
                             activeAuctionId = consoleActiveAuctionId,
                             onMessage = { message -> coroutineScope.launch {
-                                consoleMessages = (consoleMessages + message).distinctBy { it.liveChattingId }
+                                consoleMessages = mergeLiveChatMessage(consoleMessages, message, memberProfile?.memberId, memberProfile?.nickname)
                             } },
                             onUpdate = { update -> coroutineScope.launch {
                                 update.viewerCount?.let { consoleViewerCount = it }
@@ -5147,8 +5265,11 @@ fun AppNavHost(
                 navArgument("initialPage") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val imageUrls = navController.previousBackStackEntry?.savedStateHandle
-                ?.get<ArrayList<String>>("productOverviewImageUrls").orEmpty()
+            // 전환 애니메이션 중엔 previousBackStackEntry 가 바뀌므로 처음 들어올 때 한 번만 읽는다 (판매자 프로필과 같은 이유)
+            val imageUrls = remember(backStackEntry) {
+                navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>("productOverviewImageUrls").orEmpty()
+            }
             ProductImageViewerScreen(
                 productId = backStackEntry.arguments?.getString("productId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
@@ -5164,8 +5285,10 @@ fun AppNavHost(
                 navArgument("initialPage") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val imageUrls = navController.previousBackStackEntry?.savedStateHandle
-                ?.get<ArrayList<String>>("productImageUrls").orEmpty()
+            val imageUrls = remember(backStackEntry) {
+                navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>("productImageUrls").orEmpty()
+            }
             ProductImageViewerScreen(
                 productId = backStackEntry.arguments?.getString("auctionId").orEmpty(),
                 initialPage = backStackEntry.arguments?.getInt("initialPage") ?: 0,
@@ -5179,23 +5302,45 @@ fun AppNavHost(
             arguments = listOf(navArgument("memberId") { type = NavType.StringType })
         ) { backStackEntry ->
             val memberId = backStackEntry.arguments?.getString("memberId").orEmpty()
-            val sourceState = navController.previousBackStackEntry?.savedStateHandle
+            // 이전 화면이 넘긴 판매자 정보는 처음 들어올 때 한 번만 읽어 이 화면 자신의 savedStateHandle 로 옮겨 둔다.
+            // previousBackStackEntry 는 화면 전환 중에 바뀐다. 뒤로 가는 애니메이션 동안 이 화면이 다시 그려지면
+            // 한 단계 아래 화면을 가리켜 닉네임이 비고 "판매자"로 바뀌어 보였다
+            val sourceState = remember(backStackEntry) {
+                backStackEntry.savedStateHandle.also { own ->
+                    val previous = navController.previousBackStackEntry?.savedStateHandle
+                    if (previous != null && !own.contains("sellerNickname")) {
+                        listOf("sellerNickname", "sellerProfileImageUrl", "sellerRating", "sellerReviewCount", "sellerTradeCount")
+                            .forEach { key -> previous.get<Any>(key)?.let { own[key] = it } }
+                    }
+                }
+            }
             var sellerAuctions by remember(memberId) { mutableStateOf<List<SellerAuction>?>(null) }
+            // 이전 화면이 판매자 정보를 못 넘긴 경우(라이브 방송 등) 판매자의 경매 하나를 조회해 판매자 요약을 채운다
+            var fetchedSeller by remember(memberId) { mutableStateOf<com.ssafy.dib.domain.auction.AuctionSummary?>(null) }
 
             LaunchedEffect(memberId) {
                 if (previewMode || !auth.networkConfig.isRestConfigured || memberId.isBlank()) return@LaunchedEffect
                 when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getSellerAuctions(memberId) }) {
-                    is ApiResult.Success -> sellerAuctions = result.value
+                    is ApiResult.Success -> {
+                        val approvedProductIds = (withContext(Dispatchers.IO) { auth.productRepository.getSellerProducts(memberId) } as? ApiResult.Success)
+                            ?.value?.map { it.productId }?.toSet()
+                        sellerAuctions = result.value.visibleSellerAuctions(approvedProductIds, { it.status }, { it.productId })
+                        val sampleAuctionId = result.value.firstOrNull { it.auctionId.isNotBlank() }?.auctionId
+                        if (sourceState.get<String>("sellerNickname").isNullOrBlank() && sampleAuctionId != null) {
+                            (withContext(Dispatchers.IO) { auth.auctionRepository.getAuction(sampleAuctionId) } as? ApiResult.Success)
+                                ?.value?.takeIf { it.sellerMemberId == memberId }?.let { fetchedSeller = it }
+                        }
+                    }
                     is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
                 }
             }
 
             SellerProfileScreen(
-                sellerNickname = sourceState?.get<String>("sellerNickname"),
-                sellerProfileImageUrl = sourceState?.get<String>("sellerProfileImageUrl"),
-                sellerRating = sourceState?.get<Double>("sellerRating"),
-                sellerReviewCount = sourceState?.get<Int>("sellerReviewCount"),
-                sellerTradeCount = sourceState?.get<Int>("sellerTradeCount"),
+                sellerNickname = sourceState.get<String>("sellerNickname")?.takeIf(String::isNotBlank) ?: fetchedSeller?.sellerNickname,
+                sellerProfileImageUrl = sourceState.get<String>("sellerProfileImageUrl") ?: fetchedSeller?.sellerProfileImageUrl,
+                sellerRating = sourceState.get<Double>("sellerRating") ?: fetchedSeller?.sellerRating,
+                sellerReviewCount = sourceState.get<Int>("sellerReviewCount") ?: fetchedSeller?.sellerReviewCount,
+                sellerTradeCount = sourceState.get<Int>("sellerTradeCount") ?: fetchedSeller?.sellerTradeCount,
                 // 프로필의 판매 내역 줄. 진행 중 → 예정 → 종료 순으로 앞에서 5개만 화면이 보여준다
                 listings = sellerAuctions?.sortedBy { sellerListingOrder(it.status) }?.map { auction ->
                     SellerListing(
@@ -5246,7 +5391,10 @@ fun AppNavHost(
                     // 판매자 경매 API 가 상품 제목/썸네일을 함께 준다. 예전 서버(없을 때)만 판매자 상품 목록과 productId 로 맞춘다 —
                     // 그 목록엔 SOLD 상품이 없어 판매 완료 건이 "판매 상품" 빈 카드로 보였다
                     val byProductId = (products as? ApiResult.Success)?.value?.associateBy { it.productId }.orEmpty()
-                    sellerListings = auctions.value.filter { it.productId.isNotBlank() }.map { auction ->
+                    val approvedProductIds = (products as? ApiResult.Success)?.value?.map { it.productId }?.toSet()
+                    sellerListings = auctions.value.filter { it.productId.isNotBlank() }
+                        .visibleSellerAuctions(approvedProductIds, { it.status }, { it.productId })
+                        .map { auction ->
                         val product = byProductId[auction.productId]
                         SellerListing(
                             productId = auction.productId,
@@ -5583,3 +5731,17 @@ internal fun paymentMethodRegistrationErrorMessage(error: ApiFailure): String = 
     ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
     else -> error.message.ifBlank { "카드를 등록하지 못했어요. 다시 시도해주세요." }
 }
+
+private const val NAV_SLIDE_MILLIS = 260
+private const val NAV_FADE_MILLIS = 160
+
+// 하단 탭 화면(과 스플래시)끼리의 이동은 옆으로 미는 것보다 제자리 전환이 자연스럽다
+private val mainTabRoutes = setOf(
+    Screen.Splash.route,
+    Screen.Home.route,
+    Screen.Feed.route,
+    Screen.Trades.route,
+    Screen.My.route
+)
+
+private fun isMainTabSwitch(from: String?, to: String?): Boolean = from in mainTabRoutes && to in mainTabRoutes

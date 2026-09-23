@@ -185,7 +185,8 @@ private fun StartedContent(auctionId: String, onOpenAuction: () -> Unit, modifie
             Box(contentAlignment = Alignment.Center) { Text("시작", color = Colors.MintInk, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
         }
         Text("경매를 시작했어요", Modifier.padding(top = 20.dp), color = Colors.Text, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text("경매 번호 $auctionId", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
+        // 내부 경매 번호는 사용자에게 의미가 없어 안내 문구로 대신한다
+        Text("경매 상세에서 입찰 현황을 확인할 수 있어요", Modifier.padding(top = 10.dp), color = Colors.Muted, fontSize = 13.sp)
         Button(onOpenAuction, Modifier.fillMaxWidth().padding(top = 28.dp).height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy), shape = RoundedCornerShape(15.dp)) {
             Text("경매 상세 보기", fontWeight = FontWeight.Bold)
         }
@@ -196,7 +197,6 @@ private fun StartedContent(auctionId: String, onOpenAuction: () -> Unit, modifie
 private fun LoadFailureContent(productId: String, message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("경매 준비 정보를 불러오지 못했어요", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("상품 번호 $productId", Modifier.padding(top = 8.dp), color = Colors.Muted, fontSize = 12.sp)
         Text(message, Modifier.padding(top = 12.dp), color = Colors.Urgent, fontSize = 12.sp)
         OutlinedButton(onRetry, Modifier.fillMaxWidth().padding(top = 24.dp).height(48.dp), shape = RoundedCornerShape(12.dp)) { Text("다시 불러오기") }
     }

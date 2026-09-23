@@ -288,7 +288,7 @@ private fun LiveItemDialog(
         containerColor = Color.White,
         title = { Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("Live 상품 편성", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("${drafts.size}/10개 선택", color = Colors.Muted, fontSize = 11.sp) } },
         text = { Column(Modifier.fillMaxWidth()) {
-            if (choices.isEmpty() && !hasNext) Text("편성 가능한 예약 경매가 없어요.\n등록 상품에서 경매를 먼저 예약해주세요.", color = Colors.Muted, fontSize = 12.sp)
+            if (choices.isEmpty() && !hasNext) Text("편성 가능한 경매가 없어요.\n승인된 상품의 경매를 예약하거나 유찰 상품을 확인해주세요.", color = Colors.Muted, fontSize = 12.sp)
             else LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(choices, key = AuctionSummary::auctionId) { auction ->
                     val draft = drafts[auction.auctionId]
@@ -308,6 +308,9 @@ private fun LiveItemDialog(
                             Column(Modifier.padding(start = 10.dp)) {
                                 Text(auction.title, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 Text("시작가 " + (auction.startPriceOrNull?.let { "%,d원".format(it) } ?: "가격 미정"), color = Colors.Muted, fontSize = 11.sp)
+                                if (auction.status.equals("ENDED", ignoreCase = true)) {
+                                    Text("유찰 · 다시 편성 가능", color = Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                         if (draft != null && active) Text("진행 중인 경매라 시작가와 시간을 바꿀 수 없어요.", Modifier.padding(start = 54.dp, bottom = 6.dp), color = Colors.Muted, fontSize = 11.sp)

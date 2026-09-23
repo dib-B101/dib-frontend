@@ -83,7 +83,9 @@ data class AuctionProductDto(
     val releaseYear: Int? = null,
     val marketPrice: Long? = null,
     val thumbnailUrl: String? = null,
-    val images: List<JsonElement> = emptyList()
+    val images: List<JsonElement> = emptyList(),
+    // 상품 검수 상태(PENDING·REGISTERED·REJECTED·ON_AUCTION·SOLD). 판매 내역 응답만 준다
+    val status: String? = null
 )
 
 @Serializable data class CreateAuctionRequest(val productId: JsonElement, val startPrice: Long, val auctionTime: Long)
