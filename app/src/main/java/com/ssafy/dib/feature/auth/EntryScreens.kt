@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -29,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
+
+private val WelcomeCanvas = Color(0xFFFCF9F4)
 
 @Composable
 fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
@@ -75,113 +80,137 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
 fun WelcomeScreen(
     onEmailSignup: () -> Unit,
     onLogin: () -> Unit,
+    onKakaoLogin: () -> Unit,
     onBrowse: () -> Unit,
+    kakaoLoginLoading: Boolean,
+    kakaoLoginError: String?,
     showDeveloperPreview: Boolean,
     onDeveloperPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val mascotPainter = painterResource(R.drawable.welcome_mascot)
+    val mascotRatio = mascotPainter.intrinsicSize.let { size ->
+        if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
+    }
     Column(
-        modifier.fillMaxSize().background(Colors.Canvas).safeDrawingPadding()
-            .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-        horizontalAlignment = Alignment.Start
+        modifier.fillMaxSize().background(WelcomeCanvas).safeDrawingPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            painterResource(R.drawable.dib_primary_logo),
-            "dib",
-            Modifier.padding(top = 10.dp).size(76.dp, 48.dp),
-            contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.height(18.dp))
-        Text(
-            "지금 가장 설레는 경매를\n놓치지 마세요",
-            style = MaterialTheme.typography.headlineSmall,
-            color = Colors.Text
-        )
-        Text(
-            "라이브로 보고, 안전하게 참여하고,\n내 거래까지 한곳에서 관리해요.",
-            Modifier.padding(top = 10.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Colors.Muted
-        )
-        val mascotPainter = painterResource(R.drawable.welcome_mascot)
-        val mascotRatio = mascotPainter.intrinsicSize.let { size ->
-            if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
-        }
-        Surface(
-            color = Colors.Navy,
-            shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp).aspectRatio(mascotRatio)
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.Start
         ) {
-            Box {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Image(
+                    painterResource(R.drawable.dib_primary_logo),
+                    "dib",
+                    Modifier.size(76.dp, 48.dp),
+                    contentScale = ContentScale.Fit
+                )
+                if (showDeveloperPreview) {
+                    TextButton(onClick = onDeveloperPreview) {
+                        Text("샘플 화면 · 개발용", style = MaterialTheme.typography.labelSmall, color = Colors.Muted)
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "마음에 드는 물건,\n경매에서 만나보세요",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Colors.Text
+            )
+            Text(
+                "일반 경매부터 라이브 경매까지,\n둘러보고 원하는 물건에 입찰해 보세요.",
+                Modifier.padding(top = 10.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Colors.Muted
+            )
+            Spacer(Modifier.height(18.dp))
+            Surface(
+                color = WelcomeCanvas,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth().aspectRatio(mascotRatio)
+            ) {
                 Image(
                     mascotPainter,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
-                Surface(
-                    color = Colors.Background.copy(alpha = .94f),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        Box(Modifier.size(7.dp).background(Colors.Urgent, RoundedCornerShape(50)))
-                        Text("LIVE 경매 진행 중", style = MaterialTheme.typography.labelLarge, color = Colors.Text)
-                    }
-                }
             }
         }
-        Surface(
-            color = Colors.Background,
-            shape = RoundedCornerShape(24.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Colors.Border),
-            modifier = Modifier.fillMaxWidth().padding(top = 18.dp)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                Modifier.padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            KakaoLoginButton(onClick = onKakaoLogin, enabled = !kakaoLoginLoading)
+            kakaoLoginError?.let {
+                Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, style = MaterialTheme.typography.bodyMedium)
+            }
+            EmailLoginButton(text = "이메일로 로그인", onClick = onLogin)
+            Row(
+                Modifier.widthIn(max = 336.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = onEmailSignup,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                TextButton(onClick = onEmailSignup, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Text("회원가입", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
+                }
+                TextButton(
+                    onClick = onBrowse,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        .semantics { contentDescription = "로그인 없이 둘러보기" }
                 ) {
-                    Text("이메일로 시작하기", style = MaterialTheme.typography.titleMedium)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("이미 계정이 있나요?", style = MaterialTheme.typography.bodyMedium, color = Colors.Muted)
-                    Text(
-                        " 로그인",
-                        Modifier.clickable(onClick = onLogin).padding(vertical = 8.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Colors.Navy
-                    )
-                }
-                TextButton(onClick = onBrowse, modifier = Modifier.fillMaxWidth()) {
-                    Text("로그인 없이 먼저 둘러보기", style = MaterialTheme.typography.labelLarge, color = Colors.Muted)
-                }
-                if (showDeveloperPreview) {
-                    HorizontalDivider(color = Colors.Border)
-                    Surface(
-                        color = Colors.NavySoft,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().clickable(onClick = onDeveloperPreview)
-                    ) {
-                        Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
-                            Text("개발 화면 둘러보기", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
-                            Text("샘플 데이터로 전체 화면과 등록 흐름을 확인해요", style = MaterialTheme.typography.labelSmall, color = Colors.Muted)
-                        }
-                    }
+                    Text("둘러보기", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun KakaoLoginButton(onClick: () -> Unit, enabled: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier.fillMaxWidth().heightIn(min = 54.dp)
+            .semantics { contentDescription = "카카오 로그인" }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painterResource(R.drawable.kakao_login_kr_large),
+            contentDescription = null,
+            modifier = Modifier.widthIn(max = 336.dp).fillMaxWidth().aspectRatio(336f / 46f),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+@Composable
+private fun EmailLoginButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    loading: Boolean = false
+) {
+    Button(
+        onClick = onClick,
+        enabled = !loading,
+        modifier = modifier.widthIn(max = 336.dp).fillMaxWidth().height(46.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Colors.Navy,
+            contentColor = Color.White,
+            disabledContainerColor = Colors.Navy,
+            disabledContentColor = Color.White
+        )
+    ) {
+        if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+        else Text(text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -210,10 +239,14 @@ fun LoginScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AuthTopBar("로그인", onBack) }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxSize().padding(padding).imePadding()
+                .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Spacer(Modifier.height(24.dp))
             Image(painterResource(R.drawable.dib_primary_logo), "dib", Modifier.size(96.dp, 61.dp), contentScale = ContentScale.Fit)
-            Text("dib 계정으로 경매를 계속해보세요", color = Colors.Muted, fontSize = 14.sp)
+            Text("로그인하고 경매를 이어가세요.", color = Colors.Muted, fontSize = 14.sp)
             Spacer(Modifier.height(32.dp))
             LoginField(
                 "이메일",
@@ -227,36 +260,38 @@ fun LoginScreen(
             LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible, errorMessage = "비밀번호를 4자 이상 입력해주세요.".takeIf { attempted && password.length < 4 }) {
                 passwordVisible = !passwordVisible
             }
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("이메일 찾기", Modifier.clickable(onClick = onFindEmail).padding(4.dp), color = Colors.Muted, fontSize = 12.sp)
-                Text("·", color = Colors.Muted, fontSize = 12.sp)
-                Text("비밀번호 찾기", Modifier.clickable(onClick = onPasswordReset).padding(4.dp), color = Colors.Muted, fontSize = 12.sp)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "회원가입",
-                    Modifier.clickable(onClick = onSignUp).padding(4.dp),
-                    color = Colors.Navy,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onFindEmail) {
+                    Text("이메일 찾기", color = Colors.Muted, fontSize = 13.sp)
+                }
+                Text("·", color = Colors.Muted, fontSize = 13.sp)
+                TextButton(onClick = onPasswordReset) {
+                    Text("비밀번호 찾기", color = Colors.Muted, fontSize = 13.sp)
+                }
             }
             errorMessage?.let {
-                Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 11.sp)
+                Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 13.sp)
             }
-            AuthPrimaryButton(
+            Spacer(Modifier.height(16.dp))
+            EmailLoginButton(
                 text = "로그인",
-                enabled = valid,
                 loading = isLoading,
-                onClick = { attempted = true; if (valid) onLogin(email.trim(), password) },
-                modifier = Modifier.padding(top = 24.dp)
+                onClick = { attempted = true; if (valid) onLogin(email.trim(), password) }
             )
-            Row(Modifier.fillMaxWidth().padding(vertical = 28.dp), verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
-                Text("또는", Modifier.padding(horizontal = 20.dp), color = Colors.Muted, fontSize = 12.sp)
-                HorizontalDivider(Modifier.weight(1f), color = Color(0xFFD1D6DE))
-            }
-            Button(onClick = onKakaoLogin, enabled = !isLoading, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500), contentColor = Color(0xFF17140F), disabledContainerColor = Color(0xFFF3E787), disabledContentColor = Color(0xFF6F681F))) {
-                Text("카카오로 로그인", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            KakaoLoginButton(onClick = onKakaoLogin, enabled = !isLoading)
+            Row(
+                Modifier.padding(top = 12.dp, bottom = 24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("아직 계정이 없으신가요?", style = MaterialTheme.typography.bodyMedium, color = Colors.Muted)
+                TextButton(onClick = onSignUp) {
+                    Text("회원가입", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
+                }
             }
         }
     }

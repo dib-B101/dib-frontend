@@ -1,8 +1,10 @@
 package com.ssafy.dib.feature.auth
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,13 +35,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,8 +53,15 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -145,8 +161,13 @@ fun SignupScreen(
     var nickname by rememberSaveable(initialNickname) { mutableStateOf(initialNickname) }
     var gender by rememberSaveable { mutableStateOf("") }
     var birthDateDigits by rememberSaveable { mutableStateOf("") }
-    var attempted by rememberSaveable { mutableStateOf(false) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var accountAttempted by rememberSaveable { mutableStateOf(false) }
+    var profileAttempted by rememberSaveable { mutableStateOf(false) }
     var retryRemaining by rememberSaveable { mutableIntStateOf(0) }
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(step) { scrollState.scrollTo(0) }
 
     LaunchedEffect(state.verificationRequestKey, state.retryAfterSeconds) {
         retryRemaining = state.retryAfterSeconds.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -173,151 +194,221 @@ fun SignupScreen(
         else SignupValidator.isFormValid(form)
     val canSubmit = phoneConfirmed && emailConfirmed &&
         (mode == SignupMode.KAKAO || passwordMatches) && formValid
+    val accountValid = SignupValidator.isEmailValid(email) && emailConfirmed &&
+        (mode == SignupMode.KAKAO || (SignupValidator.isPasswordValid(password) && passwordMatches && passwordConfirm.isNotEmpty()))
+    val profileValid = SignupValidator.isNameValid(name) && SignupValidator.isNicknameValid(nickname) &&
+        SignupValidator.isBirthDateValid(form.birthDate) && gender in setOf("MALE", "FEMALE")
+    val emailValid = SignupValidator.isEmailValid(email)
+    val checkedEmailMatches = state.checkedEmail == email.trim()
+    val emailFieldError = when {
+        accountAttempted && !emailValid -> "이메일 형식을 확인해주세요."
+        mode == SignupMode.EMAIL && checkedEmailMatches && state.emailError != null -> state.emailError
+        mode == SignupMode.EMAIL && checkedEmailMatches && state.emailAvailable == false -> "이미 사용 중인 이메일이에요."
+        else -> null
+    }
+    val stepTitle = when (step) {
+        0 -> "계정 정보"
+        1 -> "휴대폰 인증"
+        else -> "기본 정보"
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { AuthTopBar(if (mode == SignupMode.KAKAO) "카카오 회원가입" else "이메일 회원가입", onBack) }
+        topBar = {
+            AuthTopBar(if (mode == SignupMode.KAKAO) "카카오 회원가입" else "이메일 회원가입") {
+                if (step > 0) step-- else onBack()
+            }
+        },
+        bottomBar = {
+            Column(Modifier.fillMaxWidth().background(Colors.Canvas).imePadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                when {
+                    step == 0 -> AuthPrimaryButton(text = "다음", enabled = true, loading = false, onClick = {
+                        accountAttempted = true
+                        if (accountValid) step = 1
+                    })
+                    step == 1 -> AuthPrimaryButton(text = "다음", enabled = true, loading = false, onClick = {
+                        if (phoneConfirmed) step = 2
+                    })
+                    else -> AuthPrimaryButton(
+                        text = "가입하고 시작하기",
+                        enabled = true,
+                        loading = state.signupLoading,
+                        onClick = {
+                            profileAttempted = true
+                            if (profileValid && canSubmit) onSignUp(form)
+                        }
+                    )
+                }
+            }
+        }
     ) { contentPadding ->
         Column(
             Modifier.fillMaxSize()
                 .padding(contentPadding)
-                .verticalScroll(rememberScrollState())
-                .imePadding()
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 22.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("휴대폰 인증", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("본인 명의의 휴대폰 번호를 인증해주세요.", color = Colors.Muted, fontSize = 13.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                SignupField(
-                    label = "휴대폰 번호",
-                    value = phone,
-                    onValueChange = { phone = it.filter(Char::isDigit).take(11) },
-                    placeholder = "숫자만 입력",
-                    keyboardType = KeyboardType.Phone,
-                    enabled = !phoneConfirmed,
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedButton(
-                    onClick = { onRequestPhoneVerification(phone) },
-                    enabled = SignupValidator.isPhoneValid(phone) && !state.phoneRequestLoading && !phoneConfirmed && retryRemaining == 0,
-                    modifier = Modifier.height(56.dp)
-                ) {
-                    if (state.phoneRequestLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
-                    else Text(if (retryRemaining > 0) "${retryRemaining}초" else "인증 요청")
-                }
-            }
-            if (state.verificationRequestKey != null && !phoneConfirmed && state.requestedPhone == phone) {
+            Text("${step + 1} / 3", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(stepTitle, color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(when (step) {
+                0 -> if (mode == SignupMode.KAKAO) "계정에 사용할 이메일을 입력해주세요." else "로그인에 사용할 이메일과 비밀번호를 입력해주세요."
+                1 -> "휴대폰 번호를 인증해주세요."
+                else -> "마지막으로 프로필 정보를 입력해주세요."
+            }, color = Colors.Muted, fontSize = 13.sp)
+            if (step == 1) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                     SignupField(
-                        label = "인증번호",
-                        value = code,
-                        onValueChange = { code = it.filter(Char::isDigit).take(6) },
-                        placeholder = "6자리 입력",
-                        keyboardType = KeyboardType.Number,
+                        label = "휴대폰 번호",
+                        value = phone,
+                        onValueChange = { phone = it.filter(Char::isDigit).take(11) },
+                        placeholder = "숫자만 입력",
+                        keyboardType = KeyboardType.Phone,
+                        enabled = !phoneConfirmed,
                         modifier = Modifier.weight(1f)
                     )
-                    Button(
-                        onClick = { onConfirmPhoneVerification(code) },
-                        enabled = SignupValidator.isCodeValid(code) && !state.phoneConfirmationLoading,
-                        modifier = Modifier.height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
-                    ) {
-                        if (state.phoneConfirmationLoading) CircularProgressIndicator(Modifier.height(18.dp), color = Color.White, strokeWidth = 2.dp)
-                        else Text("확인")
-                    }
-                }
-            }
-            if (phoneConfirmed) FeedbackText("휴대폰 인증이 완료됐어요.", success = true)
-            state.phoneError?.let { FeedbackText(it) }
-
-            Spacer(Modifier.height(8.dp))
-            Text("계정 정보", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                SignupField(
-                    label = "이메일",
-                    value = email,
-                    onValueChange = { email = it },
-                    placeholder = "name@example.com",
-                    keyboardType = KeyboardType.Email,
-                    modifier = Modifier.weight(1f)
-                )
-                if (mode == SignupMode.EMAIL) {
                     OutlinedButton(
-                        onClick = { onCheckEmail(email.trim()) },
-                        enabled = SignupValidator.isEmailValid(email) && !state.emailCheckLoading,
+                        onClick = { onRequestPhoneVerification(phone) },
+                        enabled = SignupValidator.isPhoneValid(phone) && !state.phoneRequestLoading && !phoneConfirmed && retryRemaining == 0,
                         modifier = Modifier.height(56.dp)
                     ) {
-                        if (state.emailCheckLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
-                        else Text("중복 확인")
+                        if (state.phoneRequestLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
+                        else Text(if (retryRemaining > 0) "${retryRemaining}초" else "인증 요청")
                     }
                 }
-            }
-            when {
-                mode == SignupMode.KAKAO -> Text("기존 계정 연결 시 가입한 이메일을 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
-                emailConfirmed -> FeedbackText("사용할 수 있는 이메일이에요.", success = true)
-                state.checkedEmail == email.trim() && state.emailAvailable == false -> FeedbackText("이미 사용 중인 이메일이에요.")
-                state.emailError != null -> FeedbackText(state.emailError)
-            }
-            if (mode == SignupMode.EMAIL) {
-                SignupField(
-                    "비밀번호",
-                    password,
-                    { password = it.take(64) },
-                    "비밀번호 입력",
-                    KeyboardType.Password,
-                    password = true,
-                    errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { attempted && !SignupValidator.isPasswordValid(password) }
-                )
-                PasswordRequirementChecklist(
-                    requirements = SignupValidator.passwordRequirements(password),
-                    hasInput = password.isNotEmpty()
-                )
-                SignupField(
-                    "비밀번호 확인",
-                    passwordConfirm,
-                    { passwordConfirm = it },
-                    "비밀번호 다시 입력",
-                    KeyboardType.Password,
-                    password = true,
-                    errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (attempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
-                )
-            }
-            SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요", errorMessage = "이름은 2~30자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNameValid(name) })
-            SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자", errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf { attempted && !SignupValidator.isNicknameValid(nickname) })
-
-            Text("성별", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GenderButton("남성", "MALE", gender, { gender = it }, Modifier.weight(1f))
-                GenderButton("여성", "FEMALE", gender, { gender = it }, Modifier.weight(1f))
-            }
-            if (attempted && gender !in setOf("MALE", "FEMALE")) FeedbackText("성별을 선택해주세요.")
-            SignupField(
-                "생년월일",
-                birthDateDigits,
-                { birthDateDigits = it.filter(Char::isDigit).take(8) },
-                "YYYY-MM-DD",
-                KeyboardType.Number,
-                errorMessage = "생년월일을 확인해주세요.".takeIf { attempted && !SignupValidator.isBirthDateValid(form.birthDate) },
-                visualTransformation = BirthDateVisualTransformation
-            )
-
-            if (attempted && !canSubmit) {
-                when {
-                    !phoneConfirmed -> FeedbackText("휴대폰 인증을 완료해주세요.")
-                    !emailConfirmed -> FeedbackText("이메일 중복 확인을 완료해주세요.")
-                    else -> FeedbackText("필수 입력값을 모두 확인해주세요.")
+                if (state.verificationRequestKey != null && !phoneConfirmed && state.requestedPhone == phone) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                        SignupField(
+                            label = "인증번호",
+                            value = code,
+                            onValueChange = { code = it.filter(Char::isDigit).take(6) },
+                            placeholder = "6자리 입력",
+                            keyboardType = KeyboardType.Number,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = { onConfirmPhoneVerification(code) },
+                            enabled = SignupValidator.isCodeValid(code) && !state.phoneConfirmationLoading,
+                            modifier = Modifier.height(56.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                        ) {
+                            if (state.phoneConfirmationLoading) CircularProgressIndicator(Modifier.height(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Text("확인")
+                        }
+                    }
+                }
+                if (phoneConfirmed) FeedbackText("휴대폰 인증이 완료됐어요.", success = true)
+                state.phoneError?.let { FeedbackText(it) }
+                if (!phoneConfirmed && state.phoneError == null) {
+                    Text("인증이 완료되면 다음 단계로 넘어갈 수 있어요.", color = Colors.Muted, fontSize = 12.sp)
                 }
             }
-            state.signupError?.let { FeedbackText(it) }
-            AuthPrimaryButton(
-                text = "가입하고 시작하기",
-                enabled = canSubmit,
-                loading = state.signupLoading,
-                onClick = { attempted = true; if (canSubmit) onSignUp(form) }
-            )
+            if (step == 0) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SignupField(
+                        label = "이메일",
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = "name@example.com",
+                        keyboardType = KeyboardType.Email,
+                        errorMessage = emailFieldError,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (mode == SignupMode.EMAIL) {
+                        val buttonColor = when {
+                            emailConfirmed -> Color(0xFF14866D)
+                            emailValid -> Colors.Navy
+                            else -> Colors.Muted
+                        }
+                        val buttonBackground = when {
+                            emailConfirmed -> Color(0xFFEAF7F1)
+                            emailValid -> Colors.Background
+                            else -> Colors.Canvas
+                        }
+                        val buttonBorder = when {
+                            emailConfirmed -> Color(0xFFA8DCC7)
+                            emailValid -> Colors.Navy
+                            else -> Colors.Border
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            OutlinedButton(
+                                onClick = { onCheckEmail(email.trim()) },
+                                enabled = emailValid && !state.emailCheckLoading && !emailConfirmed,
+                                modifier = Modifier.widthIn(min = 120.dp).height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, buttonBorder),
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = buttonBackground,
+                                    contentColor = buttonColor,
+                                    disabledContainerColor = buttonBackground,
+                                    disabledContentColor = buttonColor
+                                )
+                            ) {
+                                when {
+                                    state.emailCheckLoading -> Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), color = buttonColor, strokeWidth = 2.dp)
+                                        Text("확인 중", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    emailConfirmed -> Text("✓ 확인 완료", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    else -> Text("중복 확인", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("기존 계정 연결 시 가입한 이메일을 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                    }
+                }
+                if (mode == SignupMode.EMAIL) {
+                    SignupField(
+                        "비밀번호",
+                        password,
+                        { password = it.take(64) },
+                        "비밀번호 입력",
+                        KeyboardType.Password,
+                        password = true,
+                        errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { accountAttempted && !SignupValidator.isPasswordValid(password) },
+                        passwordRequirements = SignupValidator.passwordRequirements(password)
+                    )
+                    SignupField(
+                        "비밀번호 확인",
+                        passwordConfirm,
+                        { passwordConfirm = it },
+                        "비밀번호 다시 입력",
+                        KeyboardType.Password,
+                        password = true,
+                        errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (accountAttempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
+                    )
+                }
+                if (accountAttempted && mode == SignupMode.EMAIL && emailValid && !emailConfirmed && emailFieldError == null) {
+                    FeedbackText("이메일 중복 확인을 완료해주세요.")
+                }
+            }
+            if (step == 2) {
+                SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자", errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf { profileAttempted && !SignupValidator.isNicknameValid(nickname) })
+                SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요", errorMessage = "이름은 2~30자로 입력해주세요.".takeIf { profileAttempted && !SignupValidator.isNameValid(name) })
+                SignupField(
+                    "생년월일",
+                    birthDateDigits,
+                    { birthDateDigits = it.filter(Char::isDigit).take(8) },
+                    "YYYY-MM-DD",
+                    KeyboardType.Number,
+                    errorMessage = "생년월일을 확인해주세요.".takeIf { profileAttempted && !SignupValidator.isBirthDateValid(form.birthDate) },
+                    visualTransformation = BirthDateVisualTransformation
+                )
+                Text("성별", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GenderButton("남성", "MALE", gender, { gender = it }, Modifier.weight(1f))
+                    GenderButton("여성", "FEMALE", gender, { gender = it }, Modifier.weight(1f))
+                }
+                if (profileAttempted && gender !in setOf("MALE", "FEMALE")) FeedbackText("성별을 선택해주세요.")
+                state.signupError?.let { FeedbackText(it) }
+            }
             Spacer(Modifier.height(18.dp))
         }
     }
@@ -364,30 +455,59 @@ private fun SignupField(
     password: Boolean = false,
     errorMessage: String? = null,
     modifier: Modifier = Modifier,
-    visualTransformation: VisualTransformation = VisualTransformation.None
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    passwordRequirements: List<PasswordRequirement>? = null
 ) {
+    var focused by remember { mutableStateOf(false) }
+    var fieldWidth by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val popupGap = with(density) { 8.dp.roundToPx() }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            enabled = enabled,
-            // 높이를 56dp 로 묶으면 글자 크기 배율에 따라 안쪽 글자가 잘린다. 최소 높이만 둔다
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-            placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 13.sp) },
-            singleLine = true,
-            isError = errorMessage != null,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = if (password) PasswordVisualTransformation() else visualTransformation,
-            shape = RoundedCornerShape(15.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Colors.Navy,
-                unfocusedBorderColor = Colors.Border,
-                focusedContainerColor = Colors.Background,
-                unfocusedContainerColor = Colors.Background,
-                errorBorderColor = Colors.Urgent
+        Box(Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                enabled = enabled,
+                // 높이를 56dp 로 묶으면 글자 크기 배율에 따라 안쪽 글자가 잘린다. 최소 높이만 둔다
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                    .onSizeChanged { fieldWidth = it.width }
+                    .onFocusChanged { focused = it.isFocused },
+                placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 13.sp) },
+                singleLine = true,
+                isError = errorMessage != null,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                visualTransformation = if (password) PasswordVisualTransformation() else visualTransformation,
+                shape = RoundedCornerShape(15.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Colors.Navy,
+                    unfocusedBorderColor = Colors.Border,
+                    focusedContainerColor = Colors.Background,
+                    unfocusedContainerColor = Colors.Background,
+                    errorBorderColor = Colors.Urgent
+                )
             )
-        )
+            if (focused && passwordRequirements != null && fieldWidth > 0) {
+                Popup(
+                    popupPositionProvider = object : PopupPositionProvider {
+                        override fun calculatePosition(
+                            anchorBounds: IntRect,
+                            windowSize: IntSize,
+                            layoutDirection: LayoutDirection,
+                            popupContentSize: IntSize
+                        ): IntOffset = IntOffset(
+                            x = anchorBounds.left.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                            y = (anchorBounds.top - popupContentSize.height - popupGap).coerceAtLeast(0)
+                        )
+                    },
+                    onDismissRequest = { focused = false }
+                ) {
+                    Box(Modifier.width(with(density) { fieldWidth.toDp() }).shadow(8.dp, RoundedCornerShape(12.dp))) {
+                        PasswordRequirementChecklist(passwordRequirements, value.isNotEmpty())
+                    }
+                }
+            }
+        }
         errorMessage?.let { FeedbackText(it) }
     }
 }

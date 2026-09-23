@@ -784,6 +784,21 @@ fun AppNavHost(
         } else navController.navigate(Screen.Login.route)
     }
 
+    fun startKakaoLogin() {
+        if (!auth.kakaoOAuthConfig.isConfigured) {
+            loginError = "카카오 로그인 설정을 확인해주세요."
+            return
+        }
+        loginError = null
+        val state = auth.kakaoOAuthStateStore.create()
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
+        }.onFailure {
+            auth.kakaoOAuthStateStore.consume(state)
+            loginError = "카카오 로그인 화면을 열 수 없습니다. 브라우저 설정을 확인해주세요."
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(unreadNotificationCount, ::openNotifications)) {
         NavHost(
@@ -840,12 +855,18 @@ fun AppNavHost(
         composable(Screen.Welcome.route) {
             WelcomeScreen(
                 onEmailSignup = { navController.navigate(Screen.SignUp.route) },
-                onLogin = { navController.navigate(Screen.Login.route) },
+                onLogin = {
+                    loginError = null
+                    navController.navigate(Screen.Login.route)
+                },
+                onKakaoLogin = ::startKakaoLogin,
                 onBrowse = {
                     previewMode = false
                     signedIn = false
                     navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                 },
+                kakaoLoginLoading = loginLoading,
+                kakaoLoginError = loginError,
                 showDeveloperPreview = BuildConfig.DEBUG,
                 onDeveloperPreview = {
                     previewMode = true
@@ -870,20 +891,7 @@ fun AppNavHost(
                 onPasswordReset = { navController.navigate(Screen.PasswordResetLink.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
-                onKakaoLogin = {
-                    if (!auth.kakaoOAuthConfig.isConfigured) {
-                        loginError = "Kakao REST API 키와 Redirect URI 설정을 확인해주세요."
-                    } else {
-                        loginError = null
-                        val state = auth.kakaoOAuthStateStore.create()
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
-                        }.onFailure {
-                            auth.kakaoOAuthStateStore.consume(state)
-                            loginError = "카카오 로그인 화면을 열 수 없습니다. 브라우저 설정을 확인해주세요."
-                        }
-                    }
-                },
+                onKakaoLogin = ::startKakaoLogin,
                 onLogin = { email, password ->
                     loginLoading = true
                     loginError = null
@@ -898,7 +906,7 @@ fun AppNavHost(
                             }
                             is ApiResult.Failure -> {
                                 loginError = when (result.error.code) {
-                                    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 이전 화면에서 둘러보기를 이용해주세요."
+                                    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 로그인 서비스를 이용할 수 없어요. 잠시 후 다시 이용해주세요."
                                     "INVALID_CREDENTIALS" -> "이메일 또는 비밀번호가 올바르지 않아요."
                                     "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
                                     else -> result.error.message.ifBlank { "로그인하지 못했습니다. 잠시 후 다시 시도해주세요." }
@@ -1132,8 +1140,10 @@ fun AppNavHost(
                             is ApiResult.Failure -> signupState = signupState.copy(
                                 emailCheckLoading = false,
                                 checkedEmail = email,
-                                emailAvailable = false,
-                                emailError = signupErrorMessage(result.error)
+                                emailAvailable = null,
+                                emailError = if (result.error.code == ApiErrorCodes.CLIENT_NOT_CONFIGURED) {
+                                    "현재 이메일 중복 확인을 이용할 수 없어요. 잠시 후 다시 이용해주세요."
+                                } else signupErrorMessage(result.error)
                             )
                         }
                     }
@@ -2775,7 +2785,7 @@ fun AppNavHost(
                 }
                 if (!auth.networkConfig.isRestConfigured) {
                     orderDetailLoading = false
-                    orderDetailError = "개발 서버 주소가 설정되지 않았어요."
+                    orderDetailError = "현재 거래 정보를 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 orderDetailLoading = true
@@ -3115,7 +3125,7 @@ fun AppNavHost(
                 }
                 if (!auth.networkConfig.isRestConfigured) {
                     chatLoading = false
-                    chatError = "개발 서버 주소가 설정되지 않았어요."
+                    chatError = "현재 채팅을 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 chatLoading = true
@@ -3305,7 +3315,7 @@ fun AppNavHost(
             LaunchedEffect(paymentMethodRevision, signedIn) {
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) {
                     paymentMethodLoading = false
-                    if (!auth.networkConfig.isRestConfigured) paymentMethodError = "개발 서버 주소가 설정되지 않았어요."
+                    if (!auth.networkConfig.isRestConfigured) paymentMethodError = "현재 결제 정보를 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 paymentMethodLoading = true
@@ -5635,7 +5645,7 @@ private fun previewLiveAuctions() = listOf(
 )
 
 internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 연결 설정을 확인해주세요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 서비스를 이용할 수 없어요. 잠시 후 다시 이용해주세요."
     "INVALID_PHONE" -> "휴대폰 번호 형식을 확인해주세요."
     "RATE_LIMITED" -> "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
     "INVALID_CODE" -> "인증번호가 올바르지 않아요."
@@ -5702,7 +5712,7 @@ internal fun bidSubmissionMessage(error: ApiFailure): String = when (error.code)
 }
 
 internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 신고를 접수할 수 없어요. 잠시 후 다시 이용해주세요."
     "SELF_REPORT_NOT_ALLOWED" -> "본인은 신고할 수 없어요."
     "DUPLICATE_REPORT" -> "이미 접수된 신고가 있어요."
     "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
@@ -5714,7 +5724,7 @@ internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.co
 }
 
 internal fun productSubmissionMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 상품을 등록할 수 없어요. 잠시 후 다시 이용해주세요."
     "IMAGE_REQUIRED" -> "상품 사진을 한 장 이상 선택해주세요."
     "INVALID_CONTENT_TYPE" -> "지원하지 않는 사진 형식이 포함돼 있어요."
     "FILE_TOO_LARGE" -> "용량이 너무 큰 사진이 포함돼 있어요."
@@ -5728,7 +5738,7 @@ internal fun paymentMethodRegistrationErrorMessage(error: ApiFailure): String = 
     "BILLING_KEY_ISSUE_FAILED" -> "카드 인증 정보를 확인하지 못했어요. 잠시 후 다시 등록해주세요."
     "PAYMENT_METHOD_ALREADY_EXISTS" -> "이미 등록된 카드가 있어요. 기존 카드를 삭제한 뒤 다시 시도해주세요."
     ApiErrorCodes.NETWORK_UNAVAILABLE -> "네트워크 연결을 확인한 뒤 다시 시도해주세요."
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 카드 등록을 이용할 수 없어요. 잠시 후 다시 이용해주세요."
     else -> error.message.ifBlank { "카드를 등록하지 못했어요. 다시 시도해주세요." }
 }
 
