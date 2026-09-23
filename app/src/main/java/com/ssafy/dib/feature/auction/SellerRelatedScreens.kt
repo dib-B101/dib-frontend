@@ -30,6 +30,25 @@ data class SellerListing(
 )
 
 /** 프로필·판매 내역에서 진행 중 → 예정 → 종료 순으로 보여주기 위한 정렬 키 */
+/**
+ * 판매자 프로필에 보여줄 경매만 남긴다.
+ *
+ * 판매자 경매 API 는 상품 검수 상태를 주지 않아, 등록이 거절된 상품의 예정 경매도 "예정"으로 보였다.
+ * 판매자 상품 API 는 검수를 통과한(REGISTERED·ON_AUCTION) 상품만 주므로, 진행·예정 경매는 그 목록에 있는 상품일 때만 보여준다.
+ * 끝난 경매(ENDED 등)는 상품이 SOLD 로 바뀌어 그 목록에서 빠지므로 그대로 둔다.
+ * 상품 목록을 못 받았으면(null) 거르지 않는다 — 판매 내역이 통째로 사라지는 것보다 낫다.
+ */
+internal fun <T> List<T>.visibleSellerAuctions(
+    approvedProductIds: Set<String>?,
+    status: (T) -> String,
+    productId: (T) -> String
+): List<T> {
+    if (approvedProductIds == null) return this
+    return filter { item ->
+        status(item).uppercase() !in setOf("ACTIVE", "SCHEDULED") || productId(item) in approvedProductIds
+    }
+}
+
 internal fun sellerListingOrder(status: String): Int = when (status) {
     "ACTIVE" -> 0
     "SCHEDULED" -> 1

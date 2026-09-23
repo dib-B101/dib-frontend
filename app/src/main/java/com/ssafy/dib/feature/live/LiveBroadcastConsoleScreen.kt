@@ -101,6 +101,56 @@ internal fun liveChatSpeakerLabel(
         else -> "익명"
     }
 
+/**
+ * 새로 받은 채팅을 목록에 합친다.
+ *
+ * 내가 보낸 댓글은 서버 수락 응답(CHAT_ACCEPTED)으로 먼저 들어오는데 거기엔 닉네임이 없다.
+ * 그래서 처음엔 "나"로 보이다가 다시 들어와 이력을 받으면 닉네임으로 바뀌었다.
+ * 내 댓글은 내 프로필 닉네임을 채워 넣고, 같은 댓글이 방송 이벤트로 한 번 더 오면 닉네임이 있는 쪽을 남긴다.
+ */
+internal fun mergeLiveChatMessage(
+    messages: List<LiveChatMessage>,
+    incoming: LiveChatMessage,
+    currentMemberId: String?,
+    currentNickname: String?
+): List<LiveChatMessage> {
+    val filled = if (incoming.nickname.isNullOrBlank() && currentMemberId != null && incoming.memberId == currentMemberId) {
+        incoming.copy(nickname = currentNickname?.takeIf(String::isNotBlank))
+    } else incoming
+    val index = messages.indexOfFirst { it.liveChattingId == filled.liveChattingId }
+    if (index < 0) return messages + filled
+    if (!messages[index].nickname.isNullOrBlank() || filled.nickname.isNullOrBlank()) return messages
+    return messages.toMutableList().also { it[index] = messages[index].copy(nickname = filled.nickname) }
+}
+
+/*
+ * 판매자 공지 규약.
+ *
+ * 서버에는 공지 기능이 없어 예전엔 "판매자가 보낸 마지막 채팅"을 공지로 띄웠다. 그래서 판매자가 인사만 해도 공지가 바뀌었다.
+ * 이제 판매자가 콘솔에서 댓글을 골라 "공지로 설정"하면 머리말을 붙인 채팅을 한 번 더 보내고,
+ * 앱은 그 머리말이 붙은 판매자 채팅만 공지로 본다. 공지 내리기는 해제 머리말만 보낸다.
+ * 두 메시지는 공지 줄에만 쓰고 채팅 목록에는 보이지 않는다. 채팅 이력에 남으므로 다시 들어와도 같은 공지가 보인다.
+ */
+internal const val LIVE_NOTICE_PREFIX = "[공지] "
+internal const val LIVE_NOTICE_CLEAR = "[공지 해제]"
+private const val LIVE_CHAT_MAX_LENGTH = 500
+
+internal fun liveNoticeCommand(content: String): String =
+    LIVE_NOTICE_PREFIX + content.trim().take(LIVE_CHAT_MAX_LENGTH - LIVE_NOTICE_PREFIX.length)
+
+/** 공지·공지 해제 메시지인지. 채팅 목록에서 숨길 때 쓴다 (판매자가 보낸 것만 규약으로 인정한다) */
+internal fun isLiveNoticeControl(message: LiveChatMessage, sellerMemberId: String?): Boolean =
+    sellerMemberId != null && message.memberId == sellerMemberId &&
+        (message.content.startsWith(LIVE_NOTICE_PREFIX) || message.content == LIVE_NOTICE_CLEAR)
+
+/** 지금 걸려 있는 공지. 판매자의 마지막 공지·해제 메시지를 보고 정한다. 내용은 머리말을 뗀 채로 돌려준다 */
+internal fun currentLiveNotice(messages: List<LiveChatMessage>, sellerMemberId: String?): LiveChatMessage? {
+    val seller = sellerMemberId?.takeIf(String::isNotBlank) ?: return null
+    val last = messages.filter { isLiveNoticeControl(it, seller) }.maxByOrNull(LiveChatMessage::time) ?: return null
+    if (last.content == LIVE_NOTICE_CLEAR) return null
+    return last.copy(content = last.content.removePrefix(LIVE_NOTICE_PREFIX)).takeIf { it.content.isNotBlank() }
+}
+
 internal fun liveBidNoticeLabel(notice: LiveBidNotice): String {
     val amount = "%,d원 입찰".format(notice.amount)
     return notice.nickname?.takeIf(String::isNotBlank)?.let { "${it}님이 " + amount } ?: amount
@@ -706,7 +756,7 @@ internal fun rememberLiveCountdown(key: String?, remainingSeconds: Int, endedAt:
  * 일반 채팅은 계속 올라가 묻히므로 공지성 안내는 항상 보여야 한다.
  */
 @Composable
-private fun LiveSellerNoticeBar(notice: LiveChatMessage) {
+private fun LiveSellerNoticeBar(notice: LiveChatMessage, onClear: (() -> Unit)?) {
     var expanded by rememberSaveable(notice.liveChattingId) { mutableStateOf(false) }
     var overflowing by remember(notice.liveChattingId) { mutableStateOf(false) }
     val expandable = overflowing || expanded
@@ -744,6 +794,13 @@ private fun LiveSellerNoticeBar(notice: LiveChatMessage) {
                 Modifier.size(16.dp).graphicsLayer(rotationZ = if (expanded) 270f else 90f),
                 colorFilter = ColorFilter.tint(Colors.Navy)
             )
+            if (onClear != null) Text(
+                "공지 내리기",
+                Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClear).padding(horizontal = 6.dp, vertical = 2.dp),
+                color = Colors.Muted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
         Text(
             notice.content,
@@ -772,12 +829,13 @@ internal fun LiveChatPanel(
     onSendChat: (String) -> Boolean,
     modifier: Modifier = Modifier
 ) {
-    val feed = remember(chatMessages, bidNotices) { mergeLiveConsoleFeed(chatMessages, bidNotices) }
-    val pinnedNotice = remember(chatMessages, sellerMemberId) {
-        sellerMemberId?.takeIf(String::isNotBlank)?.let { seller ->
-            chatMessages.lastOrNull { it.memberId == seller && it.content.isNotBlank() }
-        }
+    // 공지·해제 메시지는 공지 줄에만 쓰고 채팅 목록에서는 뺀다
+    val feed = remember(chatMessages, bidNotices, sellerMemberId) {
+        mergeLiveConsoleFeed(chatMessages.filterNot { isLiveNoticeControl(it, sellerMemberId) }, bidNotices)
     }
+    val pinnedNotice = remember(chatMessages, sellerMemberId) { currentLiveNotice(chatMessages, sellerMemberId) }
+    // 판매자가 누른 댓글. 공지로 올릴지 묻는다
+    var noticeCandidate by remember { mutableStateOf<LiveChatMessage?>(null) }
     val listState = rememberLazyListState()
     var draft by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(feed.size) {
@@ -789,7 +847,9 @@ internal fun LiveChatPanel(
         if (imeVisible && feed.isNotEmpty()) listState.animateScrollToItem(feed.lastIndex)
     }
     Column(modifier.fillMaxSize()) {
-        pinnedNotice?.let { LiveSellerNoticeBar(it) }
+        pinnedNotice?.let { notice ->
+            LiveSellerNoticeBar(notice, onClear = if (inputEnabled) ({ onSendChat(LIVE_NOTICE_CLEAR) }) else null)
+        }
         if (feed.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text("아직 채팅이 없어요", color = Colors.Muted, fontSize = 12.sp)
         } else LazyColumn(
@@ -810,12 +870,16 @@ internal fun LiveChatPanel(
                     is LiveConsoleFeedEntry.Chat -> {
                         val fromSeller = sellerMemberId?.takeIf(String::isNotBlank) == entry.message.memberId
                         Column(
-                            Modifier.fillMaxWidth().then(
-                                if (fromSeller) Modifier
-                                    .background(Colors.NavySoft, RoundedCornerShape(9.dp))
-                                    .padding(horizontal = 10.dp, vertical = 7.dp)
-                                else Modifier
-                            )
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(9.dp))
+                                // 댓글을 누르면 공지로 올릴 수 있다
+                                .clickable(enabled = inputEnabled) { noticeCandidate = entry.message }
+                                .then(
+                                    if (fromSeller) Modifier
+                                        .background(Colors.NavySoft, RoundedCornerShape(9.dp))
+                                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                                    else Modifier
+                                )
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -861,7 +925,7 @@ internal fun LiveChatPanel(
                 onValueChange = { draft = it.take(500) },
                 modifier = Modifier.weight(1f),
                 enabled = inputEnabled,
-                placeholder = { Text(if (inputEnabled) "메시지를 입력하세요" else "방송이 종료됐어요", fontSize = 13.sp) },
+                placeholder = { Text(if (inputEnabled) "메시지를 입력하세요 · 댓글을 누르면 공지로 올려요" else "방송이 종료됐어요", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp)
             )
@@ -877,5 +941,26 @@ internal fun LiveChatPanel(
                 )
             }
         }
+    }
+    noticeCandidate?.let { candidate ->
+        DibDialog(
+            onDismissRequest = { noticeCandidate = null },
+            title = "공지로 올릴까요?",
+            text = {
+                Text(
+                    "“${candidate.content}”\n\n시청자 화면 위에 고정돼요. 다른 댓글을 올리면 공지가 바뀌어요.",
+                    color = Colors.Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                DibDialogConfirmButton("공지로 설정", {
+                    onSendChat(liveNoticeCommand(candidate.content))
+                    noticeCandidate = null
+                })
+            },
+            dismissButton = { DibDialogDismissButton({ noticeCandidate = null }) }
+        )
     }
 }

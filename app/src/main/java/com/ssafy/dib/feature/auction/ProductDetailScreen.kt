@@ -37,6 +37,7 @@ import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibReportButton
 import com.ssafy.dib.core.ui.DibSnackbarHost
+import com.ssafy.dib.core.ui.auctionUrgencyPulse
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.time.formatRemainingTime
 import com.ssafy.dib.feature.home.ProductPhoto
@@ -158,10 +159,12 @@ fun ProductDetailScreen(
     var bidSubmitting by rememberSaveable(productId) { mutableStateOf(false) }
     val auctionState = detailAuctionState(product.status, remainingSeconds, isHighestBidder)
 
+    // 0초에서 멈추지 않고 계속 돈다. 예전엔 0이 되면 루프가 끝나, 예정 경매가 시작돼 남은 시간이 새로 들어와도
+    // 숫자가 줄지 않았다
     LaunchedEffect(productId) {
-        while (remainingSeconds > 0) {
+        while (true) {
             delay(1_000)
-            remainingSeconds--
+            if (remainingSeconds > 0) remainingSeconds--
         }
     }
 
@@ -286,9 +289,13 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                ProductGallery(product.photo, productImages, auctionState, product.bidCount, onImageClick)
+                ProductGallery(product.photo, productImages, auctionState, product.bidCount, productDetail?.status, onImageClick)
             }
             item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
+            // 누가 파는지는 가격을 본 직후 확인하는 정보라 현재가와 상품 설명 사이에 둔다 (예전엔 입찰 이력 아래 맨 끝이었다)
+            item {
+                SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
+            }
             item {
                 ProductInformation(
                     productName = productName,
@@ -308,9 +315,6 @@ fun ProductDetailScreen(
                     onRetry = onBidHistoryRetry,
                     onLoadMore = onBidHistoryLoadMore
                 )
-            }
-            item {
-                SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
             }
             if (similarProductsLoading || similarProductsError != null || !similarProducts.isNullOrEmpty()) {
                 item {
@@ -464,7 +468,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, onImageClick: (Int) -> Unit) {
+private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, productStatus: String?, onImageClick: (Int) -> Unit) {
     val pageCount = imageUrls.size.takeIf { it > 0 } ?: 1
     val pagerState = rememberPagerState(pageCount = { pageCount })
     Box(Modifier.fillMaxWidth().aspectRatio(1.2f).background(Colors.Image)) {
@@ -480,13 +484,15 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
                 }
             }
         }
-        if (state == DetailAuctionState.Won || state == DetailAuctionState.Lost) {
-            Text(
-                if (bidCount > 0) "입찰 완료" else "경매 종료",
-                Modifier.align(Alignment.Center).background(Colors.Navy.copy(alpha = .88f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                color = Colors.Background, fontSize = 22.sp, fontWeight = FontWeight.Bold
-            )
+        // 끝난 경매는 사진 전체를 반투명 검정으로 덮고 그 위에 상태를 크게 쓴다.
+        // 예전엔 가운데 작은 남색 상자 하나라 사진 위에서 글자가 잘 안 보였고, 낙찰·유찰·거래 완료 구분도 없었다
+        endedGalleryLabel(state, bidCount, productStatus)?.let { (label, caption) ->
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = .55f)), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(label, color = Color.White, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+                    caption?.let { Text(it, color = Color.White.copy(alpha = .85f), fontSize = 13.sp) }
+                }
+            }
         }
         // Surface 는 onClick 이 없어도 뒤로 터치를 안 넘긴다. 사진 뷰어(pager) 위에 얹혀 있어서
         // 이 모서리에서 시작한 스와이프가 먹히지 않았다. Box 로 바꾼다
@@ -518,6 +524,16 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
     }
 }
 
+/** 끝난 경매 사진 위에 덮을 문구(제목, 설명). 진행·예정 경매면 null */
+internal fun endedGalleryLabel(state: DetailAuctionState, bidCount: Int, productStatus: String?): Pair<String, String?>? = when {
+    productStatus.equals("SOLD", ignoreCase = true) && state != DetailAuctionState.Active && state != DetailAuctionState.HighestBidder ->
+        "거래 완료" to (if (state == DetailAuctionState.Won) "내가 낙찰한 상품이에요" else null)
+    state == DetailAuctionState.Won -> "낙찰 완료" to "내가 낙찰한 상품이에요"
+    state == DetailAuctionState.Lost -> if (bidCount > 0) "낙찰 완료" to "다른 분이 낙찰했어요" else "유찰" to "입찰 없이 끝난 경매예요"
+    state == DetailAuctionState.Cancelled -> "경매 취소" to null
+    else -> null
+}
+
 @Composable
 private fun ProductSummary(
     name: String,
@@ -536,7 +552,11 @@ private fun ProductSummary(
                 DetailAuctionState.Cancelled -> Badge("경매 취소")
                 DetailAuctionState.Lost -> Badge("경매 종료")
                 DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
-                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge("마감 임박", urgent = true)
+                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge(
+                    "마감 임박",
+                    urgent = true,
+                    modifier = Modifier.auctionUrgencyPulse(remainingSeconds)
+                )
             }
             Badge("상품 상태 · ${conditionLabel(condition)}")
         }
@@ -581,7 +601,10 @@ private fun ProductSummary(
                 },
                 if (remainingSeconds in 1..59) Colors.Urgent else Colors.Text,
                 18,
-                Modifier.weight(1f)
+                Modifier.weight(1f),
+                valueModifier = if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) {
+                    Modifier.auctionUrgencyPulse(remainingSeconds)
+                } else Modifier
             )
         }
         if (state == DetailAuctionState.Lost) {
@@ -597,13 +620,13 @@ private fun ProductSummary(
 }
 
 @Composable
-private fun Badge(label: String, urgent: Boolean = false, success: Boolean = false) {
+private fun Badge(label: String, urgent: Boolean = false, success: Boolean = false, modifier: Modifier = Modifier) {
     val color = when {
         urgent -> Colors.UrgentBackground
         success -> Color(0xFFF0F7F2)
         else -> Colors.Surface
     }
-    Surface(color = color, shape = RoundedCornerShape(8.dp)) {
+    Surface(modifier, color = color, shape = RoundedCornerShape(8.dp)) {
         Text(label, Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             color = when { urgent -> Colors.Urgent; success -> Color(0xFF297345); else -> Colors.Muted },
             fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium)
@@ -611,10 +634,10 @@ private fun Badge(label: String, urgent: Boolean = false, success: Boolean = fal
 }
 
 @Composable
-private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier) {
+private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier, valueModifier: Modifier = Modifier) {
     Column(modifier) {
         Text(label, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-        Text(value, color = color, fontSize = valueSize.sp, lineHeight = (valueSize + 6).sp, fontWeight = FontWeight.Bold)
+        Text(value, valueModifier, color = color, fontSize = valueSize.sp, lineHeight = (valueSize + 6).sp, fontWeight = FontWeight.Bold)
     }
 }
 

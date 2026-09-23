@@ -214,6 +214,8 @@ private fun RemoteTransactionScreen(
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showReport by rememberSaveable(order?.orderId) { mutableStateOf(false) }
     var showAddressInput by rememberSaveable { mutableStateOf(false) }
+    // 새로 입력이 아니라 이미 입력한 배송지를 고치는 중인지
+    var editingAddress by rememberSaveable { mutableStateOf(false) }
     var trackingNumber by rememberSaveable(order?.orderId) { mutableStateOf("") }
     var selectedCarrier by rememberSaveable(order?.orderId) { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
@@ -297,7 +299,15 @@ private fun RemoteTransactionScreen(
                                     "우편번호" to destination.postalCode.ifBlank { "-" },
                                     "주소" to destination.address
                                 ),
-                                "배송지"
+                                "배송지",
+                                // 판매자가 송장을 넣기 전(결제 완료 상태)까지는 구매자가 배송지를 고칠 수 있다.
+                                // 예전엔 한 번 등록하면 고칠 버튼이 없어 잘못 넣은 주소를 바로잡을 수 없었다
+                                footer = if (role != "seller" && order.status.uppercase() == "PAID") ({
+                                    SecondaryButton("배송지 수정", enabled = !addressSubmitting, loading = addressSubmitting) {
+                                        editingAddress = true
+                                        showAddressInput = true
+                                    }
+                                }) else null
                             )
                         }
                     }
@@ -512,8 +522,9 @@ private fun RemoteTransactionScreen(
             submitting = addressSubmitting,
             errorMessage = addressSubmitError,
             savedAddresses = savedAddresses,
-            onSubmit = { input -> showAddressInput = false; onSubmitShippingAddress(input) },
-            onDismiss = { showAddressInput = false }
+            current = shippingAddress?.takeIf { editingAddress && it.isRegistered },
+            onSubmit = { input -> showAddressInput = false; editingAddress = false; onSubmitShippingAddress(input) },
+            onDismiss = { showAddressInput = false; editingAddress = false }
         )
     }
     if (showReport) {
@@ -917,7 +928,7 @@ private fun SellerTransactionScreen(onBack: () -> Unit, modifier: Modifier = Mod
         }
         Column(Modifier.padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, color = Colors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("낙찰가 ${"%,d".format(amount)}원 · 주문 $orderId", color = Colors.Muted, fontSize = 11.sp)
+            Text("낙찰가 ${"%,d".format(amount)}원", color = Colors.Muted, fontSize = 11.sp)
         }
     }
 }

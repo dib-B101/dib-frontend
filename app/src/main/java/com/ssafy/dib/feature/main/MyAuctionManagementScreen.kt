@@ -231,7 +231,12 @@ private fun MyAuctionCard(
     onRelist: (() -> Unit)? = null
 ) {
     val auction = sale.auction
-    val scheduled = auction.status.equals("SCHEDULED", ignoreCase = true)
+    // 등록이 거절됐거나 다시 검수 중인 상품의 경매는 SCHEDULED 로 남아 있지만 시작할 수 없다.
+    // 예전엔 경매 상태만 보고 "경매 예정"과 시작 버튼을 보여줬다
+    val productStatus = sale.productStatus?.uppercase()
+    val productRejected = productStatus in setOf("REJECTED", "REVIEW_REJECTED")
+    val productInReview = productStatus in setOf("PENDING", "PENDING_REVIEW")
+    val scheduled = auction.status.equals("SCHEDULED", ignoreCase = true) && !productRejected && !productInReview
     val ended = auction.status.equals("ENDED", ignoreCase = true)
     // 입찰이 0건이고 주문도 없으면 유찰이다. 낙찰(SOLD) 건은 서버가 relist 를 거절한다
     val failedToSell = ended && auction.bidCount == 0 && sale.orderId == null
@@ -240,7 +245,16 @@ private fun MyAuctionCard(
             DibNetworkImage(auction.imageUrls.firstOrNull(), auction.title, Modifier.size(72.dp))
             Column(Modifier.padding(start = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(auctionStatusLabel(auction.status), color = auctionStatusColor(auction.status), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        when {
+                            productRejected -> "등록 거절"
+                            productInReview -> "검수 대기"
+                            else -> auctionStatusLabel(auction.status)
+                        },
+                        color = if (productRejected) Colors.Urgent else auctionStatusColor(auction.status),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     if (failedToSell) Text("유찰", Modifier.background(Colors.UrgentBackground, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp), color = Colors.Urgent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
                 Text(auction.title, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -249,7 +263,15 @@ private fun MyAuctionCard(
             }
         }
         if (actionLoading) CircularProgressIndicator(Modifier.size(22.dp).align(Alignment.CenterHorizontally), color = Colors.Navy, strokeWidth = 2.dp)
-        else if (scheduled) {
+        else if (productRejected || productInReview) {
+            Text(
+                if (productRejected) "등록이 거절된 상품이에요. 등록 상품 관리에서 사유를 확인하고 수정해주세요."
+                else "검수 중인 상품이에요. 승인되면 경매를 시작할 수 있어요.",
+                color = Colors.Muted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        } else if (scheduled) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onEdit, Modifier.weight(1f), enabled = actionsEnabled) { Text("조건 수정") }
                 Button(onStart, Modifier.weight(1f), enabled = actionsEnabled, colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { Text("지금 시작") }

@@ -39,7 +39,8 @@ class AuctionRepositoryImpl(
                         SaleHistoryItem(
                             auction = item.auction.copy(product = item.auction.product ?: item.product).toDomain(now()),
                             orderId = item.order?.orderId?.idValue(),
-                            orderStatus = item.order?.status
+                            orderStatus = item.order?.status,
+                            productStatus = (item.product ?: item.auction.product)?.status
                         )
                     },
                     nextCursor = result.value.nextCursor,

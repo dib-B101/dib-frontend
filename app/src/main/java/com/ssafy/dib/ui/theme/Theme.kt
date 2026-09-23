@@ -9,6 +9,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -59,9 +62,17 @@ fun DibTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // 앱 전체 글자를 한 단계 키운다. 화면마다 10~12sp 로 박힌 글자가 많아 전체적으로 작다는 QA 가 있었다.
+    // 화면을 하나씩 고치는 대신 시스템 글자 크기 설정에 배율을 곱한다(사용자가 키운 설정도 그대로 반영된다).
+    // 대화상자·바텀시트도 같은 CompositionLocal 을 물려받는다
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * DIB_FONT_SCALE)) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
+
+private const val DIB_FONT_SCALE = 1.1f

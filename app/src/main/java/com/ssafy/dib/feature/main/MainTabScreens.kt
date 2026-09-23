@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -149,7 +150,7 @@ fun MyTradesScreen(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
             Column(Modifier.background(Color.White)) {
-                Row(Modifier.fillMaxWidth().height(60.dp).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("내 거래", Modifier.weight(1f), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     DibNotificationBell()
                 }
@@ -266,8 +267,8 @@ private fun BidHistoryItem.toTradeItem(): TradeItem {
     val price = currentPrice?.takeIf { it > 0 }?.let { "현재가 ${"%,d".format(it)}원 · " }.orEmpty()
     return TradeItem(
         status = if (ended) "경매 종료" else "입찰 참여",
-        // 서버가 상품명을 안 주던 시절의 표기가 "경매 #id" 다. 예전 서버와 붙으면 지금도 그 표기로 떨어진다
-        title = title ?: "경매 #$auctionId",
+        // 예전 서버는 상품명을 안 줬다. 그때도 내부 경매 번호 대신 일반 문구를 쓴다
+        title = title ?: "입찰한 상품",
         meta = "${price}내 입찰가 ${"%,d".format(amount)}원 · ${formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')}",
         action = "경매 상태 보기 →",
         tone = if (ended) TradeTone.Neutral else TradeTone.Positive,
@@ -308,6 +309,7 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
 private fun SaleHistoryItem.toTradeItem(): TradeItem {
     val normalizedOrderStatus = orderStatus?.uppercase()
     val normalizedAuctionStatus = auction.status.uppercase()
+    val normalizedProductStatus = productStatus?.uppercase()
     val statusLabel = when (normalizedOrderStatus) {
         "PENDING" -> "결제 대기"
         "PAID", "PREPARING" -> "발송 필요"
@@ -316,13 +318,18 @@ private fun SaleHistoryItem.toTradeItem(): TradeItem {
         "CONFIRMED" -> "판매 완료"
         "CANCELLED", "CANCELED" -> "거래 취소"
         "REFUNDED" -> "환불 완료"
-        else -> when (normalizedAuctionStatus) {
+        // 주문이 없으면 상품 검수 상태를 먼저 본다. 거절·검수 중인 상품은 경매가 SCHEDULED 여도 시작할 수 없다
+        else -> when {
+            normalizedProductStatus in setOf("REJECTED", "REVIEW_REJECTED") -> "등록 거절"
+            normalizedProductStatus in setOf("PENDING", "PENDING_REVIEW") -> "검수 대기"
+            else -> when (normalizedAuctionStatus) {
             "PENDING" -> "검수 대기"
             "SCHEDULED" -> "경매 예정"
             "ACTIVE" -> "경매 진행 중"
             "ENDED" -> "경매 종료"
             "CANCELLED", "CANCELED" -> "경매 취소"
             else -> normalizedAuctionStatus.ifBlank { "판매 경매" }
+            }
         }
     }
     val tone = when {
@@ -330,13 +337,14 @@ private fun SaleHistoryItem.toTradeItem(): TradeItem {
         normalizedOrderStatus in setOf("PREPARING", "SHIPPED") || normalizedAuctionStatus == "ACTIVE" -> TradeTone.Positive
         else -> TradeTone.Neutral
     }
+    val rejected = normalizedOrderStatus == null && normalizedProductStatus in setOf("REJECTED", "REVIEW_REJECTED")
     val priceLabel = if (auction.currentPrice > 0) "현재가 ${"%,d".format(auction.currentPrice)}원" else "시작가 ${"%,d".format(auction.startPrice)}원"
     return TradeItem(
         status = statusLabel,
         title = auction.title,
-        meta = "$priceLabel · 입찰 ${auction.bidCount}회",
+        meta = if (rejected) "등록 상품 관리에서 사유를 확인하고 수정해주세요" else "$priceLabel · 입찰 ${auction.bidCount}회",
         action = if (orderId.isNullOrBlank()) "경매 상태 보기 →" else "거래 상세 보기 →",
-        tone = tone,
+        tone = if (rejected) TradeTone.Urgent else tone,
         orderId = orderId.orEmpty(),
         auctionId = auction.auctionId,
         thumbnailUrl = auction.imageUrls.firstOrNull()
@@ -434,7 +442,7 @@ fun MyPageScreen(
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
         topBar = {
-            Row(Modifier.fillMaxWidth().height(60.dp).background(Color.White).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(56.dp).background(Color.White).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("마이", Modifier.weight(1f), color = Colors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 DibNotificationBell()
             }
@@ -501,7 +509,7 @@ fun MyPageScreen(
                     MenuRow("알림 설정", onClick = onNotificationSettingsClick)
                     MenuRow("신고 내역", onClick = onReportsClick)
                     MenuRow("회원 탈퇴", onClick = onWithdrawalClick)
-                    MenuRow("로그아웃", Color(0xFFEF596B)) { confirmation = "로그아웃" }
+                    MenuRow("로그아웃", Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
                 }
             }
         }
@@ -525,7 +533,20 @@ private fun memberStatusLabel(status: String): String = when (status) {
     else -> status
 }
 
-@Composable private fun MenuRow(label: String, color: Color = Colors.Text, onClick: () -> Unit) { Row(Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Text(label, Modifier.weight(1f), color = color, fontSize = 14.sp); Image(painterResource(R.drawable.chevron_right),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
+// 설정 메뉴 한 줄. 예전엔 좌우 여백 14dp·진한 18dp 화살표라 글자와 화살표가 카드 가장자리에 붙어 보였다.
+// 여백을 넓히고 줄 사이를 구분선으로 나누며, 화살표는 작고 옅게 둬 메뉴 이름이 먼저 읽히게 한다
+@Composable private fun MenuRow(label: String, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onClick).padding(start = 20.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, Modifier.weight(1f), color = color, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Color(0xFFB0B8C1)))
+        }
+        if (showDivider) HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Colors.Border)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -637,9 +658,9 @@ fun ProductRegisterScreen(
                 Text(
                     when {
                         result.productId.startsWith("PREVIEW-") -> "개발 미리보기 상품으로 등록됐어요."
-                        approved -> "검수가 끝났어요. 지금 경매를 시작할 수 있어요. · 상품 번호 ${result.productId}"
-                        rejected -> "등록이 거절됐어요. 등록 상품 관리에서 사유를 확인하고 수정해주세요. · 상품 번호 ${result.productId}"
-                        else -> "검수 중이에요. 승인되면 경매를 시작할 수 있어요.\n결과 알림이 따로 없어서 아래 새로고침으로 확인해주세요. · 상품 번호 ${result.productId}"
+                        approved -> "검수가 끝났어요. 지금 경매를 시작할 수 있어요."
+                        rejected -> "등록이 거절됐어요. 등록 상품 관리에서 사유를 확인하고 수정해주세요."
+                        else -> "검수 중이에요. 승인되면 경매를 시작할 수 있어요.\n결과 알림이 따로 없어서 아래 새로고침으로 확인해주세요."
                     },
                     Modifier.padding(top = 10.dp),
                     color = Colors.Muted,
@@ -733,13 +754,13 @@ fun ProductRegisterScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) { Text("사진 순서 편집", fontWeight = FontWeight.Bold) }
                     }
-                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }) }
+                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", maxLength = PRODUCT_TITLE_MAX_LENGTH, errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }) }
                     item { RegisterSelect("카테고리 *", selectedCategory?.name ?: "선택해주세요", placeholder = selectedCategory == null, errorMessage = "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
                     item { RegisterSelect("상품 상태 *", conditionLabel(condition), placeholder = condition.isBlank(), errorMessage = "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) { conditionDialog = true } }
-                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
-                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24") }
+                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
+                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24", maxLength = PRODUCT_MODEL_NAME_MAX_LENGTH) }
                     item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
                     item { Text("가격과 경매 시간은 경매를 시작할 때 정해요", Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(12.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
                 }
@@ -1006,6 +1027,12 @@ private fun ProductImageThumbnail(uri: Uri, rotation: Int, representative: Boole
 // 등록·수정 두 화면이 같은 값·라벨·선택 UI 를 쓰도록 여기 한 곳에만 둔다
 internal val PRODUCT_CONDITIONS = listOf("GOOD", "NORMAL", "BAD")
 
+// 입력 길이 제한. 상품명·모델명은 서버 ProductCreateRequest 의 @Size 와 같고,
+// 설명은 서버 제한이 없어 무한정 붙여넣을 수 있었으므로 상세 화면에서 읽을 수 있는 분량으로 앱이 막는다
+internal const val PRODUCT_TITLE_MAX_LENGTH = 200
+internal const val PRODUCT_DESCRIPTION_MAX_LENGTH = 2_000
+internal const val PRODUCT_MODEL_NAME_MAX_LENGTH = 100
+
 internal fun conditionLabel(condition: String) = when (condition) {
     "GOOD" -> "상 · 사용감 적음"
     "NORMAL" -> "중 · 일반 사용감"
@@ -1046,16 +1073,21 @@ private fun RegisterTextField(
     placeholder: String,
     height: androidx.compose.ui.unit.Dp = 80.dp,
     keyboardType: KeyboardType = KeyboardType.Text,
+    maxLength: Int? = null,
     errorMessage: String? = null
 ) {
     Column(
         Modifier.fillMaxWidth().heightIn(min = height + if (errorMessage != null) 18.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            // 여러 줄 입력(설명)만 글자 수를 보여준다. 한 줄 입력은 제한에 닿을 일이 드물어 자리만 차지한다
+            if (maxLength != null && height >= 90.dp) Text("${value.length}/$maxLength", color = Colors.Muted, fontSize = 11.sp)
+        }
         OutlinedTextField(
             value = value,
-            onValueChange = onChange,
+            onValueChange = { onChange(if (maxLength != null) it.take(maxLength) else it) },
             modifier = Modifier.fillMaxWidth().heightIn(min = if (height >= 100.dp) 76.dp else 56.dp),
             placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
             singleLine = height < 90.dp,
@@ -1076,12 +1108,15 @@ private fun RegisterTextField(
 // placeholder 여부는 호출부가 상태값으로 판단해 넘긴다. 표시 문자열을 contains 로 추측하면
 // 선택값 "상 · 사용감 적음" 이 안내문 "상 · 중 · 하" 와 같이 걸려 선택해도 회색으로 남았다
 private fun RegisterSelect(label: String, value: String, placeholder: Boolean, errorMessage: String? = null, onClick: () -> Unit) {
+    // 선택 창을 열기 전에 입력 중이던 텍스트 칸의 포커스를 푼다. 그대로 두면 창이 닫힐 때
+    // 포커스가 그 칸으로 돌아가 키보드가 다시 올라오고 화면이 방금 고른 항목 대신 그 칸으로 스크롤됐다
+    val focusManager = LocalFocusManager.current
     Column(Modifier.fillMaxWidth().heightIn(min = if (errorMessage == null) 80.dp else 98.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp).background(Color.White, RoundedCornerShape(12.dp))
                 .border(if (errorMessage != null) 1.5.dp else 1.dp, if (errorMessage != null) Colors.Urgent else Color(0xFFDDE1E7), RoundedCornerShape(12.dp))
-                .clickable(onClick = onClick).padding(horizontal = 14.dp),
+                .clickable { focusManager.clearFocus(); onClick() }.padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(value, Modifier.weight(1f), color = if (placeholder) Color(0xFF8A9099) else Colors.Text, fontSize = 14.sp)

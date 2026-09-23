@@ -1,5 +1,7 @@
 package com.ssafy.dib.feature.home
 
+import com.ssafy.dib.core.ui.auctionUrgencyPulse
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -382,19 +384,25 @@ internal fun homeLiveScheduleLabel(value: String?, zoneId: ZoneId = ZoneId.syste
 
 @Composable
 private fun HomeHeader() {
-    Row(
-        Modifier.fillMaxWidth().height(64.dp).background(Color(0xFFFBF9F4)).padding(horizontal = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painterResource(R.drawable.dib_official_logo),
-            "dib",
-            Modifier.size(70.dp, 44.dp).clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Fit
-        )
-        // 알림 벨은 모든 헤더가 같은 것을 쓴다 (미읽음 개수·클릭 처리는 AppNavHost 가 제공)
-        DibNotificationBell(tint = Colors.Navy.copy(alpha = .72f))
+    // 다른 화면의 공통 헤더(DibSubAppBar)와 같은 흰 바탕·56dp·아래 구분선으로 맞춘다.
+    // 예전엔 로고 이미지의 크림색 배경에 맞춰 헤더만 크림색·64dp 라 본문(회색)과도, 다른 화면 헤더와도 어긋났다.
+    // 로고는 배경을 투명하게 바꿔 어떤 바탕에도 올릴 수 있다
+    Column(Modifier.fillMaxWidth().background(Colors.Background)) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painterResource(R.drawable.dib_official_logo),
+                "dib",
+                Modifier.size(64.dp, 40.dp),
+                contentScale = ContentScale.Fit
+            )
+            // 알림 벨은 모든 헤더가 같은 것을 쓴다 (미읽음 개수·클릭 처리는 AppNavHost 가 제공)
+            DibNotificationBell()
+        }
+        HorizontalDivider(color = Colors.Border)
     }
 }
 
@@ -514,10 +522,11 @@ private fun DeadlineSection(
 /** "마감 임박 · n일 m시간 k분" 배지. 마지막 1분만 초를 보여준다. */
 @Composable
 private fun DeadlineBadge(seconds: Int) {
-    Surface(color = Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+    Surface(Modifier.auctionUrgencyPulse(seconds), color = if (seconds in 1..60) Colors.Urgent else Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+        val foreground = if (seconds in 1..60) Color.White else Colors.Urgent
         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(Colors.Urgent))
-            Text(if (seconds <= 0) "마감" else "마감 임박 · ${deadlineCountdownLabel(seconds)}", color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
+            Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(foreground))
+            Text(if (seconds <= 0) "마감" else "마감 임박 · ${deadlineCountdownLabel(seconds)}", color = foreground, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
