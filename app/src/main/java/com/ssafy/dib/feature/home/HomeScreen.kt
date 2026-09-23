@@ -303,7 +303,7 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
                     if (isLive) "방송 중 · 눌러서 보기" else homeLiveScheduleLabel(item.scheduledAt)
                 ).joinToString(" · "),
                 photo = null,
-                imageUrl = item.firstItemThumbnailUrl
+                imageUrl = item.firstItemThumbnailUrl?.takeIf(String::isNotBlank)
             )
         } ?: listOf(
             HomeLiveCard("오디오마켓 라이브", "노이즈 캔슬링 헤드폰", true, "상품 5개 · 눌러서 보기", ProductPhoto.Headphones),
@@ -311,39 +311,52 @@ private fun HomeLiveSection(remoteLives: List<RecommendedLive>?, onLiveClick: ()
         )
         if (cards.isEmpty()) {
             Text("현재 방송 중인 Live가 없어요.", Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(12.dp)).padding(18.dp), color = Colors.Muted, fontSize = 12.sp)
-        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             cards.forEach { card ->
                 Surface(
                     onClick = onLiveClick,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     color = Colors.Background,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Colors.Border),
                     shadowElevation = 0.dp
                 ) {
-                    Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    // 홈 상품 카드와 같은 정방형 썸네일. 대표 상품 사진이 없을 때만 방송 아이콘을 그린다
-                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(if (card.imageUrl != null) Colors.Image else if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)) {
-                        when {
-                            card.imageUrl != null -> DibNetworkImage(card.imageUrl, card.description, Modifier.matchParentSize())
-                            card.photo != null -> ProductPhoto(card.photo, modifier = Modifier.matchParentSize())
-                            else -> Image(
-                                painter = painterResource(R.drawable.live_video),
-                                contentDescription = null,
-                                modifier = Modifier.align(Alignment.Center).size(38.dp),
-                                colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
-                            )
-                        }
-                        Surface(Modifier.padding(7.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(9.dp)) {
-                            Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (!card.isLive) Image(painterResource(R.drawable.ic_schedule), null, Modifier.size(12.dp))
-                                Text(if(card.isLive) "● LIVE" else "예정", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(11.dp)
+                    ) {
+                        // 방송 영상 대신 편성 상품의 대표 사진을 고정 크기로 보여줘 홈 높이를 작게 유지한다.
+                        Box(
+                            Modifier.size(76.dp).clip(RoundedCornerShape(11.dp))
+                                .background(if (card.imageUrl != null) Colors.Image else if (card.isLive) Color(0xFF18253A) else Colors.NavySoft)
+                        ) {
+                            when {
+                                card.imageUrl != null -> DibNetworkImage(card.imageUrl, card.description, Modifier.matchParentSize())
+                                card.photo != null -> ProductPhoto(card.photo, modifier = Modifier.matchParentSize())
+                                else -> Image(
+                                    painter = painterResource(R.drawable.live_video),
+                                    contentDescription = null,
+                                    modifier = Modifier.align(Alignment.Center).size(30.dp),
+                                    colorFilter = ColorFilter.tint(if (card.isLive) Colors.Mint else Colors.Navy.copy(alpha = .55f))
+                                )
+                            }
+                            Surface(Modifier.padding(5.dp), color = if(card.isLive) Colors.Live else Colors.Navy, shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    if(card.isLive) "● LIVE" else "예정",
+                                    Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
-                    }
-                    Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
-                    Text(card.description, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(card.footer, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.MintInk, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(card.description, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
+                            Text(card.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.Muted, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(card.footer, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Colors.MintInk, fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Text("›", color = Colors.Muted, fontSize = 20.sp)
                     }
                 }
             }

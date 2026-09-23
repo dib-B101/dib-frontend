@@ -56,6 +56,8 @@ data class PlacedBid(val currentPrice: Int, val bidCount: Int)
 // 목록 API 의 status 필터와 같은 뜻으로 맞춘 판정. OPEN 은 진행 중 + 예정, ALL 은 전부다
 fun String.matchesAuctionStatusFilter(filter: String): Boolean = when (filter.uppercase()) {
     "OPEN" -> equals("ACTIVE", ignoreCase = true) || equals("SCHEDULED", ignoreCase = true)
+    // 서버가 소유권·상품 상태·이전 Live 상태까지 검사해 SCHEDULED와 재편성 가능한 ENDED만 내려준다.
+    "LIVE_AVAILABLE" -> equals("SCHEDULED", ignoreCase = true) || equals("ENDED", ignoreCase = true)
     "ALL" -> true
     else -> equals(filter, ignoreCase = true)
 }
