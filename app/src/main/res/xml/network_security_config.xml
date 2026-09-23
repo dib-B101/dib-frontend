@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  로컬 개발 서버(http)만 평문 통신을 허용한다.
-  Android 9(API 28)부터 앱의 기본값이 "평문 차단"이라, 이 설정이 없으면
-  http://10.0.2.2:8080 요청이 OkHttp 단계에서 UnknownServiceException 으로 죽는다
-  (서버에는 요청이 도착하지 않고 앱에는 "네트워크 연결을 확인해주세요" 만 뜬다).
-  운영 도메인은 여기 없으므로 https 만 허용된다.
+  평문(http) 통신을 허용할 호스트만 여기 적는다.
+  Android 9(API 28)부터 앱의 기본값이 "평문 차단"이라, 목록에 없는 도메인으로 http 요청을 보내면
+  OkHttp 단계에서 UnknownServiceException 으로 죽는다. 서버에는 요청이 도착하지 않고 앱에는
+  "네트워크 연결을 확인해주세요" 만 뜨거나 샘플 데이터로 떨어진다.
+
+  배포 ALB 가 아직 http 리스너뿐이라 QA 빌드가 붙으려면 그 도메인도 여기 있어야 한다.
+  ALB 에 ACM 인증서를 붙여 https 로 바꾸면 아래 elb 항목은 지워야 한다.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>      <!-- 에뮬레이터에서 본 PC -->
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- 배포 ALB (http 전용). https 전환 시 제거 -->
+        <domain includeSubdomains="true">elb.amazonaws.com</domain>
     </domain-config>
 </network-security-config>

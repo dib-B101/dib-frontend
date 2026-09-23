@@ -11,6 +11,7 @@ import com.ssafy.dib.data.remote.auction.AuctionRecommendationResponse
 import com.ssafy.dib.data.remote.auction.AuctionBidSnapshotResponse
 import com.ssafy.dib.data.remote.auction.SaleHistoryResponse
 import com.ssafy.dib.data.repository.toDomain
+import com.ssafy.dib.domain.auction.matchesAuctionStatusFilter
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -18,6 +19,14 @@ import org.junit.Test
 import kotlinx.serialization.json.JsonPrimitive
 
 class AuctionContractTest {
+    @Test
+    fun liveAvailableAcceptsScheduledAndEndedOnly() {
+        assertTrue("SCHEDULED".matchesAuctionStatusFilter("LIVE_AVAILABLE"))
+        assertTrue("ENDED".matchesAuctionStatusFilter("LIVE_AVAILABLE"))
+        assertEquals(false, "ACTIVE".matchesAuctionStatusFilter("LIVE_AVAILABLE"))
+        assertEquals(false, "CANCELED".matchesAuctionStatusFilter("LIVE_AVAILABLE"))
+    }
+
     @Test
     fun sellerHistoryContractKeepsAuctionProductOrderAndCursor() {
         val response = DibJson.instance.decodeFromString(

@@ -3537,7 +3537,7 @@ fun AppNavHost(
                 }
                 // mine=true 로 서버가 내 경매만 준다. 예전처럼 받아서 거르면 한 페이지가 전부 남의
                 // 경매일 때 후보가 비어 보이고, 저장 때 LIVE_BROADCAST_NOT_OWNED 로 튕겼다
-                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true) }) {
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getAuctions("ALL", "LIVE_AVAILABLE", mine = true) }) {
                     is ApiResult.Success -> availableLiveAuctions = result.value.items.also {
                         availableLiveAuctionsCursor = result.value.nextCursor
                         availableLiveAuctionsHasNext = result.value.hasNext && !result.value.nextCursor.isNullOrBlank()
@@ -3610,7 +3610,7 @@ fun AppNavHost(
                         availableLiveAuctionsLoadMoreError = null
                         coroutineScope.launch {
                             when (val result = withContext(Dispatchers.IO) {
-                                auth.auctionRepository.getAuctions("GENERAL", "SCHEDULED", mine = true, cursor = cursor)
+                                auth.auctionRepository.getAuctions("ALL", "LIVE_AVAILABLE", mine = true, cursor = cursor)
                             }) {
                                 is ApiResult.Success -> {
                                     availableLiveAuctions = (availableLiveAuctions + result.value.items)

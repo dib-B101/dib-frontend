@@ -336,7 +336,7 @@ private fun List<AuctionDto>.filterForBackendContract(scope: String, status: Str
         "LIVE" -> auction.liveBroadcastId != null
         else -> true
     }
-    scopeMatches && (status.isBlank() || auction.status.equals(status, ignoreCase = true))
+    scopeMatches && (status.isBlank() || auction.status.matchesAuctionStatusFilter(status))
 }
 
 private fun String?.toInstantOrNull(): Instant? = this?.let { value ->
