@@ -408,53 +408,56 @@ fun AppNavHost(
 
     LaunchedEffect(oauthCallbackUri) {
         val callbackUri = oauthCallbackUri ?: return@LaunchedEffect
-        onOAuthCallbackConsumed()
-        when (val callback = auth.kakaoOAuthConfig.parseCallback(callbackUri)) {
-            is KakaoOAuthCallback.Success -> {
-                if (!auth.kakaoOAuthStateStore.consume(callback.state)) {
-                    loginError = "카카오 로그인 요청이 만료됐거나 올바르지 않습니다. 다시 시도해주세요."
-                    return@LaunchedEffect
-                }
-                loginLoading = true
-                loginError = null
-                when (val result = withContext(Dispatchers.IO) {
-                    auth.repository.authenticateWithKakao(
-                        callback.authorizationCode,
-                        auth.kakaoOAuthConfig.redirectUri,
-                        auth.deviceId
-                    )
-                }) {
-                    is ApiResult.Success -> when (val value = result.value) {
-                        is KakaoAuthenticationResult.LoggedIn -> {
-                            signedIn = true
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Welcome.route) { inclusive = true }
+        try {
+            when (val callback = auth.kakaoOAuthConfig.parseCallback(callbackUri)) {
+                is KakaoOAuthCallback.Success -> {
+                    if (!auth.kakaoOAuthStateStore.consume(callback.state)) {
+                        loginError = "카카오 로그인 요청이 만료됐거나 올바르지 않습니다. 다시 시도해주세요."
+                        return@LaunchedEffect
+                    }
+                    loginLoading = true
+                    loginError = null
+                    when (val result = withContext(Dispatchers.IO) {
+                        auth.repository.authenticateWithKakao(
+                            callback.authorizationCode,
+                            auth.kakaoOAuthConfig.redirectUri,
+                            auth.deviceId
+                        )
+                    }) {
+                        is ApiResult.Success -> when (val value = result.value) {
+                            is KakaoAuthenticationResult.LoggedIn -> {
+                                signedIn = true
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            }
+                            is KakaoAuthenticationResult.SignupRequired -> {
+                                kakaoSignupToken = value.signupToken
+                                kakaoNickname = value.nickname
+                                signupState = SignupUiState()
+                                phoneVerificationToken = null
+                                navController.navigate(Screen.SignUp.route)
                             }
                         }
-                        is KakaoAuthenticationResult.SignupRequired -> {
-                            kakaoSignupToken = value.signupToken
-                            kakaoNickname = value.nickname
-                            signupState = SignupUiState()
-                            phoneVerificationToken = null
-                            navController.navigate(Screen.SignUp.route)
+                        is ApiResult.Failure -> loginError = when (result.error.code) {
+                            "KAKAO_AUTH_FAILED" -> "카카오 인증에 실패했습니다. 다시 시도해주세요."
+                            "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
+                            else -> result.error.message.ifBlank { "카카오 로그인에 실패했습니다." }
                         }
                     }
-                    is ApiResult.Failure -> loginError = when (result.error.code) {
-                        "KAKAO_AUTH_FAILED" -> "카카오 인증에 실패했습니다. 다시 시도해주세요."
-                        "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
-                        else -> result.error.message.ifBlank { "카카오 로그인에 실패했습니다." }
-                    }
                 }
-                loginLoading = false
+                is KakaoOAuthCallback.Failure -> {
+                    auth.kakaoOAuthStateStore.consume(callback.state)
+                    loginError = callback.message
+                }
+                is KakaoOAuthCallback.Invalid -> {
+                    auth.kakaoOAuthStateStore.consume(null)
+                    loginError = callback.message
+                }
             }
-            is KakaoOAuthCallback.Failure -> {
-                auth.kakaoOAuthStateStore.consume(callback.state)
-                loginError = callback.message
-            }
-            is KakaoOAuthCallback.Invalid -> {
-                auth.kakaoOAuthStateStore.consume(null)
-                loginError = callback.message
-            }
+        } finally {
+            loginLoading = false
+            if (oauthCallbackUri == callbackUri) onOAuthCallbackConsumed()
         }
     }
 
