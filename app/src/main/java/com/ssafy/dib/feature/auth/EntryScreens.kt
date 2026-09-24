@@ -1,5 +1,6 @@
 package com.ssafy.dib.feature.auth
 
+import android.widget.ImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,10 +16,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -29,11 +32,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.viewinterop.AndroidView
 import com.ssafy.dib.R
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
-private val WelcomeCanvas = Color(0xFFFCF9F4)
+private val WelcomeCanvas = Color.White
 
 @Composable
 fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
@@ -42,29 +48,18 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         onFinished()
     }
     Box(
-        modifier.fillMaxSize().background(Colors.Canvas).safeDrawingPadding().padding(24.dp),
-        contentAlignment = Alignment.Center
+        modifier.fillMaxSize().background(Colors.Background)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val splashPainter = painterResource(R.drawable.splash_mascot)
-            val splashRatio = splashPainter.intrinsicSize.let { size ->
-                if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
-            }
-            Surface(
-                color = Colors.Background,
-                shape = RoundedCornerShape(32.dp),
-                shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(splashRatio)
-            ) {
-                Image(
-                    splashPainter,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-            }
+        Column(
+            Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth(.88f).aspectRatio(520f / 579f)
+            )
             Spacer(Modifier.height(24.dp))
-            Image(painterResource(R.drawable.dib_primary_logo), "dib", Modifier.size(96.dp, 60.dp), contentScale = ContentScale.Fit)
+            Image(painterResource(R.drawable.dib_official_logo), "dib", Modifier.size(96.dp, 60.dp), contentScale = ContentScale.Fit)
             Text("경매의 순간을 잡다", style = MaterialTheme.typography.titleMedium, color = Colors.Navy)
             Spacer(Modifier.height(28.dp))
             LinearProgressIndicator(
@@ -73,6 +68,16 @@ fun SplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
                 trackColor = Colors.Border
             )
         }
+        AndroidView(
+            factory = { context ->
+                ImageView(context).apply {
+                    setImageResource(R.mipmap.ic_launcher)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    contentDescription = "dib"
+                }
+            },
+            modifier = Modifier.align(Alignment.Center).size(160.dp)
+        )
     }
 }
 
@@ -84,76 +89,67 @@ fun WelcomeScreen(
     onBrowse: () -> Unit,
     kakaoLoginLoading: Boolean,
     kakaoLoginError: String?,
-    showDeveloperPreview: Boolean,
-    onDeveloperPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val mascotPainter = painterResource(R.drawable.welcome_mascot)
-    val mascotRatio = mascotPainter.intrinsicSize.let { size ->
-        if (size.isSpecified && size.height > 0f) size.width / size.height else 1f
-    }
+    // 원본 PNG의 넓은 투명 가장자리를 화면에서만 잘라 세 이미지의 실제 그림 간격을 맞춘다.
+    val logoBitmap = ImageBitmap.imageResource(R.drawable.dib_official_logo)
+    val headlineBitmap = ImageBitmap.imageResource(R.drawable.welcome_headline)
+    val mascotBitmap = ImageBitmap.imageResource(R.drawable.welcome_auction_mint_scene)
+    val logoPainter = remember(logoBitmap) { BitmapPainter(logoBitmap, IntOffset(31, 32), IntSize(339, 200)) }
+    val headlinePainter = remember(headlineBitmap) { BitmapPainter(headlineBitmap, IntOffset(83, 247), IntSize(1538, 471)) }
+    val mascotPainter = remember(mascotBitmap) { BitmapPainter(mascotBitmap, IntOffset(31, 160), IntSize(1296, 954)) }
+    val headlineRatio = 1538f / 471f
+    val mascotRatio = 1296f / 954f
+    var actionRise by remember { mutableStateOf(0.dp) }
     Column(
         modifier.fillMaxSize().background(WelcomeCanvas).safeDrawingPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.Start
+        BoxWithConstraints(
+            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(top = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            val imageWidth = ((maxHeight - 48.dp).coerceAtLeast(0.dp) /
+                (1f / headlineRatio + 1f / mascotRatio)).coerceAtMost(maxWidth)
+            val heroHeight = imageWidth * 0.9f / headlineRatio + 16.dp + imageWidth / mascotRatio
+            val heroBottomGap = (maxHeight - heroHeight) / 2f + 16.dp
+            val desiredActionRise = (heroBottomGap + 8.dp - 40.dp).coerceIn(0.dp, 88.dp)
+            LaunchedEffect(desiredActionRise) { actionRise = desiredActionRise }
+            Image(
+                logoPainter,
+                contentDescription = "dib",
+                modifier = Modifier.align(Alignment.TopStart).padding(top = 18.dp).size(76.dp, 45.dp),
+                contentScale = ContentScale.Fit
+            )
+            Column(
+                Modifier.align(Alignment.Center).offset(y = (-16).dp).width(imageWidth),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Image(
-                    painterResource(R.drawable.dib_primary_logo),
-                    "dib",
-                    Modifier.size(76.dp, 48.dp),
+                    headlinePainter,
+                    contentDescription = "마음에 드는 물건을 경매에서 만나보세요",
+                    modifier = Modifier.align(Alignment.Start).width(imageWidth * 0.9f).aspectRatio(headlineRatio),
                     contentScale = ContentScale.Fit
                 )
-                if (showDeveloperPreview) {
-                    TextButton(onClick = onDeveloperPreview) {
-                        Text("샘플 화면 · 개발용", style = MaterialTheme.typography.labelSmall, color = Colors.Muted)
-                    }
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "마음에 드는 물건,\n경매에서 만나보세요",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Colors.Text
-            )
-            Text(
-                "일반 경매부터 라이브 경매까지,\n둘러보고 원하는 물건에 입찰해 보세요.",
-                Modifier.padding(top = 10.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Colors.Muted
-            )
-            Spacer(Modifier.height(18.dp))
-            Surface(
-                color = WelcomeCanvas,
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.fillMaxWidth().aspectRatio(mascotRatio)
-            ) {
                 Image(
                     mascotPainter,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.width(imageWidth).aspectRatio(mascotRatio),
                     contentScale = ContentScale.Fit
                 )
             }
         }
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().offset(y = -actionRise).padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 36.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            EmailLoginButton(text = "이메일로 로그인", onClick = onLogin, showIcon = true)
             KakaoLoginButton(onClick = onKakaoLogin, enabled = !kakaoLoginLoading)
             kakaoLoginError?.let {
                 Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, style = MaterialTheme.typography.bodyMedium)
             }
-            EmailLoginButton(text = "이메일로 로그인", onClick = onLogin)
             Row(
                 Modifier.widthIn(max = 336.dp).fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -195,7 +191,8 @@ private fun EmailLoginButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    loading: Boolean = false
+    loading: Boolean = false,
+    showIcon: Boolean = false
 ) {
     Button(
         onClick = onClick,
@@ -210,7 +207,10 @@ private fun EmailLoginButton(
         )
     ) {
         if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-        else Text(text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (showIcon) Icon(painterResource(R.drawable.mail_filled), contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(text, fontSize = if (showIcon) 13.sp else 15.sp, fontWeight = FontWeight.Medium)
+        }
     }
 }
 

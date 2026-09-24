@@ -12,7 +12,7 @@ import com.ssafy.dib.domain.product.ProductImageUpload
 import java.io.ByteArrayOutputStream
 import java.io.File
 
-/** 등록 화면에서 고른 사진 한 장. rotationDegrees 는 사용자가 회전 버튼으로 돌린 각도(0·90·180·270)다. */
+/** 등록 화면에서 고른 사진 한 장. rotationDegrees 는 기존 이미지 처리 경로와의 호환을 위해 유지한다. */
 data class ProductImageSelection(val uri: Uri, val rotationDegrees: Int = 0)
 
 internal const val MAX_PRODUCT_IMAGE_BYTES = 10L * 1024L * 1024L

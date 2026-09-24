@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
@@ -73,7 +75,6 @@ import com.ssafy.dib.domain.support.InquirySummary
 import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.HomeAuctionCard
-import com.ssafy.dib.feature.home.homeAuctionMeta
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
 @Composable
@@ -182,7 +183,7 @@ fun RegisteredProductsScreen(
             if (isLoading) item { Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             if (errorMessage != null) item { Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry) { Text("다시 불러오기") } } }
             deleteError?.let { message -> item { Text(message, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Colors.Urgent, fontSize = 12.sp) } }
-            val filtered = if (isLoading || errorMessage != null) emptyList() else products.filter { filter == "전체" || productStatusLabel(it.status) == filter }
+            val filtered = if (isLoading || (errorMessage != null && products.isEmpty())) emptyList() else products.filter { filter == "전체" || productStatusLabel(it.status) == filter }
             if (!isLoading && errorMessage == null && filtered.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("등록한 상품이 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text("상품을 등록하면 검수 상태를 여기서 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp) } }
             items(filtered.size) { index ->
                 val product = filtered[index]
@@ -194,31 +195,63 @@ fun RegisteredProductsScreen(
                     (remoteProducts != null || showSampleContent)
                 val canEdit = remoteProducts != null && isProductEditable(product.status)
                 val canDelete = remoteProducts != null && product.status.uppercase() in setOf("PENDING", "PENDING_REVIEW", "REGISTERED", "APPROVED", "REJECTED", "REVIEW_REJECTED")
-                Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).background(Color.White, RoundedCornerShape(16.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).clickable(enabled = canStartAuction) { onAuctionStart(product.productId) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (product.thumbnailUrl.isNullOrBlank()) {
-                        Box(Modifier.size(64.dp).background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                            Image(painterResource(R.drawable.product_outline), null, Modifier.size(26.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+                Column(
+                    Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp))
+                        .border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(16.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (product.thumbnailUrl.isNullOrBlank()) {
+                            Box(Modifier.size(76.dp).background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                                Image(painterResource(R.drawable.product_outline), null, Modifier.size(28.dp), colorFilter = ColorFilter.tint(Colors.Muted))
+                            }
+                        } else {
+                            DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)))
                         }
-                    } else {
-                        DibNetworkImage(product.thumbnailUrl, product.title, Modifier.size(64.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val statusLabel = productStatusLabel(product.status)
+                            Text(product.title, color = Colors.Text, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                            Row {
+                                Text(
+                                    statusLabel,
+                                    Modifier.background(when (statusLabel) { "승인" -> Color(0xFFE7F8F2); "등록 거절" -> Color(0xFFFFECEE); else -> Color(0xFFF0F2F7) }, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 9.dp, vertical = 4.dp),
+                                    color = when (statusLabel) { "승인" -> Colors.MintInk; "등록 거절" -> Color(0xFFD84352); else -> Colors.Navy },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                when {
+                                    canStartAuction && unsold -> "유찰된 경매예요. 다시 시작할 수 있어요."
+                                    canStartAuction -> "검수가 승인됐어요. 경매를 시작할 수 있어요."
+                                    else -> productStatusDescription(product.status)
+                                },
+                                color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp
+                            )
+                        }
                     }
-                    val statusLabel = productStatusLabel(product.status)
-                    Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(product.title, color = Colors.Navy, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            when {
-                                canStartAuction && unsold -> "유찰된 경매 · 눌러서 다시 경매 시작"
-                                canStartAuction -> "검수 승인 · 눌러서 경매 시작"
-                                else -> productStatusDescription(product.status)
-                            },
-                            color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp
-                        )
-                    }
-                    Column(Modifier.padding(start = 8.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(statusLabel, Modifier.background(when (statusLabel) { "승인" -> Color(0xFFE7F8F2); "등록 거절" -> Color(0xFFFFECEE); else -> Color(0xFFFFF0EA) }, RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp), color = when (statusLabel) { "승인" -> Colors.MintInk; "등록 거절" -> Color(0xFFD84352); else -> Color(0xFFD65A37) }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        if (canEdit || canDelete) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (canEdit) Text(if (statusLabel == "등록 거절") "수정하기" else "수정", Modifier.clickable(enabled = deletingProductId == null) { onEditProduct(product.productId) }.padding(3.dp), color = Colors.Navy, fontSize = 10.sp)
-                            if (canDelete) Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", Modifier.clickable(enabled = deletingProductId == null) { deleteCandidate = product }.padding(3.dp), color = Colors.Muted, fontSize = 10.sp)
+                    if (canStartAuction || canEdit || canDelete) {
+                        HorizontalDivider(color = Colors.Border)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (canStartAuction) Button(
+                                onClick = { onAuctionStart(product.productId) },
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
+                            ) { Text(if (unsold) "경매 다시 시작" else "경매 시작", fontSize = 12.sp) }
+                            if (canEdit) OutlinedButton(
+                                onClick = { onEditProduct(product.productId) },
+                                enabled = deletingProductId == null,
+                                modifier = if (canStartAuction) Modifier.height(40.dp) else Modifier.weight(1f).height(40.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) { Text(if (product.status.equals("REJECTED", true) || product.status.equals("REVIEW_REJECTED", true)) "수정하기" else "수정", fontSize = 12.sp) }
+                            if (!canStartAuction && !canEdit) Spacer(Modifier.weight(1f))
+                            if (canDelete) TextButton(
+                                onClick = { deleteCandidate = product },
+                                enabled = deletingProductId == null,
+                                modifier = Modifier.height(40.dp)
+                            ) { Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", color = Colors.Urgent, fontSize = 12.sp) }
                         }
                     }
                 }
@@ -254,7 +287,7 @@ private fun productStatusLabel(status: String) = when (status.uppercase()) {
     else -> status
 }
 private fun productStatusDescription(status: String) = when (status.uppercase()) {
-    "PENDING", "PENDING_REVIEW" -> "AI 검수 중이에요 · 승인되면 경매를 시작할 수 있어요"
+    "PENDING", "PENDING_REVIEW" -> "AI 검수 중이에요. 결과가 나오면 알림으로 알려드려요."
     "REGISTERED", "APPROVED" -> "검수 승인 · 경매 시작 가능"
     "REJECTED", "REVIEW_REJECTED" -> "등록이 거절됐어요 · 사유 확인 후 수정해주세요"
     "SOLD" -> "판매가 완료된 상품"
@@ -318,7 +351,7 @@ fun FavoriteAuctionsScreen(
                             onFavorite = { selected -> if (!selected && removingAuctionId == null) onRemove(auction.id) },
                             onClick = { onProductClick(auction.id) },
                             showStatus = true,
-                            meta = if (removingAuctionId == auction.id) "찜 해제 중" else homeAuctionMeta(auction)
+                            meta = if (removingAuctionId == auction.id) "찜 해제 중" else null
                         )
                     }
                     if (hasNext || isLoadingMore || loadMoreError != null) item(

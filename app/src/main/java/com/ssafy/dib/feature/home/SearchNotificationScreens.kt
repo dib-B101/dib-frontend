@@ -38,6 +38,8 @@ import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
+import com.ssafy.dib.core.ui.categoryDisplayName
+import com.ssafy.dib.core.ui.categoryOrder
 import com.ssafy.dib.domain.product.DefaultProductCategories
 import com.ssafy.dib.domain.notification.DomainNotification
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
@@ -118,7 +120,7 @@ fun AuctionSearchScreen(
     var sort by rememberSaveable { mutableStateOf("LATEST") }
     val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
     val fallbackCategories = DefaultProductCategories
-    val categories = remoteCategories ?: fallbackCategories
+    val categories = (remoteCategories ?: fallbackCategories).sortedBy { categoryOrder(it.name) }
     val selectedCategoryId = categories.firstOrNull { it.name == category }?.categoryId
     fun filters() = AuctionSearchFilters(
         query = query.trim(),
@@ -207,7 +209,7 @@ fun AuctionSearchScreen(
                             listOf("전체", "진행 중", "예정", "종료").forEach { value ->
                                 DiscoveryFilterChip(status == value, { if (status != value) { status = value; submit() } }, value)
                             }
-                            if (category != "전체") DiscoveryAppliedChip(category) { category = "전체"; submit() }
+                            if (category != "전체") DiscoveryAppliedChip(categoryDisplayName(category)) { category = "전체"; submit() }
                             if (price != "전체") DiscoveryAppliedChip(price) { price = "전체"; submit() }
                         }
                         DiscoveryFilterButton(active = category != "전체" || price != "전체") { showFilters = true }
@@ -248,7 +250,13 @@ fun AuctionSearchScreen(
     if(showFilters) ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=Colors.Background){
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("검색 조건",fontSize=20.sp,fontWeight=FontWeight.Bold);IconButton(onClick={showFilters=false}){Image(painterResource(R.drawable.close),"닫기",Modifier.size(20.dp),colorFilter=ColorFilter.tint(Colors.Text))}}
-            FilterGroup("카테고리",listOf("전체") + categories.map(ProductCategory::name),category){category=it}
+            FilterGroup(
+                "카테고리",
+                listOf("전체") + categories.map { categoryDisplayName(it.name) },
+                if (category == "전체") category else categoryDisplayName(category)
+            ) { label ->
+                category = categories.firstOrNull { categoryDisplayName(it.name) == label }?.name ?: "전체"
+            }
             FilterGroup("가격 범위",PriceRanges.map(PriceRange::label),price){price=it}
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("초기화",Modifier.width(88.dp).clickable{category="전체";price="전체"}.padding(vertical=14.dp),color=Colors.Muted,fontWeight=FontWeight.Bold);Button({showFilters=false;submit()},Modifier.weight(1f).height(52.dp),shape=RoundedCornerShape(14.dp),colors=ButtonDefaults.buttonColors(containerColor=Colors.Navy)){Text("결과 보기",fontWeight=FontWeight.Bold)}}
         }

@@ -46,7 +46,6 @@ import com.ssafy.dib.core.ui.DibCreateMenuSheet
 import com.ssafy.dib.core.ui.AssistantNotice
 import com.ssafy.dib.core.ui.DibFloatingAssistant
 import com.ssafy.dib.core.ui.ReviewRatingDialog
-import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.AuctionRegisterScreen
@@ -67,6 +66,7 @@ import com.ssafy.dib.feature.auth.PasswordResetScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SignupMode
+import com.ssafy.dib.feature.auth.SignupValidator
 import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
@@ -133,7 +133,6 @@ import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.domain.product.ProductCategory
 
 import com.ssafy.dib.domain.product.ProductRegistration
-import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
@@ -185,6 +184,7 @@ fun AppNavHost(
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
+    var productModerationRevision by remember { mutableStateOf(0) }
     // 피드 갱신 신호. 원래는 피드 화면 안에 있어서 **바깥 사건이 건드릴 수 없었다.**
     // 탭을 다시 누르거나 앱을 다시 켰을 때 새로 시작한 라이브를 발견할 방법이 없던
     // 이유가 이것이다 (QA #19). 홈(auctionsRevision)과 같은 자리에 두어 두 탭이
@@ -375,23 +375,25 @@ fun AppNavHost(
         }
     }
 
+    suspend fun restoreAppAccess(): Boolean {
+        if (hasAppAccess) return true
+        val restored = withContext(Dispatchers.IO) {
+            val session = auth.repository.currentSession()
+            when {
+                session == null -> false
+                !session.needsRefresh(System.currentTimeMillis()) -> true
+                else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
+            }
+        }
+        if (restored) signedIn = true
+        return restored
+    }
+
     fun navigateMain(tab: DibMainTab) {
         if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
             coroutineScope.launch {
-                val restored = withContext(Dispatchers.IO) {
-                    val session = auth.repository.currentSession()
-                    when {
-                        session == null -> false
-                        !session.needsRefresh(System.currentTimeMillis()) -> true
-                        else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
-                    }
-                }
-                if (restored) {
-                    signedIn = true
-                    openMainTab(tab)
-                } else {
-                    navController.navigate(Screen.Login.route)
-                }
+                if (restoreAppAccess()) openMainTab(tab)
+                else navController.navigate(Screen.Login.route)
             }
             return
         }
@@ -641,6 +643,9 @@ fun AppNavHost(
                             if (notification.resourceType.equals("ORDER", ignoreCase = true)) {
                                 ordersRevision++
                             }
+                            if (notification.resourceType.equals("PRODUCT", ignoreCase = true)) {
+                                productModerationRevision++
+                            }
                             if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = mergeNotifications(listOf(notification), domainNotifications)
                                 unreadNotificationCount = if (unreadNotificationCount < Int.MAX_VALUE) {
@@ -778,10 +783,12 @@ fun AppNavHost(
 
     // 알림 벨은 모든 서브 헤더가 같은 값을 읽는다 (DibSubAppBar). 화면마다 파라미터로 뚫지 않는다
     fun openNotifications() {
-        if (hasAppAccess) {
-            unreadNotificationCount = 0
-            navController.navigate(Screen.Notifications.route)
-        } else navController.navigate(Screen.Login.route)
+        coroutineScope.launch {
+            if (restoreAppAccess()) {
+                unreadNotificationCount = 0
+                navController.navigate(Screen.Notifications.route)
+            } else navController.navigate(Screen.Login.route)
+        }
     }
 
     fun startKakaoLogin() {
@@ -866,21 +873,7 @@ fun AppNavHost(
                     navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                 },
                 kakaoLoginLoading = loginLoading,
-                kakaoLoginError = loginError,
-                showDeveloperPreview = BuildConfig.DEBUG,
-                onDeveloperPreview = {
-                    previewMode = true
-                    signedIn = false
-                    remoteAuctions = null
-                    remoteHomeLives = null
-                    auctionsLoading = false
-                    auctionsError = null
-                    ordersLoading = false
-                    ordersError = null
-                    bidHistoryLoading = false
-                    bidHistoryError = null
-                    navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
-                }
+                kakaoLoginError = loginError
             )
         }
         composable(Screen.Login.route) {
@@ -1149,13 +1142,50 @@ fun AppNavHost(
                     }
                 },
                 onSignUp = { form ->
-                    val token = phoneVerificationToken ?: return@SignupScreen
-                    if (signupState.requestedPhone != form.phoneNumber) return@SignupScreen
-                    val emailSignup = kakaoSignupToken == null
+                    val socialToken = kakaoSignupToken
+                    val emailSignup = socialToken == null
+                    if (signupState.signupLoading) return@SignupScreen
+                    val formValid = if (emailSignup) SignupValidator.isFormValid(form)
+                        else SignupValidator.isKakaoFormValid(form)
+                    val accountVerified = !emailSignup ||
+                        (signupState.emailAvailable == true && signupState.checkedEmail == form.email)
+                    val token = phoneVerificationToken
+                    if (!formValid || !accountVerified || !signupState.phoneVerified ||
+                        signupState.requestedPhone != form.phoneNumber || token == null
+                    ) {
+                        signupState = signupState.copy(signupError = "입력 정보와 인증 상태를 다시 확인해주세요.")
+                        return@SignupScreen
+                    }
                     signupState = signupState.copy(signupLoading = true, signupError = null)
                     coroutineScope.launch {
+                        fun finishSignup() {
+                            signupState = SignupUiState()
+                            phoneVerificationToken = null
+                            kakaoSignupToken = null
+                            kakaoNickname = null
+                            loginError = null
+                            signedIn = true
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
+                        }
+
+                        fun showUncertainSignupResult() {
+                            signupState = SignupUiState()
+                            phoneVerificationToken = null
+                            kakaoSignupToken = null
+                            kakaoNickname = null
+                            loginError = if (emailSignup) {
+                                "가입 처리 결과를 확인하지 못했어요. 이메일로 로그인해 확인해주세요."
+                            } else {
+                                "가입 처리 결과를 확인하지 못했어요. 카카오 로그인으로 확인해주세요."
+                            }
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
+                        }
+
                         when (val result = withContext(Dispatchers.IO) {
-                            val socialToken = kakaoSignupToken
                             if (socialToken == null) auth.repository.signUp(
                                 SignUpCommand(
                                     email = form.email,
@@ -1203,19 +1233,24 @@ fun AppNavHost(
                                         memberProfile = profile.value
                                     }
                                 }
-                                signupState = SignupUiState()
-                                phoneVerificationToken = null
-                                kakaoSignupToken = null
-                                kakaoNickname = null
-                                signedIn = true
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                finishSignup()
+                            }
+                            is ApiResult.Failure -> {
+                                if (result.error.code == ApiErrorCodes.NETWORK_UNAVAILABLE ||
+                                    result.error.code == ApiErrorCodes.INVALID_RESPONSE
+                                ) {
+                                    val login = if (emailSignup) withContext(Dispatchers.IO) {
+                                        auth.repository.login(form.email, form.password, auth.deviceId)
+                                    } else null
+                                    if (login is ApiResult.Success) finishSignup()
+                                    else showUncertainSignupResult()
+                                } else {
+                                    signupState = signupState.copy(
+                                        signupLoading = false,
+                                        signupError = signupErrorMessage(result.error)
+                                    )
                                 }
                             }
-                            is ApiResult.Failure -> signupState = signupState.copy(
-                                signupLoading = false,
-                                signupError = signupErrorMessage(result.error)
-                            )
                         }
                     }
                 }
@@ -2427,12 +2462,12 @@ fun AppNavHost(
                         bookmarkLoading = false
                     }
                 },
-                realtimeStatus = when (realtimeState) {
+                realtimeStatus = if (signedIn == true) when (realtimeState) {
                     RealtimeConnectionState.Connecting -> "실시간 연결 중"
                     RealtimeConnectionState.Connected -> "실시간 연결됨"
                     RealtimeConnectionState.Reconnecting -> "실시간 재연결 중"
                     RealtimeConnectionState.Disconnected, null -> null
-                },
+                } else null,
                 realtimeNotice = realtimeNotice,
                 realtimeBiddingEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
                 realtimeConnected = previewMode || realtimeState == RealtimeConnectionState.Connected,
@@ -2520,10 +2555,14 @@ fun AppNavHost(
             var categoriesRevision by remember { mutableStateOf(0) }
             var productSubmitLoading by remember { mutableStateOf(false) }
             var productSubmitError by remember { mutableStateOf<String?>(null) }
-            var productResult by remember { mutableStateOf<ProductRegistrationResult?>(null) }
-            // 검수는 비동기이고 완료 알림이 없어서 사용자가 직접 상태를 다시 조회해야 한다
-            var productLatestStatus by remember { mutableStateOf<String?>(null) }
-            var productStatusRefreshing by remember { mutableStateOf(false) }
+
+            fun finishProductRegistration() {
+                productSelectionPurpose = null
+                navController.navigate(Screen.RegisteredProducts.route) {
+                    popUpTo(Screen.Register.route) { inclusive = true }
+                }
+                coroutineScope.launch { notificationSnackbar.showSnackbar("상품이 등록됐어요. 검수 상태는 목록에서 확인할 수 있어요.") }
+            }
 
             LaunchedEffect(categoriesRevision, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
@@ -2549,16 +2588,10 @@ fun AppNavHost(
                 categoriesError = categoriesError,
                 submitLoading = productSubmitLoading,
                 submitError = productSubmitError,
-                result = productResult,
                 onRetryCategories = { categoriesRevision++ },
                 onSubmit = submitProduct@ { form: ProductRegistrationForm ->
                     if (previewMode) {
-                        productResult = ProductRegistrationResult(
-                            productId = "PREVIEW-001",
-                            status = "REGISTERED",
-                            thumbnailUrl = null,
-                            createdAt = java.time.Instant.now().toString()
-                        )
+                        finishProductRegistration()
                         return@submitProduct
                     }
                     val command = listOf(
@@ -2601,7 +2634,7 @@ fun AppNavHost(
                                 }) {
                                     is ApiResult.Success -> {
                                         commandKeys.complete(command)
-                                        productResult = result.value
+                                        finishProductRegistration()
                                     }
                                     is ApiResult.Failure -> {
                                         productSubmitError = productSubmissionMessage(result.error)
@@ -2614,27 +2647,7 @@ fun AppNavHost(
                         productSubmitLoading = false
                     }
                 },
-                onComplete = {
-                    navController.navigate(Screen.RegisteredProducts.route) {
-                        popUpTo(Screen.Register.route) { inclusive = true }
-                    }
-                },
-                onBack = navController::navigateUp,
-                latestStatus = productLatestStatus,
-                statusRefreshing = productStatusRefreshing,
-                onRefreshStatus = {
-                    val productId = productResult?.productId
-                    if (!productId.isNullOrBlank() && !productStatusRefreshing) {
-                        productStatusRefreshing = true
-                        coroutineScope.launch {
-                            when (val result = withContext(Dispatchers.IO) { auth.productRepository.getProduct(productId) }) {
-                                is ApiResult.Success -> productLatestStatus = result.value.status
-                                is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
-                            }
-                            productStatusRefreshing = false
-                        }
-                    }
-                }
+                onBack = navController::navigateUp
             )
         }
         composable(Screen.Trades.route) {
@@ -4714,13 +4727,24 @@ fun AppNavHost(
             var deletingProductId by remember { mutableStateOf<String?>(null) }
             var productDeleteError by remember { mutableStateOf<String?>(null) }
 
+            suspend fun syncVisibleProductStatuses() {
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
+                    is ApiResult.Success -> {
+                        val latest = result.value.items
+                        val latestIds = latest.map { it.productId }.toSet()
+                        registeredProducts = latest + registeredProducts.orEmpty().filterNot { it.productId in latestIds }
+                    }
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+            }
+
             LaunchedEffect(registeredProductsRevision, productsRefresh, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
                     registeredProductsLoading = false
                     registeredProductsError = null
                     return@LaunchedEffect
                 }
-                registeredProductsLoading = true
+                registeredProductsLoading = registeredProducts == null
                 registeredProductsError = null
                 registeredProductsLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
@@ -4735,6 +4759,20 @@ fun AppNavHost(
                     }
                 }
                 registeredProductsLoading = false
+            }
+            LaunchedEffect(productModerationRevision, registeredProducts == null, previewMode) {
+                if (productModerationRevision > 0 && registeredProducts != null && !previewMode && auth.networkConfig.isRestConfigured) {
+                    syncVisibleProductStatuses()
+                }
+            }
+            LaunchedEffect(registeredProducts?.any { it.status.equals("PENDING", true) || it.status.equals("PENDING_REVIEW", true) }, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured || registeredProducts?.any {
+                    it.status.equals("PENDING", true) || it.status.equals("PENDING_REVIEW", true)
+                } != true) return@LaunchedEffect
+                while (true) {
+                    kotlinx.coroutines.delay(10_000)
+                    syncVisibleProductStatuses()
+                }
             }
             RegisteredProductsScreen(
                 selectionPurpose = productSelectionPurpose,

@@ -34,6 +34,8 @@ import com.ssafy.dib.core.ui.DibDialog
 import com.ssafy.dib.core.ui.DibDialogConfirmButton
 import com.ssafy.dib.core.ui.DibDialogDismissButton
 import com.ssafy.dib.core.ui.DibSubAppBar
+import com.ssafy.dib.core.ui.categoryDisplayName
+import com.ssafy.dib.core.ui.categoryOrder
 import com.ssafy.dib.feature.auction.productModerationStatusLabel
 
 @Composable
@@ -183,7 +185,7 @@ private fun ProductEditForm(
         }
         item { EditField("상품명", title, { title = it.take(PRODUCT_TITLE_MAX_LENGTH) }, KeyboardType.Text) }
         item { EditField("상품 설명", description, { description = it.take(PRODUCT_DESCRIPTION_MAX_LENGTH) }, KeyboardType.Text, singleLine = false, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH) }
-        item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ focusManager.clearFocus(); showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name ?: "카테고리 선택") } }
+        item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ focusManager.clearFocus(); showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name?.let(::categoryDisplayName) ?: "카테고리 선택") } }
         item {
             Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             OutlinedButton({ focusManager.clearFocus(); showConditions = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -234,7 +236,7 @@ private fun ProductEditForm(
     if (showCategories) DibDialog(
         onDismissRequest = { showCategories = false },
         title = "카테고리 선택",
-        text = { LazyColumn { items(categories) { category -> Text(category.name, Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp), color = Colors.Text, fontWeight = if (categoryId == category.categoryId) FontWeight.Bold else FontWeight.Normal) } } },
+        text = { LazyColumn { items(categories.sortedBy { categoryOrder(it.name) }) { category -> Text(categoryDisplayName(category.name), Modifier.fillMaxWidth().clickable { categoryId = category.categoryId; showCategories = false }.padding(vertical = 12.dp), color = Colors.Text, fontWeight = if (categoryId == category.categoryId) FontWeight.Bold else FontWeight.Normal) } } },
         confirmButton = { DibDialogConfirmButton("닫기", { showCategories = false }) }
     )
     if (showConditions) ProductConditionDialog(

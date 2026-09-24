@@ -101,9 +101,7 @@ fun HomeScreen(
         ?: if (showSampleContent) listOf(deadlineAuction, recommended[0], allAuctions[0], allAuctions[1]) else emptyList()
     val highlightedDeadline = closingAuctions.firstOrNull()
     val followingDeadlines = closingAuctions.drop(1)
-    var deadlineSeconds by rememberSaveable(highlightedDeadline?.id) {
-        mutableIntStateOf(highlightedDeadline?.remainingSeconds ?: 0)
-    }
+    val deadlineSeconds = highlightedDeadline?.let { rememberHomeAuctionRemaining(it) } ?: 0
 
     LaunchedEffect(remoteAuctions) {
         remoteAuctions?.let { auctions ->
@@ -116,13 +114,8 @@ fun HomeScreen(
         if (tabReselectSignal > 0) listState.animateScrollToItem(0)
     }
 
-    LaunchedEffect(highlightedDeadline?.id, highlightedDeadline?.remainingSeconds) {
-        val deadline = highlightedDeadline ?: return@LaunchedEffect
-        deadlineSeconds = deadline.remainingSeconds
-        while (deadlineSeconds > 0) {
-            delay(1_000)
-            deadlineSeconds--
-        }
+    LaunchedEffect(highlightedDeadline?.id, deadlineSeconds <= 0) {
+        if (highlightedDeadline == null || deadlineSeconds > 0) return@LaunchedEffect
         delay(1_500)
         onRetry()
     }
@@ -564,7 +557,7 @@ private fun PopularSection(auctions: List<HomeAuction>, onProductClick: (String)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(auction.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
                     Text(auction.priceText, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(homeAuctionMeta(auction), color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
+                    Text(homeAuctionMeta(auction, rememberHomeAuctionRemaining(auction)), color = Colors.Muted, fontSize = 9.sp, lineHeight = 11.sp)
                 }
             }
         }

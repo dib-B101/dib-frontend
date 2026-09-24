@@ -13,6 +13,7 @@ data class HomeAuction(
     val remainingSeconds: Int,
     val category: String,
     val photo: ProductPhoto,
+    val endedAt: String? = null,
     val productId: String = id,
     val pricePrefix: String = "현재가",
     val status: String = "ACTIVE",
@@ -38,7 +39,7 @@ data class HomeAuction(
 ) {
     val priceLabel: String get() = if (priceUndecided) "가격 미정" else "%,d원".format(price)
     val priceText: String get() = if (priceUndecided) priceLabel else "$pricePrefix $priceLabel"
-    val meta: String get() = "${if (bidCount == 0) "첫 입찰 대기 중" else "입찰 ${bidCount}회"} · ${remainingTimeLabel(remainingSeconds)} 남음"
+    val meta: String get() = homeAuctionMeta(this)
 }
 
 internal val recommended = listOf(
@@ -71,6 +72,7 @@ internal fun AuctionSummary.toHomeAuction() = HomeAuction(
     price = currentPriceOrNull?.takeIf { it > 0 } ?: startPriceOrNull ?: 0,
     bidCount = bidCount,
     remainingSeconds = remainingSeconds,
+    endedAt = endedAt,
     category = categoryName,
     photo = ProductPhoto.Placeholder,
     pricePrefix = if ((currentPriceOrNull ?: 0) > 0) "현재가" else "시작가",

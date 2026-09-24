@@ -1,5 +1,6 @@
 package com.ssafy.dib.feature.auth
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.AnnotatedString
@@ -64,6 +70,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -97,20 +104,23 @@ enum class SignupMode { EMAIL, KAKAO }
 
 object SignupValidator {
     private val emailPattern = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
+    private val phonePattern = Regex("010\\d{8}")
+    private val passwordPattern = Regex("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*\\p{Punct}).{10,64}$")
+    private val punctuationPattern = Regex("\\p{Punct}")
 
-    fun isPhoneValid(value: String) = value.length in 10..11 && value.all(Char::isDigit)
+    fun isPhoneValid(value: String) = phonePattern.matches(value)
     fun isCodeValid(value: String) = value.length == 6 && value.all(Char::isDigit)
-    fun isEmailValid(value: String) = emailPattern.matches(value.trim())
+    fun isEmailValid(value: String) = value.trim().length <= 255 && emailPattern.matches(value.trim())
     fun passwordRequirements(value: String): List<PasswordRequirement> = listOf(
         PasswordRequirement("10~64자", value.length in 10..64),
-        PasswordRequirement("영문 대문자", value.any(Char::isUpperCase)),
-        PasswordRequirement("영문 소문자", value.any(Char::isLowerCase)),
-        PasswordRequirement("숫자", value.any(Char::isDigit)),
-        PasswordRequirement("특수문자", value.any { !it.isLetterOrDigit() })
+        PasswordRequirement("영문 대문자", value.any { it in 'A'..'Z' }),
+        PasswordRequirement("영문 소문자", value.any { it in 'a'..'z' }),
+        PasswordRequirement("숫자", value.any { it in '0'..'9' }),
+        PasswordRequirement("특수문자", value.any { it.toString().matches(punctuationPattern) })
     )
 
-    fun isPasswordValid(value: String) = passwordRequirements(value).all(PasswordRequirement::satisfied)
-    fun isNameValid(value: String) = value.trim().length in 2..30
+    fun isPasswordValid(value: String) = passwordPattern.matches(value)
+    fun isNameValid(value: String) = value.trim().length in 2..10
     fun isNicknameValid(value: String) = value.trim().length in 2..20
     fun isBirthDateValid(value: String): Boolean = try {
         LocalDate.parse(value)
@@ -166,6 +176,30 @@ fun SignupScreen(
     var profileAttempted by rememberSaveable { mutableStateOf(false) }
     var retryRemaining by rememberSaveable { mutableIntStateOf(0) }
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val emailFocus = remember { FocusRequester() }
+    val passwordFocus = remember { FocusRequester() }
+    val passwordConfirmFocus = remember { FocusRequester() }
+    val phoneFocus = remember { FocusRequester() }
+    val codeFocus = remember { FocusRequester() }
+    val nicknameFocus = remember { FocusRequester() }
+    val nameFocus = remember { FocusRequester() }
+    val birthDateFocus = remember { FocusRequester() }
+    val genderFocus = remember { FocusRequester() }
+    val emailView = remember { BringIntoViewRequester() }
+    val passwordView = remember { BringIntoViewRequester() }
+    val passwordConfirmView = remember { BringIntoViewRequester() }
+    val phoneView = remember { BringIntoViewRequester() }
+    val codeView = remember { BringIntoViewRequester() }
+    val nicknameView = remember { BringIntoViewRequester() }
+    val nameView = remember { BringIntoViewRequester() }
+    val birthDateView = remember { BringIntoViewRequester() }
+    val genderView = remember { BringIntoViewRequester() }
+
+    fun focusAndReveal(focusRequester: FocusRequester, viewRequester: BringIntoViewRequester) {
+        focusRequester.requestFocus()
+        coroutineScope.launch { viewRequester.bringIntoView() }
+    }
 
     LaunchedEffect(step) { scrollState.scrollTo(0) }
 
@@ -212,12 +246,15 @@ fun SignupScreen(
         else -> "기본 정보"
     }
 
+    BackHandler(enabled = state.signupLoading) { }
+
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AuthTopBar(if (mode == SignupMode.KAKAO) "카카오 회원가입" else "이메일 회원가입") {
+                if (state.signupLoading) return@AuthTopBar
                 if (step > 0) step-- else onBack()
             }
         },
@@ -226,10 +263,23 @@ fun SignupScreen(
                 when {
                     step == 0 -> AuthPrimaryButton(text = "다음", enabled = true, loading = false, onClick = {
                         accountAttempted = true
-                        if (accountValid) step = 1
+                        when {
+                            !emailValid || !emailConfirmed -> focusAndReveal(emailFocus, emailView)
+                            mode == SignupMode.EMAIL && !SignupValidator.isPasswordValid(password) ->
+                                focusAndReveal(passwordFocus, passwordView)
+                            mode == SignupMode.EMAIL && (passwordConfirm.isEmpty() || !passwordMatches) ->
+                                focusAndReveal(passwordConfirmFocus, passwordConfirmView)
+                            accountValid -> step = 1
+                        }
                     })
                     step == 1 -> AuthPrimaryButton(text = "다음", enabled = true, loading = false, onClick = {
-                        if (phoneConfirmed) step = 2
+                        when {
+                            phoneConfirmed -> step = 2
+                            !SignupValidator.isPhoneValid(phone) || state.verificationRequestKey == null ||
+                                state.requestedPhone != phone ->
+                                focusAndReveal(phoneFocus, phoneView)
+                            else -> focusAndReveal(codeFocus, codeView)
+                        }
                     })
                     else -> AuthPrimaryButton(
                         text = "가입하고 시작하기",
@@ -237,7 +287,15 @@ fun SignupScreen(
                         loading = state.signupLoading,
                         onClick = {
                             profileAttempted = true
-                            if (profileValid && canSubmit) onSignUp(form)
+                            when {
+                                !SignupValidator.isNicknameValid(nickname) -> focusAndReveal(nicknameFocus, nicknameView)
+                                !SignupValidator.isNameValid(name) -> focusAndReveal(nameFocus, nameView)
+                                !SignupValidator.isBirthDateValid(form.birthDate) -> focusAndReveal(birthDateFocus, birthDateView)
+                                gender !in setOf("MALE", "FEMALE") -> focusAndReveal(genderFocus, genderView)
+                                !accountValid -> { accountAttempted = true; step = 0 }
+                                !phoneConfirmed -> step = 1
+                                profileValid && canSubmit -> onSignUp(form)
+                            }
                         }
                     )
                 }
@@ -267,6 +325,8 @@ fun SignupScreen(
                         placeholder = "숫자만 입력",
                         keyboardType = KeyboardType.Phone,
                         enabled = !phoneConfirmed,
+                        focusRequester = phoneFocus,
+                        bringIntoViewRequester = phoneView,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedButton(
@@ -286,6 +346,8 @@ fun SignupScreen(
                             onValueChange = { code = it.filter(Char::isDigit).take(6) },
                             placeholder = "6자리 입력",
                             keyboardType = KeyboardType.Number,
+                            focusRequester = codeFocus,
+                            bringIntoViewRequester = codeView,
                             modifier = Modifier.weight(1f)
                         )
                         Button(
@@ -314,6 +376,8 @@ fun SignupScreen(
                         placeholder = "name@example.com",
                         keyboardType = KeyboardType.Email,
                         errorMessage = emailFieldError,
+                        focusRequester = emailFocus,
+                        bringIntoViewRequester = emailView,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (mode == SignupMode.EMAIL) {
@@ -373,7 +437,9 @@ fun SignupScreen(
                         KeyboardType.Password,
                         password = true,
                         errorMessage = "비밀번호 조건을 확인해주세요.".takeIf { accountAttempted && !SignupValidator.isPasswordValid(password) },
-                        passwordRequirements = SignupValidator.passwordRequirements(password)
+                        passwordRequirements = SignupValidator.passwordRequirements(password),
+                        focusRequester = passwordFocus,
+                        bringIntoViewRequester = passwordView
                     )
                     SignupField(
                         "비밀번호 확인",
@@ -382,7 +448,9 @@ fun SignupScreen(
                         "비밀번호 다시 입력",
                         KeyboardType.Password,
                         password = true,
-                        errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (accountAttempted || passwordConfirm.isNotEmpty()) && !passwordMatches }
+                        errorMessage = "비밀번호가 일치하지 않아요.".takeIf { (accountAttempted || passwordConfirm.isNotEmpty()) && !passwordMatches },
+                        focusRequester = passwordConfirmFocus,
+                        bringIntoViewRequester = passwordConfirmView
                     )
                 }
                 if (accountAttempted && mode == SignupMode.EMAIL && emailValid && !emailConfirmed && emailFieldError == null) {
@@ -390,21 +458,40 @@ fun SignupScreen(
                 }
             }
             if (step == 2) {
-                SignupField("닉네임", nickname, { nickname = it.take(20) }, "2~20자", errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf { profileAttempted && !SignupValidator.isNicknameValid(nickname) })
-                SignupField("이름", name, { name = it.take(30) }, "실명을 입력해주세요", errorMessage = "이름은 2~30자로 입력해주세요.".takeIf { profileAttempted && !SignupValidator.isNameValid(name) })
+                SignupField(
+                    "닉네임", nickname, { nickname = it.take(20) }, "2~20자",
+                    enabled = !state.signupLoading,
+                    errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf {
+                        profileAttempted && !SignupValidator.isNicknameValid(nickname)
+                    },
+                    focusRequester = nicknameFocus,
+                    bringIntoViewRequester = nicknameView
+                )
+                SignupField(
+                    "이름", name, { name = it.take(10) }, "실명을 입력해주세요",
+                    enabled = !state.signupLoading,
+                    errorMessage = "이름은 2~10자로 입력해주세요.".takeIf {
+                        profileAttempted && !SignupValidator.isNameValid(name)
+                    },
+                    focusRequester = nameFocus,
+                    bringIntoViewRequester = nameView
+                )
                 SignupField(
                     "생년월일",
                     birthDateDigits,
                     { birthDateDigits = it.filter(Char::isDigit).take(8) },
                     "YYYY-MM-DD",
                     KeyboardType.Number,
+                    enabled = !state.signupLoading,
                     errorMessage = "생년월일을 확인해주세요.".takeIf { profileAttempted && !SignupValidator.isBirthDateValid(form.birthDate) },
-                    visualTransformation = BirthDateVisualTransformation
+                    visualTransformation = BirthDateVisualTransformation,
+                    focusRequester = birthDateFocus,
+                    bringIntoViewRequester = birthDateView
                 )
                 Text("성별", color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GenderButton("남성", "MALE", gender, { gender = it }, Modifier.weight(1f))
-                    GenderButton("여성", "FEMALE", gender, { gender = it }, Modifier.weight(1f))
+                Row(Modifier.bringIntoViewRequester(genderView), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GenderButton("남성", "MALE", gender, { gender = it }, Modifier.weight(1f).focusRequester(genderFocus), enabled = !state.signupLoading)
+                    GenderButton("여성", "FEMALE", gender, { gender = it }, Modifier.weight(1f), enabled = !state.signupLoading)
                 }
                 if (profileAttempted && gender !in setOf("MALE", "FEMALE")) FeedbackText("성별을 선택해주세요.")
                 state.signupError?.let { FeedbackText(it) }
@@ -456,7 +543,9 @@ private fun SignupField(
     errorMessage: String? = null,
     modifier: Modifier = Modifier,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    passwordRequirements: List<PasswordRequirement>? = null
+    passwordRequirements: List<PasswordRequirement>? = null,
+    focusRequester: FocusRequester? = null,
+    bringIntoViewRequester: BringIntoViewRequester? = null
 ) {
     var focused by remember { mutableStateOf(false) }
     var fieldWidth by remember { mutableIntStateOf(0) }
@@ -471,6 +560,8 @@ private fun SignupField(
                 enabled = enabled,
                 // 높이를 56dp 로 묶으면 글자 크기 배율에 따라 안쪽 글자가 잘린다. 최소 높이만 둔다
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                    .then(if (bringIntoViewRequester != null) Modifier.bringIntoViewRequester(bringIntoViewRequester) else Modifier)
                     .onSizeChanged { fieldWidth = it.width }
                     .onFocusChanged { focused = it.isFocused },
                 placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 13.sp) },
@@ -518,11 +609,13 @@ private fun GenderButton(
     value: String,
     selected: String,
     onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     OutlinedButton(
         onClick = { onSelected(value) },
         modifier = modifier.height(48.dp),
+        enabled = enabled,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (selected == value) Colors.Navy else Color.Transparent,
             contentColor = if (selected == value) Color.White else Colors.Navy
