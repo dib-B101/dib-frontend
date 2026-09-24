@@ -2,6 +2,7 @@ package com.ssafy.dib.feature.auction
 
 import android.content.Intent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,12 +23,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -289,12 +298,18 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                ProductGallery(product.photo, productImages, auctionState, product.bidCount, productDetail?.status, onImageClick)
+                ProductGallery(
+                    product.photo, productImages, auctionState, product.bidCount, remainingSeconds,
+                    productDetail?.status, productDetail?.condition ?: product.productCondition, onImageClick
+                )
             }
-            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
-            // 누가 파는지는 가격을 본 직후 확인하는 정보라 현재가와 상품 설명 사이에 둔다 (예전엔 입찰 이력 아래 맨 끝이었다)
             item {
-                SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
+                ProductSummary(
+                    productName, currentPrice, product.startPrice, product.bidCount,
+                    remainingSeconds, auctionState, product.priceUndecided && currentPrice <= 0,
+                    productDetail, product,
+                    onSellerClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) }
+                )
             }
             item {
                 ProductInformation(
@@ -468,7 +483,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, productStatus: String?, onImageClick: (Int) -> Unit) {
+private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, remainingSeconds: Int, productStatus: String?, condition: String?, onImageClick: (Int) -> Unit) {
     val pageCount = imageUrls.size.takeIf { it > 0 } ?: 1
     val pagerState = rememberPagerState(pageCount = { pageCount })
     Box(Modifier.fillMaxWidth().aspectRatio(1.2f).background(Colors.Image)) {
@@ -494,32 +509,78 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
                 }
             }
         }
-        // Surface 는 onClick 이 없어도 뒤로 터치를 안 넘긴다. 사진 뷰어(pager) 위에 얹혀 있어서
-        // 이 모서리에서 시작한 스와이프가 먹히지 않았다. Box 로 바꾼다
-        Box(
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Colors.Background.copy(alpha = .9f))
-        ) {
-            Text(
-                "${pagerState.currentPage + 1} / $pageCount",
-                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                fontSize = 11.sp
-            )
-        }
         Row(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            Modifier.align(Alignment.TopStart).fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            repeat(pageCount) { index ->
-                Box(
-                    Modifier.size(if (index == pagerState.currentPage) 7.dp else 5.dp)
-                        .background(
-                            if (index == pagerState.currentPage) Colors.Navy else Colors.Background.copy(alpha = .8f),
-                            CircleShape
-                        )
+            val finishedLabel = endedGalleryLabel(state, bidCount, productStatus)?.first
+            when {
+                state == DetailAuctionState.Cancelled -> GalleryBadge("경매 취소", R.drawable.close, Color(0xDD1A1A1A))
+                finishedLabel != null -> GalleryBadge(
+                    finishedLabel,
+                    if (finishedLabel == "유찰") R.drawable.warning_outline else R.drawable.check_circle,
+                    Color(0xDD1A1A1A)
                 )
+                state == DetailAuctionState.Scheduled -> GalleryBadge("경매 예정", R.drawable.timer_outline, Colors.Navy)
+                else -> {
+                    GalleryBadge("실시간 경매", null, Color(0xFFE43D4B))
+                    if (remainingSeconds in 1..300) {
+                        GalleryBadge("마감 임박", R.drawable.timer_outline, Color(0xFFFFECEE), Colors.Urgent)
+                    }
+                }
             }
+            GalleryBadge("상태 ${conditionLabel(condition)}", R.drawable.product_outline, Color(0xE614294A))
+        }
+        if (pageCount > 1) {
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
+                    .clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = .48f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .semantics { contentDescription = "상품 사진 ${pagerState.currentPage + 1} / $pageCount" },
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pageCount) { index ->
+                    Box(
+                        Modifier.size(if (index == pagerState.currentPage) 8.dp else 6.dp)
+                            .background(
+                                if (index == pagerState.currentPage) Color.White else Color.White.copy(alpha = .55f),
+                                CircleShape
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GalleryBadge(label: String, icon: Int?, background: Color, foreground: Color = Color.White) {
+    Row(
+        Modifier.shadow(2.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
+            .background(background).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        if (icon == null) BroadcastIcon(foreground)
+        else Image(painterResource(icon), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(foreground))
+        Text(label, color = foreground, fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun BroadcastIcon(color: Color) {
+    Canvas(Modifier.size(12.dp)) {
+        val stroke = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round)
+        val center = Offset(size.width / 2f, size.height / 2f)
+        drawCircle(color, radius = 1.5.dp.toPx(), center = center)
+        for (radius in listOf(3.5.dp.toPx(), 5.5.dp.toPx())) {
+            val arcSize = Size(radius * 2, radius * 2)
+            val topLeft = Offset(center.x - radius, center.y - radius)
+            drawArc(color, 125f, 110f, false, topLeft, arcSize, style = stroke)
+            drawArc(color, -55f, 110f, false, topLeft, arcSize, style = stroke)
         }
     }
 }
@@ -542,30 +603,19 @@ private fun ProductSummary(
     bidCount: Int,
     remainingSeconds: Int,
     state: DetailAuctionState,
-    condition: String?,
-    priceUndecided: Boolean = false
+    priceUndecided: Boolean,
+    sellerDetail: ProductDetail?,
+    auction: HomeAuction,
+    onSellerClick: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (state) {
-                DetailAuctionState.Scheduled -> Badge("경매 예정")
-                DetailAuctionState.Cancelled -> Badge("경매 취소")
-                DetailAuctionState.Lost -> Badge("경매 종료")
-                DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
-                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge(
-                    "마감 임박",
-                    urgent = true,
-                    modifier = Modifier.auctionUrgencyPulse(remainingSeconds)
-                )
-            }
-            Badge("상품 상태 · ${conditionLabel(condition)}")
-        }
         Text(name, color = Colors.Text, fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
+        SellerSummary(sellerDetail, auction, onSellerClick)
         Row(
             Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 13.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 현재가가 가장 중요한 정보라 맨 앞에 가장 크게, 그다음 시작가·남은 시간 순서로 둔다
+            // 시작가는 현재가의 보조 정보로 두고 남은 시간을 별도 칸에 표시한다.
             Metric(
                 when (state) {
                     DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
@@ -576,14 +626,9 @@ private fun ProductSummary(
                 if (priceUndecided) "가격 미정" else "%,d원".format(price),
                 Colors.Text,
                 22,
-                Modifier.weight(1.2f)
-            )
-            Metric(
-                "시작가",
-                if (priceUndecided) "가격 미정" else "%,d원".format(startPrice),
-                Colors.Text,
-                18,
-                Modifier.weight(1f)
+                Modifier.weight(1.2f),
+                supportingText = if (state == DetailAuctionState.Scheduled) null
+                    else if (priceUndecided) "시작가 미정" else "시작가 ${"%,d".format(startPrice)}원"
             )
             Metric(
                 when (state) {
@@ -634,16 +679,17 @@ private fun Badge(label: String, urgent: Boolean = false, success: Boolean = fal
 }
 
 @Composable
-private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier, valueModifier: Modifier = Modifier) {
+private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier, valueModifier: Modifier = Modifier, supportingText: String? = null) {
     Column(modifier) {
         Text(label, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         Text(value, valueModifier, color = color, fontSize = valueSize.sp, lineHeight = (valueSize + 6).sp, fontWeight = FontWeight.Bold)
+        supportingText?.let { Text(it, color = Colors.Muted, fontSize = 11.sp, lineHeight = 16.sp) }
     }
 }
 
 @Composable
 private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Colors.Background).clickable(onClick = onClick).padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         DibProfileAvatar(detail?.sellerProfileImageUrl ?: auction.sellerProfileImageUrl, 40.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -656,7 +702,6 @@ private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick:
         }
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
-    HorizontalDivider(color = Colors.Border)
 }
 
 @Composable
