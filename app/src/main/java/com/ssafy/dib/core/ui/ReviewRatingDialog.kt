@@ -4,11 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,16 +66,18 @@ fun ReviewRatingDialog(
                     }
                 }
                 // 별 하나도 아까운 거래가 있다. 0 점을 누를 방법이 없으면 1 점이 최저가 되어버린다
-                TextButton(
-                    onClick = { rating = 0 },
-                    enabled = !submitting,
-                    modifier = Modifier.padding(top = 2.dp)
+                Row(
+                    Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    TextButton(onClick = { rating = 0 }, enabled = !submitting) {
+                        Text("0점 선택", fontSize = 11.sp, color = Colors.Muted)
+                    }
                     Text(
-                        if (rating == 0) "0점 선택됨" else "0점 주기",
-                        fontSize = 11.sp,
-                        color = if (rating == 0) Colors.Star else Colors.Muted,
-                        fontWeight = if (rating == 0) FontWeight.Bold else FontWeight.Normal
+                        if (rating >= 0) "${rating}점 선택됨" else "별점을 선택해 주세요",
+                        fontSize = 12.sp,
+                        color = if (rating >= 0) Colors.Star else Colors.Muted,
+                        fontWeight = if (rating >= 0) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 errorMessage?.let {
@@ -86,7 +85,7 @@ fun ReviewRatingDialog(
                 }
             }
         },
-        confirmButton = { DibDialogConfirmButton("평가 보내기", onClick = { if (rating >= 0) onSubmit(rating) }, enabled = rating >= 0, loading = submitting) },
+        confirmButton = { DibDialogConfirmButton(if (rating >= 0) "${rating}점 평가 보내기" else "평가 보내기", onClick = { if (rating >= 0) onSubmit(rating) }, enabled = rating >= 0, loading = submitting) },
         dismissButton = { DibDialogDismissButton(onDismiss, label = "나중에", enabled = !submitting) }
     )
 }
