@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ssafy.dib.R
+import com.ssafy.dib.core.ui.DibSnackbarHost
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 
@@ -94,6 +95,10 @@ fun WelcomeScreen(
     kakaoLoginError: String?,
     modifier: Modifier = Modifier
 ) {
+    val toastHost = remember { SnackbarHostState() }
+    LaunchedEffect(kakaoLoginError) {
+        kakaoLoginError?.takeIf(String::isNotBlank)?.let { toastHost.showSnackbar(it) }
+    }
     // 원본 로고와 제목 PNG의 투명 여백만 화면에서 잘라 사용한다.
     val logoBitmap = ImageBitmap.imageResource(R.drawable.dib_official_logo)
     val headlineBitmap = ImageBitmap.imageResource(R.drawable.welcome_headline)
@@ -155,9 +160,6 @@ fun WelcomeScreen(
                 WelcomeActionButton("이메일로 시작하기", R.drawable.mail_filled, Colors.Navy, Color.White, onLogin)
                 Spacer(Modifier.height(10.dp))
                 WelcomeActionButton("카카오로 시작하기", R.drawable.welcome_chat, Color(0xFFFFE500), Color(0xFF252525), onKakaoLogin, !kakaoLoginLoading)
-                kakaoLoginError?.let {
-                    Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, style = MaterialTheme.typography.bodyMedium)
-                }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -174,6 +176,7 @@ fun WelcomeScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
+        DibSnackbarHost(toastHost, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -288,12 +291,17 @@ fun LoginScreen(
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var attempted by rememberSaveable { mutableStateOf(false) }
     val valid = email.contains('@') && password.length >= 4
+    val toastHost = remember { SnackbarHostState() }
+    LaunchedEffect(errorMessage) {
+        errorMessage?.takeIf(String::isNotBlank)?.let { toastHost.showSnackbar(it) }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { AuthTopBar("로그인", onBack) }
+        topBar = { AuthTopBar("로그인", onBack) },
+        snackbarHost = { DibSnackbarHost(toastHost, Modifier.imePadding()) }
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).imePadding()
@@ -328,9 +336,6 @@ fun LoginScreen(
                 TextButton(onClick = onPasswordReset) {
                     Text("비밀번호 찾기", color = Colors.Muted, fontSize = 13.sp)
                 }
-            }
-            errorMessage?.let {
-                Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, fontSize = 13.sp)
             }
             Spacer(Modifier.height(16.dp))
             EmailLoginButton(

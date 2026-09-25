@@ -792,11 +792,11 @@ fun AppNavHost(
     }
 
     fun startKakaoLogin() {
+        loginError = null
         if (!auth.kakaoOAuthConfig.isConfigured) {
-            loginError = "카카오 로그인 설정을 확인해주세요."
+            coroutineScope.launch { notificationSnackbar.showSnackbar("카카오 로그인 설정을 확인해주세요.") }
             return
         }
-        loginError = null
         val state = auth.kakaoOAuthStateStore.create()
         runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
