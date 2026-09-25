@@ -18,9 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -91,81 +94,134 @@ fun WelcomeScreen(
     kakaoLoginError: String?,
     modifier: Modifier = Modifier
 ) {
-    // 원본 PNG의 넓은 투명 가장자리를 화면에서만 잘라 세 이미지의 실제 그림 간격을 맞춘다.
+    // 원본 로고와 제목 PNG의 투명 여백만 화면에서 잘라 사용한다.
     val logoBitmap = ImageBitmap.imageResource(R.drawable.dib_official_logo)
     val headlineBitmap = ImageBitmap.imageResource(R.drawable.welcome_headline)
-    val mascotBitmap = ImageBitmap.imageResource(R.drawable.welcome_auction_mint_scene)
     val logoPainter = remember(logoBitmap) { BitmapPainter(logoBitmap, IntOffset(31, 32), IntSize(339, 200)) }
     val headlinePainter = remember(headlineBitmap) { BitmapPainter(headlineBitmap, IntOffset(83, 247), IntSize(1538, 471)) }
-    val mascotPainter = remember(mascotBitmap) { BitmapPainter(mascotBitmap, IntOffset(31, 160), IntSize(1296, 954)) }
     val headlineRatio = 1538f / 471f
-    val mascotRatio = 1296f / 954f
-    var actionRise by remember { mutableStateOf(0.dp) }
-    Column(
-        modifier.fillMaxSize().background(WelcomeCanvas).safeDrawingPadding(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        BoxWithConstraints(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
-            contentAlignment = Alignment.Center
+    BoxWithConstraints(modifier.fillMaxSize().background(WelcomeCanvas).safeDrawingPadding()) {
+        val compact = maxHeight < 790.dp || LocalDensity.current.fontScale > 1.1f
+        val contentWidth = maxWidth.coerceAtMost(430.dp)
+        Column(
+            Modifier.align(Alignment.TopCenter).width(contentWidth).fillMaxHeight()
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val imageWidth = ((maxHeight - 48.dp).coerceAtLeast(0.dp) /
-                (1f / headlineRatio + 1f / mascotRatio)).coerceAtMost(maxWidth)
-            val heroHeight = imageWidth * 0.9f / headlineRatio + 16.dp + imageWidth / mascotRatio
-            val heroBottomGap = (maxHeight - heroHeight) / 2f + 16.dp
-            val desiredActionRise = (heroBottomGap + 8.dp - 40.dp).coerceIn(0.dp, 88.dp)
-            LaunchedEffect(desiredActionRise) { actionRise = desiredActionRise }
             Image(
                 logoPainter,
                 contentDescription = "dib",
-                modifier = Modifier.align(Alignment.TopStart).padding(top = 18.dp).size(76.dp, 45.dp),
+                modifier = Modifier.align(Alignment.Start).padding(top = if (compact) 8.dp else 16.dp)
+                    .size(76.dp, 45.dp),
                 contentScale = ContentScale.Fit
             )
-            Column(
-                Modifier.align(Alignment.Center).offset(y = (-16).dp).width(imageWidth),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Image(
-                    headlinePainter,
-                    contentDescription = "마음에 드는 물건을 경매에서 만나보세요",
-                    modifier = Modifier.align(Alignment.Start).width(imageWidth * 0.9f).aspectRatio(headlineRatio),
-                    contentScale = ContentScale.Fit
-                )
-                Image(
-                    mascotPainter,
-                    contentDescription = null,
-                    modifier = Modifier.width(imageWidth).aspectRatio(mascotRatio),
-                    contentScale = ContentScale.Fit
-                )
-            }
-        }
-        Column(
-            Modifier.fillMaxWidth().offset(y = -actionRise).padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 36.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            EmailLoginButton(text = "이메일로 로그인", onClick = onLogin, showIcon = true)
-            KakaoLoginButton(onClick = onKakaoLogin, enabled = !kakaoLoginLoading)
-            kakaoLoginError?.let {
-                Text(it, Modifier.fillMaxWidth(), color = Colors.Urgent, style = MaterialTheme.typography.bodyMedium)
-            }
+            Spacer(Modifier.height(if (compact) 18.dp else 26.dp))
+            if (!compact) Spacer(Modifier.weight(0.5f))
+            Image(
+                headlinePainter,
+                contentDescription = "마음에 드는 물건을 경매에서 만나보세요",
+                modifier = Modifier.fillMaxWidth().aspectRatio(headlineRatio),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.height(if (compact) 14.dp else 20.dp))
+            if (!compact) Spacer(Modifier.weight(0.5f))
             Row(
-                Modifier.widthIn(max = 336.dp).fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                TextButton(onClick = onEmailSignup, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                    Text("회원가입", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
+                WelcomeBenefit("실시간 경매", R.drawable.welcome_bolt, Color(0xFFE7F9F1), Modifier.weight(1f))
+                WelcomeBenefit("간편 참여", R.drawable.welcome_touch, Color(0xFFE9F2FF), Modifier.weight(1f))
+                WelcomeBenefit("관심 상품 알림", R.drawable.welcome_bell, Color(0xFFFFF1E7), Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+            if (!compact) Spacer(Modifier.weight(0.25f))
+            Image(
+                painterResource(R.drawable.welcome_auction_3d_scene),
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1200f / 799f),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.height(4.dp))
+            if (!compact) Spacer(Modifier.weight(1f))
+            Column(
+                Modifier.fillMaxWidth()
+                    .shadow(18.dp, RoundedCornerShape(24.dp), ambientColor = Color(0x1A8C572F))
+                    .background(Color.White, RoundedCornerShape(24.dp))
+                    .border(1.dp, Color(0xFFF5F0EC), RoundedCornerShape(24.dp))
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                WelcomeActionButton("이메일로 시작하기", R.drawable.mail_filled, Colors.Navy, Color.White, onLogin)
+                Spacer(Modifier.height(10.dp))
+                WelcomeActionButton("카카오로 시작하기", R.drawable.welcome_chat, Color(0xFFFFE500), Color(0xFF252525), onKakaoLogin, !kakaoLoginLoading)
+                kakaoLoginError?.let {
+                    Text(it, Modifier.fillMaxWidth().padding(top = 8.dp), color = Colors.Urgent, style = MaterialTheme.typography.bodyMedium)
                 }
-                TextButton(
-                    onClick = onBrowse,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                        .semantics { contentDescription = "로그인 없이 둘러보기" }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("둘러보기", style = MaterialTheme.typography.labelLarge, color = Colors.Navy)
+                    HorizontalDivider(Modifier.weight(1f), color = Colors.Border)
+                    Text("빠르게 시작해 보세요", color = Colors.Muted, fontSize = 12.sp)
+                    HorizontalDivider(Modifier.weight(1f), color = Colors.Border)
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+                    WelcomeTextAction("회원가입", onEmailSignup, Modifier.weight(1f))
+                    WelcomeTextAction("둘러보기", onBrowse, Modifier.weight(1f), "로그인 없이 둘러보기")
                 }
             }
+            Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun WelcomeBenefit(label: String, icon: Int, tint: Color, modifier: Modifier = Modifier) {
+    Row(
+        modifier.height(38.dp).clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(tint, Color.White)))
+            .border(1.dp, Color(0xFFF0F1F3), RoundedCornerShape(50))
+            .padding(horizontal = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(label, color = Colors.Navy, fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun WelcomeActionButton(
+    label: String,
+    icon: Int,
+    background: Color,
+    foreground: Color,
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(11.dp))
+            .background(background).clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = if (icon == R.drawable.mail_filled) foreground else Color.Unspecified, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = foreground, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun WelcomeTextAction(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, description: String? = null) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 48.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+    ) {
+        Text(label, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text("  ›", color = Colors.Navy, fontSize = 22.sp)
     }
 }
 
