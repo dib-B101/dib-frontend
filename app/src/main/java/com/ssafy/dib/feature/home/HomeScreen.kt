@@ -93,6 +93,9 @@ fun HomeScreen(
         toastHost.showSnackbar(notice)
         onBidNoticeShown()
     }
+    LaunchedEffect(remoteError) {
+        remoteError?.takeIf(String::isNotBlank)?.let { toastHost.showSnackbar(it) }
+    }
     val displayedAuctions = remoteAuctions ?: if (showSampleContent) allAuctions else emptyList()
     val homeRecommendations = displayedAuctions.take(4)
     val displayedLives = remoteLives ?: if (showSampleContent) null else emptyList()
@@ -160,17 +163,6 @@ fun HomeScreen(
                 HomeAuctionSwitcher(closingSoon, { closingSoon = false }, { closingSoon = true }, onCategoryClick)
             }
             if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
-            remoteError?.let { message ->
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().background(Colors.UrgentBackground, RoundedCornerShape(12.dp)).padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp)
-                        Text("다시 시도", Modifier.clickable(onClick = onRetry).padding(6.dp), color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
             if (displayedAuctions.isEmpty() && displayedLives?.isNotEmpty() != true && !remoteLoading && remoteError == null) {
                 item {
                     Column(
