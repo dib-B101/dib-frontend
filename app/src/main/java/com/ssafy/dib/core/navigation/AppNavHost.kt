@@ -2101,7 +2101,6 @@ fun AppNavHost(
                 },
                 onSendComment = { content ->
                     if (previewMode) true else {
-                        liveChatConnection?.updateCurrentMemberId(memberProfile?.memberId)
                         liveChatConnection?.send(content) == true
                     }
                 },
@@ -4050,7 +4049,6 @@ fun AppNavHost(
                 val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         consoleConnection = created
-                        created.updateCurrentMemberId(memberProfile?.memberId)
                         created.start(
                             liveBroadcastId = liveId,
                             activeAuctionId = consoleActiveAuctionId,
@@ -4256,7 +4254,6 @@ fun AppNavHost(
                 },
                 onSendChat = { content ->
                     if (previewMode) true else {
-                        consoleConnection?.updateCurrentMemberId(memberProfile?.memberId)
                         consoleConnection?.send(content) == true
                     }
                 },

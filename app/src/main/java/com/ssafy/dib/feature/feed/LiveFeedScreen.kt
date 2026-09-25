@@ -307,63 +307,63 @@ private fun LiveFeedPager(
     // null 이면 표본 한 장. 기존 동작을 그대로 옮긴 것이다.
     val items = remoteItems ?: listOf(null)
     val pagerState = rememberPagerState(pageCount = items::size)
-            // 홈에서 고른 방송으로 바로 넘긴다. 목록이 채워진 뒤에야 인덱스를 알 수 있어 items 도 키에 둔다
-            LaunchedEffect(focusLiveBroadcastId, items) {
-                val index = focusLiveBroadcastId?.let { id -> items.indexOfFirst { it?.liveBroadcastId == id } } ?: -1
-                if (index >= 0 && index != pagerState.currentPage) pagerState.scrollToPage(index)
+    // 홈에서 고른 방송으로 바로 넘긴다. 목록이 채워진 뒤에야 인덱스를 알 수 있어 items 도 키에 둔다
+    LaunchedEffect(focusLiveBroadcastId, items) {
+        val index = focusLiveBroadcastId?.let { id -> items.indexOfFirst { it?.liveBroadcastId == id } } ?: -1
+        if (index >= 0 && index != pagerState.currentPage) pagerState.scrollToPage(index)
+    }
+    LaunchedEffect(pagerState.currentPage, remoteItems, hasNextPage, isLoadingMore, loadMoreError) {
+        items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
+        if (remoteItems != null && hasNextPage && !isLoadingMore && loadMoreError == null && pagerState.currentPage >= items.lastIndex - 1) {
+            onLoadMore()
+        }
+    }
+    DibPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
+        VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
+            LiveFeedPage(
+            liveItem = items[page],
+            isActivePage = page == pagerState.currentPage,
+            streamTokenProvider = streamTokenProvider,
+            liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
+            chatHasMore = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatHasMore,
+            chatLoadingEarlier = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatLoadingEarlier,
+            chatLoadEarlierError = chatLoadEarlierError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
+            liveAuctions = items[page]?.liveBroadcastId?.let(liveAuctionsByBroadcast::get),
+            productListLoading = productListLoading && items[page]?.liveBroadcastId == activeLiveBroadcastId,
+            productListError = productListError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
+            reportSubmitting = reportSubmitting,
+            reportError = reportError,
+            reportCompleted = reportCompleted,
+            favoriteError = favoriteError,
+            favoriteUpdatingAuctionIds = favoriteUpdatingAuctionIds,
+            chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
+            chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
+            onLoadEarlierComments = onLoadEarlierComments,
+            onSendComment = onSendComment,
+            isAuthenticated = isAuthenticated,
+            currentMemberId = currentMemberId,
+            realtimeBiddingEnabled = realtimeBiddingEnabled,
+            realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
+            onRealtimeBid = onRealtimeBid,
+            onClose = onClose,
+            onProductClick = onProductClick,
+            onSellerClick = onSellerClick,
+            onFavoriteChange = onFavoriteChange,
+            onDismissFavoriteError = onDismissFavoriteError,
+            onLoginRequired = onLoginRequired,
+            onReportAuction = onReportAuction,
+            onReportParticipant = onReportParticipant,
+            onDismissReport = onDismissReport
+            )
+        }
+        if (isLoadingMore) {
+            CircularProgressIndicator(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.dp).size(24.dp), color = Colors.Mint, strokeWidth = 2.dp)
+        } else if (loadMoreError != null) {
+            Surface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp).clickable(onClick = onLoadMore), color = Color.Black.copy(alpha = .65f), shape = RoundedCornerShape(16.dp)) {
+                Text("다음 Live를 불러오지 못했어요 · 다시 시도", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = Color.White, fontSize = 11.sp)
             }
-            LaunchedEffect(pagerState.currentPage, remoteItems, hasNextPage, isLoadingMore, loadMoreError) {
-                items[pagerState.currentPage]?.liveBroadcastId?.let(onLiveVisible)
-                if (remoteItems != null && hasNextPage && !isLoadingMore && loadMoreError == null && pagerState.currentPage >= items.lastIndex - 1) {
-                    onLoadMore()
-                }
-            }
-            DibPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
-                VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize(), key = { page -> items[page]?.liveBroadcastId ?: "sample" }) { page ->
-                    LiveFeedPage(
-                    liveItem = items[page],
-                    isActivePage = page == pagerState.currentPage,
-                    streamTokenProvider = streamTokenProvider,
-                    liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
-                    chatHasMore = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatHasMore,
-                    chatLoadingEarlier = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatLoadingEarlier,
-                    chatLoadEarlierError = chatLoadEarlierError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
-                    liveAuctions = items[page]?.liveBroadcastId?.let(liveAuctionsByBroadcast::get),
-                    productListLoading = productListLoading && items[page]?.liveBroadcastId == activeLiveBroadcastId,
-                    productListError = productListError.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
-                    reportSubmitting = reportSubmitting,
-                    reportError = reportError,
-                    reportCompleted = reportCompleted,
-                    favoriteError = favoriteError,
-                    favoriteUpdatingAuctionIds = favoriteUpdatingAuctionIds,
-                    chatError = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatError else null,
-                    chatConnectionState = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) chatConnectionState else null,
-                    onLoadEarlierComments = onLoadEarlierComments,
-                    onSendComment = onSendComment,
-                    isAuthenticated = isAuthenticated,
-                    currentMemberId = currentMemberId,
-                    realtimeBiddingEnabled = realtimeBiddingEnabled,
-                    realtimeBidFeedback = if (page == pagerState.currentPage) realtimeBidFeedback else null,
-                    onRealtimeBid = onRealtimeBid,
-                    onClose = onClose,
-                    onProductClick = onProductClick,
-                    onSellerClick = onSellerClick,
-                    onFavoriteChange = onFavoriteChange,
-                    onDismissFavoriteError = onDismissFavoriteError,
-                    onLoginRequired = onLoginRequired,
-                    onReportAuction = onReportAuction,
-                    onReportParticipant = onReportParticipant,
-                    onDismissReport = onDismissReport
-                    )
-                }
-                if (isLoadingMore) {
-                    CircularProgressIndicator(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.dp).size(24.dp), color = Colors.Mint, strokeWidth = 2.dp)
-                } else if (loadMoreError != null) {
-                    Surface(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp).clickable(onClick = onLoadMore), color = Color.Black.copy(alpha = .65f), shape = RoundedCornerShape(16.dp)) {
-                        Text("다음 Live를 불러오지 못했어요 · 다시 시도", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = Color.White, fontSize = 11.sp)
-                    }
-                }
-            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1307,6 +1307,12 @@ private fun LiveCommentList(
             .sortedByDescending(LiveChatMessage::time)
     }
     val listState = rememberLazyListState()
+    // Compose는 새 항목이 앞에 추가되면 기존 항목의 위치를 보존한다. 최신 댓글이 바뀐
+    // 경우에만 맨 아래로 이동하고, 과거 댓글 페이지를 불러올 때는 위치를 유지한다.
+    val newestCommentId = ordered.firstOrNull()?.liveChattingId
+    LaunchedEffect(newestCommentId) {
+        if (newestCommentId != null) listState.animateScrollToItem(0)
+    }
     // 맨 위(가장 오래된 댓글)까지 올리면 이전 댓글을 이어서 불러온다. 사용자가 직접 올려 본 경우에만 부른다
     val reachedOldest by remember {
         derivedStateOf {
