@@ -50,6 +50,8 @@ REST 요청은 Access Token이 있으면 `Authorization: Bearer`를, 비회원 �
 
 Android는 Kafka broker에 직접 연결하지 않는다. 입찰·채팅 Command는 WebSocket으로 보내고 서버가 Kafka와 Redis를 거쳐 전달한 결과 이벤트만 처리한다. WebSocket은 `{eventType,eventId|commandId,occurredAt,payload}` envelope를 사용하며, 서버가 안내한 주기로 PING하고 eventId 중복을 제거한다. PONG이 3회 연속 누락되거나 heartbeat 전송에 실패하면 연결을 종료하고 지수 backoff로 재연결하며, `AUCTION_SNAPSHOT`과 `LIVE_SNAPSHOT`을 서버 시간 기준으로 적용해 상태를 복구한다.
 
+Live 댓글의 `CHAT_ACCEPTED` payload는 서버가 인증한 작성자의 `memberId`, `nickname`을 포함한다. 이 필드가 없는 구버전 응답은 작성자를 앱 프로필로 추정하지 않고 `LIVE_CHAT_MESSAGE_CREATED` 방송으로 표시한다. 앱 세션의 회원 ID가 연결 당시 ID와 달라지면 Live 전송을 막고 재연결한다.
+
 ## 서버 환경에서 남은 검증
 
 1. 개발 REST·WebSocket 주소와 테스트 계정으로 인증 smoke test

@@ -159,7 +159,8 @@ class AuthDependencies(context: Context) {
             config = networkConfig,
             accessTokenProvider = AccessTokenProvider { sessionStore.read()?.accessToken },
             guestSessionProvider = GuestSessionProvider { guestSessionId() }
-        )
+        ),
+        sessionMemberId = { sessionStore.read()?.memberId }
     )
 
     fun createDomainNotificationConnection() = DomainNotificationConnection(
