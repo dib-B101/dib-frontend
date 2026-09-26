@@ -1,6 +1,5 @@
 package com.ssafy.dib.feature.home
 
-import com.ssafy.dib.core.ui.auctionUrgencyPulse
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -33,7 +33,6 @@ import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibSeeAllButton
 import com.ssafy.dib.core.ui.DibSnackbarHost
-import com.ssafy.dib.feature.auction.AuctionBidSheet
 import com.ssafy.dib.core.ui.DibNotificationBell
 import com.ssafy.dib.core.ui.DibSearchBar
 import com.ssafy.dib.core.ui.DibContentView
@@ -42,21 +41,24 @@ import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibLiveBadge
 import com.ssafy.dib.core.ui.AuctionUrgencyBadge
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import com.ssafy.dib.domain.auction.RecommendedLive
+import com.ssafy.dib.domain.auction.AuctionSummary
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-/** Figma 01_Wireframe / Full Scroll Views / 01_Home_Full (53:50). */
+/** 사진을 중심으로 Live, 마감 임박, 추천 경매를 한 화면에서 탐색한다. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     isAuthenticated: Boolean,
     remoteAuctions: List<HomeAuction>?,
     remoteLives: List<RecommendedLive>?,
+    remoteLiveAuction: AuctionSummary?,
     showSampleContent: Boolean,
     remoteLoading: Boolean,
     remoteError: String?,
@@ -65,12 +67,9 @@ fun HomeScreen(
     onProductClick: (String) -> Unit,
     onLiveClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onViewAllAuctions: () -> Unit,
+    onViewClosingAuctions: () -> Unit,
+    onViewRecommendations: () -> Unit,
     onCategoryClick: () -> Unit,
-    // 마감 임박 카드에서 바로 입찰. 결과 메시지는 bidNotice 로 돌아오고 토스트로 보여준 뒤 onBidNoticeShown 으로 비운다
-    onPlaceBid: (auctionId: String, amount: Int) -> Unit,
-    bidNotice: String?,
-    onBidNoticeShown: () -> Unit,
     onLoginRequired: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     /**
@@ -84,15 +83,7 @@ fun HomeScreen(
 ) {
     val listState = rememberLazyListState()
     var favoriteIds by rememberSaveable { mutableStateOf(listOf("sneakers")) }
-    var closingSoon by rememberSaveable { mutableStateOf(false) }
-    var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
-    var bidTarget by remember { mutableStateOf<HomeAuction?>(null) }
     val toastHost = remember { SnackbarHostState() }
-    LaunchedEffect(bidNotice) {
-        val notice = bidNotice ?: return@LaunchedEffect
-        toastHost.showSnackbar(notice)
-        onBidNoticeShown()
-    }
     LaunchedEffect(remoteError) {
         remoteError?.takeIf(String::isNotBlank)?.let { toastHost.showSnackbar(it) }
     }
@@ -103,7 +94,6 @@ fun HomeScreen(
         ?.distinctBy(HomeAuction::id)?.sortedBy(HomeAuction::remainingSeconds)?.take(5)
         ?: if (showSampleContent) listOf(deadlineAuction, recommended[0], allAuctions[0], allAuctions[1]) else emptyList()
     val highlightedDeadline = closingAuctions.firstOrNull()
-    val followingDeadlines = closingAuctions.drop(1)
     val deadlineSeconds = highlightedDeadline?.let { rememberHomeAuctionRemaining(it) } ?: 0
 
     LaunchedEffect(remoteAuctions) {
@@ -134,7 +124,7 @@ fun HomeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
-        containerColor = Colors.Canvas,
+        containerColor = Colors.Background,
         contentColor = Colors.Text,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -157,10 +147,16 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item { DibSearchBar("어떤 상품을 찾고 있나요?", onSearchClick) }
-
             item {
-                HomeAuctionSwitcher(closingSoon, { closingSoon = false }, { closingSoon = true }, onCategoryClick)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { DibSearchBar("어떤 상품을 찾고 있나요?", onSearchClick) }
+                    Surface(onClick = onCategoryClick, modifier = Modifier.height(48.dp), color = Colors.Background, shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, Colors.Border)) {
+                        Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Image(painterResource(R.drawable.grid_view), null, Modifier.size(17.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                            Text("카테고리", color = Colors.Navy, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
             if (remoteLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Mint) }
             if (displayedAuctions.isEmpty() && displayedLives?.isNotEmpty() != true && !remoteLoading && remoteError == null) {
@@ -174,74 +170,114 @@ fun HomeScreen(
                         Text("상품이 등록되면 이곳에서 바로 확인할 수 있어요", color = Colors.Muted, fontSize = 12.sp)
                     }
                 }
-            } else if (closingSoon && highlightedDeadline != null && remoteError == null) {
-                item {
-                    DeadlineSection(
-                        auction = highlightedDeadline,
-                        deadlineSeconds = deadlineSeconds,
-                        favorite = highlightedDeadline.id in favoriteIds,
-                        onFavorite = { updateFavorite(highlightedDeadline.id, it) },
-                        onProductClick = { onProductClick(highlightedDeadline.id) },
-                        // 상세로 가지 않고 바로 입찰 시트를 띄운다. 로그인 전이면 로그인으로
-                        onBidClick = { if (isAuthenticated) bidTarget = highlightedDeadline else onLoginRequired() },
-                        onViewAllClick = onViewAllAuctions
-                    )
-                }
-                if (followingDeadlines.isNotEmpty()) {
-                    item {
-                        AuctionGridSection(
-                            title = "이어서 마감돼요",
-                            auctions = followingDeadlines,
-                            favoriteIds = favoriteIds,
-                            viewMode = contentView,
-                            onViewModeChange = { contentView = it },
-                            onFavorite = ::updateFavorite,
-                            onProductClick = onProductClick,
-                            actionLabel = "전체 경매",
-                            onAction = onViewAllAuctions
-                        )
-                    }
-                }
-            } else if (closingSoon && remoteError == null) {
-                item {
-                    Text(
-                        "곧 마감되는 경매가 없어요",
-                        Modifier.fillMaxWidth().padding(vertical = 72.dp),
-                        color = Colors.Muted,
-                        fontSize = 14.sp
-                    )
-                }
             } else if (remoteError == null) {
-                item { HomeLiveSection(displayedLives, onLiveClick) }
+                item { HomeEditorialLiveHero(displayedLives, remoteLiveAuction, onLiveClick) }
                 item {
-                    AuctionGridSection(
+                    HomeEditorialDeadlineSection(
+                        auctions = closingAuctions.take(2),
+                        onViewAll = onViewClosingAuctions,
+                        onProductClick = onProductClick
+                    )
+                }
+                item {
+                    HomeEditorialRecommendationSection(
                         title = "추천 경매",
                         auctions = homeRecommendations,
                         favoriteIds = favoriteIds,
-                        viewMode = contentView,
-                        onViewModeChange = { contentView = it },
                         onFavorite = ::updateFavorite,
                         onProductClick = onProductClick,
-                        actionLabel = "전체 경매",
-                        onAction = onViewAllAuctions
+                        onViewAll = onViewRecommendations
                     )
                 }
             }
         }
         }
     }
-    bidTarget?.let { target ->
-        AuctionBidSheet(
-            productName = target.name,
-            currentPrice = target.price,
-            bidCount = target.bidCount,
-            submissionError = "",
-            onDismiss = { bidTarget = null },
-            onContinue = { submission ->
-                bidTarget = null
-                onPlaceBid(target.id, submission.amount)
+}
+
+@Composable
+private fun HomeEditorialLiveHero(remoteLives: List<RecommendedLive>?, liveAuction: AuctionSummary?, onLiveClick: () -> Unit) {
+    val live = remoteLives?.firstOrNull { it.status.equals("LIVE", ignoreCase = true) } ?: remoteLives?.firstOrNull()
+    val sample = remoteLives == null
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeader("LIVE", "더 보기", onLiveClick)
+        if (live == null && !sample) {
+            Text("현재 진행 중인 방송이 없어요", color = Colors.Muted, fontSize = 13.sp)
+            return@Column
+        }
+        Surface(onClick = onLiveClick, modifier = Modifier.fillMaxWidth().height(270.dp), shape = RoundedCornerShape(18.dp), color = Colors.Navy) {
+            Box {
+                val imageUrl = liveAuction?.imageUrls?.firstOrNull()?.takeIf(String::isNotBlank)
+                    ?: live?.firstItemThumbnailUrl?.takeIf(String::isNotBlank)
+                if (imageUrl != null) DibNetworkImage(imageUrl, liveAuction?.title ?: live?.firstItemTitle, Modifier.matchParentSize())
+                else ProductPhoto(if (sample) ProductPhoto.Camera else ProductPhoto.Placeholder, modifier = Modifier.matchParentSize())
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE612294A)), startY = 80f)))
+                DibLiveBadge(Modifier.align(Alignment.TopStart).padding(14.dp))
+                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(liveAuction?.title ?: live?.firstItemTitle ?: live?.title ?: "Live 경매 상품", color = Color.White, fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    (liveAuction?.productDescription ?: live?.description)?.takeIf(String::isNotBlank)?.let { description ->
+                        Text(description, color = Color.White.copy(alpha = .86f), fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
-        )
+        }
+    }
+}
+
+@Composable
+private fun HomeEditorialDeadlineSection(
+    auctions: List<HomeAuction>,
+    onViewAll: () -> Unit,
+    onProductClick: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeader("곧 마감돼요", "더 보기", onViewAll)
+        if (auctions.isEmpty()) {
+            Text("곧 마감되는 경매가 없어요", color = Colors.Muted, fontSize = 13.sp)
+        } else auctions.forEach { auction ->
+            val remaining = rememberHomeAuctionRemaining(auction)
+            Row(Modifier.fillMaxWidth().clickable { onProductClick(auction.id) }.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.Top) {
+                ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.size(108.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DeadlineBadge(remaining)
+                    Text(auction.name, color = Colors.Text, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(auction.priceText, color = Colors.Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+            HorizontalDivider(color = Colors.Border)
+        }
+    }
+}
+
+@Composable
+private fun HomeEditorialRecommendationSection(
+    title: String,
+    auctions: List<HomeAuction>,
+    favoriteIds: List<String>,
+    onFavorite: (String, Boolean) -> Unit,
+    onProductClick: (String) -> Unit,
+    onViewAll: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeader(title, "더 보기", onViewAll)
+        if (auctions.isEmpty()) {
+            Text("추천 경매가 없어요", color = Colors.Muted, fontSize = 13.sp)
+        } else auctions.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { auction ->
+                    Column(Modifier.weight(1f).clickable { onProductClick(auction.id) }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.fillMaxWidth().aspectRatio(1.03f).clip(RoundedCornerShape(15.dp)).background(Colors.Image)) {
+                            ProductPhoto(auction.photo, auction.imageUrls.firstOrNull(), Modifier.matchParentSize())
+                            DibWishlistButton(auction.id in favoriteIds, { onFavorite(auction.id, it) }, auction.name, Modifier.align(Alignment.TopEnd).padding(5.dp))
+                        }
+                        Text(auction.name, Modifier.padding(top = 4.dp), color = Colors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(auction.priceText, color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(homeAuctionMeta(auction, rememberHomeAuctionRemaining(auction)), color = Colors.Muted, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -462,7 +498,7 @@ private fun DeadlineSection(
     onViewAllClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader("마감 임박 경매", "전체 경매", onViewAllClick)
+        SectionHeader("마감 임박 경매", "마감 임박 전체 보기", onViewAllClick)
         Row(
             Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(18.dp))
                 .border(1.dp, Colors.Border, RoundedCornerShape(18.dp))
@@ -507,7 +543,7 @@ private fun DeadlineSection(
 /** "마감 임박 · n일 m시간 k분" 배지. 마지막 1분만 초를 보여준다. */
 @Composable
 private fun DeadlineBadge(seconds: Int) {
-    Surface(Modifier.auctionUrgencyPulse(seconds), color = if (seconds in 1..60) Colors.Urgent else Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
+    Surface(color = if (seconds in 1..60) Colors.Urgent else Colors.UrgentBackground, shape = RoundedCornerShape(9.dp)) {
         val foreground = if (seconds in 1..60) Color.White else Colors.Urgent
         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Image(painterResource(R.drawable.timer_outline), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(foreground))

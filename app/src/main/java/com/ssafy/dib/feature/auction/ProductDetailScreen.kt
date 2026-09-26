@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,10 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -47,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibLiveBadge
 import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibReportButton
@@ -559,7 +555,7 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
                 )
                 state == DetailAuctionState.Scheduled -> GalleryBadge("경매 예정", R.drawable.timer_outline, Colors.Navy)
                 else -> {
-                    GalleryBadge("실시간 경매", null, Color(0xFFE43D4B))
+                    DibLiveBadge()
                     if (remainingSeconds in 1..300) {
                         GalleryBadge("마감 임박", R.drawable.timer_outline, Color(0xFFFFECEE), Colors.Urgent)
                     }
@@ -591,32 +587,16 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
 }
 
 @Composable
-private fun GalleryBadge(label: String, icon: Int?, background: Color, foreground: Color = Color.White) {
+private fun GalleryBadge(label: String, icon: Int, background: Color, foreground: Color = Color.White) {
     Row(
         Modifier.shadow(2.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
             .background(background).padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        if (icon == null) BroadcastIcon(foreground)
-        else Image(painterResource(icon), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(foreground))
+        Image(painterResource(icon), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(foreground))
         Text(label, color = foreground, fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun BroadcastIcon(color: Color) {
-    Canvas(Modifier.size(12.dp)) {
-        val stroke = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round)
-        val center = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(color, radius = 1.5.dp.toPx(), center = center)
-        for (radius in listOf(3.5.dp.toPx(), 5.5.dp.toPx())) {
-            val arcSize = Size(radius * 2, radius * 2)
-            val topLeft = Offset(center.x - radius, center.y - radius)
-            drawArc(color, 125f, 110f, false, topLeft, arcSize, style = stroke)
-            drawArc(color, -55f, 110f, false, topLeft, arcSize, style = stroke)
-        }
     }
 }
 

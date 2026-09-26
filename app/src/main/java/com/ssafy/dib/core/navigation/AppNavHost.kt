@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -82,6 +83,8 @@ import com.ssafy.dib.feature.main.prepareProductImageUpload
 import com.ssafy.dib.feature.live.LiveBidNotice
 import com.ssafy.dib.feature.live.LiveAuctionResult
 import com.ssafy.dib.feature.home.HomeScreen
+import com.ssafy.dib.feature.home.RecommendedAuctionsScreen
+import com.ssafy.dib.feature.home.recommended
 import com.ssafy.dib.feature.home.humanizeNotificationText
 import com.ssafy.dib.feature.home.orderIdsInNotificationText
 import com.ssafy.dib.feature.home.HomeAuction
@@ -125,6 +128,7 @@ import com.ssafy.dib.domain.auth.KakaoSignupCommand
 import com.ssafy.dib.core.auth.KakaoOAuthCallback
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.auction.SellerAuction
+import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.support.InquiryDetail
@@ -167,6 +171,7 @@ fun AppNavHost(
     var showCreateMenu by rememberSaveable { mutableStateOf(false) }
     var productSelectionPurpose by rememberSaveable { mutableStateOf<String?>(null) }
     var browseAllAuctions by rememberSaveable { mutableStateOf(false) }
+    var browseClosingSoon by rememberSaveable { mutableStateOf(false) }
     // 홈 "지금 LIVE" 에서 고른 방송. 피드 탭이 열리면 그 방송 페이지로 바로 넘긴다 (browseAllAuctions 와 같은 전달 방식).
     // 예전엔 홈 경로가 별도 시청 화면(LiveWatchScreen)을 열어 피드와 다른 모양·다른 시청자 수를 보여줬다
     var feedFocusLiveBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -178,9 +183,10 @@ fun AppNavHost(
     var kakaoSignupToken by remember { mutableStateOf<String?>(null) }
     var kakaoNickname by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
-    // 홈 마감 임박 카드에서 바로 입찰한 결과 메시지. 홈이 토스트로 보여준 뒤 비운다
-    var homeBidNotice by remember { mutableStateOf<String?>(null) }
     var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
+    var remoteHomeLiveAuction by remember { mutableStateOf<AuctionSummary?>(null) }
+    var cachedCategories by remember { mutableStateOf<List<ProductCategory>?>(null) }
+    val cachedCategoryPages = remember { mutableStateMapOf<String, CachedCategoryPage>() }
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
@@ -712,10 +718,8 @@ fun AppNavHost(
         auctionsError = null
         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations() }) {
             is ApiResult.Success -> {
-                // 첫 진입은 AI 추천 순서 그대로, 당겨서 새로고침(revision > 0)부터는 섞어서 홈 추천 4장이 매번 달라지게 한다.
-                // 서버 추천 스냅샷은 회원별로 고정이라 섞지 않으면 새로고침해도 같은 4장만 보였다
                 val items = result.value.generalItems.map { it.toHomeAuction() }
-                remoteAuctions = if (auctionsRevision == 0) items else items.shuffled()
+                remoteAuctions = items
                 remoteHomeLives = result.value.liveItems
             }
             is ApiResult.Failure -> {
@@ -724,6 +728,27 @@ fun AppNavHost(
             }
         }
         auctionsLoading = false
+    }
+
+    // 홈에 있는 동안 공개 카테고리 목록을 미리 받아 카테고리 진입 직후 사용할 수 있게 한다.
+    LaunchedEffect(previewMode) {
+        if (previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+            is ApiResult.Success -> cachedCategories = result.value
+            is ApiResult.Failure -> Unit
+        }
+    }
+
+    LaunchedEffect(remoteHomeLives, auctionsRevision, previewMode) {
+        val liveId = remoteHomeLives?.firstOrNull()?.liveBroadcastId
+        if (liveId == null || previewMode || !auth.networkConfig.isRestConfigured) {
+            remoteHomeLiveAuction = null
+            return@LaunchedEffect
+        }
+        remoteHomeLiveAuction = when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
+            is ApiResult.Success -> result.value.currentAuction ?: result.value.auctions.firstOrNull()
+            is ApiResult.Failure -> null
+        }
     }
 
     LaunchedEffect(ordersRevision, signedIn) {
@@ -1277,6 +1302,7 @@ fun AppNavHost(
                 isAuthenticated = hasAppAccess,
                 remoteAuctions = remoteAuctions,
                 remoteLives = remoteHomeLives,
+                remoteLiveAuction = remoteHomeLiveAuction,
                 showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
@@ -1288,33 +1314,16 @@ fun AppNavHost(
                 onLiveClick = { navController.navigate(Screen.LiveList.route) },
                 onSearchClick = {
                     browseAllAuctions = false
+                    browseClosingSoon = false
                     navController.navigate(Screen.Search.route)
                 },
-                onViewAllAuctions = {
+                onViewClosingAuctions = {
                     browseAllAuctions = true
+                    browseClosingSoon = true
                     navController.navigate(Screen.Search.route)
                 },
+                onViewRecommendations = { navController.navigate(Screen.RecommendedAuctions.route) },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
-                onPlaceBid = { auctionId, amount ->
-                    // 상세 화면은 소켓으로 입찰하지만 홈은 소켓을 붙이지 않아 REST 로 넣는다
-                    val command = "home-bid:$auctionId:$amount"
-                    val idempotencyKey = commandKeys.keyFor(command)
-                    coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.placeBid(auctionId, amount, idempotencyKey) }) {
-                            is ApiResult.Success -> {
-                                commandKeys.complete(command)
-                                homeBidNotice = "${"%,d".format(result.value.currentPrice)}원에 입찰했어요."
-                                auctionsRevision++
-                            }
-                            is ApiResult.Failure -> {
-                                homeBidNotice = bidSubmissionMessage(result.error)
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                    }
-                },
-                bidNotice = homeBidNotice,
-                onBidNoticeShown = { homeBidNotice = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onTabSelected = ::navigateMain,
                 tabReselectSignal = tabReselectSignal
@@ -1337,7 +1346,6 @@ fun AppNavHost(
         composable(Screen.Categories.route) { categoryEntry ->
             // null 이면 CategoryScreen 이 기본 카테고리로 그린다 — 응답 전/실패에는 빈 화면 대신 대체 목록이 보여야 한다
             val categoryState = androidx.lifecycle.ViewModelProvider(categoryEntry)[CategoryUiState::class.java]
-            var categoryList by categoryState.categories
             var categoryAuctions by categoryState.auctions
             var categoryLoading by categoryState.loading
             var categoryError by categoryState.error
@@ -1347,10 +1355,19 @@ fun AppNavHost(
             var categoryLoadingMore by categoryState.loadingMore
             var categoryLoadMoreError by categoryState.loadMoreError
 
-            fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false) {
+            fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false, forceRefresh: Boolean = false) {
                 selectedCategoryId = categoryId
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
                     categoryAuctions = null
+                    categoryError = null
+                    return
+                }
+                val cached = if (!append && !forceRefresh) cachedCategoryPages[categoryId] else null
+                if (cached != null && android.os.SystemClock.elapsedRealtime() - cached.fetchedAtMillis < 120_000L) {
+                    categoryAuctions = cached.items
+                    categoryCursor = cached.nextCursor
+                    categoryHasNext = cached.hasNext
+                    categoryLoading = false
                     categoryError = null
                     return
                 }
@@ -1359,18 +1376,21 @@ fun AppNavHost(
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) {
                         // 카테고리 조회는 예정 경매도 보여준다(OPEN = 진행 중 + 예정). 추천만 진행 중으로 제한한다
-                        auth.auctionRepository.getGeneralAuctions(size = 20, categoryId = categoryId, status = "OPEN", cursor = cursor)
+                        auth.auctionRepository.getGeneralAuctions(size = 12, categoryId = categoryId, status = "OPEN", cursor = cursor)
                     }) {
                         is ApiResult.Success -> {
                             val mapped = result.value.items.map { it.toHomeAuction() }.withoutUndecidedScheduled()
+                            if (selectedCategoryId != categoryId) return@launch
                             categoryAuctions = if (append) (categoryAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             categoryCursor = result.value.nextCursor
                             categoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
+                            if (!append) cachedCategoryPages[categoryId] = CachedCategoryPage(mapped, categoryCursor, categoryHasNext, android.os.SystemClock.elapsedRealtime())
                         }
                         is ApiResult.Failure -> {
+                            if (selectedCategoryId != categoryId) return@launch
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
                                 categoryLoadingMore = false
-                                loadCategory(categoryId)
+                                loadCategory(categoryId, forceRefresh = true)
                             } else {
                                 val message = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
                                 if (append) categoryLoadMoreError = message else categoryError = message
@@ -1382,20 +1402,16 @@ fun AppNavHost(
                 }
             }
 
-            // 카테고리는 로그인 없이 열리는 API — 비로그인에서도 불러야 화면이 하드코딩 목록에 머물지 않는다
-            LaunchedEffect(signedIn) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
-                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
-                    is ApiResult.Success -> categoryList = result.value
-                    is ApiResult.Failure -> Unit
-                }
-            }
             CategoryScreen(
                 onBack = navController::navigateUp,
-                onSearchClick = { navController.navigate(Screen.Search.route) },
+                onSearchClick = {
+                    browseAllAuctions = false
+                    browseClosingSoon = false
+                    navController.navigate(Screen.Search.route)
+                },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
-                remoteCategories = categoryList,
+                remoteCategories = cachedCategories,
                 remoteAuctions = categoryAuctions,
                 isLoading = categoryLoading,
                 errorMessage = categoryError,
@@ -1408,7 +1424,7 @@ fun AppNavHost(
                     categoryLoadMoreError = null
                     loadCategory(categoryId)
                 },
-                onRetry = { selectedCategoryId?.let { loadCategory(it) } },
+                onRetry = { selectedCategoryId?.let { loadCategory(it, forceRefresh = true) } },
                 onLoadMore = {
                     val categoryId = selectedCategoryId
                     val cursor = categoryCursor
@@ -1416,6 +1432,45 @@ fun AppNavHost(
                         loadCategory(categoryId, cursor, append = true)
                     }
                 }
+            )
+        }
+        composable(Screen.RecommendedAuctions.route) {
+            var recommendationAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+            var recommendationLoading by remember { mutableStateOf(true) }
+            var recommendationError by remember { mutableStateOf<String?>(null) }
+            var recommendationRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(recommendationRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    recommendationAuctions = recommended
+                    recommendationLoading = false
+                    recommendationError = null
+                    return@LaunchedEffect
+                }
+                recommendationLoading = true
+                recommendationError = null
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations(size = 100) }) {
+                    is ApiResult.Success -> recommendationAuctions = result.value.generalItems.map { it.toHomeAuction() }
+                    is ApiResult.Failure -> {
+                        recommendationAuctions = null
+                        recommendationError = result.error.message.ifBlank { "추천 경매를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                recommendationLoading = false
+            }
+            RecommendedAuctionsScreen(
+                auctions = recommendationAuctions,
+                isLoading = recommendationLoading,
+                errorMessage = recommendationError,
+                onRetry = { recommendationRevision++ },
+                onBack = navController::navigateUp,
+                onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onBrowseAll = {
+                    browseAllAuctions = true
+                    browseClosingSoon = false
+                    navController.navigate(Screen.Search.route)
+                },
+                onTabSelected = ::navigateMain
             )
         }
         composable(Screen.Search.route) {
@@ -1562,6 +1617,7 @@ fun AppNavHost(
             }
             AuctionSearchScreen(
                 browseOnOpen = browseAllAuctions,
+                closingSoonOnOpen = browseClosingSoon,
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
