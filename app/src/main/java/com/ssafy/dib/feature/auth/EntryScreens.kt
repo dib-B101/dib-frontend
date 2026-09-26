@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +32,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -291,6 +293,11 @@ fun LoginScreen(
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var attempted by rememberSaveable { mutableStateOf(false) }
     val valid = email.contains('@') && password.length >= 4
+    fun submitLogin() {
+        if (isLoading) return
+        attempted = true
+        if (valid) onLogin(email.trim(), password)
+    }
     val toastHost = remember { SnackbarHostState() }
     LaunchedEffect(errorMessage) {
         errorMessage?.takeIf(String::isNotBlank)?.let { toastHost.showSnackbar(it) }
@@ -321,7 +328,7 @@ fun LoginScreen(
                 errorMessage = "올바른 이메일을 입력해주세요.".takeIf { attempted && !email.contains('@') }
             )
             Spacer(Modifier.height(14.dp))
-            LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible, errorMessage = "비밀번호를 4자 이상 입력해주세요.".takeIf { attempted && password.length < 4 }) {
+            LoginField("비밀번호", password, { password = it }, "비밀번호를 입력해주세요", KeyboardType.Password, passwordVisible, errorMessage = "비밀번호를 4자 이상 입력해주세요.".takeIf { attempted && password.length < 4 }, onDone = ::submitLogin) {
                 passwordVisible = !passwordVisible
             }
             Row(
@@ -341,7 +348,7 @@ fun LoginScreen(
             EmailLoginButton(
                 text = "로그인",
                 loading = isLoading,
-                onClick = { attempted = true; if (valid) onLogin(email.trim(), password) }
+                onClick = ::submitLogin
             )
             Spacer(Modifier.height(8.dp))
             KakaoLoginButton(onClick = onKakaoLogin, enabled = !isLoading)
@@ -367,6 +374,7 @@ private fun LoginField(
     keyboardType: KeyboardType,
     visible: Boolean = true,
     errorMessage: String? = null,
+    onDone: (() -> Unit)? = null,
     onVisibility: (() -> Unit)? = null
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -379,7 +387,8 @@ private fun LoginField(
             placeholder = { Text(placeholder, color = Color(0xFF8C919C), fontSize = 14.sp) },
             singleLine = true,
             isError = errorMessage != null,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = if (onDone != null) ImeAction.Done else ImeAction.Next),
+            keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
             visualTransformation = if (keyboardType == KeyboardType.Password && !visible) PasswordVisualTransformation() else VisualTransformation.None,
             trailingIcon = onVisibility?.let { action -> ({ IconButton(onClick = action) { Image(painterResource(if (visible) R.drawable.visibility else R.drawable.visibility_off), if (visible) "비밀번호 숨기기" else "비밀번호 보기", Modifier.size(22.dp), colorFilter = ColorFilter.tint(Colors.Muted)) } }) },
             shape = RoundedCornerShape(15.dp),
