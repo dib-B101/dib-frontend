@@ -2,6 +2,7 @@ package com.ssafy.dib.feature.feed
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -12,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -65,7 +68,12 @@ import com.ssafy.dib.domain.live.LiveStreamSession
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
-import com.ssafy.dib.core.ui.AuctionUrgencyBadge
+import com.ssafy.dib.core.ui.AnimatedAuctionPrice
+import com.ssafy.dib.core.ui.AuctionUrgencyProgress
+import com.ssafy.dib.core.ui.BidMotionTone
+import com.ssafy.dib.core.ui.auctionUrgencyColor
+import com.ssafy.dib.core.ui.auctionUrgencySurface
+import com.ssafy.dib.core.time.formatRemainingTime
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
@@ -417,7 +425,9 @@ private fun LiveFeedPage(
     val isOwnAuction = currentMemberId != null && (
         activeAuction?.sellerMemberId == currentMemberId || liveItem?.memberId == currentMemberId
     )
-    val isHighestBidder = activeAuction?.isHighestBidder == true
+    var isHighestBidder by remember(auctionKey) { mutableStateOf(activeAuction?.isHighestBidder == true) }
+    var bidMotionTone by remember(auctionKey) { mutableStateOf(BidMotionTone.Neutral) }
+    var bidMotionSequence by remember(auctionKey) { mutableIntStateOf(0) }
     var favorite by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(activeAuction?.bookmarked == true) }
     var showProducts by rememberSaveable { mutableStateOf(false) }
     var showComments by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
@@ -439,7 +449,6 @@ private fun LiveFeedPage(
     var favoriteHint by remember { mutableStateOf<String?>(null) }
     var showBidFeedback by remember { mutableStateOf(false) }
     var showFavoriteBurst by remember { mutableStateOf(false) }
-    var bidFeedbackAccepted by remember { mutableStateOf(true) }
     var bidFeedbackMessage by remember { mutableStateOf("") }
     var bidSubmitting by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf(false) }
     var autoPayAgreedAuctionId by rememberSaveable(liveItem?.liveBroadcastId) { mutableStateOf<String?>(null) }
@@ -455,6 +464,25 @@ private fun LiveFeedPage(
         label = "liveDotAlpha"
     )
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val auctionUrgent = hasActiveAuction && remaining in 1..15
+    val cardSurface by animateColorAsState(
+        when {
+            bidMotionTone == BidMotionTone.Success -> Colors.MintSoft
+            bidMotionTone == BidMotionTone.Outbid -> Colors.UrgentBackground
+            auctionUrgent -> auctionUrgencySurface(remaining)
+            else -> Color.White
+        },
+        tween(350), label = "liveAuctionCardSurface"
+    )
+    val cardBorder by animateColorAsState(
+        when {
+            bidMotionTone == BidMotionTone.Success -> Colors.Mint
+            bidMotionTone == BidMotionTone.Outbid -> Colors.Urgent
+            auctionUrgent -> auctionUrgencyColor(remaining)
+            else -> Colors.Border
+        },
+        tween(350), label = "liveAuctionCardBorder"
+    )
 
     // 0초에서 끝내지 않고 계속 돈다. 예전엔 방송에 들어올 때 진행 중인 경매가 없으면(0초) 루프가 바로 끝나,
     // 판매자가 방송 중에 경매를 시작해 남은 시간이 새로 들어와도 숫자가 멈춰 있었다
@@ -467,31 +495,49 @@ private fun LiveFeedPage(
     LaunchedEffect(realtimeBidFeedback?.eventKey) {
         realtimeBidFeedback ?: return@LaunchedEffect
         bidSubmitting = false
-        bidFeedbackAccepted = realtimeBidFeedback.accepted
         bidFeedbackMessage = realtimeBidFeedback.message.ifBlank {
             if (realtimeBidFeedback.accepted) "입찰이 접수됐어요." else "입찰이 반영되지 않았어요."
         }
         if (realtimeBidFeedback.accepted) {
             realtimeBidFeedback.currentPrice?.let { currentPrice = it }
+            isHighestBidder = true
+            bidMotionTone = BidMotionTone.Success
+            bidMotionSequence++
         }
-        showBidFeedback = true
+        showBidFeedback = !realtimeBidFeedback.accepted
     }
     LaunchedEffect(bidSubmitting) {
         if (bidSubmitting) {
             delay(10_000L)
             if (bidSubmitting) {
                 bidSubmitting = false
-                bidFeedbackAccepted = false
                 bidFeedbackMessage = "입찰 응답이 늦어지고 있어요. 현재가를 확인한 뒤 다시 시도해주세요."
                 showBidFeedback = true
             }
         }
     }
     LaunchedEffect(activeAuction?.auctionId, activeAuction?.currentPrice, activeAuction?.remainingSeconds, isSampleContent) {
-        currentPrice = activeAuction?.currentPrice?.takeIf { it > 0 }
+        val incomingPrice = activeAuction?.currentPrice?.takeIf { it > 0 }
             ?: activeAuction?.startPrice
             ?: if (isSampleContent) 34_500 else 0
+        if (activeAuction != null) {
+            val outbid = isHighestBidder && activeAuction.isHighestBidder == false && incomingPrice > currentPrice
+            if (outbid) {
+                bidMotionTone = BidMotionTone.Outbid
+                bidMotionSequence++
+            }
+            if (activeAuction.isHighestBidder == true || outbid || !isHighestBidder) {
+                isHighestBidder = activeAuction.isHighestBidder == true
+            }
+        }
+        currentPrice = incomingPrice
         remaining = activeAuction?.remainingSeconds ?: if (isSampleContent) 42 else 0
+    }
+    LaunchedEffect(bidMotionSequence) {
+        if (bidMotionSequence > 0) {
+            delay(2_100)
+            bidMotionTone = BidMotionTone.Neutral
+        }
     }
     LaunchedEffect(activeAuction?.auctionId, activeAuction?.bookmarked) {
         favorite = activeAuction?.bookmarked == true
@@ -552,7 +598,7 @@ private fun LiveFeedPage(
         Column(
             Modifier.align(Alignment.BottomStart)
                 .imePadding()
-                .padding(start = 16.dp, end = 82.dp, bottom = if (imeVisible) 76.dp else 244.dp),
+                .padding(start = 16.dp, end = 82.dp, bottom = if (imeVisible) 76.dp else 275.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
                 if (liveItem == null) {
@@ -616,7 +662,7 @@ private fun LiveFeedPage(
                     )
                 }
         }
-        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 236.dp), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(!imeVisible, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 269.dp), enter = fadeIn(), exit = fadeOut()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // 하트는 방송 좋아요가 아니라 "지금 경매 중인 상품 찜"이다. 라벨로 뜻을 밝힌다.
                 // 내 방송의 내 상품은 찜할 이유가 없어 버튼을 뺀다. 편성 상품이 없을 때도 눌러서 이유를 알 수 있게
@@ -693,84 +739,79 @@ private fun LiveFeedPage(
         }
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AnimatedVisibility(!imeVisible, enter = fadeIn(), exit = fadeOut()) {
-            Surface(color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth().heightIn(min = 126.dp).animateContentSize()) {
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable { showProducts = true }.padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            Surface(
+                color = cardSurface,
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, cardBorder),
+                shadowElevation = 4.dp,
+                modifier = Modifier.fillMaxWidth().animateContentSize()
+            ) {
+                Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    if (hasActiveAuction) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            val imageModifier = Modifier.size(88.dp).clip(RoundedCornerShape(12.dp))
+                                .clickable { auctionKey?.let(onProductClick) }
+                            if (isSampleContent) {
+                                Image(painterResource(R.drawable.product_photo), activeAuction?.title ?: "달빛 유약 머그컵", imageModifier, contentScale = ContentScale.Crop)
+                            } else {
+                                DibNetworkImage(activeAuction?.imageUrls?.firstOrNull(), activeAuction?.title, imageModifier)
+                            }
+                            Column(Modifier.weight(1f).heightIn(min = 88.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    activeAuction?.title ?: "달빛 유약 머그컵",
+                                    Modifier.clickable { auctionKey?.let(onProductClick) },
+                                    color = Colors.Navy, fontSize = 15.sp, lineHeight = 19.sp,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold
+                                )
+                                AnimatedAuctionPrice(
+                                    price = currentPrice,
+                                    identity = auctionKey.orEmpty(),
+                                    motionSequence = bidMotionSequence,
+                                    tone = bidMotionTone,
+                                    urgent = auctionUrgent,
+                                    fontSize = 24.sp,
+                                    lineHeight = 29.sp,
+                                    baseColor = Colors.Navy
+                                )
+                                Text(
+                                    "상품 전체보기 ›",
+                                    Modifier.clickable { showProducts = true }.padding(vertical = 5.dp),
+                                    color = Colors.Navy, fontSize = 11.sp, lineHeight = 15.sp,
+                                    fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline
+                                )
+                            }
+                        }
+                    } else {
+                        Text("경매 준비 중", color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("판매자가 경매를 시작하면 참여할 수 있어요", color = Colors.Muted, fontSize = 12.sp)
+                    }
+                    val bidLabel = when {
+                        !hasActiveAuction -> "대기 중"
+                        remaining <= 0 -> "종료"
+                        isOwnAuction -> "내 경매"
+                        isHighestBidder -> "최고가"
+                        !realtimeBiddingEnabled -> "연결 필요"
+                        bidSubmitting -> "요청 중"
+                        else -> "입찰"
+                    }
+                    Button(
+                        onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
+                        enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && !bidSubmitting && realtimeBiddingEnabled,
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        shape = RoundedCornerShape(11.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Colors.Navy,
+                            disabledContainerColor = if (isHighestBidder) Colors.Surface else Colors.Navy,
+                            disabledContentColor = if (isHighestBidder) Colors.Muted else Color.White
+                        )
                     ) {
-                        Text(if (hasActiveAuction) "진행 중인 경매" else "경매 준비 중", color = Colors.Navy, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        // 개수와 화살표가 붙어 보이지 않게 칩 하나로 묶고 간격을 둔다
-                        Row(
-                            Modifier.background(Colors.Surface, RoundedCornerShape(12.dp)).padding(start = 10.dp, end = 7.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Text("상품 ${productAuctions.size.coerceAtLeast(if (hasActiveAuction) 1 else 0)}개 전체보기", color = Colors.Navy, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
-                            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.Navy))
-                        }
+                        Text(
+                            if (hasActiveAuction && remaining > 0) "$bidLabel: ${formatRemainingTime(remaining)}" else bidLabel,
+                            fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        if (isSampleContent) {
-                            Image(
-                                painterResource(R.drawable.product_photo),
-                                contentDescription = activeAuction?.title ?: "달빛 유약 머그컵",
-                                modifier = Modifier.size(62.dp).clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            DibNetworkImage(
-                                activeAuction?.imageUrls?.firstOrNull(),
-                                activeAuction?.title,
-                                Modifier.size(62.dp).clip(RoundedCornerShape(12.dp))
-                            )
-                        }
-                        Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                activeAuction?.title ?: if (isSampleContent) "달빛 유약 머그컵" else "다음 경매를 준비하고 있어요",
-                                color = Colors.Navy,
-                                fontSize = 14.sp,
-                                lineHeight = 19.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                if (hasActiveAuction) "현재가 ${"%,d".format(currentPrice)}원" else "판매자가 경매를 시작하면 참여할 수 있어요",
-                                color = if (hasActiveAuction) Colors.Navy else Colors.Muted,
-                                fontSize = if (hasActiveAuction) 17.sp else 12.sp,
-                                lineHeight = if (hasActiveAuction) 22.sp else 17.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (hasActiveAuction) AuctionUrgencyBadge(remaining, compact = true)
-                        }
-                        Button(
-                            onClick = { if (isAuthenticated) showBidSheet = true else onLoginRequired() },
-                            enabled = hasActiveAuction && remaining > 0 && !isOwnAuction && !isHighestBidder && !bidSubmitting && realtimeBiddingEnabled,
-                            modifier = Modifier.width(76.dp).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (remaining <= 15) Colors.Live else Colors.Navy),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                when {
-                                    isOwnAuction -> "내 경매"
-                                    isHighestBidder -> "최고가"
-                                    !hasActiveAuction -> "대기 중"
-                                    !realtimeBiddingEnabled -> "연결 필요"
-                                    bidSubmitting -> "요청 중"
-                                    remaining <= 15 -> "지금\n입찰"
-                                    else -> "입찰"
-                                },
-                                fontSize = 12.sp,
-                                lineHeight = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    if (auctionUrgent) AuctionUrgencyProgress(remaining, Modifier.fillMaxWidth())
                 }
             }
             }
@@ -783,11 +824,10 @@ private fun LiveFeedPage(
             }
         }
         AnimatedVisibility(showBidFeedback, Modifier.align(Alignment.Center), enter = fadeIn() + scaleIn(initialScale = .7f), exit = fadeOut() + scaleOut(targetScale = .82f)) {
-            Surface(color = if (bidFeedbackAccepted) Colors.Mint else Colors.UrgentBackground, shape = RoundedCornerShape(22.dp), shadowElevation = 10.dp) {
+            Surface(color = Colors.UrgentBackground, shape = RoundedCornerShape(22.dp), shadowElevation = 10.dp) {
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (bidFeedbackAccepted) "최고가 갱신!" else "입찰을 확인해주세요", color = if (bidFeedbackAccepted) Colors.MintInk else Colors.Urgent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text(bidFeedbackMessage, color = if (bidFeedbackAccepted) Colors.MintInk else Colors.Urgent, fontSize = 12.sp)
-                    if (bidFeedbackAccepted) Text("현재 최고가 ${"%,d".format(currentPrice)}원", color = Colors.MintInk, fontSize = 11.sp)
+                    Text("입찰을 확인해주세요", color = Colors.Urgent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(bidFeedbackMessage, color = Colors.Urgent, fontSize = 12.sp)
                 }
             }
         }
@@ -1028,12 +1068,10 @@ private fun LiveFeedPage(
     ) { submission ->
         when {
             !realtimeBiddingEnabled -> {
-                bidFeedbackAccepted = false
                 bidFeedbackMessage = "실시간 입찰 연결을 사용할 수 없어요."
                 showBidFeedback = true
             }
             !isSampleContent && chatConnectionState != RealtimeConnectionState.Connected -> {
-                bidFeedbackAccepted = false
                 bidFeedbackMessage = "실시간 연결 중이에요. 연결된 뒤 다시 시도해주세요."
                 showBidFeedback = true
             }
@@ -1042,7 +1080,6 @@ private fun LiveFeedPage(
                 bidSubmitting = true
             }
             else -> {
-                bidFeedbackAccepted = false
                 bidFeedbackMessage = "입찰 요청을 보내지 못했어요. 잠시 후 다시 시도해주세요."
                 showBidFeedback = true
             }
