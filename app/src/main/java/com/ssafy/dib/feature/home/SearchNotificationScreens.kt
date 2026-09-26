@@ -89,6 +89,7 @@ private val PriceRanges = listOf(
 @Composable
 fun AuctionSearchScreen(
     browseOnOpen: Boolean,
+    closingSoonOnOpen: Boolean,
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
@@ -110,7 +111,7 @@ fun AuctionSearchScreen(
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable(browseOnOpen) { mutableStateOf(browseOnOpen) }
+    var submitted by rememberSaveable(browseOnOpen, closingSoonOnOpen) { mutableStateOf(browseOnOpen) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     var category by rememberSaveable { mutableStateOf("전체") }
@@ -118,8 +119,8 @@ fun AuctionSearchScreen(
     var draftCategory by rememberSaveable { mutableStateOf("전체") }
     var draftPrice by rememberSaveable { mutableStateOf("전체") }
     // 기본은 "전체"(진행 중 + 예정). 예정 경매도 검색·카테고리에서는 보이기로 했고, 추천에서만 뺀다
-    var status by rememberSaveable { mutableStateOf("전체") }
-    var sort by rememberSaveable { mutableStateOf("LATEST") }
+    var status by rememberSaveable(closingSoonOnOpen) { mutableStateOf(if (closingSoonOnOpen) "진행 중" else "전체") }
+    var sort by rememberSaveable(closingSoonOnOpen) { mutableStateOf(if (closingSoonOnOpen) "ENDING_SOON" else "LATEST") }
     val selectedPriceRange = PriceRanges.firstOrNull { it.label == price } ?: PriceRanges.first()
     val fallbackCategories = DefaultProductCategories
     val categories = (remoteCategories ?: fallbackCategories).sortedBy { categoryOrder(it.name) }
@@ -140,7 +141,7 @@ fun AuctionSearchScreen(
         if (recordQuery && query.isNotBlank()) onAddRecentSearch(query.trim())
         onSearch(filters(selectedCategory, selectedPrice))
     }
-    LaunchedEffect(browseOnOpen) {
+    LaunchedEffect(browseOnOpen, closingSoonOnOpen) {
         if (browseOnOpen) submit()
     }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
@@ -158,7 +159,7 @@ fun AuctionSearchScreen(
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { DiscoveryAppBar(if (browseOnOpen) "전체 경매" else "검색", onBack) },
+        topBar = { DiscoveryAppBar(if (closingSoonOnOpen) "마감 임박 경매" else if (browseOnOpen) "전체 경매" else "검색", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
         DibPullToRefreshBox(
@@ -219,7 +220,9 @@ fun AuctionSearchScreen(
                 }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        SectionTitle(if (browseOnOpen && query.isBlank()) "전체 경매" else "검색 결과")
+                        SectionTitle(if (browseOnOpen && query.isBlank()) {
+                            if (status == "진행 중" && sort == "ENDING_SOON") "마감 임박 경매" else "전체 경매"
+                        } else "검색 결과")
                         if (!isLoading && errorMessage == null) Text("현재 ${results.size}개 표시", color = Colors.Muted, fontSize = 12.sp)
                     }
                 }
