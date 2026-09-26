@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -25,7 +27,7 @@ import com.ssafy.dib.ui.theme.WireframeColors
 enum class DibMainTab(val label: String, @param:DrawableRes val icon: Int) {
     Home("홈", R.drawable.nav_home_full),
     Feed("피드", R.drawable.nav_feed_full),
-    Register("등록", R.drawable.nav_register_full),
+    Register("등록", R.drawable.nav_auction_register),
     Trades("내 거래", R.drawable.nav_trades_full),
     My("마이", R.drawable.nav_my_full)
 }
@@ -46,15 +48,19 @@ fun DibBottomNavigation(selectedTab: DibMainTab, onTabSelected: (DibMainTab) -> 
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Surface(
                         color = when {
-                            tab == DibMainTab.Register -> WireframeColors.Navy
+                            tab == DibMainTab.Register -> Color.Transparent
                             selected -> WireframeColors.NavySoft
                             else -> androidx.compose.ui.graphics.Color.Transparent
                         },
-                        shape = if (tab == DibMainTab.Register) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        shadowElevation = if (tab == DibMainTab.Register) 5.dp else 0.dp
+                        shape = if (tab == DibMainTab.Register) CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                     ) {
                         Box(Modifier.size(40.dp, if (tab == DibMainTab.Register) 40.dp else 30.dp), contentAlignment = Alignment.Center) {
-                            Image(painterResource(tab.icon), tab.label, Modifier.size(20.dp, 22.dp), colorFilter = ColorFilter.tint(if (tab == DibMainTab.Register) WireframeColors.Background else color))
+                            Image(
+                                painterResource(tab.icon),
+                                tab.label,
+                                if (tab == DibMainTab.Register) Modifier.requiredSize(52.dp) else Modifier.size(20.dp, 22.dp),
+                                colorFilter = if (tab == DibMainTab.Register) null else ColorFilter.tint(color)
+                            )
                         }
                     }
                     Spacer(Modifier.height(2.dp))

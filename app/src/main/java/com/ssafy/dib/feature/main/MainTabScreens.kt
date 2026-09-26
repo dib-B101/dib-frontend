@@ -39,6 +39,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.semantics.Role
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
@@ -58,6 +68,7 @@ import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.CategoryGridItem
 import com.ssafy.dib.core.ui.CategoryIcon
@@ -77,15 +88,18 @@ import kotlin.math.roundToInt
 
 private enum class TradeTab(val label: String) { Bid("입찰"), Purchase("구매"), Sale("판매") }
 private enum class TradeTone { Urgent, Positive, Neutral }
+private enum class BidStanding { Leading, Outbid }
 private data class TradeItem(
     val status: String,
     val title: String,
-    val meta: String,
+    val details: List<String>,
     val action: String,
     val tone: TradeTone,
     val orderId: String = "sample",
     val auctionId: String = "sample",
-    val thumbnailUrl: String? = null
+    val thumbnailUrl: String? = null,
+    val bidStanding: BidStanding? = null,
+    val bidPriceLineCount: Int = 0
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,26 +133,28 @@ fun MyTradesScreen(
 ) {
     var selected by rememberSaveable { mutableStateOf(TradeTab.Bid) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.List) }
+    val highestOwnBidByAuction = remoteBids.orEmpty().groupBy(BidHistoryItem::auctionId)
+        .mapValues { (_, bids) -> bids.maxOf(BidHistoryItem::amount) }
     val items = when (selected) {
         TradeTab.Bid -> remoteBids?.filterNot { bid ->
             remotePurchaseOrders.orEmpty().any { order -> order.auctionId == bid.auctionId }
-        }?.map(BidHistoryItem::toTradeItem)
+        }?.map { bid -> bid.toTradeItem(highestOwnBidByAuction[bid.auctionId]) }
             ?: if (!showSampleContent || bidsLoading || bidsError != null) emptyList() else listOf(
-            TradeItem("다른 입찰 발생", "빈티지 필름 카메라", "현재가 35,000원 · 마감 00:42", "현재가보다 높게 입찰하기 →", TradeTone.Urgent),
-            TradeItem("최고 입찰자", "빈티지 스니커즈", "내 입찰가 58,000원 · 마감 12분", "경매 상태 보기 →", TradeTone.Positive),
-            TradeItem("경매 종료", "레더 숄더백", "최종가 72,000원 · 미낙찰", "결과 확인하기 →", TradeTone.Neutral)
+            TradeItem("다른 입찰 발생", "빈티지 필름 카메라", listOf("현재가 35,000원", "마감 00:42"), "현재가보다 높게 입찰하기 →", TradeTone.Urgent, bidStanding = BidStanding.Outbid, bidPriceLineCount = 1),
+            TradeItem("최고 입찰자", "빈티지 스니커즈", listOf("입찰가 58,000원", "마감 12분"), "경매 상태 보기 →", TradeTone.Positive, bidStanding = BidStanding.Leading, bidPriceLineCount = 1),
+            TradeItem("경매 종료", "레더 숄더백", listOf("최종가 72,000원", "미낙찰"), "결과 확인하기 →", TradeTone.Neutral)
         )
         TradeTab.Purchase -> remotePurchaseOrders?.map { it.toTradeItem(isSeller = false) }
             ?: if (!showSampleContent || remoteLoading || remoteError != null) emptyList() else listOf(
-            TradeItem("결제 필요", "빈티지 필름 카메라", "낙찰가 35,000원 · 23:42:18 남음", "거래 진행하기 →", TradeTone.Urgent),
-            TradeItem("배송 중", "노이즈 캔슬링 헤드폰", "판매자가 상품을 발송했어요", "배송 조회하기 →", TradeTone.Positive),
-            TradeItem("구매 완료", "레더 카드지갑", "거래가 안전하게 완료됐어요", "거래 내역 보기 →", TradeTone.Neutral)
+            TradeItem("결제 필요", "빈티지 필름 카메라", listOf("낙찰가 35,000원", "23:42:18 남음"), "거래 진행하기 →", TradeTone.Urgent),
+            TradeItem("배송 중", "노이즈 캔슬링 헤드폰", listOf("판매자가 상품을 발송했어요"), "배송 조회하기 →", TradeTone.Positive),
+            TradeItem("구매 완료", "레더 카드지갑", listOf("거래가 안전하게 완료됐어요"), "거래 내역 보기 →", TradeTone.Neutral)
         )
         TradeTab.Sale -> remoteSaleOrders?.map(SaleHistoryItem::toTradeItem)
             ?: if (!showSampleContent || remoteLoading || remoteError != null) emptyList() else listOf(
-            TradeItem("경매 진행 중", "빈티지 스니커즈", "현재가 58,000원 · 입찰 12회", "경매 상태 보기 →", TradeTone.Positive),
-            TradeItem("발송 필요", "빈티지 필름 카메라", "구매자 결제 완료 · 1일 남음", "배송 정보 입력하기 →", TradeTone.Urgent),
-            TradeItem("판매 완료", "원목 라운지 체어", "구매 확정 · 정산 예정", "거래 내역 보기 →", TradeTone.Neutral)
+            TradeItem("경매 진행 중", "빈티지 스니커즈", listOf("현재가 58,000원"), "경매 상태 보기 →", TradeTone.Positive),
+            TradeItem("발송 필요", "빈티지 필름 카메라", listOf("구매자 결제 완료", "1일 남음"), "배송 정보 입력하기 →", TradeTone.Urgent),
+            TradeItem("판매 완료", "원목 라운지 체어", listOf("구매 확정", "정산 예정"), "거래 내역 보기 →", TradeTone.Neutral)
         )
     }
     val selectedLoading = if (selected == TradeTab.Bid) bidsLoading || (remotePurchaseOrders == null && remoteLoading) else remoteLoading
@@ -274,18 +290,26 @@ fun MyTradesScreen(
     }
 }
 
-private fun BidHistoryItem.toTradeItem(): TradeItem {
+private fun BidHistoryItem.toTradeItem(highestOwnBid: Int?): TradeItem {
     val ended = auctionStatus?.uppercase() in setOf("ENDED", "CANCELED", "CANCELLED")
-    val price = currentPrice?.takeIf { it > 0 }?.let { "현재가 ${"%,d".format(it)}원 · " }.orEmpty()
+    val price = currentPrice?.takeIf { it > 0 }?.let { "현재가 ${"%,d".format(it)}원" }
+    val standing = if (ended) null else when {
+        highestOwnBid == null || currentPrice == null -> null
+        currentPrice == highestOwnBid -> BidStanding.Leading
+        currentPrice > highestOwnBid -> BidStanding.Outbid
+        else -> null
+    }
     return TradeItem(
-        status = if (ended) "경매 종료" else "입찰 참여",
+        status = if (ended) "경매 종료" else "입찰 중",
         // 예전 서버는 상품명을 안 줬다. 그때도 내부 경매 번호 대신 일반 문구를 쓴다
         title = title ?: "입찰한 상품",
-        meta = "${price}내 입찰가 ${"%,d".format(amount)}원 · ${formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')}",
+        details = listOfNotNull(price, "입찰가 ${"%,d".format(amount)}원", formatServerTime(createdAt) ?: createdAt.take(16).replace('T', ' ')),
         action = "경매 상태 보기 →",
         tone = if (ended) TradeTone.Neutral else TradeTone.Positive,
         auctionId = auctionId,
-        thumbnailUrl = thumbnailUrl
+        thumbnailUrl = thumbnailUrl,
+        bidStanding = standing,
+        bidPriceLineCount = if (price == null) 1 else 2
     )
 }
 
@@ -310,7 +334,7 @@ private fun OrderSummary.toTradeItem(isSeller: Boolean): TradeItem {
     return TradeItem(
         status = statusLabel,
         title = title,
-        meta = listOfNotNull(price, updatedAt?.let { formatServerTime(it, "yyyy.MM.dd") ?: it.take(10) }).joinToString(" · "),
+        details = listOfNotNull(price, updatedAt?.let { formatServerTime(it, "yyyy.MM.dd") ?: it.take(10) }),
         action = "거래 상세 보기 →",
         tone = tone,
         orderId = orderId,
@@ -354,7 +378,7 @@ private fun SaleHistoryItem.toTradeItem(): TradeItem {
     return TradeItem(
         status = statusLabel,
         title = auction.title,
-        meta = if (rejected) "등록 상품 관리에서 사유를 확인하고 수정해주세요" else "$priceLabel · 입찰 ${auction.bidCount}회",
+        details = if (rejected) listOf("등록 상품 관리에서 사유를 확인하고 수정해주세요") else listOf(priceLabel),
         action = if (orderId.isNullOrBlank()) "경매 상태 보기 →" else "거래 상세 보기 →",
         tone = if (rejected) TradeTone.Urgent else tone,
         orderId = orderId.orEmpty(),
@@ -377,20 +401,21 @@ private fun openTradeItem(
 }
 
 @Composable private fun TradeCard(item: TradeItem, onClick: () -> Unit) {
-    val chip = when(item.tone){ TradeTone.Urgent -> Color(0xFFFFF0EA); TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Color(0xFFE56F49); TradeTone.Positive -> Color(0xFF27806E); TradeTone.Neutral -> Color(0xFF6B7280) }
     Row(Modifier.fillMaxWidth().heightIn(min = 148.dp).background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (item.thumbnailUrl.isNullOrBlank()) {
-            Box(Modifier.size(86.dp).background(Colors.NavySoft, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.product_outline), null, Modifier.size(30.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+        Box(Modifier.size(110.dp).clip(RoundedCornerShape(14.dp))) {
+            if (item.thumbnailUrl.isNullOrBlank()) {
+                Box(Modifier.fillMaxSize().background(Colors.NavySoft), contentAlignment = Alignment.Center) {
+                    Image(painterResource(R.drawable.product_outline), null, Modifier.size(30.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+                }
+            } else {
+                DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxSize(), placeholderText = item.title.take(1))
             }
-        } else {
-            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.size(86.dp), placeholderText = item.title.take(1))
+            TradeStatusBadge(item, Modifier.align(Alignment.TopStart).padding(4.dp), compact = true)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Surface(color = chip, shape = RoundedCornerShape(12.dp)) { Text(item.status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = ink, fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold) }
             Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text(item.meta, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Color(0xFF6B7280), fontSize = 11.sp, lineHeight = 16.sp)
+            TradeDetailLines(item, 11)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.action.removeSuffix(" →"), Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold)
                 Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(if(item.tone == TradeTone.Urgent) ink else Colors.Navy))
@@ -401,7 +426,6 @@ private fun openTradeItem(
 
 @Composable
 private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val chip = when(item.tone){ TradeTone.Urgent -> Colors.UrgentBackground; TradeTone.Positive -> Color(0xFFE8FAF5); TradeTone.Neutral -> Color(0xFFF1F3F5) }
     val ink = when(item.tone){ TradeTone.Urgent -> Colors.Urgent; TradeTone.Positive -> Colors.MintInk; TradeTone.Neutral -> Colors.Muted }
     Column(
         modifier.background(Color.White, RoundedCornerShape(18.dp))
@@ -409,19 +433,62 @@ private fun TradeGridCard(item: TradeItem, modifier: Modifier = Modifier, onClic
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         // 홈 카드와 같은 정방형 썸네일. 가로로 긴 상자에 넣으면 세로가 크게 잘렸다
-        if (item.thumbnailUrl.isNullOrBlank()) {
-            Box(Modifier.fillMaxWidth().aspectRatio(1f).background(Colors.NavySoft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(13.dp))) {
+            if (item.thumbnailUrl.isNullOrBlank()) {
+                Box(Modifier.fillMaxSize().background(Colors.NavySoft), contentAlignment = Alignment.Center) {
+                    Image(painterResource(R.drawable.product_outline), null, Modifier.size(29.dp), colorFilter = ColorFilter.tint(Colors.Navy.copy(alpha = .55f)))
+                }
+            } else {
+                DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxSize(), placeholderText = item.title.take(1))
             }
-        } else {
-            DibNetworkImage(item.thumbnailUrl, item.title, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(13.dp)), placeholderText = item.title.take(1))
+            TradeStatusBadge(item, Modifier.align(Alignment.TopStart).padding(6.dp))
         }
-        Surface(color = chip, shape = RoundedCornerShape(10.dp)) { Text(item.status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         Text(item.title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text(item.meta, maxLines = 2, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
+        TradeDetailLines(item, 10)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(item.action.removeSuffix(" →"), maxLines = 1, color = if(item.tone == TradeTone.Urgent) ink else Colors.Navy, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Image(painterResource(R.drawable.chevron_right), null, Modifier.size(13.dp), colorFilter = ColorFilter.tint(if(item.tone == TradeTone.Urgent) ink else Colors.Navy))
+        }
+    }
+}
+
+@Composable
+private fun TradeStatusBadge(item: TradeItem, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val background = when (item.tone) {
+        TradeTone.Urgent -> Color(0xFFE43D4B)
+        TradeTone.Positive -> Colors.Navy
+        TradeTone.Neutral -> Color(0xDD1A1A1A)
+    }
+    val icon = when {
+        item.status.contains("종료") || item.status.contains("완료") -> R.drawable.check_circle
+        item.tone == TradeTone.Urgent -> R.drawable.warning_outline
+        else -> R.drawable.product_outline
+    }
+    Surface(modifier, color = background, shape = RoundedCornerShape(14.dp), shadowElevation = 2.dp) {
+        Row(Modifier.padding(horizontal = if (compact) 4.dp else 5.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Image(painterResource(icon), null, Modifier.size(if (compact) 9.dp else 10.dp), colorFilter = ColorFilter.tint(Color.White))
+            Text(item.status, color = Color.White, fontSize = if (compact) 8.sp else 9.sp,
+                lineHeight = if (compact) 11.sp else 12.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun TradeDetailLines(item: TradeItem, fontSize: Int) {
+    val bidPriceColor = when (item.bidStanding) {
+        BidStanding.Leading -> Colors.MintInk
+        BidStanding.Outbid -> Color(0xFFB9601C)
+        null -> Colors.Text
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        item.details.forEachIndexed { index, detail ->
+            val bidPrice = index < item.bidPriceLineCount
+            Text(detail, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (bidPrice) bidPriceColor else Colors.Muted,
+                fontWeight = if (bidPrice) FontWeight.SemiBold else FontWeight.Normal,
+                fontSize = fontSize.sp, lineHeight = (fontSize + 4).sp)
         }
     }
 }
@@ -473,9 +540,7 @@ fun MyPageScreen(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(58.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) {
-                            Text(profile?.nickname?.take(1)?.uppercase() ?: "?", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                        }
+                        DibProfileAvatar(profile?.profileImageUrl, 58.dp)
                         Column(Modifier.weight(1f).padding(start = 16.dp)) {
                             Text(profile?.nickname ?: "내 프로필", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(profile?.email ?: "내 계정 정보를 확인해보세요", color = Colors.Muted, fontSize = 12.sp)
@@ -514,14 +579,14 @@ fun MyPageScreen(
             item { Text("내 정보 · 설정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp))) {
-                    MenuRow("배송지 관리", onClick = onAddressesClick)
-                    MenuRow("결제수단 관리", onClick = onPaymentMethodsClick)
-                    MenuRow("정산 계좌 관리", onClick = onAccountsClick)
-                    MenuRow("정산 내역", onClick = onSettlementsClick)
-                    MenuRow("알림 설정", onClick = onNotificationSettingsClick)
-                    MenuRow("신고 내역", onClick = onReportsClick)
-                    MenuRow("회원 탈퇴", onClick = onWithdrawalClick)
-                    MenuRow("로그아웃", Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
+                    MenuRow("배송지 관리", R.drawable.menu_location, onClick = onAddressesClick)
+                    MenuRow("결제수단 관리", R.drawable.menu_payment, onClick = onPaymentMethodsClick)
+                    MenuRow("정산 계좌 관리", R.drawable.menu_account, onClick = onAccountsClick)
+                    MenuRow("정산 내역", R.drawable.menu_receipt, onClick = onSettlementsClick)
+                    MenuRow("알림 설정", R.drawable.notification_vector, onClick = onNotificationSettingsClick)
+                    MenuRow("신고 내역", R.drawable.menu_report, onClick = onReportsClick)
+                    MenuRow("회원 탈퇴", R.drawable.menu_person_remove, onClick = onWithdrawalClick)
+                    MenuRow("로그아웃", R.drawable.menu_logout, Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
                 }
             }
         }
@@ -547,12 +612,14 @@ private fun memberStatusLabel(status: String): String = when (status) {
 
 // 설정 메뉴 한 줄. 예전엔 좌우 여백 14dp·진한 18dp 화살표라 글자와 화살표가 카드 가장자리에 붙어 보였다.
 // 여백을 넓히고 줄 사이를 구분선으로 나누며, 화살표는 작고 옅게 둬 메뉴 이름이 먼저 읽히게 한다
-@Composable private fun MenuRow(label: String, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
+@Composable private fun MenuRow(label: String, icon: Int, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onClick).padding(start = 20.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (color == Colors.Text) Colors.Navy else color))
+            Spacer(Modifier.width(14.dp))
             Text(label, Modifier.weight(1f), color = color, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Color(0xFFB0B8C1)))
         }
@@ -588,7 +655,8 @@ fun ProductRegisterScreen(
     val registrationListState = rememberLazyListState()
     val context = LocalContext.current
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
-    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank()
+    val yearValid = releaseYear.isBlank() || releaseYear.toIntOrNull() in 1900..2100
+    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank() && yearValid
     // \uc568\ubc94 \uc120\ud0dd\uacfc \ucd2c\uc601\uc774 \uac19\uc740 \uac80\uc99d(\uc7a5\uc218\u00b7\ud615\uc2dd\u00b7\uc6a9\ub7c9)\uc744 \uac70\uce58\ub3c4\ub85d \ud55c\uacf3\uc5d0 \ubaa8\uc558\ub2e4
     fun addPickedPhotos(uris: List<Uri>) {
         val remaining = (10 - photoUris.size).coerceAtLeast(0)
@@ -654,11 +722,11 @@ fun ProductRegisterScreen(
                     item { RegisterSelect("카테고리 *", selectedCategory?.name?.let(::categoryDisplayName) ?: "선택해주세요", placeholder = selectedCategory == null, leadingCategoryName = selectedCategory?.name, errorMessage = "카테고리를 선택해주세요".takeIf { validationRequested && categoryId.isBlank() }) { categoryDialog = true } }
                     if (categoriesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Colors.Navy) }
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
-                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", maxLength = PRODUCT_TITLE_MAX_LENGTH, errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }) }
+                    item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", maxLength = PRODUCT_TITLE_MAX_LENGTH, errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }, guidance = "필수 · 1~200자", guidanceSatisfied = name.isNotBlank()) }
                     item { ProductConditionToggle(condition, { condition = it }, "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) }
                     item { Text("상품 추가 정보 (선택)", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24", maxLength = PRODUCT_MODEL_NAME_MAX_LENGTH) }
-                    item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number) }
+                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24", maxLength = PRODUCT_MODEL_NAME_MAX_LENGTH, guidance = "선택 · 최대 100자", guidanceSatisfied = true) }
+                    item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number, errorMessage = "1900~2100년 사이의 연도를 입력해주세요".takeIf { releaseYear.isNotBlank() && !yearValid }, guidance = "선택 · 1900~2100년 사이의 4자리 숫자", guidanceSatisfied = yearValid) }
                     item { Text("상품 사진 *", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     item {
                         val photoError = validationRequested && photoUris.isEmpty()
@@ -719,7 +787,7 @@ fun ProductRegisterScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) { Text("사진 순서 편집", fontWeight = FontWeight.Bold) }
                     }
-                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }) }
+                    item { RegisterTextField("상품 설명 *", description, { description = it }, "상품의 특징과 하자를 자세히 적어주세요", 100.dp, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH, errorMessage = "상품 설명을 입력해주세요".takeIf { validationRequested && description.isBlank() }, guidance = "필수 · 1~2,000자", guidanceSatisfied = description.isNotBlank()) }
                 }
                 else -> {
                     item {
@@ -827,6 +895,7 @@ internal fun ProductPhotoReorderScreen(
     modifier: Modifier = Modifier
 ) {
     val reorderedImages = remember { mutableStateListOf<Uri>().apply { addAll(images) } }
+    val previewListState = rememberLazyListState()
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
@@ -855,9 +924,10 @@ internal fun ProductPhotoReorderScreen(
             item {
                 LazyRow(
                     Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp)).padding(14.dp),
+                    state = previewListState,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(reorderedImages, key = { _, uri -> uri.toString() }) { index, uri ->
+                    itemsIndexed(reorderedImages) { index, uri ->
                         ReorderPhotoPreview(uri, index == 0, index + 1)
                     }
                 }
@@ -1134,8 +1204,13 @@ private fun RegisterTextField(
     height: androidx.compose.ui.unit.Dp = 80.dp,
     keyboardType: KeyboardType = KeyboardType.Text,
     maxLength: Int? = null,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    guidance: String? = null,
+    guidanceSatisfied: Boolean = false
 ) {
+    var focused by remember { mutableStateOf(false) }
+    var fieldWidth by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
     Column(
         Modifier.fillMaxWidth().heightIn(min = height + if (errorMessage != null) 18.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1145,21 +1220,42 @@ private fun RegisterTextField(
             // 여러 줄 입력(설명)만 글자 수를 보여준다. 한 줄 입력은 제한에 닿을 일이 드물어 자리만 차지한다
             if (maxLength != null && height >= 90.dp) Text("${value.length}/$maxLength", color = Colors.Muted, fontSize = 11.sp)
         }
-        OutlinedTextField(
-            value = value,
-            onValueChange = { onChange(if (maxLength != null) it.take(maxLength) else it) },
-            modifier = Modifier.fillMaxWidth().heightIn(min = if (height >= 100.dp) 76.dp else 56.dp),
-            placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
-            singleLine = height < 90.dp,
-            isError = errorMessage != null,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Colors.Navy,
-                unfocusedBorderColor = Color(0xFFDDE1E7),
-                errorBorderColor = Colors.Urgent
+        Box(Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { onChange(if (maxLength != null) it.take(maxLength) else it) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = if (height >= 100.dp) 76.dp else 56.dp)
+                    .onSizeChanged { fieldWidth = it.width }
+                    .onFocusChanged { focused = it.isFocused },
+                placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
+                singleLine = height < 90.dp,
+                isError = errorMessage != null,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Colors.Navy,
+                    unfocusedBorderColor = Color(0xFFDDE1E7),
+                    errorBorderColor = Colors.Urgent
+                )
             )
-        )
+            if (focused && guidance != null && fieldWidth > 0) {
+                Popup(
+                    popupPositionProvider = object : PopupPositionProvider {
+                        override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
+                            IntOffset(
+                                anchorBounds.left.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                                (anchorBounds.top - popupContentSize.height - with(density) { 8.dp.roundToPx() }).coerceAtLeast(0)
+                            )
+                    },
+                    onDismissRequest = { focused = false }
+                ) {
+                    Box(Modifier.width(with(density) { fieldWidth.toDp() }).shadow(8.dp, RoundedCornerShape(12.dp))
+                        .background(Colors.Background, RoundedCornerShape(12.dp)).padding(14.dp)) {
+                        Text("${if (guidanceSatisfied) "✓" else "○"} $guidance", color = if (guidanceSatisfied) Color(0xFF14866D) else Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
         if (errorMessage != null) Text(errorMessage, color = Colors.Urgent, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
