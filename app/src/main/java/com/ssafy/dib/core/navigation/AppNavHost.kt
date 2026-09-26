@@ -139,7 +139,7 @@ import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import com.ssafy.dib.domain.notification.DomainNotification
-import com.ssafy.dib.domain.notification.NotificationCategory
+import com.ssafy.dib.domain.notification.isEnabledBy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -494,12 +494,9 @@ fun AppNavHost(
         }
     }
 
-    fun isNotificationEnabled(notification: DomainNotification): Boolean = when (notification.category) {
-        NotificationCategory.Trade -> tradeNotificationsEnabled
-        NotificationCategory.Live -> liveNotificationsEnabled
-        NotificationCategory.Bookmark -> wishlistNotificationsEnabled
-        NotificationCategory.Other -> true
-    }
+    fun isNotificationEnabled(notification: DomainNotification): Boolean = notification.isEnabledBy(
+        tradeNotificationsEnabled, liveNotificationsEnabled, wishlistNotificationsEnabled
+    )
 
     fun updateBookmark(
         auctionId: String,
@@ -785,7 +782,6 @@ fun AppNavHost(
     fun openNotifications() {
         coroutineScope.launch {
             if (restoreAppAccess()) {
-                unreadNotificationCount = 0
                 navController.navigate(Screen.Notifications.route)
             } else navController.navigate(Screen.Login.route)
         }
@@ -806,8 +802,12 @@ fun AppNavHost(
         }
     }
 
+    val visibleNotifications = domainNotifications.filter(::isNotificationEnabled)
+    val visibleUnreadCount = if (tradeNotificationsEnabled && liveNotificationsEnabled && wishlistNotificationsEnabled) {
+        unreadNotificationCount
+    } else visibleNotifications.count { !it.isRead }
     Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(unreadNotificationCount, ::openNotifications)) {
+        CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(visibleUnreadCount, ::openNotifications)) {
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route,
@@ -936,6 +936,11 @@ fun AppNavHost(
                         findEmailLoading = false
                     }
                 },
+                onChangePhone = {
+                    verificationId = null
+                    findEmailPhoneNumber = null
+                    findEmailError = null
+                },
                 onConfirmVerification = { code ->
                     val challengeId = verificationId ?: return@FindEmailScreen
                     findEmailLoading = true
@@ -987,6 +992,11 @@ fun AppNavHost(
                         }
                         resetLoading = false
                     }
+                },
+                onChangePhone = {
+                    verificationId = null
+                    resetPhoneNumber = null
+                    resetError = null
                 },
                 onRequestResetLink = { email, code ->
                     val challengeId = verificationId ?: return@PasswordResetLinkScreen
@@ -1584,10 +1594,10 @@ fun AppNavHost(
         }
         composable(Screen.Notifications.route) {
             // 목록에 나온 주문 중 상품명을 모르는 것만 주문 상세로 한 번씩 조회한다
-            LaunchedEffect(domainNotifications) {
+            LaunchedEffect(visibleNotifications) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 val known = knownOrderTitles()
-                val missing = domainNotifications
+                val missing = visibleNotifications
                     .flatMap { orderIdsInNotificationText(it.title + " " + it.body) }
                     .distinct().filterNot(known::containsKey).take(20)
                 missing.forEach { orderId ->
@@ -1595,7 +1605,7 @@ fun AppNavHost(
                         ?.value?.title?.takeIf(String::isNotBlank)
                         ?.let { notificationOrderTitles = notificationOrderTitles + (orderId to it) }
                 }
-                val missingAuctions = domainNotifications
+                val missingAuctions = visibleNotifications
                     .filter { it.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in it.body }
                     .map { it.resourceId }.filter(String::isNotBlank)
                     .distinct().filterNot(notificationAuctionTitles::containsKey).take(20)
@@ -1607,7 +1617,7 @@ fun AppNavHost(
             }
             val orderTitles = knownOrderTitles()
             NotificationCenterScreen(
-                notifications = domainNotifications.map { notification ->
+                notifications = visibleNotifications.map { notification ->
                     val auctionTitle = notificationAuctionTitles[notification.resourceId]
                         ?.takeIf { notification.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in notification.body }
                     notification.copy(
@@ -4551,14 +4561,17 @@ fun AppNavHost(
                 onTradeEnabledChange = { enabled ->
                     tradeNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("trade_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onLiveEnabledChange = { enabled ->
                     liveNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("live_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onWishlistEnabledChange = { enabled ->
                     wishlistNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("wishlist_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
@@ -4591,13 +4604,36 @@ fun AppNavHost(
                 saveLoading = profileSaveLoading,
                 saveError = profileSaveError,
                 onRetry = { profileRevision++ },
-                onSave = { nickname ->
+                onSave = { nickname, imageUri ->
                     profileSaveLoading = true
                     profileSaveError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.memberRepository.updateNickname(nickname) }) {
+                        val imageUpload = imageUri?.let { uri ->
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    prepareProductImageUpload(context.contentResolver,
+                                        com.ssafy.dib.feature.main.ProductImageSelection(uri), 0)
+                                }
+                            }.getOrElse {
+                                profileSaveError = "선택한 프로필 사진을 읽을 수 없어요. 다시 선택해주세요."
+                                profileSaveLoading = false
+                                return@launch
+                            }
+                        }
+                        val result = withContext(Dispatchers.IO) {
+                            if (imageUpload != null) auth.memberRepository.updateProfileImage(
+                                nickname.takeIf { it != memberProfile?.nickname },
+                                com.ssafy.dib.domain.member.MemberImageUpload(
+                                    imageUpload.fileName, imageUpload.mediaType, imageUpload.bytes
+                                )
+                            ) else auth.memberRepository.updateNickname(nickname)
+                        }
+                        when (result) {
                             is ApiResult.Success -> {
-                                memberProfile = memberProfile?.copy(nickname = result.value.nickname)
+                                memberProfile = memberProfile?.copy(
+                                    nickname = result.value.nickname,
+                                    profileImageUrl = result.value.profileImageUrl ?: memberProfile?.profileImageUrl
+                                )
                                 navController.navigateUp()
                             }
                             is ApiResult.Failure -> {
@@ -5694,6 +5730,7 @@ internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
     "INVALID_VERIFICATION_ID" -> "인증 요청 정보가 올바르지 않아요. 인증번호를 다시 요청해주세요."
     "INVALID_RESET_TOKEN" -> "비밀번호 재설정 링크가 만료됐거나 이미 사용됐어요. 링크를 다시 요청해주세요."
+    "PASSWORD_RESET_ACCOUNT_MISMATCH" -> "가입 이메일과 인증한 휴대전화 번호가 일치하지 않아요. 입력 정보를 확인해주세요."
     "ACCOUNT_NOT_FOUND", "MEMBER_NOT_FOUND" -> "입력한 정보와 일치하는 계정을 찾을 수 없어요."
     else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
 }

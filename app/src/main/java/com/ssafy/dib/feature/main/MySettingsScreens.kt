@@ -99,9 +99,14 @@ fun AddressManagementScreen(
                         .clickable(enabled = !actionLoading) { editingAddress = address }.padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("배송지", Modifier.weight(1f), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("수정", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { editingAddress = address }, enabled = !actionLoading) {
+                            Text("수정", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(onClick = { deletingAddress = address }, enabled = !actionLoading) {
+                            Text("삭제", color = Colors.Urgent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                     Text(address.name, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     if (address.postalCode.isNotBlank()) Text("우편번호 ${address.postalCode}", color = Colors.Muted, fontSize = 11.sp)
@@ -124,8 +129,7 @@ fun AddressManagementScreen(
             initial = selected,
             actionLoading = actionLoading,
             onDismiss = { if (!actionLoading) editingAddress = null },
-            onSave = { value -> onUpdate(value); editingAddress = null },
-            onDelete = { editingAddress = null; deletingAddress = selected }
+            onSave = { value -> onUpdate(value); editingAddress = null }
         )
     }
     deletingAddress?.let { selected ->
@@ -186,20 +190,38 @@ fun AddressManagementScreen(
     )
 }
 
-@Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit, onDelete: () -> Unit) {
+@Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit) {
     var label by rememberSaveable(initial.addressId) { mutableStateOf(initial.name) }
     var postalCode by rememberSaveable(initial.addressId) { mutableStateOf(initial.postalCode) }
     var address by rememberSaveable(initial.addressId) { mutableStateOf(initial.address) }
+    var detail by rememberSaveable(initial.addressId) { mutableStateOf("") }
+    var apiAddressId by rememberSaveable(initial.addressId) { mutableStateOf(initial.apiAddressId) }
+    var searching by rememberSaveable(initial.addressId) { mutableStateOf(false) }
+    if (searching) PostcodeSearchDialog(
+        onSelected = { selectedZip, selectedAddress, buildingCode ->
+            postalCode = selectedZip
+            address = selectedAddress
+            detail = ""
+            apiAddressId = buildingCode.ifBlank { selectedAddress }
+            searching = false
+        },
+        onDismiss = { searching = false }
+    )
     DibDialog(
         onDismissRequest = onDismiss,
         title = "배송지 수정",
         text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
-            OutlinedTextField(postalCode, { postalCode = it.filter(Char::isDigit).take(10) }, modifier = Modifier.fillMaxWidth(), label = { Text("우편번호") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
-            OutlinedTextField(address, { address = it }, modifier = Modifier.fillMaxWidth(), label = { Text("주소") }, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
-            Text("배송지 삭제", Modifier.clickable(enabled = !actionLoading, onClick = onDelete).padding(vertical = 8.dp), color = Colors.Urgent, fontWeight = FontWeight.Bold)
+            OutlinedButton({ searching = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) {
+                Text("우편번호 다시 찾기", fontWeight = FontWeight.Bold)
+            }
+            Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
+            OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text("상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
         } },
-        confirmButton = { DibDialogConfirmButton("저장", onClick = { onSave(initial.copy(name = label.trim(), postalCode = postalCode, address = address.trim())) }, enabled = label.isNotBlank() && address.isNotBlank(), loading = actionLoading) },
+        confirmButton = { DibDialogConfirmButton("저장", onClick = {
+            onSave(initial.copy(name = label.trim(), postalCode = postalCode,
+                address = listOf(address, detail.trim()).filter(String::isNotBlank).joinToString(" "), apiAddressId = apiAddressId))
+        }, enabled = label.isNotBlank() && address.isNotBlank() && apiAddressId.isNotBlank(), loading = actionLoading) },
         dismissButton = { DibDialogDismissButton(onDismiss, enabled = !actionLoading) }
     )
 }
@@ -275,7 +297,7 @@ fun NotificationSettingsScreen(
     val context = LocalContext.current
     SettingsScaffold("알림 설정", onBack, onTabSelected, modifier) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { Text("앱에서 보내는 알림", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            item { Text("이 기기에 표시할 알림", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item { Column(Modifier.fillMaxWidth().background(Colors.Background, RoundedCornerShape(16.dp))) {
                 NotificationToggle("입찰·거래 상태", "상회 입찰, 낙찰, 결제와 배송 상태", tradeEnabled, onTradeEnabledChange)
                 NotificationToggle("Live 방송", "예약 Live 시작과 방송 상태 알림", liveEnabled, onLiveEnabledChange)

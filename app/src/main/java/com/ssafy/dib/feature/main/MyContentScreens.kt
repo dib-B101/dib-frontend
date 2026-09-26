@@ -1,7 +1,12 @@
 package com.ssafy.dib.feature.main
 
+import android.graphics.Bitmap
+import android.net.Uri
 import com.ssafy.dib.core.time.formatServerTime
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
@@ -9,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -47,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +61,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,6 +77,7 @@ import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.domain.member.MemberProfile
@@ -76,6 +87,8 @@ import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.feature.home.HomeAuction
 import com.ssafy.dib.feature.home.HomeAuctionCard
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ProfileEditScreen(
@@ -85,11 +98,25 @@ fun ProfileEditScreen(
     saveLoading: Boolean,
     saveError: String?,
     onRetry: () -> Unit,
-    onSave: (String) -> Unit,
+    onSave: (String, Uri?) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var nickname by rememberSaveable(profile?.memberId) { mutableStateOf(profile?.nickname.orEmpty()) }
+    var selectedImage by rememberSaveable(profile?.memberId) { mutableStateOf<Uri?>(null) }
+    var imageError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            imageError = productImageValidationMessage(context.contentResolver, listOf(uri))
+            if (imageError == null) selectedImage = uri
+        }
+    }
+    val preview by produceState<Bitmap?>(initialValue = null, key1 = selectedImage) {
+        value = selectedImage?.let { uri ->
+            withContext(Dispatchers.IO) { decodeProductImagePreview(context.contentResolver, uri, targetPx = 256) }
+        }
+    }
     SimpleHeaderScaffold("프로필 수정", onBack, modifier) { padding ->
         when {
             isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Colors.Navy) }
@@ -97,8 +124,15 @@ fun ProfileEditScreen(
                 Text(errorMessage ?: "내 정보를 불러오지 못했어요.", color = Colors.Muted)
                 OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("다시 불러오기") }
             }
-            else -> Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(88.dp).background(Color(0xFFD6F5ED), CircleShape), contentAlignment = Alignment.Center) { Text(profile.nickname.take(1).ifBlank { "d" }, color = Colors.Navy, fontSize = 32.sp, fontWeight = FontWeight.Bold) }
+            else -> Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(88.dp).clip(CircleShape).clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentAlignment = Alignment.Center) {
+                    if (preview != null) Image(preview!!.asImageBitmap(), "선택한 프로필 사진", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    else DibProfileAvatar(profile.profileImageUrl, 88.dp)
+                }
+                TextButton(onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+                    Text("프로필 사진 변경", color = Colors.Navy, fontWeight = FontWeight.Bold)
+                }
+                imageError?.let { Text(it, color = Colors.Urgent, fontSize = 12.sp) }
                 Text("닉네임", Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(nickname, { nickname = it.take(12) }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
                 Text("이메일", Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), color = Colors.Navy, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -107,9 +141,9 @@ fun ProfileEditScreen(
                 ReadOnlyProfileValue("${profile.name} · ${profile.phoneNumber}")
                 saveError?.let { Text(it, Modifier.fillMaxWidth().padding(top = 12.dp), color = Colors.Urgent, fontSize = 12.sp) }
                 Button(
-                    onClick = { onSave(nickname.trim()) },
+                    onClick = { onSave(nickname.trim(), selectedImage) },
                     modifier = Modifier.fillMaxWidth().padding(top = 28.dp).height(48.dp),
-                    enabled = nickname.isNotBlank() && nickname != profile.nickname && !saveLoading,
+                    enabled = nickname.isNotBlank() && (nickname.trim() != profile.nickname || selectedImage != null) && !saveLoading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                 ) {
@@ -123,8 +157,8 @@ fun ProfileEditScreen(
 
 @Composable
 private fun ReadOnlyProfileValue(value: String) {
-    Box(Modifier.fillMaxWidth().height(48.dp).background(Color(0xFFF0F2F7), RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(14.dp)) {
-        Text(value, color = Colors.Muted, fontSize = 14.sp)
+    Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(Color(0xFFF0F2F7), RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFDBE0E8), RoundedCornerShape(12.dp)).padding(14.dp)) {
+        Text(value, color = Colors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
     }
 }
 
@@ -414,7 +448,6 @@ fun InquiryHistoryScreen(
     MyListScaffold("문의 내역", onBack, onTabSelected, modifier) { padding ->
         DibPullToRefreshBox(isRefreshing = isLoading, onRefresh = onRetry, modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { Text("답변이 등록되면 이메일로 알려드려요", Modifier.fillMaxWidth().background(Colors.NavySoft, RoundedCornerShape(14.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp) }
             if (isLoading) item { Row(Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = Colors.Navy) } }
             else if (errorMessage != null) item { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { Text(errorMessage, color = Colors.Muted, fontSize = 12.sp); OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("다시 불러오기") } } }
             else if (inquiries.isEmpty()) item { Text("등록한 문의가 없어요.", Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Colors.Muted, fontSize = 13.sp) }

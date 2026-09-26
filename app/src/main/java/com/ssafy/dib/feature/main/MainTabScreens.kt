@@ -68,6 +68,7 @@ import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibViewModeToggle
 import com.ssafy.dib.core.ui.CategoryGridItem
 import com.ssafy.dib.core.ui.CategoryIcon
@@ -539,9 +540,7 @@ fun MyPageScreen(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(58.dp).background(Colors.MintSoft, CircleShape), contentAlignment = Alignment.Center) {
-                            Text(profile?.nickname?.take(1)?.uppercase() ?: "?", color = Colors.Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                        }
+                        DibProfileAvatar(profile?.profileImageUrl, 58.dp)
                         Column(Modifier.weight(1f).padding(start = 16.dp)) {
                             Text(profile?.nickname ?: "내 프로필", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(profile?.email ?: "내 계정 정보를 확인해보세요", color = Colors.Muted, fontSize = 12.sp)
@@ -580,14 +579,14 @@ fun MyPageScreen(
             item { Text("내 정보 · 설정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp))) {
-                    MenuRow("배송지 관리", onClick = onAddressesClick)
-                    MenuRow("결제수단 관리", onClick = onPaymentMethodsClick)
-                    MenuRow("정산 계좌 관리", onClick = onAccountsClick)
-                    MenuRow("정산 내역", onClick = onSettlementsClick)
-                    MenuRow("알림 설정", onClick = onNotificationSettingsClick)
-                    MenuRow("신고 내역", onClick = onReportsClick)
-                    MenuRow("회원 탈퇴", onClick = onWithdrawalClick)
-                    MenuRow("로그아웃", Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
+                    MenuRow("배송지 관리", R.drawable.menu_location, onClick = onAddressesClick)
+                    MenuRow("결제수단 관리", R.drawable.menu_payment, onClick = onPaymentMethodsClick)
+                    MenuRow("정산 계좌 관리", R.drawable.menu_account, onClick = onAccountsClick)
+                    MenuRow("정산 내역", R.drawable.menu_receipt, onClick = onSettlementsClick)
+                    MenuRow("알림 설정", R.drawable.notification_vector, onClick = onNotificationSettingsClick)
+                    MenuRow("신고 내역", R.drawable.menu_report, onClick = onReportsClick)
+                    MenuRow("회원 탈퇴", R.drawable.menu_person_remove, onClick = onWithdrawalClick)
+                    MenuRow("로그아웃", R.drawable.menu_logout, Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
                 }
             }
         }
@@ -613,12 +612,14 @@ private fun memberStatusLabel(status: String): String = when (status) {
 
 // 설정 메뉴 한 줄. 예전엔 좌우 여백 14dp·진한 18dp 화살표라 글자와 화살표가 카드 가장자리에 붙어 보였다.
 // 여백을 넓히고 줄 사이를 구분선으로 나누며, 화살표는 작고 옅게 둬 메뉴 이름이 먼저 읽히게 한다
-@Composable private fun MenuRow(label: String, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
+@Composable private fun MenuRow(label: String, icon: Int, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onClick).padding(start = 20.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (color == Colors.Text) Colors.Navy else color))
+            Spacer(Modifier.width(14.dp))
             Text(label, Modifier.weight(1f), color = color, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Color(0xFFB0B8C1)))
         }
