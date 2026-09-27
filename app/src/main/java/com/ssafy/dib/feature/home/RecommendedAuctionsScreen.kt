@@ -41,7 +41,6 @@ fun RecommendedAuctionsScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
-    onBrowseAll: () -> Unit,
     onTabSelected: (DibMainTab) -> Unit
 ) {
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
@@ -102,11 +101,6 @@ fun RecommendedAuctionsScreen(
                     }
                     else -> items(auctions.size) { index ->
                         HomeAuctionListCard(auctions[index], favorite = false, onFavorite = null, onClick = { onProductClick(auctions[index].id) })
-                    }
-                }
-                if (!auctions.isNullOrEmpty()) item {
-                    Button(onClick = onBrowseAll, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) {
-                        Text("전체 경매 둘러보기")
                     }
                 }
             }

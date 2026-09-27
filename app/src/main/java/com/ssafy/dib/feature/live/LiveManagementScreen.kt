@@ -217,6 +217,11 @@ internal fun formatLiveScheduledAt(
     }.getOrElse { scheduledAt.replace('T', ' ').take(16) }
 }
 
+internal fun formatLiveTimeInput(value: String): String {
+    val digits = value.filter(Char::isDigit).take(4)
+    return if (digits.length > 2) digits.take(2) + ":" + digits.drop(2) else digits
+}
+
 @Composable private fun EmptyLiveCard() { Column(Modifier.fillMaxWidth().padding(vertical = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("예약한 Live가 없어요", color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text("새 방송에서 일정과 상품을 준비해보세요", Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 12.sp) } }
 
 @Composable private fun StatusBadge(status: String) { val label = when(status) { "SCHEDULED" -> "예정"; "LIVE" -> "방송 중"; "ENDED" -> "종료"; else -> status }; Surface(color = if(status == "LIVE") Colors.Live else Colors.Navy, shape = RoundedCornerShape(10.dp)) { Text(label, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
@@ -244,7 +249,7 @@ private fun LiveFormDialog(initial: LiveBroadcastSummary?, loading: Boolean, err
             OutlinedTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("방송 설명") }, minLines = 3, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(date, { date = it.take(10) }, Modifier.weight(1.2f), label = { Text("날짜") }, placeholder = { Text("2026-09-14") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
-                OutlinedTextField(time, { time = it.filter { char -> char.isDigit() || char == ':' }.take(5) }, Modifier.weight(.8f), label = { Text("시간") }, placeholder = { Text("19:30") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
+                OutlinedTextField(time, { time = formatLiveTimeInput(it) }, Modifier.weight(.8f), label = { Text("시간") }, placeholder = { Text("19:30") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp), colors = liveDialogFieldColors())
             }
             if (scheduledAt == null) Text("현재 이후의 날짜와 시간을 입력해주세요.", color = Colors.Urgent, fontSize = 11.sp)
             error?.let { Text(it, color = Colors.Urgent, fontSize = 11.sp) }

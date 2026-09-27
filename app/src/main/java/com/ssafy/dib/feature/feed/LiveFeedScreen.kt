@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -86,6 +89,7 @@ import com.ssafy.dib.feature.live.isLiveNoticeControl
 import com.ssafy.dib.feature.live.rememberLiveVideoSession
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1450,17 +1454,26 @@ private fun LiveAction(@DrawableRes icon: Int, description: String, label: Strin
 
 @Composable
 private fun LiveFavoriteAction(selected: Boolean, updating: Boolean, onClick: () -> Unit) {
+    val heartScale = remember { Animatable(1f) }
+    val animationScope = rememberCoroutineScope()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.size(52.dp).graphicsLayer(alpha = if (updating) .6f else 1f)
                 .background(Color.Black.copy(alpha = .32f), CircleShape)
-                .clickable(onClick = onClick),
+                .clickable {
+                    animationScope.launch {
+                        heartScale.snapTo(.72f)
+                        heartScale.animateTo(1.2f, spring(stiffness = Spring.StiffnessMedium))
+                        heartScale.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                    onClick()
+                },
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painterResource(if (selected) R.drawable.favorite_selected else R.drawable.favorite_outline),
                 contentDescription = if (selected) "현재 상품 찜 해제" else "현재 상품 찜하기",
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(28.dp).graphicsLayer(scaleX = heartScale.value, scaleY = heartScale.value),
                 colorFilter = ColorFilter.tint(if (selected) Colors.Live else Color.White)
             )
         }
