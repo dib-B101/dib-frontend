@@ -192,11 +192,11 @@ private fun ProductEditForm(
                 Text("현재 백엔드 수정 API는 이미지 변경을 지원하지 않아 기존 사진을 그대로 유지해요.", color = Colors.Muted, fontSize = 11.sp)
             }
         }
-        item { EditField("상품명", title, { title = it.take(PRODUCT_TITLE_MAX_LENGTH) }, KeyboardType.Text) }
-        item { EditField("상품 설명", description, { description = it.take(PRODUCT_DESCRIPTION_MAX_LENGTH) }, KeyboardType.Text, singleLine = false, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH) }
-        item { Text("카테고리", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ focusManager.clearFocus(); showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name?.let(::categoryDisplayName) ?: "카테고리 선택") } }
+        item { EditField("상품명 *", title, { title = it.take(PRODUCT_TITLE_MAX_LENGTH) }, KeyboardType.Text) }
+        item { EditField("상품 설명 *", description, { description = it.take(PRODUCT_DESCRIPTION_MAX_LENGTH) }, KeyboardType.Text, singleLine = false, maxLength = PRODUCT_DESCRIPTION_MAX_LENGTH) }
+        item { Text("카테고리 *", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold); OutlinedButton({ focusManager.clearFocus(); showCategories = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text(categories.firstOrNull { it.categoryId == categoryId }?.name?.let(::categoryDisplayName) ?: "카테고리 선택") } }
         item {
-            Text("상품 상태", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("상품 상태 *", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             OutlinedButton({ focusManager.clearFocus(); showConditions = true }, Modifier.fillMaxWidth().padding(top = 6.dp)) {
                 Text(if (condition.isBlank()) "상품 상태 선택" else conditionLabel(condition))
             }
@@ -209,10 +209,10 @@ private fun ProductEditForm(
             CategoryProductFields(attributeSpecs, attributeValues, { key, value -> attributeValues = attributeValues + (key to value) }, true)
         }
         if (auctionEditable) {
-            item { EditField("경매 시작가 (원)", startPrice, { startPrice = it.filter(Char::isDigit).take(10) }, KeyboardType.Number) }
+            item { EditField("경매 시작가 (원) *", startPrice, { startPrice = it.filter(Char::isDigit).take(10) }, KeyboardType.Number) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    EditField("경매 시간 (분)", auctionMinutes, { auctionMinutes = it.filter(Char::isDigit).take(4) }, KeyboardType.Number)
+                    EditField("경매 시간 (분) *", auctionMinutes, { auctionMinutes = it.filter(Char::isDigit).take(4) }, KeyboardType.Number)
                     Text("최소 5분부터 설정할 수 있어요.", color = Colors.Muted, fontSize = 11.sp)
                 }
             }
