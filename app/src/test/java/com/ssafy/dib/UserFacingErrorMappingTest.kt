@@ -44,5 +44,12 @@ class UserFacingErrorMappingTest {
         )
     }
 
+    @Test
+    fun billingDisabledExplainsRealSmsIsUnavailable() {
+        val result = firebasePhoneFailure(IllegalStateException("17499 BILLING_NOT_ENABLED"))
+        assertEquals("SMS_BILLING_NOT_ENABLED", result.error.code)
+        assertTrue(signupErrorMessage(result.error).contains("실제 번호"))
+    }
+
     private fun failure(code: String) = ApiFailure(status = 400, code = code, message = "")
 }

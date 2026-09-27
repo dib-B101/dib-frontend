@@ -35,11 +35,20 @@ import java.util.concurrent.ConcurrentHashMap
 internal fun firebasePhoneFailure(exception: Throwable): ApiResult.Failure {
     val causes = generateSequence(exception) { it.cause }.toList()
     val firebaseError = causes.filterIsInstance<FirebaseAuthException>().firstOrNull()?.errorCode
-    return firebasePhoneFailureForCode(firebaseError, causes.any { it is FirebaseNetworkException })
+    return firebasePhoneFailureForCode(
+        firebaseError,
+        networkError = causes.any { it is FirebaseNetworkException },
+        billingDisabled = causes.any { it.message?.contains("BILLING_NOT_ENABLED") == true }
+    )
 }
 
-internal fun firebasePhoneFailureForCode(firebaseError: String?, networkError: Boolean = false): ApiResult.Failure {
+internal fun firebasePhoneFailureForCode(
+    firebaseError: String?,
+    networkError: Boolean = false,
+    billingDisabled: Boolean = false
+): ApiResult.Failure {
     val code = when {
+        billingDisabled || firebaseError == "ERROR_BILLING_NOT_ENABLED" -> "SMS_BILLING_NOT_ENABLED"
         firebaseError == "ERROR_INVALID_VERIFICATION_CODE" -> "INVALID_CODE"
         firebaseError == "ERROR_SESSION_EXPIRED" || firebaseError == "ERROR_INVALID_VERIFICATION_ID" -> "VERIFICATION_EXPIRED"
         firebaseError == "ERROR_INVALID_PHONE_NUMBER" -> "INVALID_PHONE"
