@@ -1369,8 +1369,31 @@ fun AppNavHost(
             )
         }
         composable(Screen.Categories.route) { categoryEntry ->
-            // null 이면 CategoryScreen 이 기본 카테고리로 그린다 — 응답 전/실패에는 빈 화면 대신 대체 목록이 보여야 한다
             val categoryState = androidx.lifecycle.ViewModelProvider(categoryEntry)[CategoryUiState::class.java]
+            var categoriesLoading by remember { mutableStateOf(cachedCategories == null) }
+            var categoriesError by remember { mutableStateOf<String?>(null) }
+            var categoriesRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(categoriesRevision) {
+                if (categoriesRevision == 0 && cachedCategories != null) {
+                    categoriesLoading = false
+                    return@LaunchedEffect
+                }
+                if (!auth.networkConfig.isRestConfigured) {
+                    categoriesLoading = false
+                    categoriesError = "네트워크 설정을 확인해 주세요."
+                    return@LaunchedEffect
+                }
+                categoriesLoading = true
+                categoriesError = null
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+                    is ApiResult.Success -> {
+                        cachedCategories = result.value
+                        if (result.value.isEmpty()) categoriesError = "카테고리 목록이 비어 있어요."
+                    }
+                    is ApiResult.Failure -> categoriesError = result.error.message.ifBlank { "카테고리 목록을 불러오지 못했어요." }
+                }
+                categoriesLoading = false
+            }
             var categoryAuctions by categoryState.auctions
             var categoryLoading by categoryState.loading
             var categoryError by categoryState.error
@@ -1429,14 +1452,12 @@ fun AppNavHost(
 
             CategoryScreen(
                 onBack = navController::navigateUp,
-                onSearchClick = {
-                    browseAllAuctions = true
-                    browseClosingSoon = false
-                    navController.navigate(Screen.Search.route)
-                },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
                 remoteCategories = cachedCategories,
+                categoriesLoading = categoriesLoading,
+                categoriesError = categoriesError,
+                onCategoriesRetry = { categoriesRevision++ },
                 remoteAuctions = categoryAuctions,
                 isLoading = categoryLoading,
                 errorMessage = categoryError,
@@ -3001,6 +3022,8 @@ fun AppNavHost(
                 addressSubmitting = addressSubmitting,
                 addressSubmitError = addressSubmitError,
                 savedAddresses = savedAddresses,
+                defaultReceiverName = memberProfile?.name.orEmpty(),
+                defaultReceiverPhone = memberProfile?.phoneNumber.orEmpty(),
                 onSubmitShippingAddress = { input ->
                     addressSubmitting = true
                     addressSubmitError = null

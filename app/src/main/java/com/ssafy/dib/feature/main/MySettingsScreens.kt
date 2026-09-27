@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +49,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
@@ -111,6 +115,13 @@ fun AddressManagementScreen(
                     Text(address.name, color = Colors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     if (address.postalCode.isNotBlank()) Text("우편번호 ${address.postalCode}", color = Colors.Muted, fontSize = 11.sp)
                     Text(address.address, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    address.detailAddress?.takeIf(String::isNotBlank)?.let {
+                        Text(it, color = Colors.Muted, fontSize = 12.sp)
+                    }
+                    address.receiverName?.takeIf(String::isNotBlank)?.let { receiver ->
+                        Text(listOf(receiver, address.receiverPhone.orEmpty()).filter(String::isNotBlank).joinToString(" · "),
+                            color = Colors.Muted, fontSize = 12.sp)
+                    }
                 }
             }
             item { OutlinedButton({ addingAddress = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) { Text("새 배송지 추가", fontWeight = FontWeight.Bold) } }
@@ -150,6 +161,8 @@ fun AddressManagementScreen(
     var postalCode by rememberSaveable { mutableStateOf("") }
     var address by rememberSaveable { mutableStateOf("") }
     var detail by rememberSaveable { mutableStateOf("") }
+    var receiverName by rememberSaveable { mutableStateOf("") }
+    var receiverPhone by rememberSaveable { mutableStateOf("") }
     var apiAddressId by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
     if (searching) {
@@ -166,36 +179,46 @@ fun AddressManagementScreen(
     DibDialog(
         onDismissRequest = onDismiss,
         title = "새 배송지",
-        text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        text = { Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton({ searching = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) {
                 Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
             }
             if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
             OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text("상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
             OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(receiverName, { receiverName = it.take(100) }, modifier = Modifier.fillMaxWidth(), label = { Text("받는 사람") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(receiverPhone, { receiverPhone = it.filter(Char::isDigit).take(11) }, modifier = Modifier.fillMaxWidth(), label = { Text("연락처") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
         } },
         confirmButton = {
             DibDialogConfirmButton("등록", onClick = {
                 onSave(
                     NewAddress(
                         postalCode = postalCode,
-                        address = listOf(address, detail.trim()).filter(String::isNotBlank).joinToString(" "),
+                        address = address,
                         name = label.trim(),
-                        apiAddressId = apiAddressId
+                        apiAddressId = apiAddressId,
+                        detailAddress = detail.trim(),
+                        receiverName = receiverName.trim(),
+                        receiverPhone = receiverPhone
                     )
                 )
-            }, enabled = label.isNotBlank() && address.isNotBlank() && apiAddressId.isNotBlank(), loading = actionLoading)
+            }, enabled = label.isNotBlank() && address.isNotBlank() && apiAddressId.isNotBlank() &&
+                receiverName.isNotBlank() && receiverPhone.length in 10..11, loading = actionLoading)
         },
         dismissButton = { DibDialogDismissButton(onDismiss, enabled = !actionLoading) }
     )
 }
 
 @Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit) {
-    val storedAddressParts = remember(initial.address) { splitStoredAddress(initial.address) }
+    val storedAddressParts = remember(initial.address, initial.detailAddress) {
+        if (initial.detailAddress != null) initial.address to initial.detailAddress else splitStoredAddress(initial.address)
+    }
     var label by rememberSaveable(initial.addressId) { mutableStateOf(initial.name) }
     var postalCode by rememberSaveable(initial.addressId) { mutableStateOf(initial.postalCode) }
     var address by rememberSaveable(initial.addressId) { mutableStateOf(storedAddressParts.first) }
     var detail by rememberSaveable(initial.addressId) { mutableStateOf(storedAddressParts.second) }
+    var receiverName by rememberSaveable(initial.addressId) { mutableStateOf(initial.receiverName.orEmpty()) }
+    var receiverPhone by rememberSaveable(initial.addressId) { mutableStateOf(initial.receiverPhone.orEmpty()) }
     var apiAddressId by rememberSaveable(initial.addressId) { mutableStateOf(initial.apiAddressId) }
     var searching by rememberSaveable(initial.addressId) { mutableStateOf(false) }
     if (searching) PostcodeSearchDialog(
@@ -211,27 +234,25 @@ fun AddressManagementScreen(
     DibDialog(
         onDismissRequest = onDismiss,
         title = "배송지 수정",
-        text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        text = { Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton({ searching = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) {
                 Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
             }
             if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
             OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text(if (address.isBlank()) "주소 및 상세주소" else "상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
             OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(receiverName, { receiverName = it.take(100) }, modifier = Modifier.fillMaxWidth(), label = { Text("받는 사람") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(receiverPhone, { receiverPhone = it.filter(Char::isDigit).take(11) }, modifier = Modifier.fillMaxWidth(), label = { Text("연락처") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
         } },
         confirmButton = { DibDialogConfirmButton("저장", onClick = {
             onSave(initial.copy(name = label.trim(), postalCode = postalCode,
-                address = listOf(address, detail.trim()).filter(String::isNotBlank).joinToString(" "), apiAddressId = apiAddressId))
-        }, enabled = label.isNotBlank() && (address.isNotBlank() || detail.isNotBlank()) && apiAddressId.isNotBlank(), loading = actionLoading) },
+                address = if (address.isNotBlank()) address else detail.trim(), apiAddressId = apiAddressId,
+                detailAddress = if (address.isNotBlank()) detail.trim() else "",
+                receiverName = receiverName.trim(), receiverPhone = receiverPhone))
+        }, enabled = label.isNotBlank() && (address.isNotBlank() || detail.isNotBlank()) && apiAddressId.isNotBlank() &&
+            receiverName.isNotBlank() && receiverPhone.length in 10..11, loading = actionLoading) },
         dismissButton = { DibDialogDismissButton(onDismiss, enabled = !actionLoading) }
     )
-}
-
-// 서버에는 도로명주소와 상세주소가 한 문자열로 저장된다. 도로명 건물번호까지만
-// 확실히 구분될 때 분리하고, 그 외 주소는 전체를 입력란에 보여 데이터 손실을 막는다.
-private fun splitStoredAddress(stored: String): Pair<String, String> {
-    val match = Regex("^(.+?(?:로|길)\\s*\\d+(?:-\\d+)?)(?:\\s+(.+))?$").matchEntire(stored.trim())
-    return if (match == null) "" to stored else match.groupValues[1] to match.groupValues[2]
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

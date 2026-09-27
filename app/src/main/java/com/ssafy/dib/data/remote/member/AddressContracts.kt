@@ -11,7 +11,10 @@ data class AddressDto(
     val number: String? = null,
     val address: String? = null,
     val name: String,
-    val apiAddressId: JsonElement
+    val apiAddressId: JsonElement,
+    val detailAddress: String? = null,
+    val receiverName: String? = null,
+    val receiverPhone: String? = null
 )
 
 @Serializable
@@ -19,7 +22,10 @@ data class CreateAddressRequest(
     val number: String? = null,
     val address: String,
     val name: String,
-    val apiAddressId: JsonElement
+    val apiAddressId: JsonElement,
+    val detailAddress: String? = null,
+    val receiverName: String? = null,
+    val receiverPhone: String? = null
 )
 
 @Serializable
@@ -27,5 +33,8 @@ data class UpdateAddressRequest(
     val number: String? = null,
     val address: String? = null,
     val name: String? = null,
-    val apiAddressId: JsonElement? = null
+    val apiAddressId: JsonElement? = null,
+    val detailAddress: String? = null,
+    val receiverName: String? = null,
+    val receiverPhone: String? = null
 )
