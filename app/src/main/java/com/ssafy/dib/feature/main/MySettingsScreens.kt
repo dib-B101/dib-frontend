@@ -211,12 +211,12 @@ fun AddressManagementScreen(
         onDismissRequest = onDismiss,
         title = "배송지 수정",
         text = { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
             OutlinedButton({ searching = true }, Modifier.fillMaxWidth().height(48.dp), enabled = !actionLoading, shape = RoundedCornerShape(12.dp)) {
-                Text("우편번호 다시 찾기", fontWeight = FontWeight.Bold)
+                Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
             }
-            Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
+            if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
             OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text("상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
         } },
         confirmButton = { DibDialogConfirmButton("저장", onClick = {
             onSave(initial.copy(name = label.trim(), postalCode = postalCode,

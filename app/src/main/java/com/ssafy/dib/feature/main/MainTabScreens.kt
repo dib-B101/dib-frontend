@@ -54,6 +54,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -560,33 +561,33 @@ fun MyPageScreen(
             }
             item { Text("바로가기", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             item {
-                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp)).padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf(
-                        Triple(R.drawable.favorite_outline, "찜한 경매", onFavoritesClick),
-                        Triple(R.drawable.nav_register_full, "등록 상품", onRegisteredProductsClick),
-                        Triple(R.drawable.notification_vector, "알림", onNotificationsClick),
-                        Triple(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick)
-                    ).forEach { (icon, label, action) ->
-                        Column(Modifier.width(76.dp).clickable(onClick = action), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(42.dp).background(Colors.NavySoft, CircleShape), contentAlignment = Alignment.Center) {
-                                Image(painterResource(icon), label, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Colors.Navy))
+                val actions = listOf(
+                    MyPageAction(R.drawable.favorite_outline, "찜한 경매", onFavoritesClick),
+                    MyPageAction(R.drawable.nav_register_full, "등록 상품", onRegisteredProductsClick),
+                    MyPageAction(R.drawable.notification_vector, "알림", onNotificationsClick),
+                    MyPageAction(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick),
+                    MyPageAction(R.drawable.menu_location, "배송지 관리", onAddressesClick),
+                    MyPageAction(R.drawable.menu_payment, "결제수단 관리", onPaymentMethodsClick),
+                    MyPageAction(R.drawable.menu_account, "정산 계좌 관리", onAccountsClick),
+                    MyPageAction(R.drawable.menu_receipt, "정산 내역", onSettlementsClick),
+                    MyPageAction(R.drawable.notification_vector, "알림 설정", onNotificationSettingsClick),
+                    MyPageAction(R.drawable.menu_report, "신고 내역", onReportsClick),
+                    MyPageAction(R.drawable.menu_person_remove, "회원 탈퇴", onWithdrawalClick, destructive = true),
+                    MyPageAction(R.drawable.menu_logout, "로그아웃", { confirmation = "로그아웃" }, destructive = true)
+                )
+                Column(
+                    Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))
+                        .border(1.dp, Colors.Border, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    actions.chunked(4).forEach { rowActions ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            rowActions.forEach { action ->
+                                MyPageActionTile(action, Modifier.weight(1f))
                             }
-                            Text(label, Modifier.padding(top = 7.dp), color = Colors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                         }
                     }
-                }
-            }
-            item { Text("내 정보 · 설정", color = Colors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
-            item {
-                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).border(1.dp, Colors.Border, RoundedCornerShape(18.dp))) {
-                    MenuRow("배송지 관리", R.drawable.menu_location, onClick = onAddressesClick)
-                    MenuRow("결제수단 관리", R.drawable.menu_payment, onClick = onPaymentMethodsClick)
-                    MenuRow("정산 계좌 관리", R.drawable.menu_account, onClick = onAccountsClick)
-                    MenuRow("정산 내역", R.drawable.menu_receipt, onClick = onSettlementsClick)
-                    MenuRow("알림 설정", R.drawable.notification_vector, onClick = onNotificationSettingsClick)
-                    MenuRow("신고 내역", R.drawable.menu_report, onClick = onReportsClick)
-                    MenuRow("회원 탈퇴", R.drawable.menu_person_remove, onClick = onWithdrawalClick)
-                    MenuRow("로그아웃", R.drawable.menu_logout, Color(0xFFEF596B), showDivider = false) { confirmation = "로그아웃" }
                 }
             }
         }
@@ -610,20 +611,39 @@ private fun memberStatusLabel(status: String): String = when (status) {
     else -> status
 }
 
-// 설정 메뉴 한 줄. 예전엔 좌우 여백 14dp·진한 18dp 화살표라 글자와 화살표가 카드 가장자리에 붙어 보였다.
-// 여백을 넓히고 줄 사이를 구분선으로 나누며, 화살표는 작고 옅게 둬 메뉴 이름이 먼저 읽히게 한다
-@Composable private fun MenuRow(label: String, icon: Int, color: Color = Colors.Text, showDivider: Boolean = true, onClick: () -> Unit) {
-    Column {
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onClick).padding(start = 20.dp, end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+private data class MyPageAction(
+    val icon: Int,
+    val label: String,
+    val onClick: () -> Unit,
+    val destructive: Boolean = false
+)
+
+@Composable
+private fun MyPageActionTile(action: MyPageAction, modifier: Modifier = Modifier) {
+    val iconColor = if (action.destructive) Colors.Urgent else Colors.Navy
+    Column(
+        modifier.heightIn(min = 88.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = action.onClick)
+            .padding(horizontal = 2.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(42.dp).background(if (action.destructive) Colors.UrgentBackground else Colors.NavySoft, CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (color == Colors.Text) Colors.Navy else color))
-            Spacer(Modifier.width(14.dp))
-            Text(label, Modifier.weight(1f), color = color, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Image(painterResource(R.drawable.chevron_right), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Color(0xFFB0B8C1)))
+            Image(painterResource(action.icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(iconColor))
         }
-        if (showDivider) HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Colors.Border)
+        Text(
+            action.label,
+            Modifier.fillMaxWidth().padding(top = 7.dp),
+            color = if (action.destructive) Colors.Urgent else Colors.Muted,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

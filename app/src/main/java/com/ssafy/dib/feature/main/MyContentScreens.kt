@@ -244,7 +244,15 @@ fun RegisteredProductsScreen(
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             val statusLabel = productStatusLabel(product.status)
-                            Text(product.title, color = Colors.Text, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                                Text(product.title, Modifier.weight(1f), color = Colors.Text, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                                if (canDelete) TextButton(
+                                    onClick = { deleteCandidate = product },
+                                    enabled = deletingProductId == null,
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) { Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", color = Colors.Urgent, fontSize = 11.sp) }
+                            }
                             Row {
                                 Text(
                                     statusLabel,
@@ -265,7 +273,7 @@ fun RegisteredProductsScreen(
                             )
                         }
                     }
-                    if (canStartAuction || canEdit || canDelete) {
+                    if (canStartAuction || canEdit) {
                         HorizontalDivider(color = Colors.Border)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (canStartAuction) Button(
@@ -280,12 +288,6 @@ fun RegisteredProductsScreen(
                                 modifier = if (canStartAuction) Modifier.height(40.dp) else Modifier.weight(1f).height(40.dp),
                                 shape = RoundedCornerShape(10.dp)
                             ) { Text(if (product.status.equals("REJECTED", true) || product.status.equals("REVIEW_REJECTED", true)) "수정하기" else "수정", fontSize = 12.sp) }
-                            if (!canStartAuction && !canEdit) Spacer(Modifier.weight(1f))
-                            if (canDelete) TextButton(
-                                onClick = { deleteCandidate = product },
-                                enabled = deletingProductId == null,
-                                modifier = Modifier.height(40.dp)
-                            ) { Text(if (deletingProductId == product.productId) "삭제 중" else "삭제", color = Colors.Urgent, fontSize = 12.sp) }
                         }
                     }
                 }
