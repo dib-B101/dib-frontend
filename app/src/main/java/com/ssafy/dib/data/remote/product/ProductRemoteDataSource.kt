@@ -119,6 +119,8 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
             condition = registration.condition,
             modelName = registration.modelName,
             releaseYear = registration.releaseYear,
+            purchaseYear = registration.purchaseYear,
+            attributes = registration.attributes,
             marketPrice = registration.marketPrice,
             startPrice = registration.startPrice,
             auctionTime = registration.auctionTime
@@ -158,7 +160,7 @@ class ProductRemoteDataSource(private val client: DibHttpClient) {
 
     fun updateProduct(productId: String, update: ProductUpdate): ApiResult<ProductUpdateResponse> = configured {
         val categoryId = update.categoryId.toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(update.categoryId)
-        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.marketPrice, update.startPrice, update.auctionTime)
+        val payload = ProductUpdatePayload(update.title, update.description, categoryId, update.condition, update.modelName, update.releaseYear, update.purchaseYear, update.attributes, update.marketPrice, update.startPrice, update.auctionTime)
         val path = "${ApiRoutes.PRODUCTS}/$productId"
         client.execute(
             client.requestBuilder(path).patch(client.jsonBody(payload, ProductUpdatePayload.serializer())).build(),

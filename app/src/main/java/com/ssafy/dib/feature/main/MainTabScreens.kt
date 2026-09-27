@@ -646,8 +646,8 @@ fun ProductRegisterScreen(
     var categoryId by rememberSaveable { mutableStateOf("") }
     var condition by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
-    var modelName by rememberSaveable { mutableStateOf("") }
-    var releaseYear by rememberSaveable { mutableStateOf("") }
+    var purchaseYear by rememberSaveable { mutableStateOf("") }
+    var attributeValues by rememberSaveable { mutableStateOf<Map<String, String>>(emptyMap()) }
     var categoryDialog by rememberSaveable { mutableStateOf(false) }
     var imageValidationMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showPhotoReorder by remember { mutableStateOf(false) }
@@ -655,8 +655,9 @@ fun ProductRegisterScreen(
     val registrationListState = rememberLazyListState()
     val context = LocalContext.current
     val selectedCategory = categories.firstOrNull { it.categoryId == categoryId }
-    val yearValid = releaseYear.isBlank() || releaseYear.toIntOrNull() in 1900..2100
-    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank() && yearValid
+    val attributeSpecs = selectedCategory?.attributeSpecs.orEmpty()
+    val yearValid = purchaseYearValid(purchaseYear)
+    val formValid = photoUris.isNotEmpty() && name.isNotBlank() && categoryId.isNotBlank() && condition.isNotBlank() && description.isNotBlank() && yearValid && productAttributesValid(attributeSpecs, attributeValues)
     // \uc568\ubc94 \uc120\ud0dd\uacfc \ucd2c\uc601\uc774 \uac19\uc740 \uac80\uc99d(\uc7a5\uc218\u00b7\ud615\uc2dd\u00b7\uc6a9\ub7c9)\uc744 \uac70\uce58\ub3c4\ub85d \ud55c\uacf3\uc5d0 \ubaa8\uc558\ub2e4
     fun addPickedPhotos(uris: List<Uri>) {
         val remaining = (10 - photoUris.size).coerceAtLeast(0)
@@ -724,9 +725,11 @@ fun ProductRegisterScreen(
                     categoriesError?.let { message -> item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Colors.Urgent, fontSize = 11.sp); TextButton(onRetryCategories) { Text("재시도") } } } }
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", maxLength = PRODUCT_TITLE_MAX_LENGTH, errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }, guidance = "필수 · 1~200자", guidanceSatisfied = name.isNotBlank()) }
                     item { ProductConditionToggle(condition, { condition = it }, "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) }
-                    item { Text("상품 추가 정보 (선택)", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    item { RegisterTextField("모델명 (선택)", modelName, { modelName = it }, "예: Galaxy S24", maxLength = PRODUCT_MODEL_NAME_MAX_LENGTH, guidance = "선택 · 최대 100자", guidanceSatisfied = true) }
-                    item { RegisterTextField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number, errorMessage = "1900~2100년 사이의 연도를 입력해주세요".takeIf { releaseYear.isNotBlank() && !yearValid }, guidance = "선택 · 1900~2100년 사이의 4자리 숫자", guidanceSatisfied = yearValid) }
+                    item { Text("상품 추가 정보", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                    item { RegisterTextField("구매 연도 (선택)", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number, errorMessage = "1900년부터 올해까지의 연도를 입력해주세요".takeIf { purchaseYear.isNotBlank() && !yearValid }, guidance = "모르면 비워두세요 · 1900년부터 올해까지", guidanceSatisfied = yearValid) }
+                    if (attributeSpecs.isNotEmpty()) item {
+                        CategoryProductFields(attributeSpecs, attributeValues, { key, value -> attributeValues = attributeValues + (key to value) }, validationRequested)
+                    }
                     item { Text("상품 사진 *", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     item {
                         val photoError = validationRequested && photoUris.isEmpty()
@@ -804,9 +807,13 @@ fun ProductRegisterScreen(
                     }
                     item {
                         ProductReviewSection("추가 정보") {
-                            ProductReviewInfoRow("모델명", modelName.ifBlank { "입력 안 함" })
+                            ProductReviewInfoRow("구매 연도", purchaseYear.toIntOrNull()?.let { "${it}년" } ?: "입력 안 함")
                             HorizontalDivider(color = Colors.Border)
-                            ProductReviewInfoRow("출시연도", releaseYear.toIntOrNull()?.let { "${it}년" } ?: "입력 안 함")
+                            attributeSpecs.forEach { spec ->
+                                attributeValues[spec.key]?.takeIf(String::isNotBlank)?.let { value ->
+                                    ProductReviewInfoRow(spec.label, displayProductAttribute(spec, value))
+                                }
+                            }
                         }
                     }
                     item {
@@ -833,7 +840,7 @@ fun ProductRegisterScreen(
                         if (step == 1) {
                             if (canContinue) step = 2 else validationRequested = true
                         } else {
-                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), photoUris.map(::ProductImageSelection)))
+                            onSubmit(ProductRegistrationForm(name.trim(), description.trim(), categoryId, condition, null, null, purchaseYear.toIntOrNull(), normalizedProductAttributes(attributeSpecs, attributeValues), photoUris.map(::ProductImageSelection)))
                         }
                     },
                     enabled = !submitLoading,
@@ -1072,6 +1079,8 @@ data class ProductRegistrationForm(
     val condition: String,
     val modelName: String?,
     val releaseYear: Int?,
+    val purchaseYear: Int?,
+    val attributes: Map<String, String>,
     val images: List<ProductImageSelection>
 )
 

@@ -7,7 +7,20 @@ import kotlinx.serialization.json.JsonElement
 data class CategoryListResponse(val items: List<CategoryDto> = emptyList())
 
 @Serializable
-data class CategoryDto(val categoryId: JsonElement, val name: String)
+data class ProductAttributeSpecDto(
+    val key: String,
+    val label: String,
+    val type: String,
+    val required: Boolean = false,
+    val placeholder: String = ""
+)
+
+@Serializable
+data class CategoryDto(
+    val categoryId: JsonElement,
+    val name: String,
+    val attributeSpecs: List<ProductAttributeSpecDto> = emptyList()
+)
 
 @Serializable
 data class ProductCreatePayload(
@@ -17,6 +30,8 @@ data class ProductCreatePayload(
     val condition: String,
     val modelName: String? = null,
     val releaseYear: Int? = null,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String> = emptyMap(),
     val marketPrice: Long? = null,
     // 가격과 경매 시간은 경매를 시작할 때 정한다. 보내지 않으면 서버가 비워둔다
     val startPrice: Long? = null,
@@ -40,6 +55,8 @@ data class ProductUpdatePayload(
     val condition: String? = null,
     val modelName: String? = null,
     val releaseYear: Int? = null,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String>? = null,
     val marketPrice: Long? = null,
     val startPrice: Long? = null,
     val auctionTime: Int? = null
@@ -73,6 +90,9 @@ data class ProductDetailDto(
     val condition: String = "",
     val modelName: String? = null,
     val releaseYear: Int? = null,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String> = emptyMap(),
+    val attributeSpecs: List<ProductAttributeSpecDto> = emptyList(),
     val marketPrice: Long? = null,
     val thumbnailUrl: String? = null,
     val status: String = "",

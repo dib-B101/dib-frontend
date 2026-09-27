@@ -799,8 +799,15 @@ private fun ProductInformation(
                 InfoRow("상품 상태", conditionLabel(condition))
                 HorizontalDivider(color = Colors.Border)
                 InfoRow("카테고리", category)
-                modelName?.let { model -> HorizontalDivider(color = Colors.Border); InfoRow("모델명", model) }
-                releaseYear?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("출시연도", "${year}년") }
+                detail?.purchaseYear?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("구매 연도", "${year}년") }
+                modelName?.takeIf { detail?.attributes?.containsKey("model") != true }?.let { model -> HorizontalDivider(color = Colors.Border); InfoRow("모델명", model) }
+                releaseYear?.takeIf { detail?.attributes?.containsKey("releaseYear") != true }?.let { year -> HorizontalDivider(color = Colors.Border); InfoRow("출시연도", "${year}년") }
+                detail?.attributeSpecs?.forEach { spec ->
+                    detail.attributes[spec.key]?.let { value ->
+                        HorizontalDivider(color = Colors.Border)
+                        InfoRow(spec.label, com.ssafy.dib.feature.main.displayProductAttribute(spec, value))
+                    }
+                }
                 marketPrice?.let { price -> HorizontalDivider(color = Colors.Border); InfoRow("시세", "${"%,d".format(price)}원") }
             }
         }

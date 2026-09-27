@@ -119,8 +119,16 @@ private fun ProductEditForm(
     var description by rememberSaveable(detail.productId) { mutableStateOf(detail.description) }
     var categoryId by rememberSaveable(detail.productId) { mutableStateOf(detail.categoryId) }
     var condition by rememberSaveable(detail.productId) { mutableStateOf(detail.condition) }
-    var modelName by rememberSaveable(detail.productId) { mutableStateOf(detail.modelName.orEmpty()) }
-    var releaseYear by rememberSaveable(detail.productId) { mutableStateOf(detail.releaseYear?.toString().orEmpty()) }
+    var purchaseYear by rememberSaveable(detail.productId) { mutableStateOf(detail.purchaseYear?.toString().orEmpty()) }
+    var attributeValues by rememberSaveable(detail.productId) {
+        mutableStateOf(buildMap {
+            putAll(detail.attributes)
+            if ("model" !in detail.attributes) detail.modelName?.takeIf(String::isNotBlank)?.let { put("model", it) }
+            if ("releaseYear" !in detail.attributes) detail.releaseYear?.let { put("releaseYear", it.toString()) }
+        })
+    }
+    val attributeSpecs = categories.firstOrNull { it.categoryId == categoryId }?.attributeSpecs
+        ?: detail.attributeSpecs.takeIf { categoryId == detail.categoryId }.orEmpty()
     val focusManager = LocalFocusManager.current
     var showCategories by rememberSaveable { mutableStateOf(false) }
     var showConditions by rememberSaveable { mutableStateOf(false) }
@@ -134,7 +142,8 @@ private fun ProductEditForm(
     val auctionInputValid = !auctionEditable ||
         ((startPrice.toLongOrNull() ?: 0L) > 0L && (auctionMinutes.toIntOrNull() ?: 0) >= 5)
     val valid = title.isNotBlank() && description.isNotBlank() && categoryId.isNotBlank() &&
-        condition in setOf("GOOD", "NORMAL", "BAD") && auctionInputValid
+        condition in setOf("GOOD", "NORMAL", "BAD") && auctionInputValid &&
+        purchaseYearValid(purchaseYear) && productAttributesValid(attributeSpecs, attributeValues)
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start=18.dp,end=18.dp,top=18.dp,bottom=28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (rejected || awaitingModeration) item {
             Column(
@@ -192,8 +201,13 @@ private fun ProductEditForm(
                 Text(if (condition.isBlank()) "상품 상태 선택" else conditionLabel(condition))
             }
         }
-        item { EditField("모델명 (선택)", modelName, { modelName = it.take(PRODUCT_MODEL_NAME_MAX_LENGTH) }, KeyboardType.Text) }
-        item { EditField("출시연도 (선택)", releaseYear, { releaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
+        item { EditField("구매 연도 (선택)", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
+        if (purchaseYear.isNotBlank() && !purchaseYearValid(purchaseYear)) item {
+            Text("1900년부터 올해까지의 연도를 입력해주세요", color = Colors.Urgent, fontSize = 11.sp)
+        }
+        if (attributeSpecs.isNotEmpty()) item {
+            CategoryProductFields(attributeSpecs, attributeValues, { key, value -> attributeValues = attributeValues + (key to value) }, true)
+        }
         if (auctionEditable) {
             item { EditField("경매 시작가 (원)", startPrice, { startPrice = it.filter(Char::isDigit).take(10) }, KeyboardType.Number) }
             item {
@@ -231,7 +245,7 @@ private fun ProductEditForm(
             )
         }
         submitError?.let { item { Text(it, color = Colors.Urgent, fontSize = 12.sp) } }
-        item { Button({ onSubmit(ProductUpdate(title.trim(), description.trim(), categoryId, condition, modelName.trim().ifBlank { null }, releaseYear.toIntOrNull(), null, if (auctionEditable) startPrice.toLongOrNull() else null, if (auctionEditable) auctionMinutes.toIntOrNull()?.let { it * 60 } else null)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정 내용 등록", fontWeight = FontWeight.Bold) } }
+        item { Button({ onSubmit(ProductUpdate(title = title.trim(), description = description.trim(), categoryId = categoryId, condition = condition, modelName = null, releaseYear = null, purchaseYear = purchaseYear.toIntOrNull() ?: 0, attributes = normalizedProductAttributes(attributeSpecs, attributeValues), marketPrice = null, startPrice = if (auctionEditable) startPrice.toLongOrNull() else null, auctionTime = if (auctionEditable) auctionMinutes.toIntOrNull()?.let { it * 60 } else null)) }, Modifier.fillMaxWidth().height(52.dp), enabled = valid && !submitLoading, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)) { if (submitLoading) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("수정 내용 등록", fontWeight = FontWeight.Bold) } }
     }
     if (showCategories) DibDialog(
         onDismissRequest = { showCategories = false },

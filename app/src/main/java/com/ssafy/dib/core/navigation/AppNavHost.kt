@@ -2717,6 +2717,8 @@ fun AppNavHost(
                                             condition = form.condition,
                                             modelName = form.modelName,
                                             releaseYear = form.releaseYear,
+                                            purchaseYear = form.purchaseYear,
+                                            attributes = form.attributes,
                                             images = images
                                         ),
                                         idempotencyKey
