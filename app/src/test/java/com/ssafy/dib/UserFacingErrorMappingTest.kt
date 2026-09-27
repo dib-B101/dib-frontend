@@ -4,6 +4,9 @@ import com.ssafy.dib.core.navigation.auctionCommandError
 import com.ssafy.dib.core.navigation.liveControlError
 import com.ssafy.dib.core.navigation.signupErrorMessage
 import com.ssafy.dib.core.network.ApiFailure
+import com.ssafy.dib.data.repository.firebasePhoneFailure
+import com.ssafy.dib.data.repository.firebasePhoneFailureForCode
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +31,17 @@ class UserFacingErrorMappingTest {
         assertTrue(signupErrorMessage(failure("NICKNAME_DUPLICATED")).contains("닉네임"))
         assertTrue(signupErrorMessage(failure("INVALID_RESET_TOKEN")).contains("링크"))
         assertTrue(signupErrorMessage(failure("INVALID_VERIFICATION_ID")).contains("다시 요청"))
+    }
+
+    @Test
+    fun wrongFirebaseCodeShowsShortKoreanMessage() {
+        val result = firebasePhoneFailureForCode("ERROR_INVALID_VERIFICATION_CODE")
+        assertEquals("INVALID_CODE", result.error.code)
+        assertEquals("인증번호가 올바르지 않아요.", signupErrorMessage(result.error))
+        assertEquals(
+            "휴대폰 인증을 완료하지 못했어요. 잠시 후 다시 시도해주세요.",
+            signupErrorMessage(firebasePhoneFailure(IllegalStateException("raw SDK detail")).error)
+        )
     }
 
     private fun failure(code: String) = ApiFailure(status = 400, code = code, message = "")

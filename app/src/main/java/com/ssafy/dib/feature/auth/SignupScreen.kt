@@ -334,7 +334,7 @@ fun SignupScreen(
                         enabled = SignupValidator.isPhoneValid(phone) && !state.phoneRequestLoading && !phoneConfirmed && retryRemaining == 0,
                         modifier = Modifier.height(56.dp)
                     ) {
-                        if (state.phoneRequestLoading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
+                        if (state.phoneRequestLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Colors.Navy, strokeWidth = 2.dp)
                         else Text(if (retryRemaining > 0) "${retryRemaining}초" else "인증 요청")
                     }
                 }
@@ -356,7 +356,7 @@ fun SignupScreen(
                             modifier = Modifier.height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Colors.Navy)
                         ) {
-                            if (state.phoneConfirmationLoading) CircularProgressIndicator(Modifier.height(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            if (state.phoneConfirmationLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                             else Text("확인")
                         }
                     }

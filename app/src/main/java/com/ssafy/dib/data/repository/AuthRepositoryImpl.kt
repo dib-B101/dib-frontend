@@ -23,12 +23,32 @@ import com.ssafy.dib.domain.auth.KakaoSignupCommand
 import com.ssafy.dib.domain.auth.PhoneVerificationChallenge
 import com.ssafy.dib.domain.auth.PhoneVerificationConfirmation
 import com.ssafy.dib.domain.auth.SignUpCommand
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.FirebaseAuthException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+
+internal fun firebasePhoneFailure(exception: Throwable): ApiResult.Failure {
+    val causes = generateSequence(exception) { it.cause }.toList()
+    val firebaseError = causes.filterIsInstance<FirebaseAuthException>().firstOrNull()?.errorCode
+    return firebasePhoneFailureForCode(firebaseError, causes.any { it is FirebaseNetworkException })
+}
+
+internal fun firebasePhoneFailureForCode(firebaseError: String?, networkError: Boolean = false): ApiResult.Failure {
+    val code = when {
+        firebaseError == "ERROR_INVALID_VERIFICATION_CODE" -> "INVALID_CODE"
+        firebaseError == "ERROR_SESSION_EXPIRED" || firebaseError == "ERROR_INVALID_VERIFICATION_ID" -> "VERIFICATION_EXPIRED"
+        firebaseError == "ERROR_INVALID_PHONE_NUMBER" -> "INVALID_PHONE"
+        firebaseError == "ERROR_TOO_MANY_REQUESTS" || firebaseError == "ERROR_QUOTA_EXCEEDED" -> "RATE_LIMITED"
+        networkError -> "NETWORK_ERROR"
+        else -> "FIREBASE_PHONE_AUTH_FAILED"
+    }
+    return ApiResult.Failure(ApiFailure(null, code, ""))
+}
 
 class AuthRepositoryImpl(
     private val remote: AuthRemoteDataSource,
@@ -73,7 +93,7 @@ class AuthRepositoryImpl(
                 ApiResult.Success(PhoneVerificationChallenge(id, Instant.ofEpochMilli(now() + 60_000).toString(), 60), 202)
             }
         } catch (e: Exception) {
-            firebaseFailure(e.localizedMessage ?: "휴대전화 인증 요청에 실패했어요.")
+            firebasePhoneFailure(e)
         }
     }
 
@@ -94,7 +114,7 @@ class AuthRepositoryImpl(
                 is ApiResult.Failure -> result
             }
         } catch (e: Exception) {
-            firebaseFailure(e.localizedMessage ?: "인증번호를 확인하지 못했어요.")
+            firebasePhoneFailure(e)
         }
     }
 
