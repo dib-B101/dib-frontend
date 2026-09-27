@@ -87,7 +87,8 @@ data class SignupUiState(
     val emailAvailable: Boolean? = null,
     val emailError: String? = null,
     val signupLoading: Boolean = false,
-    val signupError: String? = null
+    val signupError: String? = null,
+    val rejectedNickname: String? = null
 )
 
 data class SignupForm(
@@ -461,8 +462,10 @@ fun SignupScreen(
                 SignupField(
                     "닉네임", nickname, { nickname = it.take(20) }, "2~20자",
                     enabled = !state.signupLoading,
-                    errorMessage = "닉네임은 2~20자로 입력해주세요.".takeIf {
-                        profileAttempted && !SignupValidator.isNicknameValid(nickname)
+                    errorMessage = when {
+                        profileAttempted && !SignupValidator.isNicknameValid(nickname) -> "닉네임은 2~20자로 입력해주세요."
+                        state.rejectedNickname == nickname.trim() -> "이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요."
+                        else -> null
                     },
                     focusRequester = nicknameFocus,
                     bringIntoViewRequester = nicknameView

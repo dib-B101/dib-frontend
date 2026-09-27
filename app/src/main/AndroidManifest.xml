@@ -47,6 +47,15 @@
                     android:host="${kakaoRedirectHost}"
                     android:path="${kakaoRedirectPath}" />
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${kakaoRedirectHost}"
+                    android:path="/password/reset" />
+            </intent-filter>
         </activity>
 
         <!-- 상품 사진 촬영: 카메라 앱에 저장 위치를 넘길 때 file:// 는 API 24+ 에서 막혀 있어 FileProvider URI 를 쓴다 -->
