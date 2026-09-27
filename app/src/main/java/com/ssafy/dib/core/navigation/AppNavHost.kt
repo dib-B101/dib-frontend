@@ -1338,7 +1338,7 @@ fun AppNavHost(
                 },
                 onLiveClick = { navController.navigate(Screen.LiveList.route) },
                 onSearchClick = {
-                    browseAllAuctions = false
+                    browseAllAuctions = true
                     browseClosingSoon = false
                     navController.navigate(Screen.Search.route)
                 },
@@ -1430,7 +1430,7 @@ fun AppNavHost(
             CategoryScreen(
                 onBack = navController::navigateUp,
                 onSearchClick = {
-                    browseAllAuctions = false
+                    browseAllAuctions = true
                     browseClosingSoon = false
                     navController.navigate(Screen.Search.route)
                 },
@@ -1490,11 +1490,6 @@ fun AppNavHost(
                 onRetry = { recommendationRevision++ },
                 onBack = navController::navigateUp,
                 onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
-                onBrowseAll = {
-                    browseAllAuctions = true
-                    browseClosingSoon = false
-                    navController.navigate(Screen.Search.route)
-                },
                 onTabSelected = ::navigateMain
             )
         }
@@ -1627,29 +1622,13 @@ fun AppNavHost(
                     is ApiResult.Failure -> Unit
                 }
             }
-            // 최근 검색어는 기기 저장소, 인기 검색어는 서버 집계. 인기 검색어는 로그인 없이도 보인다
-            var recentSearches by remember { mutableStateOf(auth.recentSearchStore.load()) }
-            var popularKeywords by remember { mutableStateOf<List<String>?>(null) }
-            LaunchedEffect(Unit) {
-                if (previewMode || !auth.networkConfig.isRestConfigured) {
-                    popularKeywords = emptyList()
-                    return@LaunchedEffect
-                }
-                popularKeywords = when (val result = withContext(Dispatchers.IO) { auth.productRepository.getPopularKeywords() }) {
-                    is ApiResult.Success -> result.value
-                    is ApiResult.Failure -> emptyList()
-                }
-            }
             AuctionSearchScreen(
                 browseOnOpen = browseAllAuctions,
                 closingSoonOnOpen = browseClosingSoon,
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
-                recentSearches = recentSearches,
-                onAddRecentSearch = { keyword -> recentSearches = auth.recentSearchStore.add(keyword) },
-                onClearRecentSearches = { recentSearches = auth.recentSearchStore.clear() },
-                popularKeywords = popularKeywords,
+                onAddRecentSearch = { keyword -> auth.recentSearchStore.add(keyword) },
                 remoteCategories = searchCategories,
                 remoteAuctions = searchAuctions,
                 isLoading = searchLoading,

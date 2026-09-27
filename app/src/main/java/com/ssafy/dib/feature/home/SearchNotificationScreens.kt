@@ -93,11 +93,7 @@ fun AuctionSearchScreen(
     onBack: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
-    // 최근 검색어는 기기에 저장된 실제 기록, 인기 검색어는 서버 집계(null 이면 불러오는 중)
-    recentSearches: List<String>,
     onAddRecentSearch: (String) -> Unit,
-    onClearRecentSearches: () -> Unit,
-    popularKeywords: List<String>?,
     remoteCategories: List<ProductCategory>?,
     remoteAuctions: List<HomeAuction>?,
     isLoading: Boolean,
@@ -111,7 +107,6 @@ fun AuctionSearchScreen(
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable(browseOnOpen, closingSoonOnOpen) { mutableStateOf(browseOnOpen) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var contentView by rememberSaveable { mutableStateOf(DibContentView.Grid) }
     var category by rememberSaveable { mutableStateOf("전체") }
@@ -137,12 +132,11 @@ fun AuctionSearchScreen(
         )
     }
     fun submit(selectedCategory: String = category, selectedPrice: String = price, recordQuery: Boolean = false) {
-        submitted = true
         if (recordQuery && query.isNotBlank()) onAddRecentSearch(query.trim())
         onSearch(filters(selectedCategory, selectedPrice))
     }
     LaunchedEffect(browseOnOpen, closingSoonOnOpen) {
-        if (browseOnOpen) submit()
+        submit()
     }
     val sourceAuctions = remoteAuctions ?: allHomeAuctions.distinctBy(HomeAuction::id).filter {
         (category == "전체" || category.removeSuffix("기기").split("·").any { token -> it.category.contains(token) || token.contains(it.category) }) &&
@@ -150,7 +144,6 @@ fun AuctionSearchScreen(
             it.status.matchesAuctionStatusFilter(filters().status)
     }
     val results = when {
-        !submitted -> emptyList()
         remoteAuctions != null -> sourceAuctions
         else -> sourceAuctions.filter {
             query.isBlank() || it.name.contains(query, true) || it.category.contains(query, true) || query.contains("카메라") && it.id == "camera"
@@ -159,7 +152,7 @@ fun AuctionSearchScreen(
 
     Scaffold(
         modifier.fillMaxSize().safeDrawingPadding(), containerColor = Colors.Canvas, contentWindowInsets = WindowInsets(0,0,0,0),
-        topBar = { DiscoveryAppBar(if (closingSoonOnOpen) "마감 임박 경매" else if (browseOnOpen) "전체 경매" else "검색", onBack) },
+        topBar = { DiscoveryAppBar(if (closingSoonOnOpen) "마감 임박 경매" else "검색", onBack) },
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
         DibPullToRefreshBox(
@@ -172,24 +165,12 @@ fun AuctionSearchScreen(
                 // 홈·카테고리와 같은 검색 상자
                 DibSearchField(
                     value = query,
-                    onValueChange = { query = it; submitted = false },
+                    onValueChange = { query = it },
                     onSearch = { submit(recordQuery = true) },
                     hint = "어떤 상품을 찾고 있나요?",
-                    onClear = { query = ""; submitted = false }
+                    onClear = { query = ""; submit() }
                 )
             }
-            if (!submitted) {
-                item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("최근 검색어"); if (recentSearches.isNotEmpty()) Text("전체 삭제", Modifier.clickable { onClearRecentSearches() }.padding(8.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium) } }
-                if (recentSearches.isNotEmpty()) item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { recentSearches.forEach { word -> DiscoveryFilterChip(selected=false,onClick={query=word; submit(recordQuery = true)},label=word) } } }
-                else item { Text("최근 검색어가 없어요", color = Colors.Muted, fontSize = 13.sp) }
-                item { SectionTitle("인기 검색어") }
-                // 서버가 검색 키워드를 누적한 상위 목록. 비어 있으면 아직 아무도 검색하지 않은 것
-                when {
-                    popularKeywords == null -> item { Text("인기 검색어를 불러오고 있어요", color = Colors.Muted, fontSize = 13.sp) }
-                    popularKeywords.isEmpty() -> item { Text("아직 인기 검색어가 없어요. 첫 검색을 남겨보세요", color = Colors.Muted, fontSize = 13.sp) }
-                    else -> items(popularKeywords.size) { index -> val word = popularKeywords[index]; Row(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).clickable { query=word; submit(recordQuery = true) }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text("${index+1}", Modifier.width(32.dp), color = if(index<3) Colors.Live else Colors.Muted, fontWeight=FontWeight.Bold); Text(word,Modifier.weight(1f),color=Colors.Text,fontSize=14.sp,fontWeight=if(index<3)FontWeight.SemiBold else FontWeight.Normal);Image(painterResource(R.drawable.chevron_right),null,Modifier.size(16.dp),colorFilter=ColorFilter.tint(Colors.Muted)) } }
-                }
-            } else {
                 item {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("전체", "진행 중", "예정", "종료").forEach { value ->
@@ -250,7 +231,6 @@ fun AuctionSearchScreen(
                         }
                     }
                 }
-            }
             }
         }
     }
