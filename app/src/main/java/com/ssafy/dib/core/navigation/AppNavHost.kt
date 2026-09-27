@@ -955,7 +955,17 @@ fun AppNavHost(
                     maskedEmail = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.requestFindEmailPhoneVerification(phoneNumber) }) {
-                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Success -> {
+                                verificationId = result.value.verificationId
+                                result.value.autoVerificationToken?.let { token ->
+                                    when (val found = withContext(Dispatchers.IO) {
+                                        auth.repository.findEmail(token, phoneNumber)
+                                    }) {
+                                        is ApiResult.Success -> maskedEmail = found.value
+                                        is ApiResult.Failure -> findEmailError = signupErrorMessage(found.error)
+                                    }
+                                }
+                            }
                             is ApiResult.Failure -> findEmailError = signupErrorMessage(result.error)
                         }
                         findEmailLoading = false
@@ -999,9 +1009,11 @@ fun AppNavHost(
             var resetError by remember { mutableStateOf<String?>(null) }
             var linkSent by remember { mutableStateOf(false) }
             var resetPhoneNumber by remember { mutableStateOf<String?>(null) }
+            var automaticVerificationToken by remember { mutableStateOf<String?>(null) }
 
             PasswordResetLinkScreen(
                 verificationRequested = verificationId != null,
+                automaticallyVerified = automaticVerificationToken != null,
                 isLoading = resetLoading,
                 errorMessage = resetError,
                 linkSent = linkSent,
@@ -1010,9 +1022,14 @@ fun AppNavHost(
                     resetLoading = true
                     resetError = null
                     linkSent = false
+                    automaticVerificationToken = null
+                    verificationId = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.requestPasswordResetPhoneVerification(phoneNumber) }) {
-                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Success -> {
+                                verificationId = result.value.verificationId
+                                automaticVerificationToken = result.value.autoVerificationToken
+                            }
                             is ApiResult.Failure -> resetError = signupErrorMessage(result.error)
                         }
                         resetLoading = false
@@ -1021,6 +1038,7 @@ fun AppNavHost(
                 onChangePhone = {
                     verificationId = null
                     resetPhoneNumber = null
+                    automaticVerificationToken = null
                     resetError = null
                 },
                 onRequestResetLink = { email, code ->
@@ -1028,7 +1046,10 @@ fun AppNavHost(
                     resetLoading = true
                     resetError = null
                     coroutineScope.launch {
-                        when (val confirmation = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
+                        val confirmation = automaticVerificationToken?.let {
+                            ApiResult.Success(com.ssafy.dib.domain.auth.PhoneVerificationConfirmation(it, ""), 200)
+                        } ?: withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }
+                        when (confirmation) {
                             is ApiResult.Success -> when (val result = withContext(Dispatchers.IO) {
                                 auth.repository.requestPasswordResetLink(
                                     email,
@@ -1111,13 +1132,17 @@ fun AppNavHost(
                         when (val result = withContext(Dispatchers.IO) {
                             auth.repository.requestSignUpPhoneVerification(phoneNumber)
                         }) {
-                            is ApiResult.Success -> signupState = signupState.copy(
-                                phoneRequestLoading = false,
-                                verificationRequestKey = result.value.verificationId,
-                                requestedPhone = phoneNumber,
-                                retryAfterSeconds = result.value.retryAfterSeconds,
-                                phoneError = null
-                            )
+                            is ApiResult.Success -> {
+                                phoneVerificationToken = result.value.autoVerificationToken
+                                signupState = signupState.copy(
+                                    phoneRequestLoading = false,
+                                    verificationRequestKey = result.value.verificationId,
+                                    requestedPhone = phoneNumber,
+                                    retryAfterSeconds = result.value.retryAfterSeconds,
+                                    phoneVerified = result.value.autoVerificationToken != null,
+                                    phoneError = null
+                                )
+                            }
                             is ApiResult.Failure -> signupState = signupState.copy(
                                 phoneRequestLoading = false,
                                 phoneError = signupErrorMessage(result.error)

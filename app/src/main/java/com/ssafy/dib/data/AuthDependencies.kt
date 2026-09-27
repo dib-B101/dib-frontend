@@ -1,6 +1,7 @@
 package com.ssafy.dib.data
 
 import android.content.Context
+import android.app.Activity
 import com.ssafy.dib.core.network.AccessTokenProvider
 import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.core.network.GuestSessionProvider
@@ -12,6 +13,7 @@ import com.ssafy.dib.data.local.search.RecentSearchStore
 import com.ssafy.dib.core.auth.KakaoOAuthConfig
 import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.data.remote.auth.AuthRemoteDataSource
+import com.ssafy.dib.data.remote.auth.FirebasePhoneAuthGateway
 import com.ssafy.dib.data.remote.auction.AuctionRemoteDataSource
 import com.ssafy.dib.data.remote.order.OrderRemoteDataSource
 import com.ssafy.dib.data.remote.support.InquiryRemoteDataSource
@@ -107,7 +109,8 @@ class AuthDependencies(context: Context) {
             guestSessionProvider = GuestSessionProvider { guestSessionId() },
             tokenRefresher = tokenRefresher
         )
-        repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore, deviceId)
+        repository = AuthRepositoryImpl(AuthRemoteDataSource(client), sessionStore, deviceId,
+            phoneAuth = FirebasePhoneAuthGateway(context as Activity))
         auctionRepository = AuctionRepositoryImpl(AuctionRemoteDataSource(client))
         orderRepository = OrderRepositoryImpl(OrderRemoteDataSource(client))
         inquiryRepository = InquiryRepositoryImpl(InquiryRemoteDataSource(client))

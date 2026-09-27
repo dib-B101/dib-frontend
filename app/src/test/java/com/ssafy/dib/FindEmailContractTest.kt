@@ -3,7 +3,7 @@ package com.ssafy.dib
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auth.MaskedEmailResponse
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
-import com.ssafy.dib.data.remote.auth.PhoneVerificationRequest
+import com.ssafy.dib.data.remote.auth.FirebasePhoneVerificationRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,11 +13,12 @@ class FindEmailContractTest {
     @Test
     fun emailLookupUsesDedicatedPhoneVerificationPurpose() {
         val encoded = DibJson.instance.encodeToString(
-            PhoneVerificationRequest.serializer(),
-            PhoneVerificationRequest("01012345678", PhoneVerificationPurpose.FIND_EMAIL)
+            FirebasePhoneVerificationRequest.serializer(),
+            FirebasePhoneVerificationRequest("firebase-token", "01012345678", PhoneVerificationPurpose.FIND_EMAIL)
         )
 
         assertTrue(encoded.contains("\"purpose\":\"FIND_EMAIL\""))
+        assertTrue(encoded.contains("\"idToken\":\"firebase-token\""))
     }
 
     @Test

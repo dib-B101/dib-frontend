@@ -32,6 +32,7 @@ import com.ssafy.dib.ui.theme.WireframeColors as Colors
 @Composable
 fun PasswordResetLinkScreen(
     verificationRequested: Boolean,
+    automaticallyVerified: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
     linkSent: Boolean,
@@ -100,8 +101,11 @@ fun PasswordResetLinkScreen(
                     }, enabled = !isLoading) { Text(if (verificationRequested) "인증번호 재전송" else "인증번호 받기") }
                 }
                 if (verificationRequested) {
-                    Text("인증한 번호로 받은 6자리 코드를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
-                    OutlinedTextField(
+                    if (automaticallyVerified) {
+                        Text("휴대전화 인증이 완료됐어요.", color = Colors.Navy, fontSize = 12.sp)
+                    } else {
+                        Text("인증한 번호로 받은 6자리 코드를 입력해주세요.", color = Colors.Muted, fontSize = 12.sp)
+                        OutlinedTextField(
                         value = verificationCode,
                         onValueChange = { verificationCode = it.filter(Char::isDigit).take(6) },
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -111,14 +115,15 @@ fun PasswordResetLinkScreen(
                         shape = RoundedCornerShape(15.dp),
                         isError = linkAttempted && !codeValid,
                         supportingText = if (linkAttempted && !codeValid) ({ Text("인증번호 6자리를 입력해주세요.") }) else null
-                    )
+                        )
+                    }
                     AuthPrimaryButton(
                         text = "재설정 링크 받기",
-                        enabled = emailValid && codeValid,
+                        enabled = emailValid && (codeValid || automaticallyVerified),
                         loading = isLoading,
                         onClick = {
                             linkAttempted = true
-                            if (emailValid && codeValid) onRequestResetLink(email.trim(), verificationCode)
+                            if (emailValid && (codeValid || automaticallyVerified)) onRequestResetLink(email.trim(), verificationCode)
                         },
                         modifier = Modifier.padding(top = 16.dp)
                     )
