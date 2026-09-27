@@ -726,7 +726,7 @@ fun ProductRegisterScreen(
                     item { RegisterTextField("상품명 *", name, { name = it }, "입력해주세요", maxLength = PRODUCT_TITLE_MAX_LENGTH, errorMessage = "상품명을 입력해주세요".takeIf { validationRequested && name.isBlank() }, guidance = "필수 · 1~200자", guidanceSatisfied = name.isNotBlank()) }
                     item { ProductConditionToggle(condition, { condition = it }, "상품 상태를 선택해주세요".takeIf { validationRequested && condition.isBlank() }) }
                     item { Text("상품 추가 정보", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    item { RegisterTextField("구매 연도 (선택)", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number, errorMessage = "1900년부터 올해까지의 연도를 입력해주세요".takeIf { purchaseYear.isNotBlank() && !yearValid }, guidance = "모르면 비워두세요 · 1900년부터 올해까지", guidanceSatisfied = yearValid) }
+                    item { RegisterTextField("구매 연도", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, "예: 2024", keyboardType = KeyboardType.Number, errorMessage = "1900년부터 올해까지의 연도를 입력해주세요".takeIf { purchaseYear.isNotBlank() && !yearValid }, guidance = "모르면 비워두세요 · 1900년부터 올해까지", guidanceSatisfied = yearValid) }
                     if (attributeSpecs.isNotEmpty()) item {
                         CategoryProductFields(attributeSpecs, attributeValues, { key, value -> attributeValues = attributeValues + (key to value) }, validationRequested)
                     }
@@ -1236,7 +1236,7 @@ private fun RegisterTextField(
                 modifier = Modifier.fillMaxWidth().heightIn(min = if (height >= 100.dp) 76.dp else 56.dp)
                     .onSizeChanged { fieldWidth = it.width }
                     .onFocusChanged { focused = it.isFocused },
-                placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else Color(0xFF8A9099), fontSize = 13.sp) },
+                placeholder = { Text(errorMessage ?: placeholder, color = if (errorMessage != null) Colors.Urgent else ProductFieldPlaceholderColor, fontSize = 13.sp) },
                 singleLine = height < 90.dp,
                 isError = errorMessage != null,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),

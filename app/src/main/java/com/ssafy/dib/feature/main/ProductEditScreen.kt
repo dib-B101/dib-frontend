@@ -201,7 +201,7 @@ private fun ProductEditForm(
                 Text(if (condition.isBlank()) "상품 상태 선택" else conditionLabel(condition))
             }
         }
-        item { EditField("구매 연도 (선택)", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
+        item { EditField("구매 연도", purchaseYear, { purchaseYear = it.filter(Char::isDigit).take(4) }, KeyboardType.Number) }
         if (purchaseYear.isNotBlank() && !purchaseYearValid(purchaseYear)) item {
             Text("1900년부터 올해까지의 연도를 입력해주세요", color = Colors.Urgent, fontSize = 11.sp)
         }
