@@ -29,6 +29,7 @@ class FirebasePhoneAuthGateway(private val activity: Activity) {
 
     fun request(phoneNumber: String): Challenge {
         require(phoneNumber.matches(Regex("010\\d{8}")))
+        auth.setLanguageCode("ko")
         val completed = CountDownLatch(1)
         val finished = AtomicBoolean(false)
         var outcome: Result<Challenge>? = null
