@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import android.content.Intent
 import android.net.Uri
+import com.ssafy.dib.BuildConfig
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -180,6 +181,7 @@ fun AppNavHost(
     var loginError by remember { mutableStateOf<String?>(null) }
     var signupState by remember { mutableStateOf(SignupUiState()) }
     var phoneVerificationToken by remember { mutableStateOf<String?>(null) }
+    var pendingPasswordResetToken by remember { mutableStateOf<String?>(null) }
     var kakaoSignupToken by remember { mutableStateOf<String?>(null) }
     var kakaoNickname by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
@@ -416,6 +418,17 @@ fun AppNavHost(
 
     LaunchedEffect(oauthCallbackUri) {
         val callbackUri = oauthCallbackUri ?: return@LaunchedEffect
+        val resetToken = passwordResetTokenFromAppLink(callbackUri.toString(), BuildConfig.KAKAO_REDIRECT_URI)
+        if (resetToken != null) {
+            pendingPasswordResetToken = resetToken
+            val currentRoute = navController.currentDestination?.route
+            if (currentRoute != null && currentRoute != Screen.Splash.route) {
+                navController.navigate(Screen.PasswordReset.createRoute(resetToken))
+                pendingPasswordResetToken = null
+            }
+            onOAuthCallbackConsumed()
+            return@LaunchedEffect
+        }
         try {
             when (val callback = auth.kakaoOAuthConfig.parseCallback(callbackUri)) {
                 is KakaoOAuthCallback.Success -> {
@@ -874,7 +887,13 @@ fun AppNavHost(
                     }
                     val destination = if (restored) postSignInRoute() else Screen.Welcome.route
                     signedIn = restored
-                    if (restored) {
+                    val resetToken = pendingPasswordResetToken
+                    if (resetToken != null) {
+                        pendingPasswordResetToken = null
+                        navController.navigate(Screen.PasswordReset.createRoute(resetToken)) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    } else if (restored) {
                         navigateAfterSignIn(destination, Screen.Splash.route)
                     } else {
                         navController.navigate(destination) {
@@ -1216,7 +1235,7 @@ fun AppNavHost(
                         signupState = signupState.copy(signupError = "입력 정보와 인증 상태를 다시 확인해주세요.")
                         return@SignupScreen
                     }
-                    signupState = signupState.copy(signupLoading = true, signupError = null)
+                    signupState = signupState.copy(signupLoading = true, signupError = null, rejectedNickname = null)
                     coroutineScope.launch {
                         fun finishSignup() {
                             signupState = SignupUiState()
@@ -1308,6 +1327,9 @@ fun AppNavHost(
                                     signupState = signupState.copy(
                                         signupLoading = false,
                                         signupError = signupErrorMessage(result.error)
+                                            .takeUnless { result.error.code == "NICKNAME_DUPLICATED" },
+                                        rejectedNickname = form.nickname
+                                            .takeIf { result.error.code == "NICKNAME_DUPLICATED" }
                                     )
                                 }
                             }
