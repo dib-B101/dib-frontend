@@ -327,6 +327,7 @@ fun ProductDetailScreen(
                     productName, currentPrice, product.bidCount,
                     remainingSeconds, auctionState, product.priceUndecided && currentPrice <= 0,
                     productDetail, product, bidMotionTone, bidMotionSequence,
+                    hasOwnBid = myHighestBidAmount != null || isHighestBidder,
                     onSellerClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) }
                 )
             }
@@ -619,6 +620,7 @@ private fun ProductSummary(
     auction: HomeAuction,
     bidMotionTone: BidMotionTone,
     bidMotionSequence: Int,
+    hasOwnBid: Boolean,
     onSellerClick: () -> Unit
 ) {
     val bidding = state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder
@@ -672,7 +674,8 @@ private fun ProductSummary(
                                 identity = auction.id,
                                 motionSequence = bidMotionSequence,
                                 tone = if (leading && bidMotionTone == BidMotionTone.Outbid) BidMotionTone.Neutral else bidMotionTone,
-                                urgent = urgent,
+                                // 아직 입찰하지 않았다면 다른 사람의 입찰은 숫자 변화로만 알린다.
+                                urgent = urgent && hasOwnBid,
                                 maxFontSize = 20.sp,
                                 lineHeight = 27.sp,
                                 baseColor = if (leading) Colors.MintInk else Colors.Text,

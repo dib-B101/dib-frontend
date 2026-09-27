@@ -777,7 +777,8 @@ private fun LiveFeedPage(
                                     identity = auctionKey.orEmpty(),
                                     motionSequence = bidMotionSequence,
                                     tone = bidMotionTone,
-                                    urgent = auctionUrgent,
+                                    // 입찰 이력이 없는 시청자는 가격 숫자만 갱신한다.
+                                    urgent = auctionUrgent && (activeAuction?.myBidAmount != null || isHighestBidder),
                                     maxFontSize = 24.sp,
                                     lineHeight = 29.sp,
                                     baseColor = Colors.Navy,
