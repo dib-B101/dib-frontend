@@ -191,10 +191,11 @@ fun AddressManagementScreen(
 }
 
 @Composable private fun AddressEditor(initial: MemberAddress, actionLoading: Boolean, onDismiss: () -> Unit, onSave: (MemberAddress) -> Unit) {
+    val storedAddressParts = remember(initial.address) { splitStoredAddress(initial.address) }
     var label by rememberSaveable(initial.addressId) { mutableStateOf(initial.name) }
     var postalCode by rememberSaveable(initial.addressId) { mutableStateOf(initial.postalCode) }
-    var address by rememberSaveable(initial.addressId) { mutableStateOf(initial.address) }
-    var detail by rememberSaveable(initial.addressId) { mutableStateOf("") }
+    var address by rememberSaveable(initial.addressId) { mutableStateOf(storedAddressParts.first) }
+    var detail by rememberSaveable(initial.addressId) { mutableStateOf(storedAddressParts.second) }
     var apiAddressId by rememberSaveable(initial.addressId) { mutableStateOf(initial.apiAddressId) }
     var searching by rememberSaveable(initial.addressId) { mutableStateOf(false) }
     if (searching) PostcodeSearchDialog(
@@ -215,15 +216,22 @@ fun AddressManagementScreen(
                 Text(if (postalCode.isBlank()) "우편번호 검색" else "우편번호 다시 찾기", fontWeight = FontWeight.Bold)
             }
             if (postalCode.isNotBlank()) Text("($postalCode) $address", color = Colors.Text, fontSize = 13.sp, lineHeight = 19.sp)
-            OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text("상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
+            OutlinedTextField(detail, { detail = it }, modifier = Modifier.fillMaxWidth(), label = { Text(if (address.isBlank()) "주소 및 상세주소" else "상세주소 (동/호수)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
             OutlinedTextField(label, { label = it }, modifier = Modifier.fillMaxWidth(), label = { Text("배송지 이름 (집, 회사 …)") }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = dialogFieldColors())
         } },
         confirmButton = { DibDialogConfirmButton("저장", onClick = {
             onSave(initial.copy(name = label.trim(), postalCode = postalCode,
                 address = listOf(address, detail.trim()).filter(String::isNotBlank).joinToString(" "), apiAddressId = apiAddressId))
-        }, enabled = label.isNotBlank() && address.isNotBlank() && apiAddressId.isNotBlank(), loading = actionLoading) },
+        }, enabled = label.isNotBlank() && (address.isNotBlank() || detail.isNotBlank()) && apiAddressId.isNotBlank(), loading = actionLoading) },
         dismissButton = { DibDialogDismissButton(onDismiss, enabled = !actionLoading) }
     )
+}
+
+// 서버에는 도로명주소와 상세주소가 한 문자열로 저장된다. 도로명 건물번호까지만
+// 확실히 구분될 때 분리하고, 그 외 주소는 전체를 입력란에 보여 데이터 손실을 막는다.
+private fun splitStoredAddress(stored: String): Pair<String, String> {
+    val match = Regex("^(.+?(?:로|길)\\s*\\d+(?:-\\d+)?)(?:\\s+(.+))?$").matchEntire(stored.trim())
+    return if (match == null) "" to stored else match.groupValues[1] to match.groupValues[2]
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -564,14 +564,14 @@ fun MyPageScreen(
                 val actions = listOf(
                     MyPageAction(R.drawable.favorite_outline, "찜한 경매", onFavoritesClick),
                     MyPageAction(R.drawable.nav_register_full, "등록 상품", onRegisteredProductsClick),
-                    MyPageAction(R.drawable.notification_vector, "알림", onNotificationsClick),
-                    MyPageAction(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick),
                     MyPageAction(R.drawable.menu_location, "배송지 관리", onAddressesClick),
                     MyPageAction(R.drawable.menu_payment, "결제수단 관리", onPaymentMethodsClick),
                     MyPageAction(R.drawable.menu_account, "정산 계좌 관리", onAccountsClick),
                     MyPageAction(R.drawable.menu_receipt, "정산 내역", onSettlementsClick),
-                    MyPageAction(R.drawable.notification_vector, "알림 설정", onNotificationSettingsClick),
+                    MyPageAction(R.drawable.nav_feed_full, "문의 내역", onInquiriesClick),
                     MyPageAction(R.drawable.menu_report, "신고 내역", onReportsClick),
+                    MyPageAction(R.drawable.notification_vector, "알림", onNotificationsClick),
+                    MyPageAction(R.drawable.notification_vector, "알림 설정", onNotificationSettingsClick),
                     MyPageAction(R.drawable.menu_person_remove, "회원 탈퇴", onWithdrawalClick, destructive = true),
                     MyPageAction(R.drawable.menu_logout, "로그아웃", { confirmation = "로그아웃" }, destructive = true)
                 )
