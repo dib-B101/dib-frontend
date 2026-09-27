@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +23,8 @@ import com.ssafy.dib.domain.product.ProductAttributeSpec
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import java.time.LocalDate
 import java.time.Year
+
+internal val ProductFieldPlaceholderColor = Color(0xFF8A9099)
 
 internal fun productYearValid(value: String): Boolean =
     value.isBlank() || value.toIntOrNull() in 1900..2100
@@ -61,7 +64,7 @@ internal fun CategoryProductFields(
         val value = values[spec.key].orEmpty()
         val error = productAttributeError(spec, value)?.takeIf { showRequiredErrors || value.isNotBlank() }
         Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-            Text("${spec.label}${if (spec.required) " *" else " (선택)"}", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("${spec.label}${if (spec.required) " *" else ""}", color = Colors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             if (spec.type == "CONFIRM") {
                 Row(
                     Modifier.fillMaxWidth().clickable { onValueChange(spec.key, if (value == "true") "" else "true") },
@@ -79,7 +82,7 @@ internal fun CategoryProductFields(
                         onValueChange(spec.key, filtered)
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    placeholder = { Text(spec.placeholder) },
+                    placeholder = { Text(spec.placeholder, color = ProductFieldPlaceholderColor, fontSize = 13.sp) },
                     singleLine = true,
                     isError = error != null,
                     keyboardOptions = KeyboardOptions(keyboardType = if (spec.type == "YEAR") KeyboardType.Number else KeyboardType.Text)
