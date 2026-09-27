@@ -53,6 +53,7 @@ internal fun firebasePhoneFailureForCode(
         firebaseError == "ERROR_SESSION_EXPIRED" || firebaseError == "ERROR_INVALID_VERIFICATION_ID" -> "VERIFICATION_EXPIRED"
         firebaseError == "ERROR_INVALID_PHONE_NUMBER" -> "INVALID_PHONE"
         firebaseError == "ERROR_TOO_MANY_REQUESTS" || firebaseError == "ERROR_QUOTA_EXCEEDED" -> "RATE_LIMITED"
+        firebaseError == "ERROR_APP_NOT_AUTHORIZED" -> "APP_VERIFICATION_FAILED"
         networkError -> "NETWORK_ERROR"
         else -> "FIREBASE_PHONE_AUTH_FAILED"
     }

@@ -5806,6 +5806,7 @@ internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "NETWORK_ERROR" -> "네트워크 연결을 확인한 뒤 다시 시도해주세요."
     "FIREBASE_PHONE_AUTH_FAILED" -> "휴대폰 인증을 완료하지 못했어요. 잠시 후 다시 시도해주세요."
     "SMS_BILLING_NOT_ENABLED" -> "현재 실제 번호로 SMS 인증을 사용할 수 없어요. 관리자에게 문의해주세요."
+    "APP_VERIFICATION_FAILED" -> "앱 확인에 실패했어요. 앱을 다시 실행한 뒤 시도해주세요."
     "INVALID_EMAIL" -> "이메일 형식을 확인해주세요."
     "EMAIL_DUPLICATED" -> "이미 가입된 이메일이에요."
     "PHONE_DUPLICATED" -> "이미 가입된 휴대폰 번호예요."
