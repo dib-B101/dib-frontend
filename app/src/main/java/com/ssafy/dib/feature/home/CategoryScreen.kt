@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibBottomNavigation
 import com.ssafy.dib.core.ui.DibNotificationBell
-import com.ssafy.dib.core.ui.DibSearchBar
 import com.ssafy.dib.core.ui.DibMainTab
 import com.ssafy.dib.core.ui.DibPullToRefreshBox
 import com.ssafy.dib.core.ui.CategoryGridItem
@@ -112,10 +111,7 @@ fun CategoryScreen(
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
-            Spacer(Modifier.height(12.dp))
-            // 홈과 같은 검색 상자
-            DibSearchBar("어떤 상품을 찾고 있나요?", onSearchClick)
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Text(if(selectedId == null) "전체 카테고리" else "진행·예정 경매", color = Colors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             if (selectedId == null) Text("관심 있는 분야의 경매를 둘러보세요", Modifier.padding(top = 4.dp), color = Colors.Muted, fontSize = 13.sp)
             Spacer(Modifier.height(18.dp))
