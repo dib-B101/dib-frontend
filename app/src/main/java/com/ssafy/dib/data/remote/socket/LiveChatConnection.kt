@@ -10,13 +10,14 @@ import kotlinx.serialization.json.contentOrNull
 class LiveChatConnection(
     private val socket: DibWebSocketClient,
     private val codec: SocketCodec = SocketCodec(),
-    private val eventParser: LiveSocketEventParser = LiveSocketEventParser()
+    private val eventParser: LiveSocketEventParser = LiveSocketEventParser(),
+    private val sessionMemberId: () -> String?
 ) {
     private val reconnectExecutor = Executors.newSingleThreadScheduledExecutor { task ->
         Thread(task, "dib-live-reconnect").apply { isDaemon = true }
     }
     private var liveBroadcastId = ""
-    @Volatile private var currentMemberId: String? = null
+    @Volatile private var connectedMemberId: String? = null
     private var subscribedAuctionId: String? = null
     @Volatile private var active = false
     private var reconnectAttempt = 0
@@ -51,10 +52,15 @@ class LiveChatConnection(
 
     private fun connect(state: RealtimeConnectionState) {
         if (!active) return
+        connectedMemberId = sessionMemberId()
         onState(state)
         socket.connect(object : DibSocketListener {
             override fun onConnected() {
                 if (!active) return
+                if (connectedMemberId != sessionMemberId()) {
+                    reconnectForSessionChange()
+                    return
+                }
                 reconnectTask?.cancel(false)
                 reconnectTask = null
                 reconnectAttempt = 0
@@ -76,6 +82,10 @@ class LiveChatConnection(
 
             override fun onEvent(envelope: SocketEnvelope) {
                 if (!active) return
+                if (connectedMemberId != sessionMemberId()) {
+                    reconnectForSessionChange()
+                    return
+                }
                 when (envelope.eventType) {
                     SocketEventTypes.LIVE_CHAT_MESSAGE_CREATED -> runCatching {
                         codec.decodePayload(envelope, LiveChatMessageCreatedPayload.serializer())
@@ -90,7 +100,13 @@ class LiveChatConnection(
                         val pending = synchronized(this@LiveChatConnection) {
                             pendingChatMessages.remove(payload.commandId)
                         }
-                        acceptedLiveMessage(payload, pending, currentMemberId, envelope.occurredAt)?.let(onMessage)
+                        val acceptedMemberId = payload.memberId.idValueOrNull()
+                        if (acceptedMemberId != null && acceptedMemberId != connectedMemberId) {
+                            onError("로그인 계정과 Live 연결이 일치하지 않아요. 다시 연결합니다.")
+                            reconnectForSessionChange()
+                        } else {
+                            acceptedLiveMessage(payload, pending, envelope.occurredAt)?.let(onMessage)
+                        }
                     }
                     SocketEventTypes.CHAT_REJECTED -> runCatching {
                         codec.decodePayload(envelope, LiveChatRejectedPayload.serializer())
@@ -155,6 +171,10 @@ class LiveChatConnection(
     fun send(content: String): Boolean {
         val value = content.trim()
         if (!active || value.isBlank() || value.length > 500) return false
+        if (connectedMemberId == null || connectedMemberId != sessionMemberId()) {
+            reconnectForSessionChange()
+            return false
+        }
         val command = SocketCommands.sendLiveChat(liveBroadcastId, value)
         command.commandId?.let { pendingChatMessages[it] = command }
         if (!socket.send(command)) scheduleReconnect()
@@ -164,15 +184,15 @@ class LiveChatConnection(
     @Synchronized
     fun placeBid(auctionId: String, amount: Int): String? {
         if (!active || auctionId.isBlank() || amount <= 0 || pendingBidCommand != null) return null
+        if (connectedMemberId == null || connectedMemberId != sessionMemberId()) {
+            reconnectForSessionChange()
+            return null
+        }
         if (subscribedAuctionId != auctionId) subscribeAuction(auctionId)
         return SocketCommands.placeBid(auctionId, amount.toLong()).also { command ->
             pendingBidCommand = command
             if (!socket.send(command)) scheduleReconnect()
         }.commandId
-    }
-
-    fun updateCurrentMemberId(memberId: String?) {
-        currentMemberId = memberId?.takeIf(String::isNotBlank)
     }
 
     /** Live 소켓은 유지한 채 현재 경매 토픽만 교체한다. */
@@ -227,7 +247,7 @@ class LiveChatConnection(
         subscribedAuctionId?.let { socket.send(SocketCommands.unsubscribeAuction(it)) }
         if (active && liveBroadcastId.isNotBlank()) socket.send(SocketCommands.unsubscribeLive(liveBroadcastId))
         active = false
-        currentMemberId = null
+        connectedMemberId = null
         subscribedAuctionId = null
         pendingBidCommand = null
         pendingChatMessages.clear()
@@ -238,6 +258,14 @@ class LiveChatConnection(
         stopSession()
         socket.close()
         reconnectExecutor.shutdownNow()
+    }
+
+    @Synchronized
+    private fun reconnectForSessionChange() {
+        pendingBidCommand = null
+        pendingChatMessages.clear()
+        socket.disconnect()
+        scheduleReconnect()
     }
 
     private fun shouldHandleUpdate(update: LiveRealtimeUpdate): Boolean {
@@ -258,17 +286,18 @@ class LiveChatConnection(
 internal fun acceptedLiveMessage(
     accepted: LiveChatAcceptedPayload,
     pending: SocketEnvelope?,
-    currentMemberId: String?,
     envelopeOccurredAt: String?
 ): LiveChatMessage? {
     if (pending?.commandId != accepted.commandId) return null
-    val memberId = currentMemberId?.takeIf(String::isNotBlank) ?: return null
+    // 구버전 서버 응답에는 작성자 ID가 없다. 이 경우 앱 프로필로 추측하지 않고
+    // 서버의 LIVE_CHAT_MESSAGE_CREATED 방송을 기다린다.
+    val memberId = accepted.memberId.idValueOrNull() ?: return null
     val pendingLiveId = pending.payload["liveBroadcastId"].idValueOrNull() ?: return null
     if (accepted.liveBroadcastId?.idValue()?.let { it != pendingLiveId } == true) return null
     val chattingId = accepted.liveChattingId?.idValue() ?: return null
     val content = pending.payload["content"].idValueOrNull() ?: return null
     val time = accepted.time ?: envelopeOccurredAt ?: return null
-    return LiveChatMessage(chattingId, memberId, null, content, time)
+    return LiveChatMessage(chattingId, memberId, accepted.nickname, content, time)
 }
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =

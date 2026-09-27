@@ -7,28 +7,14 @@ import com.ssafy.dib.core.network.DibHttpClient
 import com.ssafy.dib.data.remote.ApiRoutes
 
 class AuthRemoteDataSource(private val client: DibHttpClient) {
-    fun requestPhoneVerification(request: PhoneVerificationRequest): ApiResult<PhoneVerificationResponse> = configured {
-        val httpRequest = client.requestBuilder(ApiRoutes.PHONE_VERIFICATIONS)
-            .post(client.jsonBody(request, PhoneVerificationRequest.serializer()))
-            .build()
-        client.execute(httpRequest, PhoneVerificationResponse.serializer())
-    }
-
-    fun confirmPhoneVerification(
-        verificationId: String,
-        request: PhoneVerificationConfirmRequest
-    ): ApiResult<PhoneVerificationConfirmResponse> = configured {
-        val url = client.urlBuilder(ApiRoutes.PHONE_VERIFICATIONS)
-            .addPathSegment(verificationId)
-            .addPathSegment("confirm")
-            .build()
+    fun verifyFirebasePhone(request: FirebasePhoneVerificationRequest): ApiResult<PhoneVerificationConfirmResponse> = configured {
+        val url = client.urlBuilder(ApiRoutes.PHONE_VERIFICATIONS).addPathSegment("firebase").build()
         val httpRequest = client.requestBuilder(ApiRoutes.PHONE_VERIFICATIONS)
             .url(url)
-            .post(client.jsonBody(request, PhoneVerificationConfirmRequest.serializer()))
+            .post(client.jsonBody(request, FirebasePhoneVerificationRequest.serializer()))
             .build()
         client.execute(httpRequest, PhoneVerificationConfirmResponse.serializer())
     }
-
     fun checkEmailAvailability(email: String): ApiResult<EmailAvailabilityResponse> = configured {
         val url = client.urlBuilder(ApiRoutes.EMAIL_AVAILABILITY)
             .addQueryParameter("email", email)

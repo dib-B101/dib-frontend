@@ -57,6 +57,8 @@ class ChatAckContractTest {
                     put("commandId", "command-2")
                     put("liveBroadcastId", "live-1")
                     put("liveChattingId", 19)
+                    put("memberId", 3)
+                    put("nickname", "윤정")
                 }
             ),
             LiveChatAcceptedPayload.serializer()
@@ -81,13 +83,30 @@ class ChatAckContractTest {
         val message = acceptedLiveMessage(
             accepted,
             SocketCommands.sendLiveChat("live-1", "라이브 댓글입니다.", "command-2"),
-            "member-3",
             "2026-09-14T10:01:00Z"
         )!!
         assertEquals("19", message.liveChattingId)
-        assertEquals("member-3", message.memberId)
+        assertEquals("3", message.memberId)
+        assertEquals("윤정", message.nickname)
         assertEquals("라이브 댓글입니다.", message.content)
         assertEquals("2026-09-14T10:01:00Z", message.time)
+    }
+
+    @Test
+    fun `does not invent an author for legacy live chat acceptance`() {
+        val accepted = LiveChatAcceptedPayload(
+            commandId = "command-legacy",
+            liveChattingId = kotlinx.serialization.json.JsonPrimitive(20)
+        )
+
+        assertEquals(
+            null,
+            acceptedLiveMessage(
+                accepted,
+                SocketCommands.sendLiveChat("live-1", "댓글", "command-legacy"),
+                "2026-09-14T10:02:00Z"
+            )
+        )
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.ssafy.dib.feature.home
 
+import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,7 +31,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.core.ui.DibWishlistButton
+import com.ssafy.dib.core.time.remainingWholeSeconds
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import kotlinx.coroutines.delay
 
 /**
  * 상품 카드는 앱 어디서나 홈 카드와 같은 모양이어야 한다.
@@ -40,8 +52,9 @@ fun HomeAuctionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showStatus: Boolean = false,
-    meta: String = homeAuctionMeta(auction)
+    meta: String? = null
 ) {
+    val remainingSeconds = rememberHomeAuctionRemaining(auction)
     Surface(
         onClick = onClick,
         modifier = modifier,
@@ -64,7 +77,7 @@ fun HomeAuctionCard(
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(auction.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
                 Text(auction.priceText, color = Colors.Navy, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
-                Text(meta, maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                Text(meta ?: homeAuctionMeta(auction, remainingSeconds), maxLines = 1, color = Colors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
             }
         }
     }
@@ -78,8 +91,9 @@ fun HomeAuctionListCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showStatus: Boolean = false,
-    meta: String = homeAuctionMeta(auction)
+    meta: String? = null
 ) {
+    val remainingSeconds = rememberHomeAuctionRemaining(auction)
     Row(
         modifier.fillMaxWidth().height(116.dp)
             .background(Color.White, RoundedCornerShape(16.dp))
@@ -95,7 +109,7 @@ fun HomeAuctionListCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(auction.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(auction.priceText, color = Colors.Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(meta, color = Colors.Muted, fontSize = 10.sp)
+            Text(meta ?: homeAuctionMeta(auction, remainingSeconds), color = Colors.Muted, fontSize = 10.sp)
         }
         if (onFavorite != null) DibWishlistButton(favorite, onFavorite, auction.name)
     }
@@ -115,10 +129,37 @@ private fun HomeAuctionStatusBadge(status: String, modifier: Modifier = Modifier
     }
 }
 
-/** 카드 아랫줄. 진행 중이면 남은 시간, 예정·종료면 상태 글자 — 예정 건의 remainingSeconds 는 진행 시간 그대로라 그대로 쓰면 틀린다 */
-internal fun homeAuctionMeta(auction: HomeAuction): String = when (auction.status.uppercase()) {
-    "SCHEDULED" -> "경매 예정 · 입찰 ${auction.bidCount}회"
-    "ENDED" -> "경매 종료 · 입찰 ${auction.bidCount}회"
+/** 카드 아랫줄. 진행 중이면 남은 시간, 예정·종료면 상태 글자. */
+internal fun homeAuctionMeta(auction: HomeAuction, remainingSeconds: Int = auction.remainingSeconds): String = when (auction.status.uppercase()) {
+    "SCHEDULED" -> "경매 예정"
+    "ENDED" -> "경매 종료"
     "CANCELED", "CANCELLED" -> "경매 취소"
-    else -> "${remainingTimeLabel(auction.remainingSeconds)} 남음 · 입찰 ${auction.bidCount}회"
+    else -> if (remainingSeconds <= 0) "마감" else "${remainingTimeLabel(remainingSeconds)} 남음"
+}
+
+/** 서버 종료 시각을 우선 사용하고, 없는 응답은 단조 시계로 받은 초부터 센다. */
+@Composable
+internal fun rememberHomeAuctionRemaining(auction: HomeAuction): Int {
+    val endInstant = remember(auction.endedAt) {
+        auction.endedAt?.takeIf(String::isNotBlank)?.let { raw ->
+            runCatching { Instant.parse(raw) }
+                .recoverCatching { OffsetDateTime.parse(raw).toInstant() }
+                .recoverCatching { LocalDateTime.parse(raw).atZone(ZoneId.systemDefault()).toInstant() }
+                .getOrNull()
+        }
+    }
+    var remaining by remember(auction.id, auction.endedAt, auction.remainingSeconds) {
+        mutableIntStateOf(endInstant?.let { remainingWholeSeconds(Instant.now(), it) } ?: auction.remainingSeconds)
+    }
+    LaunchedEffect(auction.id, auction.status, auction.endedAt, auction.remainingSeconds) {
+        if (!auction.status.equals("ACTIVE", ignoreCase = true)) return@LaunchedEffect
+        val deadlineMillis = SystemClock.elapsedRealtime() + auction.remainingSeconds.coerceAtLeast(0).toLong() * 1_000L
+        while (true) {
+            remaining = endInstant?.let { remainingWholeSeconds(Instant.now(), it) }
+                ?: ((deadlineMillis - SystemClock.elapsedRealtime() + 999L) / 1_000L).coerceAtLeast(0L).toInt()
+            if (remaining <= 0) break
+            delay(1_000)
+        }
+    }
+    return remaining
 }

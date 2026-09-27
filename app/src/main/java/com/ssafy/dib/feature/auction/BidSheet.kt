@@ -125,11 +125,7 @@ fun AuctionBidSheet(
             if (submissionError.isNotBlank()) {
                 Text(submissionError, Modifier.fillMaxWidth().background(Color(0xFFFFE9E9), RoundedCornerShape(10.dp)).padding(12.dp), color = Color(0xFFD1381F), fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
             }
-            // 최소 금액은 라벨 바로 옆에 붙인다. 오른쪽 끝에 두면 라벨과 따로 놀았다
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("입찰 금액", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("${"%,d".format(minimum)}원 이상", color = Colors.Muted, fontSize = 12.sp)
-            }
+            Text("입찰 금액", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { value -> amountText = value.filter(Char::isDigit).take(9) },

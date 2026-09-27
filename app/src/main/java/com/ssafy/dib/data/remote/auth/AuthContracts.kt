@@ -12,25 +12,16 @@ enum class PhoneVerificationPurpose {
 }
 
 @Serializable
-data class PhoneVerificationRequest(
-    val phoneNumber: String,
-    val purpose: PhoneVerificationPurpose
-)
-
-@Serializable
-data class PhoneVerificationResponse(
-    val verificationId: String,
-    val expiresAt: String,
-    val retryAfterSeconds: Long
-)
-
-@Serializable
-data class PhoneVerificationConfirmRequest(val code: String)
-
-@Serializable
 data class PhoneVerificationConfirmResponse(
     val verificationToken: String,
     val expiresAt: String
+)
+
+@Serializable
+data class FirebasePhoneVerificationRequest(
+    val idToken: String,
+    val phoneNumber: String,
+    val purpose: PhoneVerificationPurpose
 )
 
 @Serializable

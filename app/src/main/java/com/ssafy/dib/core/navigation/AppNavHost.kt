@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -46,7 +47,6 @@ import com.ssafy.dib.core.ui.DibCreateMenuSheet
 import com.ssafy.dib.core.ui.AssistantNotice
 import com.ssafy.dib.core.ui.DibFloatingAssistant
 import com.ssafy.dib.core.ui.ReviewRatingDialog
-import com.ssafy.dib.BuildConfig
 import com.ssafy.dib.feature.auction.ProductDetailScreen
 import com.ssafy.dib.feature.auction.RealtimeBidFeedback
 import com.ssafy.dib.feature.auction.AuctionRegisterScreen
@@ -67,6 +67,7 @@ import com.ssafy.dib.feature.auth.PasswordResetScreen
 import com.ssafy.dib.feature.auth.SignupScreen
 import com.ssafy.dib.feature.auth.SignupUiState
 import com.ssafy.dib.feature.auth.SignupMode
+import com.ssafy.dib.feature.auth.SignupValidator
 import com.ssafy.dib.feature.auth.SplashScreen
 import com.ssafy.dib.feature.auth.WelcomeScreen
 import com.ssafy.dib.feature.feed.LiveFeedScreen
@@ -82,6 +83,8 @@ import com.ssafy.dib.feature.main.prepareProductImageUpload
 import com.ssafy.dib.feature.live.LiveBidNotice
 import com.ssafy.dib.feature.live.LiveAuctionResult
 import com.ssafy.dib.feature.home.HomeScreen
+import com.ssafy.dib.feature.home.RecommendedAuctionsScreen
+import com.ssafy.dib.feature.home.recommended
 import com.ssafy.dib.feature.home.humanizeNotificationText
 import com.ssafy.dib.feature.home.orderIdsInNotificationText
 import com.ssafy.dib.feature.home.HomeAuction
@@ -125,6 +128,7 @@ import com.ssafy.dib.domain.auth.KakaoSignupCommand
 import com.ssafy.dib.core.auth.KakaoOAuthCallback
 import com.ssafy.dib.domain.order.OrderRole
 import com.ssafy.dib.domain.auction.SellerAuction
+import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.domain.order.OrderSummary
 import com.ssafy.dib.domain.auction.SaleHistoryItem
 import com.ssafy.dib.domain.support.InquiryDetail
@@ -133,14 +137,13 @@ import com.ssafy.dib.domain.report.ReportSummary
 import com.ssafy.dib.domain.product.ProductCategory
 
 import com.ssafy.dib.domain.product.ProductRegistration
-import com.ssafy.dib.domain.product.ProductRegistrationResult
 import com.ssafy.dib.domain.product.ProductSearchFilter
 import com.ssafy.dib.domain.product.RegisteredProduct
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.data.remote.socket.AuctionRealtimeConnection
 import com.ssafy.dib.data.remote.socket.SocketEventTypes
 import com.ssafy.dib.domain.notification.DomainNotification
-import com.ssafy.dib.domain.notification.NotificationCategory
+import com.ssafy.dib.domain.notification.isEnabledBy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -168,6 +171,7 @@ fun AppNavHost(
     var showCreateMenu by rememberSaveable { mutableStateOf(false) }
     var productSelectionPurpose by rememberSaveable { mutableStateOf<String?>(null) }
     var browseAllAuctions by rememberSaveable { mutableStateOf(false) }
+    var browseClosingSoon by rememberSaveable { mutableStateOf(false) }
     // 홈 "지금 LIVE" 에서 고른 방송. 피드 탭이 열리면 그 방송 페이지로 바로 넘긴다 (browseAllAuctions 와 같은 전달 방식).
     // 예전엔 홈 경로가 별도 시청 화면(LiveWatchScreen)을 열어 피드와 다른 모양·다른 시청자 수를 보여줬다
     var feedFocusLiveBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -179,12 +183,14 @@ fun AppNavHost(
     var kakaoSignupToken by remember { mutableStateOf<String?>(null) }
     var kakaoNickname by remember { mutableStateOf<String?>(null) }
     var remoteAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
-    // 홈 마감 임박 카드에서 바로 입찰한 결과 메시지. 홈이 토스트로 보여준 뒤 비운다
-    var homeBidNotice by remember { mutableStateOf<String?>(null) }
     var remoteHomeLives by remember { mutableStateOf<List<com.ssafy.dib.domain.auction.RecommendedLive>?>(null) }
+    var remoteHomeLiveAuction by remember { mutableStateOf<AuctionSummary?>(null) }
+    var cachedCategories by remember { mutableStateOf<List<ProductCategory>?>(null) }
+    val cachedCategoryPages = remember { mutableStateMapOf<String, CachedCategoryPage>() }
     var auctionsLoading by remember { mutableStateOf(auth.networkConfig.isRestConfigured) }
     var auctionsError by remember { mutableStateOf<String?>(null) }
     var auctionsRevision by remember { mutableStateOf(0) }
+    var productModerationRevision by remember { mutableStateOf(0) }
     // 피드 갱신 신호. 원래는 피드 화면 안에 있어서 **바깥 사건이 건드릴 수 없었다.**
     // 탭을 다시 누르거나 앱을 다시 켰을 때 새로 시작한 라이브를 발견할 방법이 없던
     // 이유가 이것이다 (QA #19). 홈(auctionsRevision)과 같은 자리에 두어 두 탭이
@@ -375,23 +381,25 @@ fun AppNavHost(
         }
     }
 
+    suspend fun restoreAppAccess(): Boolean {
+        if (hasAppAccess) return true
+        val restored = withContext(Dispatchers.IO) {
+            val session = auth.repository.currentSession()
+            when {
+                session == null -> false
+                !session.needsRefresh(System.currentTimeMillis()) -> true
+                else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
+            }
+        }
+        if (restored) signedIn = true
+        return restored
+    }
+
     fun navigateMain(tab: DibMainTab) {
         if (!hasAppAccess && tab in setOf(DibMainTab.Register, DibMainTab.Trades, DibMainTab.My)) {
             coroutineScope.launch {
-                val restored = withContext(Dispatchers.IO) {
-                    val session = auth.repository.currentSession()
-                    when {
-                        session == null -> false
-                        !session.needsRefresh(System.currentTimeMillis()) -> true
-                        else -> auth.repository.refresh(auth.deviceId) is ApiResult.Success
-                    }
-                }
-                if (restored) {
-                    signedIn = true
-                    openMainTab(tab)
-                } else {
-                    navController.navigate(Screen.Login.route)
-                }
+                if (restoreAppAccess()) openMainTab(tab)
+                else navController.navigate(Screen.Login.route)
             }
             return
         }
@@ -492,12 +500,9 @@ fun AppNavHost(
         }
     }
 
-    fun isNotificationEnabled(notification: DomainNotification): Boolean = when (notification.category) {
-        NotificationCategory.Trade -> tradeNotificationsEnabled
-        NotificationCategory.Live -> liveNotificationsEnabled
-        NotificationCategory.Bookmark -> wishlistNotificationsEnabled
-        NotificationCategory.Other -> true
-    }
+    fun isNotificationEnabled(notification: DomainNotification): Boolean = notification.isEnabledBy(
+        tradeNotificationsEnabled, liveNotificationsEnabled, wishlistNotificationsEnabled
+    )
 
     fun updateBookmark(
         auctionId: String,
@@ -641,6 +646,9 @@ fun AppNavHost(
                             if (notification.resourceType.equals("ORDER", ignoreCase = true)) {
                                 ordersRevision++
                             }
+                            if (notification.resourceType.equals("PRODUCT", ignoreCase = true)) {
+                                productModerationRevision++
+                            }
                             if (isNotificationEnabled(notification) && domainNotifications.none { it.eventId == notification.eventId }) {
                                 domainNotifications = mergeNotifications(listOf(notification), domainNotifications)
                                 unreadNotificationCount = if (unreadNotificationCount < Int.MAX_VALUE) {
@@ -710,10 +718,8 @@ fun AppNavHost(
         auctionsError = null
         when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations() }) {
             is ApiResult.Success -> {
-                // 첫 진입은 AI 추천 순서 그대로, 당겨서 새로고침(revision > 0)부터는 섞어서 홈 추천 4장이 매번 달라지게 한다.
-                // 서버 추천 스냅샷은 회원별로 고정이라 섞지 않으면 새로고침해도 같은 4장만 보였다
                 val items = result.value.generalItems.map { it.toHomeAuction() }
-                remoteAuctions = if (auctionsRevision == 0) items else items.shuffled()
+                remoteAuctions = items
                 remoteHomeLives = result.value.liveItems
             }
             is ApiResult.Failure -> {
@@ -722,6 +728,27 @@ fun AppNavHost(
             }
         }
         auctionsLoading = false
+    }
+
+    // 홈에 있는 동안 공개 카테고리 목록을 미리 받아 카테고리 진입 직후 사용할 수 있게 한다.
+    LaunchedEffect(previewMode) {
+        if (previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
+        when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
+            is ApiResult.Success -> cachedCategories = result.value
+            is ApiResult.Failure -> Unit
+        }
+    }
+
+    LaunchedEffect(remoteHomeLives, auctionsRevision, previewMode) {
+        val liveId = remoteHomeLives?.firstOrNull()?.liveBroadcastId
+        if (liveId == null || previewMode || !auth.networkConfig.isRestConfigured) {
+            remoteHomeLiveAuction = null
+            return@LaunchedEffect
+        }
+        remoteHomeLiveAuction = when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getDetail(liveId) }) {
+            is ApiResult.Success -> result.value.currentAuction ?: result.value.auctions.firstOrNull()
+            is ApiResult.Failure -> null
+        }
     }
 
     LaunchedEffect(ordersRevision, signedIn) {
@@ -778,14 +805,34 @@ fun AppNavHost(
 
     // 알림 벨은 모든 서브 헤더가 같은 값을 읽는다 (DibSubAppBar). 화면마다 파라미터로 뚫지 않는다
     fun openNotifications() {
-        if (hasAppAccess) {
-            unreadNotificationCount = 0
-            navController.navigate(Screen.Notifications.route)
-        } else navController.navigate(Screen.Login.route)
+        coroutineScope.launch {
+            if (restoreAppAccess()) {
+                navController.navigate(Screen.Notifications.route)
+            } else navController.navigate(Screen.Login.route)
+        }
     }
 
+    fun startKakaoLogin() {
+        loginError = null
+        if (!auth.kakaoOAuthConfig.isConfigured) {
+            coroutineScope.launch { notificationSnackbar.showSnackbar("카카오 로그인 설정을 확인해주세요.") }
+            return
+        }
+        val state = auth.kakaoOAuthStateStore.create()
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
+        }.onFailure {
+            auth.kakaoOAuthStateStore.consume(state)
+            loginError = "카카오 로그인 화면을 열 수 없습니다. 브라우저 설정을 확인해주세요."
+        }
+    }
+
+    val visibleNotifications = domainNotifications.filter(::isNotificationEnabled)
+    val visibleUnreadCount = if (tradeNotificationsEnabled && liveNotificationsEnabled && wishlistNotificationsEnabled) {
+        unreadNotificationCount
+    } else visibleNotifications.count { !it.isRead }
     Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(unreadNotificationCount, ::openNotifications)) {
+        CompositionLocalProvider(LocalDibNotificationBell provides DibNotificationBellState(visibleUnreadCount, ::openNotifications)) {
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route,
@@ -840,26 +887,18 @@ fun AppNavHost(
         composable(Screen.Welcome.route) {
             WelcomeScreen(
                 onEmailSignup = { navController.navigate(Screen.SignUp.route) },
-                onLogin = { navController.navigate(Screen.Login.route) },
+                onLogin = {
+                    loginError = null
+                    navController.navigate(Screen.Login.route)
+                },
+                onKakaoLogin = ::startKakaoLogin,
                 onBrowse = {
                     previewMode = false
                     signedIn = false
                     navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                 },
-                showDeveloperPreview = BuildConfig.DEBUG,
-                onDeveloperPreview = {
-                    previewMode = true
-                    signedIn = false
-                    remoteAuctions = null
-                    remoteHomeLives = null
-                    auctionsLoading = false
-                    auctionsError = null
-                    ordersLoading = false
-                    ordersError = null
-                    bidHistoryLoading = false
-                    bidHistoryError = null
-                    navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
-                }
+                kakaoLoginLoading = loginLoading,
+                kakaoLoginError = loginError
             )
         }
         composable(Screen.Login.route) {
@@ -870,20 +909,7 @@ fun AppNavHost(
                 onPasswordReset = { navController.navigate(Screen.PasswordResetLink.route) },
                 isLoading = loginLoading,
                 errorMessage = loginError,
-                onKakaoLogin = {
-                    if (!auth.kakaoOAuthConfig.isConfigured) {
-                        loginError = "Kakao REST API 키와 Redirect URI 설정을 확인해주세요."
-                    } else {
-                        loginError = null
-                        val state = auth.kakaoOAuthStateStore.create()
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, auth.kakaoOAuthConfig.authorizationUri(state)))
-                        }.onFailure {
-                            auth.kakaoOAuthStateStore.consume(state)
-                            loginError = "카카오 로그인 화면을 열 수 없습니다. 브라우저 설정을 확인해주세요."
-                        }
-                    }
-                },
+                onKakaoLogin = ::startKakaoLogin,
                 onLogin = { email, password ->
                     loginLoading = true
                     loginError = null
@@ -898,7 +924,7 @@ fun AppNavHost(
                             }
                             is ApiResult.Failure -> {
                                 loginError = when (result.error.code) {
-                                    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 이전 화면에서 둘러보기를 이용해주세요."
+                                    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 로그인 서비스를 이용할 수 없어요. 잠시 후 다시 이용해주세요."
                                     "INVALID_CREDENTIALS" -> "이메일 또는 비밀번호가 올바르지 않아요."
                                     "ACCOUNT_SUSPENDED", "ACCOUNT_BLOCKED" -> result.error.message
                                     else -> result.error.message.ifBlank { "로그인하지 못했습니다. 잠시 후 다시 시도해주세요." }
@@ -929,11 +955,26 @@ fun AppNavHost(
                     maskedEmail = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.requestFindEmailPhoneVerification(phoneNumber) }) {
-                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Success -> {
+                                verificationId = result.value.verificationId
+                                result.value.autoVerificationToken?.let { token ->
+                                    when (val found = withContext(Dispatchers.IO) {
+                                        auth.repository.findEmail(token, phoneNumber)
+                                    }) {
+                                        is ApiResult.Success -> maskedEmail = found.value
+                                        is ApiResult.Failure -> findEmailError = signupErrorMessage(found.error)
+                                    }
+                                }
+                            }
                             is ApiResult.Failure -> findEmailError = signupErrorMessage(result.error)
                         }
                         findEmailLoading = false
                     }
+                },
+                onChangePhone = {
+                    verificationId = null
+                    findEmailPhoneNumber = null
+                    findEmailError = null
                 },
                 onConfirmVerification = { code ->
                     val challengeId = verificationId ?: return@FindEmailScreen
@@ -968,9 +1009,11 @@ fun AppNavHost(
             var resetError by remember { mutableStateOf<String?>(null) }
             var linkSent by remember { mutableStateOf(false) }
             var resetPhoneNumber by remember { mutableStateOf<String?>(null) }
+            var automaticVerificationToken by remember { mutableStateOf<String?>(null) }
 
             PasswordResetLinkScreen(
                 verificationRequested = verificationId != null,
+                automaticallyVerified = automaticVerificationToken != null,
                 isLoading = resetLoading,
                 errorMessage = resetError,
                 linkSent = linkSent,
@@ -979,20 +1022,34 @@ fun AppNavHost(
                     resetLoading = true
                     resetError = null
                     linkSent = false
+                    automaticVerificationToken = null
+                    verificationId = null
                     coroutineScope.launch {
                         when (val result = withContext(Dispatchers.IO) { auth.repository.requestPasswordResetPhoneVerification(phoneNumber) }) {
-                            is ApiResult.Success -> verificationId = result.value.verificationId
+                            is ApiResult.Success -> {
+                                verificationId = result.value.verificationId
+                                automaticVerificationToken = result.value.autoVerificationToken
+                            }
                             is ApiResult.Failure -> resetError = signupErrorMessage(result.error)
                         }
                         resetLoading = false
                     }
+                },
+                onChangePhone = {
+                    verificationId = null
+                    resetPhoneNumber = null
+                    automaticVerificationToken = null
+                    resetError = null
                 },
                 onRequestResetLink = { email, code ->
                     val challengeId = verificationId ?: return@PasswordResetLinkScreen
                     resetLoading = true
                     resetError = null
                     coroutineScope.launch {
-                        when (val confirmation = withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }) {
+                        val confirmation = automaticVerificationToken?.let {
+                            ApiResult.Success(com.ssafy.dib.domain.auth.PhoneVerificationConfirmation(it, ""), 200)
+                        } ?: withContext(Dispatchers.IO) { auth.repository.confirmPhoneVerification(challengeId, code) }
+                        when (confirmation) {
                             is ApiResult.Success -> when (val result = withContext(Dispatchers.IO) {
                                 auth.repository.requestPasswordResetLink(
                                     email,
@@ -1075,13 +1132,17 @@ fun AppNavHost(
                         when (val result = withContext(Dispatchers.IO) {
                             auth.repository.requestSignUpPhoneVerification(phoneNumber)
                         }) {
-                            is ApiResult.Success -> signupState = signupState.copy(
-                                phoneRequestLoading = false,
-                                verificationRequestKey = result.value.verificationId,
-                                requestedPhone = phoneNumber,
-                                retryAfterSeconds = result.value.retryAfterSeconds,
-                                phoneError = null
-                            )
+                            is ApiResult.Success -> {
+                                phoneVerificationToken = result.value.autoVerificationToken
+                                signupState = signupState.copy(
+                                    phoneRequestLoading = false,
+                                    verificationRequestKey = result.value.verificationId,
+                                    requestedPhone = phoneNumber,
+                                    retryAfterSeconds = result.value.retryAfterSeconds,
+                                    phoneVerified = result.value.autoVerificationToken != null,
+                                    phoneError = null
+                                )
+                            }
                             is ApiResult.Failure -> signupState = signupState.copy(
                                 phoneRequestLoading = false,
                                 phoneError = signupErrorMessage(result.error)
@@ -1132,20 +1193,59 @@ fun AppNavHost(
                             is ApiResult.Failure -> signupState = signupState.copy(
                                 emailCheckLoading = false,
                                 checkedEmail = email,
-                                emailAvailable = false,
-                                emailError = signupErrorMessage(result.error)
+                                emailAvailable = null,
+                                emailError = if (result.error.code == ApiErrorCodes.CLIENT_NOT_CONFIGURED) {
+                                    "현재 이메일 중복 확인을 이용할 수 없어요. 잠시 후 다시 이용해주세요."
+                                } else signupErrorMessage(result.error)
                             )
                         }
                     }
                 },
                 onSignUp = { form ->
-                    val token = phoneVerificationToken ?: return@SignupScreen
-                    if (signupState.requestedPhone != form.phoneNumber) return@SignupScreen
-                    val emailSignup = kakaoSignupToken == null
+                    val socialToken = kakaoSignupToken
+                    val emailSignup = socialToken == null
+                    if (signupState.signupLoading) return@SignupScreen
+                    val formValid = if (emailSignup) SignupValidator.isFormValid(form)
+                        else SignupValidator.isKakaoFormValid(form)
+                    val accountVerified = !emailSignup ||
+                        (signupState.emailAvailable == true && signupState.checkedEmail == form.email)
+                    val token = phoneVerificationToken
+                    if (!formValid || !accountVerified || !signupState.phoneVerified ||
+                        signupState.requestedPhone != form.phoneNumber || token == null
+                    ) {
+                        signupState = signupState.copy(signupError = "입력 정보와 인증 상태를 다시 확인해주세요.")
+                        return@SignupScreen
+                    }
                     signupState = signupState.copy(signupLoading = true, signupError = null)
                     coroutineScope.launch {
+                        fun finishSignup() {
+                            signupState = SignupUiState()
+                            phoneVerificationToken = null
+                            kakaoSignupToken = null
+                            kakaoNickname = null
+                            loginError = null
+                            signedIn = true
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
+                        }
+
+                        fun showUncertainSignupResult() {
+                            signupState = SignupUiState()
+                            phoneVerificationToken = null
+                            kakaoSignupToken = null
+                            kakaoNickname = null
+                            loginError = if (emailSignup) {
+                                "가입 처리 결과를 확인하지 못했어요. 이메일로 로그인해 확인해주세요."
+                            } else {
+                                "가입 처리 결과를 확인하지 못했어요. 카카오 로그인으로 확인해주세요."
+                            }
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
+                        }
+
                         when (val result = withContext(Dispatchers.IO) {
-                            val socialToken = kakaoSignupToken
                             if (socialToken == null) auth.repository.signUp(
                                 SignUpCommand(
                                     email = form.email,
@@ -1193,19 +1293,24 @@ fun AppNavHost(
                                         memberProfile = profile.value
                                     }
                                 }
-                                signupState = SignupUiState()
-                                phoneVerificationToken = null
-                                kakaoSignupToken = null
-                                kakaoNickname = null
-                                signedIn = true
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                finishSignup()
+                            }
+                            is ApiResult.Failure -> {
+                                if (result.error.code == ApiErrorCodes.NETWORK_UNAVAILABLE ||
+                                    result.error.code == ApiErrorCodes.INVALID_RESPONSE
+                                ) {
+                                    val login = if (emailSignup) withContext(Dispatchers.IO) {
+                                        auth.repository.login(form.email, form.password, auth.deviceId)
+                                    } else null
+                                    if (login is ApiResult.Success) finishSignup()
+                                    else showUncertainSignupResult()
+                                } else {
+                                    signupState = signupState.copy(
+                                        signupLoading = false,
+                                        signupError = signupErrorMessage(result.error)
+                                    )
                                 }
                             }
-                            is ApiResult.Failure -> signupState = signupState.copy(
-                                signupLoading = false,
-                                signupError = signupErrorMessage(result.error)
-                            )
                         }
                     }
                 }
@@ -1222,6 +1327,7 @@ fun AppNavHost(
                 isAuthenticated = hasAppAccess,
                 remoteAuctions = remoteAuctions,
                 remoteLives = remoteHomeLives,
+                remoteLiveAuction = remoteHomeLiveAuction,
                 showSampleContent = previewMode || !auth.networkConfig.isRestConfigured,
                 remoteLoading = auctionsLoading,
                 remoteError = auctionsError,
@@ -1233,33 +1339,16 @@ fun AppNavHost(
                 onLiveClick = { navController.navigate(Screen.LiveList.route) },
                 onSearchClick = {
                     browseAllAuctions = false
+                    browseClosingSoon = false
                     navController.navigate(Screen.Search.route)
                 },
-                onViewAllAuctions = {
+                onViewClosingAuctions = {
                     browseAllAuctions = true
+                    browseClosingSoon = true
                     navController.navigate(Screen.Search.route)
                 },
+                onViewRecommendations = { navController.navigate(Screen.RecommendedAuctions.route) },
                 onCategoryClick = { navController.navigate(Screen.Categories.route) },
-                onPlaceBid = { auctionId, amount ->
-                    // 상세 화면은 소켓으로 입찰하지만 홈은 소켓을 붙이지 않아 REST 로 넣는다
-                    val command = "home-bid:$auctionId:$amount"
-                    val idempotencyKey = commandKeys.keyFor(command)
-                    coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.placeBid(auctionId, amount, idempotencyKey) }) {
-                            is ApiResult.Success -> {
-                                commandKeys.complete(command)
-                                homeBidNotice = "${"%,d".format(result.value.currentPrice)}원에 입찰했어요."
-                                auctionsRevision++
-                            }
-                            is ApiResult.Failure -> {
-                                homeBidNotice = bidSubmissionMessage(result.error)
-                                if (result.error.requiresLogin) signedIn = false
-                            }
-                        }
-                    }
-                },
-                bidNotice = homeBidNotice,
-                onBidNoticeShown = { homeBidNotice = null },
                 onLoginRequired = { navController.navigate(Screen.Login.route) },
                 onTabSelected = ::navigateMain,
                 tabReselectSignal = tabReselectSignal
@@ -1282,7 +1371,6 @@ fun AppNavHost(
         composable(Screen.Categories.route) { categoryEntry ->
             // null 이면 CategoryScreen 이 기본 카테고리로 그린다 — 응답 전/실패에는 빈 화면 대신 대체 목록이 보여야 한다
             val categoryState = androidx.lifecycle.ViewModelProvider(categoryEntry)[CategoryUiState::class.java]
-            var categoryList by categoryState.categories
             var categoryAuctions by categoryState.auctions
             var categoryLoading by categoryState.loading
             var categoryError by categoryState.error
@@ -1292,10 +1380,19 @@ fun AppNavHost(
             var categoryLoadingMore by categoryState.loadingMore
             var categoryLoadMoreError by categoryState.loadMoreError
 
-            fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false) {
+            fun loadCategory(categoryId: String, cursor: String? = null, append: Boolean = false, forceRefresh: Boolean = false) {
                 selectedCategoryId = categoryId
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
                     categoryAuctions = null
+                    categoryError = null
+                    return
+                }
+                val cached = if (!append && !forceRefresh) cachedCategoryPages[categoryId] else null
+                if (cached != null && android.os.SystemClock.elapsedRealtime() - cached.fetchedAtMillis < 120_000L) {
+                    categoryAuctions = cached.items
+                    categoryCursor = cached.nextCursor
+                    categoryHasNext = cached.hasNext
+                    categoryLoading = false
                     categoryError = null
                     return
                 }
@@ -1304,18 +1401,21 @@ fun AppNavHost(
                 coroutineScope.launch {
                     when (val result = withContext(Dispatchers.IO) {
                         // 카테고리 조회는 예정 경매도 보여준다(OPEN = 진행 중 + 예정). 추천만 진행 중으로 제한한다
-                        auth.auctionRepository.getGeneralAuctions(size = 20, categoryId = categoryId, status = "OPEN", cursor = cursor)
+                        auth.auctionRepository.getGeneralAuctions(size = 12, categoryId = categoryId, status = "OPEN", cursor = cursor)
                     }) {
                         is ApiResult.Success -> {
                             val mapped = result.value.items.map { it.toHomeAuction() }.withoutUndecidedScheduled()
+                            if (selectedCategoryId != categoryId) return@launch
                             categoryAuctions = if (append) (categoryAuctions.orEmpty() + mapped).distinctBy { it.id } else mapped
                             categoryCursor = result.value.nextCursor
                             categoryHasNext = hasUsableNextCursor(result.value.hasNext, result.value.nextCursor, cursor)
+                            if (!append) cachedCategoryPages[categoryId] = CachedCategoryPage(mapped, categoryCursor, categoryHasNext, android.os.SystemClock.elapsedRealtime())
                         }
                         is ApiResult.Failure -> {
+                            if (selectedCategoryId != categoryId) return@launch
                             if (append && result.error.code == ApiErrorCodes.INVALID_CURSOR) {
                                 categoryLoadingMore = false
-                                loadCategory(categoryId)
+                                loadCategory(categoryId, forceRefresh = true)
                             } else {
                                 val message = result.error.message.ifBlank { "경매 목록을 불러오지 못했어요." }
                                 if (append) categoryLoadMoreError = message else categoryError = message
@@ -1327,20 +1427,16 @@ fun AppNavHost(
                 }
             }
 
-            // 카테고리는 로그인 없이 열리는 API — 비로그인에서도 불러야 화면이 하드코딩 목록에 머물지 않는다
-            LaunchedEffect(signedIn) {
-                if (!auth.networkConfig.isRestConfigured) return@LaunchedEffect
-                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getCategories() }) {
-                    is ApiResult.Success -> categoryList = result.value
-                    is ApiResult.Failure -> Unit
-                }
-            }
             CategoryScreen(
                 onBack = navController::navigateUp,
-                onSearchClick = { navController.navigate(Screen.Search.route) },
+                onSearchClick = {
+                    browseAllAuctions = false
+                    browseClosingSoon = false
+                    navController.navigate(Screen.Search.route)
+                },
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
-                remoteCategories = categoryList,
+                remoteCategories = cachedCategories,
                 remoteAuctions = categoryAuctions,
                 isLoading = categoryLoading,
                 errorMessage = categoryError,
@@ -1353,7 +1449,7 @@ fun AppNavHost(
                     categoryLoadMoreError = null
                     loadCategory(categoryId)
                 },
-                onRetry = { selectedCategoryId?.let { loadCategory(it) } },
+                onRetry = { selectedCategoryId?.let { loadCategory(it, forceRefresh = true) } },
                 onLoadMore = {
                     val categoryId = selectedCategoryId
                     val cursor = categoryCursor
@@ -1361,6 +1457,45 @@ fun AppNavHost(
                         loadCategory(categoryId, cursor, append = true)
                     }
                 }
+            )
+        }
+        composable(Screen.RecommendedAuctions.route) {
+            var recommendationAuctions by remember { mutableStateOf<List<HomeAuction>?>(null) }
+            var recommendationLoading by remember { mutableStateOf(true) }
+            var recommendationError by remember { mutableStateOf<String?>(null) }
+            var recommendationRevision by remember { mutableStateOf(0) }
+            LaunchedEffect(recommendationRevision, signedIn, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured) {
+                    recommendationAuctions = recommended
+                    recommendationLoading = false
+                    recommendationError = null
+                    return@LaunchedEffect
+                }
+                recommendationLoading = true
+                recommendationError = null
+                when (val result = withContext(Dispatchers.IO) { auth.auctionRepository.getRecommendations(size = 100) }) {
+                    is ApiResult.Success -> recommendationAuctions = result.value.generalItems.map { it.toHomeAuction() }
+                    is ApiResult.Failure -> {
+                        recommendationAuctions = null
+                        recommendationError = result.error.message.ifBlank { "추천 경매를 불러오지 못했어요." }
+                        if (result.error.requiresLogin) signedIn = false
+                    }
+                }
+                recommendationLoading = false
+            }
+            RecommendedAuctionsScreen(
+                auctions = recommendationAuctions,
+                isLoading = recommendationLoading,
+                errorMessage = recommendationError,
+                onRetry = { recommendationRevision++ },
+                onBack = navController::navigateUp,
+                onProductClick = { auctionId -> navController.navigate(Screen.ProductDetail.createRoute(auctionId)) },
+                onBrowseAll = {
+                    browseAllAuctions = true
+                    browseClosingSoon = false
+                    navController.navigate(Screen.Search.route)
+                },
+                onTabSelected = ::navigateMain
             )
         }
         composable(Screen.Search.route) {
@@ -1507,6 +1642,7 @@ fun AppNavHost(
             }
             AuctionSearchScreen(
                 browseOnOpen = browseAllAuctions,
+                closingSoonOnOpen = browseClosingSoon,
                 onBack = navController::navigateUp,
                 onProductClick = { productId -> navController.navigate(Screen.ProductDetail.createRoute(productId)) },
                 onTabSelected = ::navigateMain,
@@ -1539,10 +1675,10 @@ fun AppNavHost(
         }
         composable(Screen.Notifications.route) {
             // 목록에 나온 주문 중 상품명을 모르는 것만 주문 상세로 한 번씩 조회한다
-            LaunchedEffect(domainNotifications) {
+            LaunchedEffect(visibleNotifications) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) return@LaunchedEffect
                 val known = knownOrderTitles()
-                val missing = domainNotifications
+                val missing = visibleNotifications
                     .flatMap { orderIdsInNotificationText(it.title + " " + it.body) }
                     .distinct().filterNot(known::containsKey).take(20)
                 missing.forEach { orderId ->
@@ -1550,7 +1686,7 @@ fun AppNavHost(
                         ?.value?.title?.takeIf(String::isNotBlank)
                         ?.let { notificationOrderTitles = notificationOrderTitles + (orderId to it) }
                 }
-                val missingAuctions = domainNotifications
+                val missingAuctions = visibleNotifications
                     .filter { it.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in it.body }
                     .map { it.resourceId }.filter(String::isNotBlank)
                     .distinct().filterNot(notificationAuctionTitles::containsKey).take(20)
@@ -1562,7 +1698,7 @@ fun AppNavHost(
             }
             val orderTitles = knownOrderTitles()
             NotificationCenterScreen(
-                notifications = domainNotifications.map { notification ->
+                notifications = visibleNotifications.map { notification ->
                     val auctionTitle = notificationAuctionTitles[notification.resourceId]
                         ?.takeIf { notification.resourceType.equals("AUCTION", ignoreCase = true) && '‘' !in notification.body }
                     notification.copy(
@@ -2056,7 +2192,6 @@ fun AppNavHost(
                 },
                 onSendComment = { content ->
                     if (previewMode) true else {
-                        liveChatConnection?.updateCurrentMemberId(memberProfile?.memberId)
                         liveChatConnection?.send(content) == true
                     }
                 },
@@ -2417,12 +2552,12 @@ fun AppNavHost(
                         bookmarkLoading = false
                     }
                 },
-                realtimeStatus = when (realtimeState) {
+                realtimeStatus = if (signedIn == true) when (realtimeState) {
                     RealtimeConnectionState.Connecting -> "실시간 연결 중"
                     RealtimeConnectionState.Connected -> "실시간 연결됨"
                     RealtimeConnectionState.Reconnecting -> "실시간 재연결 중"
                     RealtimeConnectionState.Disconnected, null -> null
-                },
+                } else null,
                 realtimeNotice = realtimeNotice,
                 realtimeBiddingEnabled = previewMode || auth.networkConfig.isWebSocketConfigured,
                 realtimeConnected = previewMode || realtimeState == RealtimeConnectionState.Connected,
@@ -2510,10 +2645,14 @@ fun AppNavHost(
             var categoriesRevision by remember { mutableStateOf(0) }
             var productSubmitLoading by remember { mutableStateOf(false) }
             var productSubmitError by remember { mutableStateOf<String?>(null) }
-            var productResult by remember { mutableStateOf<ProductRegistrationResult?>(null) }
-            // 검수는 비동기이고 완료 알림이 없어서 사용자가 직접 상태를 다시 조회해야 한다
-            var productLatestStatus by remember { mutableStateOf<String?>(null) }
-            var productStatusRefreshing by remember { mutableStateOf(false) }
+
+            fun finishProductRegistration() {
+                productSelectionPurpose = null
+                navController.navigate(Screen.RegisteredProducts.route) {
+                    popUpTo(Screen.Register.route) { inclusive = true }
+                }
+                coroutineScope.launch { notificationSnackbar.showSnackbar("상품이 등록됐어요. 검수 상태는 목록에서 확인할 수 있어요.") }
+            }
 
             LaunchedEffect(categoriesRevision, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
@@ -2539,16 +2678,10 @@ fun AppNavHost(
                 categoriesError = categoriesError,
                 submitLoading = productSubmitLoading,
                 submitError = productSubmitError,
-                result = productResult,
                 onRetryCategories = { categoriesRevision++ },
                 onSubmit = submitProduct@ { form: ProductRegistrationForm ->
                     if (previewMode) {
-                        productResult = ProductRegistrationResult(
-                            productId = "PREVIEW-001",
-                            status = "REGISTERED",
-                            thumbnailUrl = null,
-                            createdAt = java.time.Instant.now().toString()
-                        )
+                        finishProductRegistration()
                         return@submitProduct
                     }
                     val command = listOf(
@@ -2591,7 +2724,7 @@ fun AppNavHost(
                                 }) {
                                     is ApiResult.Success -> {
                                         commandKeys.complete(command)
-                                        productResult = result.value
+                                        finishProductRegistration()
                                     }
                                     is ApiResult.Failure -> {
                                         productSubmitError = productSubmissionMessage(result.error)
@@ -2604,27 +2737,7 @@ fun AppNavHost(
                         productSubmitLoading = false
                     }
                 },
-                onComplete = {
-                    navController.navigate(Screen.RegisteredProducts.route) {
-                        popUpTo(Screen.Register.route) { inclusive = true }
-                    }
-                },
-                onBack = navController::navigateUp,
-                latestStatus = productLatestStatus,
-                statusRefreshing = productStatusRefreshing,
-                onRefreshStatus = {
-                    val productId = productResult?.productId
-                    if (!productId.isNullOrBlank() && !productStatusRefreshing) {
-                        productStatusRefreshing = true
-                        coroutineScope.launch {
-                            when (val result = withContext(Dispatchers.IO) { auth.productRepository.getProduct(productId) }) {
-                                is ApiResult.Success -> productLatestStatus = result.value.status
-                                is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
-                            }
-                            productStatusRefreshing = false
-                        }
-                    }
-                }
+                onBack = navController::navigateUp
             )
         }
         composable(Screen.Trades.route) {
@@ -2775,7 +2888,7 @@ fun AppNavHost(
                 }
                 if (!auth.networkConfig.isRestConfigured) {
                     orderDetailLoading = false
-                    orderDetailError = "개발 서버 주소가 설정되지 않았어요."
+                    orderDetailError = "현재 거래 정보를 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 orderDetailLoading = true
@@ -3115,7 +3228,7 @@ fun AppNavHost(
                 }
                 if (!auth.networkConfig.isRestConfigured) {
                     chatLoading = false
-                    chatError = "개발 서버 주소가 설정되지 않았어요."
+                    chatError = "현재 채팅을 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 chatLoading = true
@@ -3305,7 +3418,7 @@ fun AppNavHost(
             LaunchedEffect(paymentMethodRevision, signedIn) {
                 if (signedIn != true || !auth.networkConfig.isRestConfigured) {
                     paymentMethodLoading = false
-                    if (!auth.networkConfig.isRestConfigured) paymentMethodError = "개발 서버 주소가 설정되지 않았어요."
+                    if (!auth.networkConfig.isRestConfigured) paymentMethodError = "현재 결제 정보를 불러올 수 없어요. 잠시 후 다시 이용해주세요."
                     return@LaunchedEffect
                 }
                 paymentMethodLoading = true
@@ -4027,7 +4140,6 @@ fun AppNavHost(
                 val connection = if (!previewMode && liveId.isNotBlank() && auth.networkConfig.isWebSocketConfigured) {
                     auth.createLiveChatConnection().also { created ->
                         consoleConnection = created
-                        created.updateCurrentMemberId(memberProfile?.memberId)
                         created.start(
                             liveBroadcastId = liveId,
                             activeAuctionId = consoleActiveAuctionId,
@@ -4233,7 +4345,6 @@ fun AppNavHost(
                 },
                 onSendChat = { content ->
                     if (previewMode) true else {
-                        consoleConnection?.updateCurrentMemberId(memberProfile?.memberId)
                         consoleConnection?.send(content) == true
                     }
                 },
@@ -4531,14 +4642,17 @@ fun AppNavHost(
                 onTradeEnabledChange = { enabled ->
                     tradeNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("trade_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onLiveEnabledChange = { enabled ->
                     liveNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("live_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onWishlistEnabledChange = { enabled ->
                     wishlistNotificationsEnabled = enabled
                     notificationPreferences.edit().putBoolean("wishlist_enabled", enabled).apply()
+                    notificationsRevision++
                 },
                 onBack = navController::navigateUp,
                 onTabSelected = ::navigateMain
@@ -4571,13 +4685,36 @@ fun AppNavHost(
                 saveLoading = profileSaveLoading,
                 saveError = profileSaveError,
                 onRetry = { profileRevision++ },
-                onSave = { nickname ->
+                onSave = { nickname, imageUri ->
                     profileSaveLoading = true
                     profileSaveError = null
                     coroutineScope.launch {
-                        when (val result = withContext(Dispatchers.IO) { auth.memberRepository.updateNickname(nickname) }) {
+                        val imageUpload = imageUri?.let { uri ->
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    prepareProductImageUpload(context.contentResolver,
+                                        com.ssafy.dib.feature.main.ProductImageSelection(uri), 0)
+                                }
+                            }.getOrElse {
+                                profileSaveError = "선택한 프로필 사진을 읽을 수 없어요. 다시 선택해주세요."
+                                profileSaveLoading = false
+                                return@launch
+                            }
+                        }
+                        val result = withContext(Dispatchers.IO) {
+                            if (imageUpload != null) auth.memberRepository.updateProfileImage(
+                                nickname.takeIf { it != memberProfile?.nickname },
+                                com.ssafy.dib.domain.member.MemberImageUpload(
+                                    imageUpload.fileName, imageUpload.mediaType, imageUpload.bytes
+                                )
+                            ) else auth.memberRepository.updateNickname(nickname)
+                        }
+                        when (result) {
                             is ApiResult.Success -> {
-                                memberProfile = memberProfile?.copy(nickname = result.value.nickname)
+                                memberProfile = memberProfile?.copy(
+                                    nickname = result.value.nickname,
+                                    profileImageUrl = result.value.profileImageUrl ?: memberProfile?.profileImageUrl
+                                )
                                 navController.navigateUp()
                             }
                             is ApiResult.Failure -> {
@@ -4704,13 +4841,24 @@ fun AppNavHost(
             var deletingProductId by remember { mutableStateOf<String?>(null) }
             var productDeleteError by remember { mutableStateOf<String?>(null) }
 
+            suspend fun syncVisibleProductStatuses() {
+                when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
+                    is ApiResult.Success -> {
+                        val latest = result.value.items
+                        val latestIds = latest.map { it.productId }.toSet()
+                        registeredProducts = latest + registeredProducts.orEmpty().filterNot { it.productId in latestIds }
+                    }
+                    is ApiResult.Failure -> if (result.error.requiresLogin) signedIn = false
+                }
+            }
+
             LaunchedEffect(registeredProductsRevision, productsRefresh, previewMode) {
                 if (previewMode || !auth.networkConfig.isRestConfigured) {
                     registeredProductsLoading = false
                     registeredProductsError = null
                     return@LaunchedEffect
                 }
-                registeredProductsLoading = true
+                registeredProductsLoading = registeredProducts == null
                 registeredProductsError = null
                 registeredProductsLoadMoreError = null
                 when (val result = withContext(Dispatchers.IO) { auth.productRepository.getMyProducts() }) {
@@ -4725,6 +4873,20 @@ fun AppNavHost(
                     }
                 }
                 registeredProductsLoading = false
+            }
+            LaunchedEffect(productModerationRevision, registeredProducts == null, previewMode) {
+                if (productModerationRevision > 0 && registeredProducts != null && !previewMode && auth.networkConfig.isRestConfigured) {
+                    syncVisibleProductStatuses()
+                }
+            }
+            LaunchedEffect(registeredProducts?.any { it.status.equals("PENDING", true) || it.status.equals("PENDING_REVIEW", true) }, previewMode) {
+                if (previewMode || !auth.networkConfig.isRestConfigured || registeredProducts?.any {
+                    it.status.equals("PENDING", true) || it.status.equals("PENDING_REVIEW", true)
+                } != true) return@LaunchedEffect
+                while (true) {
+                    kotlinx.coroutines.delay(10_000)
+                    syncVisibleProductStatuses()
+                }
             }
             RegisteredProductsScreen(
                 selectionPurpose = productSelectionPurpose,
@@ -5635,12 +5797,16 @@ private fun previewLiveAuctions() = listOf(
 )
 
 internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요. 연결 설정을 확인해주세요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 서비스를 이용할 수 없어요. 잠시 후 다시 이용해주세요."
     "INVALID_PHONE" -> "휴대폰 번호 형식을 확인해주세요."
     "RATE_LIMITED" -> "요청이 너무 많아요. 잠시 후 다시 시도해주세요."
     "INVALID_CODE" -> "인증번호가 올바르지 않아요."
     "VERIFICATION_EXPIRED" -> "인증 시간이 만료됐어요. 인증번호를 다시 요청해주세요."
     "ATTEMPTS_EXCEEDED" -> "인증 시도 횟수를 초과했어요. 인증번호를 다시 요청해주세요."
+    "NETWORK_ERROR" -> "네트워크 연결을 확인한 뒤 다시 시도해주세요."
+    "FIREBASE_PHONE_AUTH_FAILED" -> "휴대폰 인증을 완료하지 못했어요. 잠시 후 다시 시도해주세요."
+    "SMS_BILLING_NOT_ENABLED" -> "현재 실제 번호로 SMS 인증을 사용할 수 없어요. 관리자에게 문의해주세요."
+    "APP_VERIFICATION_FAILED" -> "앱 확인에 실패했어요. 앱을 다시 실행한 뒤 시도해주세요."
     "INVALID_EMAIL" -> "이메일 형식을 확인해주세요."
     "EMAIL_DUPLICATED" -> "이미 가입된 이메일이에요."
     "PHONE_DUPLICATED" -> "이미 가입된 휴대폰 번호예요."
@@ -5649,6 +5815,7 @@ internal fun signupErrorMessage(error: ApiFailure): String = when (error.code) {
     "INVALID_VERIFICATION" -> "휴대폰 인증이 만료됐어요. 다시 인증해주세요."
     "INVALID_VERIFICATION_ID" -> "인증 요청 정보가 올바르지 않아요. 인증번호를 다시 요청해주세요."
     "INVALID_RESET_TOKEN" -> "비밀번호 재설정 링크가 만료됐거나 이미 사용됐어요. 링크를 다시 요청해주세요."
+    "PASSWORD_RESET_ACCOUNT_MISMATCH" -> "가입 이메일과 인증한 휴대전화 번호가 일치하지 않아요. 입력 정보를 확인해주세요."
     "ACCOUNT_NOT_FOUND", "MEMBER_NOT_FOUND" -> "입력한 정보와 일치하는 계정을 찾을 수 없어요."
     else -> error.message.ifBlank { "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요." }
 }
@@ -5702,7 +5869,7 @@ internal fun bidSubmissionMessage(error: ApiFailure): String = when (error.code)
 }
 
 internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 신고를 접수할 수 없어요. 잠시 후 다시 이용해주세요."
     "SELF_REPORT_NOT_ALLOWED" -> "본인은 신고할 수 없어요."
     "DUPLICATE_REPORT" -> "이미 접수된 신고가 있어요."
     "AUCTION_NOT_FOUND" -> "신고할 경매를 찾을 수 없어요."
@@ -5714,7 +5881,7 @@ internal fun reportSubmissionMessage(error: ApiFailure): String = when (error.co
 }
 
 internal fun productSubmissionMessage(error: ApiFailure): String = when (error.code) {
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 상품을 등록할 수 없어요. 잠시 후 다시 이용해주세요."
     "IMAGE_REQUIRED" -> "상품 사진을 한 장 이상 선택해주세요."
     "INVALID_CONTENT_TYPE" -> "지원하지 않는 사진 형식이 포함돼 있어요."
     "FILE_TOO_LARGE" -> "용량이 너무 큰 사진이 포함돼 있어요."
@@ -5728,7 +5895,7 @@ internal fun paymentMethodRegistrationErrorMessage(error: ApiFailure): String = 
     "BILLING_KEY_ISSUE_FAILED" -> "카드 인증 정보를 확인하지 못했어요. 잠시 후 다시 등록해주세요."
     "PAYMENT_METHOD_ALREADY_EXISTS" -> "이미 등록된 카드가 있어요. 기존 카드를 삭제한 뒤 다시 시도해주세요."
     ApiErrorCodes.NETWORK_UNAVAILABLE -> "네트워크 연결을 확인한 뒤 다시 시도해주세요."
-    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "개발 서버 주소가 설정되지 않았어요."
+    ApiErrorCodes.CLIENT_NOT_CONFIGURED -> "현재 카드 등록을 이용할 수 없어요. 잠시 후 다시 이용해주세요."
     else -> error.message.ifBlank { "카드를 등록하지 못했어요. 다시 시도해주세요." }
 }
 

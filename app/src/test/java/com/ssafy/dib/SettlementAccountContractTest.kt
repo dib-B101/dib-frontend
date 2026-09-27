@@ -2,7 +2,7 @@ package com.ssafy.dib
 
 import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
-import com.ssafy.dib.data.remote.auth.PhoneVerificationRequest
+import com.ssafy.dib.data.remote.auth.FirebasePhoneVerificationRequest
 import com.ssafy.dib.data.remote.settlement.SaveSettlementAccountRequest
 import com.ssafy.dib.data.remote.settlement.SettlementAccountResponse
 import org.junit.Assert.assertEquals
@@ -13,8 +13,8 @@ class SettlementAccountContractTest {
     @Test
     fun sensitiveVerificationUsesDocumentedPurpose() {
         val encoded = DibJson.instance.encodeToString(
-            PhoneVerificationRequest.serializer(),
-            PhoneVerificationRequest("01012345678", PhoneVerificationPurpose.CHANGE_SENSITIVE)
+            FirebasePhoneVerificationRequest.serializer(),
+            FirebasePhoneVerificationRequest("firebase-token", "01012345678", PhoneVerificationPurpose.CHANGE_SENSITIVE)
         )
 
         assertTrue(encoded.contains("CHANGE_SENSITIVE"))

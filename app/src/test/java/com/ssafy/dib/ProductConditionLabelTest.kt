@@ -7,9 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProductConditionLabelTest {
-    // 등록 화면 RegisterSelect 가 표시 문자열을 contains("상 ·") 로 판정해서
-    // 선택값 "상 · 사용감 적음" 이 안내문과 같이 걸려 회색으로 남았다.
-    // 라벨이 안내문과 접두사를 공유해도 되도록, 색 판정은 상태값으로만 한다
+    // 등록 화면의 토글과 확인 화면이 같은 상태 설명을 사용한다.
     @Test
     fun selectedLabelsSharePrefixWithPlaceholder() {
         assertEquals("상 · 중 · 하", conditionLabel(""))
@@ -20,7 +18,7 @@ class ProductConditionLabelTest {
     fun everyConditionHasItsOwnLabel() {
         val labels = PRODUCT_CONDITIONS.map(::conditionLabel)
 
-        assertEquals(listOf("상 · 사용감 적음", "중 · 일반 사용감", "하 · 하자 있음"), labels)
+        assertEquals(listOf("상 · 사용감 적음", "중 · 사용감 있음", "하 · 하자 있음"), labels)
         assertTrue(labels.none { it == conditionLabel("") })
     }
 }

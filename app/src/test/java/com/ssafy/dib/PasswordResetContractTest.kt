@@ -4,7 +4,7 @@ import com.ssafy.dib.core.network.DibJson
 import com.ssafy.dib.data.remote.auth.PasswordResetLinkRequest
 import com.ssafy.dib.data.remote.auth.PasswordResetRequest
 import com.ssafy.dib.data.remote.auth.PhoneVerificationPurpose
-import com.ssafy.dib.data.remote.auth.PhoneVerificationRequest
+import com.ssafy.dib.data.remote.auth.FirebasePhoneVerificationRequest
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,8 +12,8 @@ class PasswordResetContractTest {
     @Test
     fun resetLinkUsesDedicatedVerificationPurposeAndToken() {
         val verification = DibJson.instance.encodeToString(
-            PhoneVerificationRequest.serializer(),
-            PhoneVerificationRequest("01012345678", PhoneVerificationPurpose.RESET_PASSWORD)
+            FirebasePhoneVerificationRequest.serializer(),
+            FirebasePhoneVerificationRequest("firebase-token", "01012345678", PhoneVerificationPurpose.RESET_PASSWORD)
         )
         val request = DibJson.instance.encodeToString(
             PasswordResetLinkRequest.serializer(),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "21814607332",
+    "project_id": "ssafy-dib",
+    "storage_bucket": "ssafy-dib.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:21814607332:android:f8dc69e12fe31fcf805bf1",
+        "android_client_info": {
+          "package_name": "com.ssafy.dib"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCa8kuQA6ijizN6pFo45Xs601al_qFmPZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

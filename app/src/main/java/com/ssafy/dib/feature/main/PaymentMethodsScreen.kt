@@ -103,7 +103,7 @@ fun PaymentMethodsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("자동결제 카드", color = Colors.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("낙찰되면 등록한 카드로 결제를 요청해요. 결제 실패 시 거래 상세에서 다시 시도할 수 있어요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("낙찰되면 등록한 카드로 결제를 요청해요.", color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
             }
             actionMessage?.let { message ->

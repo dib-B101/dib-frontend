@@ -1,6 +1,8 @@
 package com.ssafy.dib.feature.auction
 
 import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,22 +24,34 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
 import com.ssafy.dib.core.ui.DibWishlistButton
 import com.ssafy.dib.core.ui.DibNetworkImage
+import com.ssafy.dib.core.ui.DibLiveBadge
 import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibReportButton
 import com.ssafy.dib.core.ui.DibSnackbarHost
-import com.ssafy.dib.core.ui.auctionUrgencyPulse
+import com.ssafy.dib.core.ui.AnimatedAuctionPrice
+import com.ssafy.dib.core.ui.AuctionUrgencyProgress
+import com.ssafy.dib.core.ui.BidMotionTone
+import com.ssafy.dib.core.ui.auctionUrgencyColor
+import com.ssafy.dib.core.ui.auctionUrgencySurface
 import com.ssafy.dib.core.time.formatServerTime
 import com.ssafy.dib.core.time.formatRemainingTime
 import com.ssafy.dib.feature.home.ProductPhoto
@@ -157,6 +171,8 @@ fun ProductDetailScreen(
     var myHighestBidAmount by rememberSaveable(productId) { mutableStateOf(product.myBidAmount) }
     var bidError by rememberSaveable { mutableStateOf("") }
     var bidSubmitting by rememberSaveable(productId) { mutableStateOf(false) }
+    var bidMotionTone by remember(productId) { mutableStateOf(BidMotionTone.Neutral) }
+    var bidMotionSequence by remember(productId) { mutableIntStateOf(0) }
     val auctionState = detailAuctionState(product.status, remainingSeconds, isHighestBidder)
 
     // 0초에서 멈추지 않고 계속 돈다. 예전엔 0이 되면 루프가 끝나, 예정 경매가 시작돼 남은 시간이 새로 들어와도
@@ -168,15 +184,29 @@ fun ProductDetailScreen(
         }
     }
 
-    LaunchedEffect(remoteAuction?.price, remoteAuction?.bidCount, remoteAuction?.remainingSeconds, remoteAuction?.status) {
+    LaunchedEffect(remoteAuction?.price, remoteAuction?.bidCount, remoteAuction?.remainingSeconds, remoteAuction?.status, remoteAuction?.isHighestBidder, remoteAuction?.myBidAmount) {
         remoteAuction?.let { updated ->
+            val previousPrice = currentPrice
+            val wasHighestBidder = isHighestBidder
             currentPrice = updated.price
             remainingSeconds = if (updated.status.equals("ACTIVE", ignoreCase = true)) updated.remainingSeconds else 0
             updated.myBidAmount?.let { myHighestBidAmount = it }
             updated.isHighestBidder?.let { isHighestBidder = it }
-            myHighestBidAmount?.let { ownBid ->
-                if (isHighestBidder && updated.price > ownBid) isHighestBidder = false
+            if (updated.isHighestBidder == null) {
+                myHighestBidAmount?.let { ownBid ->
+                    if (isHighestBidder && updated.price > ownBid) isHighestBidder = false
+                }
             }
+            if (wasHighestBidder && !isHighestBidder && updated.price > previousPrice) {
+                bidMotionTone = BidMotionTone.Outbid
+                bidMotionSequence++
+            }
+        }
+    }
+    LaunchedEffect(bidMotionSequence) {
+        if (bidMotionSequence > 0) {
+            delay(2_100)
+            bidMotionTone = BidMotionTone.Neutral
         }
     }
 
@@ -200,7 +230,8 @@ fun ProductDetailScreen(
             isHighestBidder = true
             myHighestBidAmount = feedback.currentPrice
             bidError = ""
-            snackbar.showSnackbar(feedback.message)
+            bidMotionTone = BidMotionTone.Success
+            bidMotionSequence++
         } else {
             if (feedback.errorCode == "AUCTION_NOT_ACTIVE") remainingSeconds = 0
             val minimumGuide = feedback.minAllowedAmount?.let { "\n최소 ${"%,d".format(it)}원부터 입찰할 수 있어요." }.orEmpty()
@@ -289,12 +320,18 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                ProductGallery(product.photo, productImages, auctionState, product.bidCount, productDetail?.status, onImageClick)
+                ProductGallery(
+                    product.photo, productImages, auctionState, product.bidCount, remainingSeconds,
+                    productDetail?.status, productDetail?.condition ?: product.productCondition, onImageClick
+                )
             }
-            item { ProductSummary(productName, currentPrice, product.startPrice, product.bidCount, remainingSeconds, auctionState, productDetail?.condition ?: product.productCondition, product.priceUndecided && currentPrice <= 0) }
-            // 누가 파는지는 가격을 본 직후 확인하는 정보라 현재가와 상품 설명 사이에 둔다 (예전엔 입찰 이력 아래 맨 끝이었다)
             item {
-                SellerSummary(productDetail, product, onClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) })
+                ProductSummary(
+                    productName, currentPrice, product.bidCount,
+                    remainingSeconds, auctionState, product.priceUndecided && currentPrice <= 0,
+                    productDetail, product, bidMotionTone, bidMotionSequence,
+                    onSellerClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) }
+                )
             }
             item {
                 ProductInformation(
@@ -309,6 +346,7 @@ fun ProductDetailScreen(
             item {
                 AuctionBidHistorySection(
                     items = bidHistory,
+                    state = auctionState,
                     isLoading = bidHistoryLoading,
                     errorMessage = bidHistoryError,
                     hasNext = bidHistoryHasNext,
@@ -402,6 +440,7 @@ private fun productConditionLabelForCard(condition: String): String = when (cond
 @Composable
 private fun AuctionBidHistorySection(
     items: List<AuctionBidHistoryItem>?,
+    state: DetailAuctionState,
     isLoading: Boolean,
     errorMessage: String?,
     hasNext: Boolean,
@@ -427,26 +466,33 @@ private fun AuctionBidHistorySection(
             if (isLoading) Text("입찰 이력 갱신 중", color = Colors.Muted, fontSize = 11.sp)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Colors.Border)) {
                 visibleItems.forEachIndexed { index, bid ->
-                    // 첫 줄이 현재 최고 입찰(최신순 = 최고가순). 배경과 배지로 눈에 띄게 한다
+                    // 첫 줄이 최고 입찰(최신순 = 최고가순). 배경과 문구로 상태를 함께 알린다.
                     val top = index == 0
-                    Row(Modifier.fillMaxWidth().background(if (top) Colors.NavySoft else Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().background(if (top) Colors.MintSoft else Colors.Background).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(bid.bidderNickname ?: bid.maskedBidderId, color = if (top) Colors.Navy else Colors.Text, fontSize = if (top) 13.sp else 12.sp, fontWeight = FontWeight.Bold)
-                                if (top) Surface(color = Colors.Navy, shape = RoundedCornerShape(6.dp)) {
-                                    Text("최고 입찰", Modifier.padding(horizontal = 6.dp, vertical = 2.dp), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            if (top) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Image(painterResource(R.drawable.check_circle), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(Colors.MintInk))
+                                    Text(when (state) {
+                                        DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재 최고 입찰자"
+                                        DetailAuctionState.Cancelled -> "취소 시점 최고 입찰자"
+                                        else -> "최종 최고 입찰자"
+                                    }, color = Colors.MintInk, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
+                            Text(bid.bidderNickname ?: bid.maskedBidderId, color = if (top) Colors.Navy else Colors.Text, fontSize = if (top) 13.sp else 12.sp, fontWeight = FontWeight.Bold)
                             Text(formatBidCreatedAt(bid.createdAt), color = Colors.Muted, fontSize = 10.sp)
                         }
-                        Text("${"%,d".format(bid.amount)}원", color = Colors.Navy, fontSize = if (top) 16.sp else 14.sp, fontWeight = FontWeight.Bold)
+                        Text("${"%,d".format(bid.amount)}원", color = if (top) Colors.MintInk else Colors.Navy, fontSize = if (top) 16.sp else 14.sp, fontWeight = FontWeight.Bold)
                     }
                     if (index < visibleItems.lastIndex) HorizontalDivider(color = Colors.Border)
                 }
             }
-            if (historyItems.size > 3 && !expanded) OutlinedButton({ expanded = true }, Modifier.fillMaxWidth().height(44.dp), shape = RoundedCornerShape(10.dp)) {
+            if (historyItems.size > 3 && !expanded) OutlinedButton({ expanded = true }, Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.outlinedButtonColors(containerColor = Colors.NavySoft, contentColor = Colors.Navy)) {
                 Text("입찰 이력 더 보기", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            } else if (hasNext) OutlinedButton(onLoadMore, Modifier.fillMaxWidth().height(44.dp), enabled = !isLoading, shape = RoundedCornerShape(10.dp)) {
+            } else if (hasNext) OutlinedButton(onLoadMore, Modifier.fillMaxWidth().height(44.dp), enabled = !isLoading,
+                shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.outlinedButtonColors(containerColor = Colors.NavySoft, contentColor = Colors.Navy)) {
                 if (isLoading) CircularProgressIndicator(Modifier.size(18.dp), color = Colors.Navy, strokeWidth = 2.dp) else Text("입찰 이력 더 보기", color = Colors.Navy, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
@@ -468,7 +514,7 @@ private fun DetailAppBar(onBack: () -> Unit, onShare: () -> Unit, shareEnabled: 
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, productStatus: String?, onImageClick: (Int) -> Unit) {
+private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: DetailAuctionState, bidCount: Int, remainingSeconds: Int, productStatus: String?, condition: String?, onImageClick: (Int) -> Unit) {
     val pageCount = imageUrls.size.takeIf { it > 0 } ?: 1
     val pagerState = rememberPagerState(pageCount = { pageCount })
     Box(Modifier.fillMaxWidth().aspectRatio(1.2f).background(Colors.Image)) {
@@ -494,33 +540,63 @@ private fun ProductGallery(photo: ProductPhoto, imageUrls: List<String>, state: 
                 }
             }
         }
-        // Surface 는 onClick 이 없어도 뒤로 터치를 안 넘긴다. 사진 뷰어(pager) 위에 얹혀 있어서
-        // 이 모서리에서 시작한 스와이프가 먹히지 않았다. Box 로 바꾼다
-        Box(
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Colors.Background.copy(alpha = .9f))
-        ) {
-            Text(
-                "${pagerState.currentPage + 1} / $pageCount",
-                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                fontSize = 11.sp
-            )
-        }
         Row(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            Modifier.align(Alignment.TopStart).fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            repeat(pageCount) { index ->
-                Box(
-                    Modifier.size(if (index == pagerState.currentPage) 7.dp else 5.dp)
-                        .background(
-                            if (index == pagerState.currentPage) Colors.Navy else Colors.Background.copy(alpha = .8f),
-                            CircleShape
-                        )
+            val finishedLabel = endedGalleryLabel(state, bidCount, productStatus)?.first
+            when {
+                state == DetailAuctionState.Cancelled -> GalleryBadge("경매 취소", R.drawable.close, Color(0xDD1A1A1A))
+                finishedLabel != null -> GalleryBadge(
+                    finishedLabel,
+                    if (finishedLabel == "유찰") R.drawable.warning_outline else R.drawable.check_circle,
+                    Color(0xDD1A1A1A)
                 )
+                state == DetailAuctionState.Scheduled -> GalleryBadge("경매 예정", R.drawable.timer_outline, Colors.Navy)
+                else -> {
+                    DibLiveBadge()
+                    if (remainingSeconds in 1..300) {
+                        GalleryBadge("마감 임박", R.drawable.timer_outline, Color(0xFFFFECEE), Colors.Urgent)
+                    }
+                }
+            }
+            GalleryBadge("상태 ${conditionLabel(condition)}", R.drawable.product_outline, Color(0xE614294A))
+        }
+        if (pageCount > 1) {
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
+                    .clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = .48f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .semantics { contentDescription = "상품 사진 ${pagerState.currentPage + 1} / $pageCount" },
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pageCount) { index ->
+                    Box(
+                        Modifier.size(if (index == pagerState.currentPage) 8.dp else 6.dp)
+                            .background(
+                                if (index == pagerState.currentPage) Color.White else Color.White.copy(alpha = .55f),
+                                CircleShape
+                            )
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun GalleryBadge(label: String, icon: Int, background: Color, foreground: Color = Color.White) {
+    Row(
+        Modifier.shadow(2.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
+            .background(background).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Image(painterResource(icon), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(foreground))
+        Text(label, color = foreground, fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -538,74 +614,122 @@ internal fun endedGalleryLabel(state: DetailAuctionState, bidCount: Int, product
 private fun ProductSummary(
     name: String,
     price: Int,
-    startPrice: Int,
     bidCount: Int,
     remainingSeconds: Int,
     state: DetailAuctionState,
-    condition: String?,
-    priceUndecided: Boolean = false
+    priceUndecided: Boolean,
+    sellerDetail: ProductDetail?,
+    auction: HomeAuction,
+    bidMotionTone: BidMotionTone,
+    bidMotionSequence: Int,
+    onSellerClick: () -> Unit
 ) {
+    val bidding = state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder
+    val leading = state == DetailAuctionState.HighestBidder
+    val urgent = bidding && remainingSeconds in 1..15
+    val cardSurface by animateColorAsState(
+        when {
+            leading -> Colors.MintSoft
+            bidMotionTone == BidMotionTone.Outbid -> Colors.UrgentBackground
+            bidMotionTone == BidMotionTone.Success -> Colors.MintSoft
+            urgent -> auctionUrgencySurface(remainingSeconds)
+            else -> Colors.Surface
+        },
+        tween(350), label = "detailAuctionCardSurface"
+    )
+    val cardBorder by animateColorAsState(
+        when {
+            leading -> Colors.Mint
+            bidMotionTone == BidMotionTone.Outbid -> Colors.Urgent
+            bidMotionTone == BidMotionTone.Success -> Colors.Mint
+            urgent -> auctionUrgencyColor(remainingSeconds)
+            else -> Colors.Surface
+        },
+        tween(350), label = "detailAuctionCardBorder"
+    )
     Column(Modifier.fillMaxWidth().background(Colors.Background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (state) {
-                DetailAuctionState.Scheduled -> Badge("경매 예정")
-                DetailAuctionState.Cancelled -> Badge("경매 취소")
-                DetailAuctionState.Lost -> Badge("경매 종료")
-                DetailAuctionState.Won -> Badge("낙찰 완료", success = true)
-                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> Badge(
-                    "마감 임박",
-                    urgent = true,
-                    modifier = Modifier.auctionUrgencyPulse(remainingSeconds)
-                )
-            }
-            Badge("상품 상태 · ${conditionLabel(condition)}")
-        }
         Text(name, color = Colors.Text, fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = (-0.4).sp, fontWeight = FontWeight.Bold)
-        Row(
-            Modifier.fillMaxWidth().background(Colors.Surface, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 13.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // 현재가가 가장 중요한 정보라 맨 앞에 가장 크게, 그다음 시작가·남은 시간 순서로 둔다
-            Metric(
-                when (state) {
-                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
-                    DetailAuctionState.Scheduled -> "시작가"
-                    DetailAuctionState.Cancelled -> "취소 시점 가격"
-                    DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
-                },
-                if (priceUndecided) "가격 미정" else "%,d원".format(price),
-                Colors.Text,
-                22,
-                Modifier.weight(1.2f)
-            )
-            Metric(
-                "시작가",
-                if (priceUndecided) "가격 미정" else "%,d원".format(startPrice),
-                Colors.Text,
-                18,
-                Modifier.weight(1f)
-            )
-            Metric(
-                when (state) {
-                    DetailAuctionState.Lost -> "총 입찰"
-                    DetailAuctionState.Won -> "경매 상태"
-                    DetailAuctionState.Scheduled, DetailAuctionState.Cancelled -> "경매 상태"
-                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "남은 시간"
-                },
-                when (state) {
-                    DetailAuctionState.Lost -> "${bidCount}회"
-                    DetailAuctionState.Won -> "종료"
-                    DetailAuctionState.Scheduled -> "시작 대기"
-                    DetailAuctionState.Cancelled -> "취소"
-                    DetailAuctionState.Active, DetailAuctionState.HighestBidder -> formatRemainingTime(remainingSeconds)
-                },
-                if (remainingSeconds in 1..59) Colors.Urgent else Colors.Text,
-                18,
-                Modifier.weight(1f),
-                valueModifier = if (state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder) {
-                    Modifier.auctionUrgencyPulse(remainingSeconds)
-                } else Modifier
-            )
+        SellerSummary(sellerDetail, auction, onSellerClick)
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(
+                Modifier.fillMaxWidth().background(cardSurface, RoundedCornerShape(16.dp))
+                    .border(1.dp, cardBorder, RoundedCornerShape(16.dp)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        Text(
+                            when (state) {
+                                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "현재가"
+                                DetailAuctionState.Scheduled -> "시작가"
+                                DetailAuctionState.Cancelled -> "취소 시점 가격"
+                                DetailAuctionState.Lost, DetailAuctionState.Won -> "낙찰가"
+                            },
+                            color = Colors.Muted, fontSize = 11.sp, lineHeight = 14.sp
+                        )
+                        if (priceUndecided) {
+                            Text("가격 미정", color = Colors.Text, fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.ExtraBold)
+                        } else {
+                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                val textMeasurer = rememberTextMeasurer()
+                                val density = LocalDensity.current
+                                val availableWidth = with(density) { maxWidth.toPx() } / 1.085f
+                                val priceText = "%,d원".format(price)
+                                val priceFontSize = remember(priceText, availableWidth, density) {
+                                    (40 downTo 22).firstOrNull { halfSp ->
+                                        textMeasurer.measure(
+                                            text = priceText,
+                                            style = TextStyle(fontSize = (halfSp / 2f).sp, fontWeight = FontWeight.ExtraBold),
+                                            softWrap = false
+                                        ).size.width <= availableWidth
+                                    }?.let { (it / 2f).sp } ?: 11.sp
+                                }
+                                AnimatedAuctionPrice(
+                                    price = price,
+                                    identity = auction.id,
+                                    motionSequence = bidMotionSequence,
+                                    tone = if (leading && bidMotionTone == BidMotionTone.Outbid) BidMotionTone.Neutral else bidMotionTone,
+                                    urgent = urgent,
+                                    fontSize = priceFontSize,
+                                    lineHeight = 27.sp,
+                                    baseColor = if (leading) Colors.MintInk else Colors.Text
+                                )
+                            }
+                        }
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        Text(
+                            when (state) {
+                                DetailAuctionState.Lost -> "총 입찰"
+                                DetailAuctionState.Won -> "경매 상태"
+                                DetailAuctionState.Scheduled, DetailAuctionState.Cancelled -> "경매 상태"
+                                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> "남은 시간"
+                            },
+                            color = Colors.Muted,
+                            fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1
+                        )
+                        Text(
+                            when (state) {
+                                DetailAuctionState.Lost -> "${bidCount}회"
+                                DetailAuctionState.Won -> "종료"
+                                DetailAuctionState.Scheduled -> "시작 대기"
+                                DetailAuctionState.Cancelled -> "취소"
+                                DetailAuctionState.Active, DetailAuctionState.HighestBidder -> formatRemainingTime(remainingSeconds)
+                            },
+                            color = Colors.Text,
+                            fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1
+                        )
+                    }
+                }
+                if (urgent) AuctionUrgencyProgress(remainingSeconds, Modifier.fillMaxWidth())
+            }
+            if (state != DetailAuctionState.Scheduled && auction.startPrice > 0) {
+                Text("시작가 ${"%,d".format(auction.startPrice)}원", Modifier.padding(start = 4.dp),
+                    color = Colors.Muted, fontSize = 11.sp, lineHeight = 15.sp)
+            }
         }
         if (state == DetailAuctionState.Lost) {
             Text("아쉽게 낙찰되지 않았어요", Modifier.fillMaxWidth().background(Color(0xFFF5F5F5), RoundedCornerShape(10.dp)).padding(14.dp), color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -634,16 +758,8 @@ private fun Badge(label: String, urgent: Boolean = false, success: Boolean = fal
 }
 
 @Composable
-private fun Metric(label: String, value: String, color: androidx.compose.ui.graphics.Color, valueSize: Int, modifier: Modifier = Modifier, valueModifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(label, color = Colors.Muted, fontSize = 12.sp, lineHeight = 18.sp)
-        Text(value, valueModifier, color = color, fontSize = valueSize.sp, lineHeight = (valueSize + 6).sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
 private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Colors.Background).clickable(onClick = onClick).padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         DibProfileAvatar(detail?.sellerProfileImageUrl ?: auction.sellerProfileImageUrl, 40.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -656,7 +772,6 @@ private fun SellerSummary(detail: ProductDetail?, auction: HomeAuction, onClick:
         }
         Image(painterResource(R.drawable.chevron_right), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Colors.Muted))
     }
-    HorizontalDivider(color = Colors.Border)
 }
 
 @Composable
@@ -764,7 +879,7 @@ private fun StickyBidAction(
             }
             return@Column
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             DibWishlistButton(favorite, onFavorite, "상품", Modifier.size(48.dp), plain = true)
             Button(
                 onClick = onBid,
@@ -777,17 +892,14 @@ private fun StickyBidAction(
                     disabledContentColor = Colors.Muted
                 )
             ) {
-                Text(
-                    when {
+                Text(when {
                         isOwnAuction -> "내 경매에는 입찰할 수 없어요"
                         state == DetailAuctionState.HighestBidder -> "현재 최고 입찰 중이에요"
                         !biddingAvailable -> "실시간 입찰 연결이 필요해요"
                         submitting -> "입찰 결과 확인 중"
                         else -> "%,d원 입찰하기".format(price)
                     },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }

@@ -126,6 +126,8 @@ data class LiveChatAcceptedPayload(
     val commandId: String,
     val liveBroadcastId: JsonElement? = null,
     val liveChattingId: JsonElement? = null,
+    val memberId: JsonElement? = null,
+    val nickname: String? = null,
     val time: String? = null
 )
 

@@ -62,8 +62,18 @@ class SignupValidatorTest {
     @Test
     fun rejectsMalformedPhoneAndBirthDate() {
         assertFalse(SignupValidator.isFormValid(validForm.copy(phoneNumber = "010-1234-5678")))
+        assertFalse(SignupValidator.isFormValid(validForm.copy(phoneNumber = "0212345678")))
+        assertFalse(SignupValidator.isFormValid(validForm.copy(phoneNumber = "01112345678")))
         assertFalse(SignupValidator.isFormValid(validForm.copy(birthDate = "20000131")))
         assertFalse(SignupValidator.isFormValid(validForm.copy(birthDate = "2025-02-31")))
+    }
+
+    @Test
+    fun matchesServerSignupFieldLimits() {
+        assertTrue(SignupValidator.isNameValid("김디브"))
+        assertFalse(SignupValidator.isNameValid("가나다라마바사아자차카"))
+        assertFalse(SignupValidator.isEmailValid("a".repeat(251) + "@b.co"))
+        assertFalse(SignupValidator.isPasswordValid("Dibpassword1★"))
     }
 
     @Test

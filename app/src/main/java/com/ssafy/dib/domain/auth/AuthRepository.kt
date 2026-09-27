@@ -17,7 +17,8 @@ data class AuthSession(
 data class PhoneVerificationChallenge(
     val verificationId: String,
     val expiresAt: String,
-    val retryAfterSeconds: Long
+    val retryAfterSeconds: Long,
+    val autoVerificationToken: String? = null
 )
 
 data class PhoneVerificationConfirmation(

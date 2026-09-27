@@ -5,6 +5,7 @@ import com.ssafy.dib.data.remote.member.MemberProfileResponse
 import com.ssafy.dib.data.remote.member.MemberProfileUpdateResponse
 import com.ssafy.dib.data.remote.member.MemberRemoteDataSource
 import com.ssafy.dib.domain.member.MemberProfile
+import com.ssafy.dib.domain.member.MemberImageUpload
 import com.ssafy.dib.domain.member.MemberProfileUpdate
 import com.ssafy.dib.domain.member.MemberRepository
 import com.ssafy.dib.domain.member.MemberWithdrawal
@@ -22,6 +23,12 @@ class MemberRepositoryImpl(private val remote: MemberRemoteDataSource) : MemberR
         is ApiResult.Failure -> result
     }
 
+    override fun updateProfileImage(nickname: String?, image: MemberImageUpload): ApiResult<MemberProfileUpdate> =
+        when (val result = remote.updateProfileImage(nickname, image)) {
+            is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
+            is ApiResult.Failure -> result
+        }
+
     override fun requestWithdrawal(reason: String?): ApiResult<MemberWithdrawal> = when (val result = remote.requestWithdrawal(reason)) {
         is ApiResult.Success -> ApiResult.Success(
             MemberWithdrawal(result.value.requestedAt, result.value.scheduledAt, result.value.status),
@@ -33,10 +40,11 @@ class MemberRepositoryImpl(private val remote: MemberRemoteDataSource) : MemberR
 
 internal fun MemberProfileResponse.toDomain() = MemberProfile(
     memberId = memberId.idValue(), email = email, name = name, phoneNumber = phoneNumber,
-    nickname = nickname, gender = gender, birthDate = birthDate, status = status, role = role, score = score
+    nickname = nickname, gender = gender, birthDate = birthDate, status = status, role = role, score = score,
+    profileImageUrl = profileImageUrl
 )
 
-internal fun MemberProfileUpdateResponse.toDomain() = MemberProfileUpdate(memberId.idValue(), nickname, updatedAt)
+internal fun MemberProfileUpdateResponse.toDomain() = MemberProfileUpdate(memberId.idValue(), nickname, updatedAt, profileImageUrl)
 
 private fun kotlinx.serialization.json.JsonElement.idValue(): String =
     (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
