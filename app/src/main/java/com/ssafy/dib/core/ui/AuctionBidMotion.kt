@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,16 +22,61 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 enum class BidMotionTone { Neutral, Success, Outbid }
+
+@Composable
+fun AutoSizingAuctionPrice(
+    price: Int,
+    identity: String,
+    motionSequence: Int,
+    tone: BidMotionTone,
+    urgent: Boolean,
+    maxFontSize: TextUnit,
+    lineHeight: TextUnit,
+    baseColor: Color,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(modifier) {
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        // 입찰 바운스가 1.085배까지 커져도 가격 전체가 한 줄에 남도록 여유를 둔다.
+        val availableWidth = with(density) { maxWidth.toPx() } / 1.1f
+        val priceText = "%,d원".format(price.coerceAtLeast(0))
+        val maxHalfSp = (maxFontSize.value * 2).toInt()
+        val fittedSize = remember(priceText, availableWidth, maxHalfSp, density) {
+            (maxHalfSp downTo 16).firstOrNull { halfSp ->
+                measurer.measure(
+                    text = priceText,
+                    style = TextStyle(fontSize = (halfSp / 2f).sp, fontWeight = FontWeight.ExtraBold),
+                    softWrap = false
+                ).size.width <= availableWidth
+            }?.let { (it / 2f).sp } ?: 8.sp
+        }
+        AnimatedAuctionPrice(
+            price = price,
+            identity = identity,
+            motionSequence = motionSequence,
+            tone = tone,
+            urgent = urgent,
+            fontSize = fittedSize,
+            lineHeight = lineHeight,
+            baseColor = baseColor
+        )
+    }
+}
 
 fun auctionUrgencyColor(remainingSeconds: Int): Color {
     val progress = (15 - remainingSeconds).coerceIn(0, 15) / 15f
@@ -93,6 +139,7 @@ fun AnimatedAuctionPrice(
         fontSize = fontSize,
         lineHeight = lineHeight,
         fontWeight = FontWeight.ExtraBold,
+        softWrap = false,
         maxLines = 1
     )
 }

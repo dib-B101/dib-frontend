@@ -7,14 +7,20 @@ data class MemberAddress(
     val postalCode: String,
     val address: String,
     val name: String,
-    val apiAddressId: String
+    val apiAddressId: String,
+    val detailAddress: String? = null,
+    val receiverName: String? = null,
+    val receiverPhone: String? = null
 )
 
 data class NewAddress(
     val postalCode: String,
     val address: String,
     val name: String,
-    val apiAddressId: String
+    val apiAddressId: String,
+    val detailAddress: String? = null,
+    val receiverName: String? = null,
+    val receiverPhone: String? = null
 )
 
 interface AddressRepository {

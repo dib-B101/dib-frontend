@@ -71,6 +71,7 @@ fun OrderAddressDialog(
     errorMessage: String?,
     savedAddresses: List<MemberAddress> = emptyList(),
     defaultReceiverName: String = "",
+    defaultReceiverPhone: String = "",
     // 이미 입력한 배송지를 고칠 때 채워 둘 값. null 이면 새로 입력한다
     current: OrderShippingAddress? = null,
     onSubmit: (OrderAddressInput) -> Unit,
@@ -82,6 +83,7 @@ fun OrderAddressDialog(
     var detail by remember { mutableStateOf("") }
     var receiverName by remember { mutableStateOf(current?.name ?: defaultReceiverName) }
     var receiverPhone by remember { mutableStateOf(current?.phoneNumber.orEmpty()) }
+    var selectedAddressId by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
 
     val phoneDigits = receiverPhone.filter { it.isDigit() }
@@ -93,6 +95,8 @@ fun OrderAddressDialog(
             onSelected = { selectedZip, selectedAddress, _ ->
                 zip = selectedZip
                 roadAddress = selectedAddress
+                detail = ""
+                selectedAddressId = null
                 searching = false
             },
             onDismiss = { searching = false }
@@ -117,7 +121,7 @@ fun OrderAddressDialog(
                 if (savedAddresses.isNotEmpty()) {
                     Text("저장된 배송지", color = Colors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     savedAddresses.forEach { saved ->
-                        val selected = saved.postalCode == zip && saved.address == roadAddress
+                        val selected = saved.addressId == selectedAddressId
                         Column(
                             Modifier.fillMaxWidth()
                                 .border(
@@ -126,8 +130,13 @@ fun OrderAddressDialog(
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .clickable(enabled = !submitting) {
-                                    zip = saved.postalCode
-                                    roadAddress = saved.address
+                                    val fields = saved.toShippingFields(defaultReceiverName, defaultReceiverPhone)
+                                    zip = fields.postalCode
+                                    roadAddress = fields.address
+                                    detail = fields.detailAddress
+                                    receiverName = fields.receiverName
+                                    receiverPhone = fields.receiverPhone
+                                    selectedAddressId = saved.addressId
                                 }
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(3.dp)
@@ -155,7 +164,7 @@ fun OrderAddressDialog(
                 }
                 OutlinedTextField(
                     value = detail,
-                    onValueChange = { detail = it },
+                    onValueChange = { detail = it; selectedAddressId = null },
                     label = { Text("상세주소 (동/호수)") },
                     enabled = !submitting,
                     singleLine = true,
@@ -165,7 +174,7 @@ fun OrderAddressDialog(
                 )
                 OutlinedTextField(
                     value = receiverName,
-                    onValueChange = { receiverName = it },
+                    onValueChange = { receiverName = it; selectedAddressId = null },
                     label = { Text("받는 사람") },
                     enabled = !submitting,
                     singleLine = true,
@@ -176,7 +185,7 @@ fun OrderAddressDialog(
                 )
                 OutlinedTextField(
                     value = receiverPhone,
-                    onValueChange = { input -> receiverPhone = input.filter { it.isDigit() || it == '-' }.take(13) },
+                    onValueChange = { input -> receiverPhone = input.filter { it.isDigit() || it == '-' }.take(13); selectedAddressId = null },
                     label = { Text("연락처") },
                     placeholder = { Text("01012345678") },
                     enabled = !submitting,

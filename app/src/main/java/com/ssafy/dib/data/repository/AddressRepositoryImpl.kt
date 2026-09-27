@@ -19,7 +19,8 @@ class AddressRepositoryImpl(private val remote: AddressRemoteDataSource) : Addre
     }
 
     override fun createAddress(address: NewAddress): ApiResult<MemberAddress> = when (val result = remote.createAddress(
-        CreateAddressRequest(address.postalCode, address.address, address.name, address.apiAddressId.toJsonId())
+        CreateAddressRequest(address.postalCode, address.address, address.name, address.apiAddressId.toJsonId(),
+            address.detailAddress, address.receiverName, address.receiverPhone)
     )) {
         is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
         is ApiResult.Failure -> result
@@ -27,7 +28,8 @@ class AddressRepositoryImpl(private val remote: AddressRemoteDataSource) : Addre
 
     override fun updateAddress(address: MemberAddress): ApiResult<MemberAddress> = when (val result = remote.updateAddress(
         address.addressId,
-        UpdateAddressRequest(address.postalCode, address.address, address.name, address.apiAddressId.toJsonId())
+        UpdateAddressRequest(address.postalCode, address.address, address.name, address.apiAddressId.toJsonId(),
+            address.detailAddress, address.receiverName, address.receiverPhone)
     )) {
         is ApiResult.Success -> ApiResult.Success(result.value.toDomain(), result.status)
         is ApiResult.Failure -> result
@@ -36,7 +38,8 @@ class AddressRepositoryImpl(private val remote: AddressRemoteDataSource) : Addre
     override fun deleteAddress(addressId: String): ApiResult<Unit> = remote.deleteAddress(addressId)
 }
 
-internal fun AddressDto.toDomain() = MemberAddress(addressId.idValue(), number.orEmpty(), address.orEmpty(), name, apiAddressId.idValue())
+internal fun AddressDto.toDomain() = MemberAddress(addressId.idValue(), number.orEmpty(), address.orEmpty(), name,
+    apiAddressId.idValue(), detailAddress, receiverName, receiverPhone)
 
 private fun JsonElement.idValue(): String = (this as? JsonPrimitive)?.contentOrNull ?: toString().trim('"')
 private fun String.toJsonId(): JsonPrimitive = toLongOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(this)

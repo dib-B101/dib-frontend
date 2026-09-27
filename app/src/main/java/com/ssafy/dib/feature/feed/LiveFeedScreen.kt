@@ -71,7 +71,7 @@ import com.ssafy.dib.domain.live.LiveStreamSession
 import com.ssafy.dib.data.remote.socket.RealtimeConnectionState
 import com.ssafy.dib.domain.auction.AuctionSummary
 import com.ssafy.dib.core.ui.DibNetworkImage
-import com.ssafy.dib.core.ui.AnimatedAuctionPrice
+import com.ssafy.dib.core.ui.AutoSizingAuctionPrice
 import com.ssafy.dib.core.ui.AuctionUrgencyProgress
 import com.ssafy.dib.core.ui.BidMotionTone
 import com.ssafy.dib.core.ui.auctionUrgencyColor
@@ -772,15 +772,17 @@ private fun LiveFeedPage(
                                     color = Colors.Navy, fontSize = 15.sp, lineHeight = 19.sp,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold
                                 )
-                                AnimatedAuctionPrice(
+                                AutoSizingAuctionPrice(
                                     price = currentPrice,
                                     identity = auctionKey.orEmpty(),
                                     motionSequence = bidMotionSequence,
                                     tone = bidMotionTone,
-                                    urgent = auctionUrgent,
-                                    fontSize = 24.sp,
+                                    // 입찰 이력이 없는 시청자는 가격 숫자만 갱신한다.
+                                    urgent = auctionUrgent && (activeAuction?.myBidAmount != null || isHighestBidder),
+                                    maxFontSize = 24.sp,
                                     lineHeight = 29.sp,
-                                    baseColor = Colors.Navy
+                                    baseColor = Colors.Navy,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                                 Text(
                                     "상품 전체보기 ›",

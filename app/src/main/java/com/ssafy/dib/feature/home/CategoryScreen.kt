@@ -50,18 +50,15 @@ import com.ssafy.dib.R
 import com.ssafy.dib.domain.product.ProductCategory
 import com.ssafy.dib.ui.theme.WireframeColors as Colors
 
-// 서버 카테고리(GET /api/v1/categories)가 오기 전이거나 실패했을 때만 쓰는 대체 목록
-private val categories = listOf("디지털기기", "생활가전", "가구·인테리어", "스포츠·레저", "패션·잡화", "뷰티", "취미·게임", "예술·창작")
-    .mapIndexed { index, name -> ProductCategory((index + 1).toString(), name) }
-    .sortedBy { categoryOrder(it.name) }
-
 @Composable
 fun CategoryScreen(
     onBack: () -> Unit,
-    onSearchClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onTabSelected: (DibMainTab) -> Unit,
     remoteCategories: List<ProductCategory>?,
+    categoriesLoading: Boolean,
+    categoriesError: String?,
+    onCategoriesRetry: () -> Unit,
     remoteAuctions: List<HomeAuction>?,
     isLoading: Boolean,
     errorMessage: String?,
@@ -77,9 +74,7 @@ fun CategoryScreen(
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
     val auctionGridState = rememberLazyGridState()
     // 같은 묶음끼리 붙도록 정렬한다. sortedBy 는 안정 정렬이라 묶음 안에서는 서버 순서가 유지된다
-    val visibleCategories = remoteCategories?.takeIf { it.isNotEmpty() }
-        ?.sortedBy { categoryOrder(it.name) }
-        ?: categories
+    val visibleCategories = remoteCategories.orEmpty().sortedBy { categoryOrder(it.name) }
     Scaffold(
         modifier = modifier.fillMaxSize().safeDrawingPadding(),
         containerColor = Colors.Canvas,
@@ -106,8 +101,8 @@ fun CategoryScreen(
         bottomBar = { DibBottomNavigation(DibMainTab.Home, onTabSelected) }
     ) { padding ->
         DibPullToRefreshBox(
-            isRefreshing = isLoading,
-            onRefresh = onRetry,
+            isRefreshing = if (selectedId == null) categoriesLoading else isLoading,
+            onRefresh = if (selectedId == null) onCategoriesRetry else onRetry,
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
@@ -119,9 +114,13 @@ fun CategoryScreen(
                 if (visibleCategories.isEmpty()) {
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("카테고리를 불러올 수 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("검색에서 상품명으로 경매를 찾아보세요", color = Colors.Muted, fontSize = 12.sp)
-                            OutlinedButton(onClick = onSearchClick) { Text("검색하기") }
+                            if (categoriesLoading) {
+                                CircularProgressIndicator(color = Colors.Navy)
+                            } else {
+                                Text("카테고리를 불러올 수 없어요", color = Colors.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(categoriesError ?: "잠시 후 다시 시도해 주세요.", color = Colors.Muted, fontSize = 12.sp)
+                                OutlinedButton(onClick = onCategoriesRetry) { Text("다시 불러오기") }
+                            }
                         }
                     }
                 } else {

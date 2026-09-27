@@ -34,9 +34,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.dib.R
@@ -47,7 +44,7 @@ import com.ssafy.dib.core.ui.DibSubAppBar
 import com.ssafy.dib.core.ui.DibProfileAvatar
 import com.ssafy.dib.core.ui.DibReportButton
 import com.ssafy.dib.core.ui.DibSnackbarHost
-import com.ssafy.dib.core.ui.AnimatedAuctionPrice
+import com.ssafy.dib.core.ui.AutoSizingAuctionPrice
 import com.ssafy.dib.core.ui.AuctionUrgencyProgress
 import com.ssafy.dib.core.ui.BidMotionTone
 import com.ssafy.dib.core.ui.auctionUrgencyColor
@@ -330,6 +327,7 @@ fun ProductDetailScreen(
                     productName, currentPrice, product.bidCount,
                     remainingSeconds, auctionState, product.priceUndecided && currentPrice <= 0,
                     productDetail, product, bidMotionTone, bidMotionSequence,
+                    hasOwnBid = myHighestBidAmount != null || isHighestBidder,
                     onSellerClick = { onSellerClick(productDetail?.memberId ?: product.sellerMemberId) }
                 )
             }
@@ -622,6 +620,7 @@ private fun ProductSummary(
     auction: HomeAuction,
     bidMotionTone: BidMotionTone,
     bidMotionSequence: Int,
+    hasOwnBid: Boolean,
     onSellerClick: () -> Unit
 ) {
     val bidding = state == DetailAuctionState.Active || state == DetailAuctionState.HighestBidder
@@ -670,31 +669,18 @@ private fun ProductSummary(
                         if (priceUndecided) {
                             Text("가격 미정", color = Colors.Text, fontSize = 20.sp, lineHeight = 27.sp, fontWeight = FontWeight.ExtraBold)
                         } else {
-                            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                                val textMeasurer = rememberTextMeasurer()
-                                val density = LocalDensity.current
-                                val availableWidth = with(density) { maxWidth.toPx() } / 1.085f
-                                val priceText = "%,d원".format(price)
-                                val priceFontSize = remember(priceText, availableWidth, density) {
-                                    (40 downTo 22).firstOrNull { halfSp ->
-                                        textMeasurer.measure(
-                                            text = priceText,
-                                            style = TextStyle(fontSize = (halfSp / 2f).sp, fontWeight = FontWeight.ExtraBold),
-                                            softWrap = false
-                                        ).size.width <= availableWidth
-                                    }?.let { (it / 2f).sp } ?: 11.sp
-                                }
-                                AnimatedAuctionPrice(
-                                    price = price,
-                                    identity = auction.id,
-                                    motionSequence = bidMotionSequence,
-                                    tone = if (leading && bidMotionTone == BidMotionTone.Outbid) BidMotionTone.Neutral else bidMotionTone,
-                                    urgent = urgent,
-                                    fontSize = priceFontSize,
-                                    lineHeight = 27.sp,
-                                    baseColor = if (leading) Colors.MintInk else Colors.Text
-                                )
-                            }
+                            AutoSizingAuctionPrice(
+                                price = price,
+                                identity = auction.id,
+                                motionSequence = bidMotionSequence,
+                                tone = if (leading && bidMotionTone == BidMotionTone.Outbid) BidMotionTone.Neutral else bidMotionTone,
+                                // 아직 입찰하지 않았다면 다른 사람의 입찰은 숫자 변화로만 알린다.
+                                urgent = urgent && hasOwnBid,
+                                maxFontSize = 20.sp,
+                                lineHeight = 27.sp,
+                                baseColor = if (leading) Colors.MintInk else Colors.Text,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                     Column(
