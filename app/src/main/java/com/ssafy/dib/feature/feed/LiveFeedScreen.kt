@@ -99,6 +99,7 @@ fun LiveFeedScreen(
     loadMoreError: String?,
     onLoadMore: () -> Unit,
     activeLiveBroadcastId: String?,
+    realtimeViewerCount: Int?,
     streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     liveComments: List<LiveChatMessage>,
     chatHasMore: Boolean,
@@ -162,6 +163,7 @@ fun LiveFeedScreen(
             loadMoreError = loadMoreError,
             onLoadMore = onLoadMore,
             activeLiveBroadcastId = activeLiveBroadcastId,
+            realtimeViewerCount = realtimeViewerCount,
             streamTokenProvider = streamTokenProvider,
             liveComments = liveComments,
             chatHasMore = chatHasMore,
@@ -277,6 +279,7 @@ private fun LiveFeedPager(
     loadMoreError: String?,
     onLoadMore: () -> Unit,
     activeLiveBroadcastId: String?,
+    realtimeViewerCount: Int?,
     streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     liveComments: List<LiveChatMessage>,
     chatHasMore: Boolean,
@@ -331,6 +334,7 @@ private fun LiveFeedPager(
             LiveFeedPage(
             liveItem = items[page],
             isActivePage = page == pagerState.currentPage,
+            viewerCount = realtimeViewerCount.takeIf { items[page]?.liveBroadcastId == activeLiveBroadcastId },
             streamTokenProvider = streamTokenProvider,
             liveComments = if (items[page]?.liveBroadcastId == activeLiveBroadcastId) liveComments else emptyList(),
             chatHasMore = items[page]?.liveBroadcastId == activeLiveBroadcastId && chatHasMore,
@@ -379,6 +383,7 @@ private fun LiveFeedPager(
 private fun LiveFeedPage(
     liveItem: LiveFeedItem?,
     isActivePage: Boolean,
+    viewerCount: Int?,
     streamTokenProvider: (suspend (String) -> Result<LiveStreamSession>)?,
     liveComments: List<LiveChatMessage>,
     chatHasMore: Boolean,
@@ -578,7 +583,7 @@ private fun LiveFeedPage(
                         Text("LIVE", color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("${"%,d".format(liveItem?.viewCount ?: 1_248)}명 시청 중", Modifier.padding(start = 9.dp), color = Color.White.copy(alpha = .9f), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(viewerCount?.let { "%,d명 시청 중".format(it.coerceAtLeast(0)) } ?: "시청 중", Modifier.padding(start = 9.dp), color = Color.White.copy(alpha = .9f), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Image(painterResource(R.drawable.close), "Live 닫기", Modifier.size(44.dp).clickable(onClick = onClose).padding(10.dp), colorFilter = ColorFilter.tint(Color.White))
             }

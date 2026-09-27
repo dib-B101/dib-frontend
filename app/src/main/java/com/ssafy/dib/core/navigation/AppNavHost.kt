@@ -1818,6 +1818,7 @@ fun AppNavHost(
             var liveFeedLoadingMore by remember { mutableStateOf(false) }
             var liveFeedLoadMoreError by remember { mutableStateOf<String?>(null) }
             var activeLiveBroadcastId by remember { mutableStateOf<String?>(null) }
+            var realtimeViewerCount by remember { mutableStateOf<Int?>(null) }
             var liveAuctionLists by remember { mutableStateOf<Map<String, List<com.ssafy.dib.domain.auction.AuctionSummary>>>(emptyMap()) }
             var liveDetailLoading by remember { mutableStateOf(false) }
             var liveDetailError by remember { mutableStateOf<String?>(null) }
@@ -1905,11 +1906,13 @@ fun AppNavHost(
                 liveChatLoadEarlierError = null
                 when (val result = withContext(Dispatchers.IO) { auth.liveRepository.getMessages(liveId) }) {
                     is ApiResult.Success -> {
-                        liveComments = result.value.items
-                        liveChatHasMore = result.value.hasMore
+                        if (activeLiveBroadcastId == liveId) {
+                            liveComments = result.value.items
+                            liveChatHasMore = result.value.hasMore
+                        }
                     }
                     is ApiResult.Failure -> {
-                        liveChatError = result.error.message.ifBlank { "Live 댓글을 불러오지 못했어요." }
+                        if (activeLiveBroadcastId == liveId) liveChatError = result.error.message.ifBlank { "Live 댓글을 불러오지 못했어요." }
                         if (result.error.requiresLogin) signedIn = false
                     }
                 }
@@ -1970,7 +1973,9 @@ fun AppNavHost(
                             liveBroadcastId = liveId,
                             activeAuctionId = liveFeedItems?.firstOrNull { it.liveBroadcastId == liveId }?.currentAuction?.auctionId,
                             onMessage = { message -> coroutineScope.launch {
-                                liveComments = mergeLiveChatMessage(liveComments, message, memberProfile?.memberId, memberProfile?.nickname)
+                                if (activeLiveBroadcastId == liveId) {
+                                    liveComments = mergeLiveChatMessage(liveComments, message, memberProfile?.memberId, memberProfile?.nickname)
+                                }
                             } },
                             onUpdate = { update -> coroutineScope.launch {
                                 val targetLiveId = update.liveBroadcastId ?: liveId
@@ -1981,11 +1986,15 @@ fun AppNavHost(
                                     liveAuctionLists = liveAuctionLists - targetLiveId
                                     if (activeLiveBroadcastId == targetLiveId) {
                                         activeLiveBroadcastId = null
+                                        realtimeViewerCount = null
                                         pendingLiveBidCommandId = null
                                         liveBidFeedback = null
                                     }
                                     liveFeedRevision++
                                     return@launch
+                                }
+                                if (targetLiveId == activeLiveBroadcastId && update.viewerCount != null) {
+                                    realtimeViewerCount = update.viewerCount.coerceAtLeast(0)
                                 }
                                 liveFeedItems = liveFeedItems?.map { item ->
                                     if (item.liveBroadcastId != targetLiveId) return@map item
@@ -2061,10 +2070,16 @@ fun AppNavHost(
                                     )
                                     pendingLiveBidCommandId = null
                                 }
-                                update.message?.takeIf { update.bidAccepted == null }?.let { liveChatError = it }
+                                if (activeLiveBroadcastId == liveId) {
+                                    update.message?.takeIf { update.bidAccepted == null }?.let { liveChatError = it }
+                                }
                             } },
-                            onError = { message -> coroutineScope.launch { liveChatError = message } },
-                            onState = { state -> coroutineScope.launch { liveChatState = state } }
+                            onError = { message -> coroutineScope.launch {
+                                if (activeLiveBroadcastId == liveId) liveChatError = message
+                            } },
+                            onState = { state -> coroutineScope.launch {
+                                if (activeLiveBroadcastId == liveId) liveChatState = state
+                            } }
                         )
                     }
                 } else null
@@ -2137,6 +2152,7 @@ fun AppNavHost(
                     }
                 },
                 activeLiveBroadcastId = activeLiveBroadcastId,
+                realtimeViewerCount = realtimeViewerCount,
                 streamTokenProvider = feedStreamTokenProvider,
                 liveComments = liveComments,
                 chatHasMore = liveChatHasMore,
@@ -2157,11 +2173,13 @@ fun AppNavHost(
                     if (liveId == feedFocusLiveBroadcastId) feedFocusLiveBroadcastId = null
                     if (activeLiveBroadcastId != liveId) {
                         activeLiveBroadcastId = liveId
+                        realtimeViewerCount = null
                         liveComments = emptyList()
                         liveChatHasMore = false
                         liveChatLoadingEarlier = false
                         liveChatLoadEarlierError = null
                         liveChatError = null
+                        liveChatState = null
                     }
                 },
                 onLoadEarlierComments = {
@@ -2175,18 +2193,22 @@ fun AppNavHost(
                                 auth.liveRepository.getMessages(liveId, cursor)
                             }) {
                                 is ApiResult.Success -> {
-                                    liveComments = (result.value.items + liveComments)
-                                        .distinctBy { it.liveChattingId }
-                                    liveChatHasMore = result.value.hasMore
+                                    if (activeLiveBroadcastId == liveId) {
+                                        liveComments = (result.value.items + liveComments)
+                                            .distinctBy { it.liveChattingId }
+                                        liveChatHasMore = result.value.hasMore
+                                    }
                                 }
                                 is ApiResult.Failure -> {
-                                    liveChatLoadEarlierError = result.error.message.ifBlank {
-                                        "이전 댓글을 불러오지 못했어요."
+                                    if (activeLiveBroadcastId == liveId) {
+                                        liveChatLoadEarlierError = result.error.message.ifBlank {
+                                            "이전 댓글을 불러오지 못했어요."
+                                        }
                                     }
                                     if (result.error.requiresLogin) signedIn = false
                                 }
                             }
-                            liveChatLoadingEarlier = false
+                            if (activeLiveBroadcastId == liveId) liveChatLoadingEarlier = false
                         }
                     }
                 },
