@@ -129,8 +129,14 @@ private fun ProductOverviewContent(
                 HorizontalDivider(color = Colors.Border)
                 Text("상품 설명", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(product.description.ifBlank { "등록된 상품 설명이 없어요." }, color = Colors.Text, fontSize = 14.sp, lineHeight = 22.sp)
-                product.modelName?.let { ProductAttribute("모델명", it) }
-                product.releaseYear?.let { ProductAttribute("출시 연도", "${it}년") }
+                product.purchaseYear?.let { ProductAttribute("구매 연도", "${it}년") }
+                product.modelName?.takeIf { "model" !in product.attributes }?.let { ProductAttribute("모델명", it) }
+                product.releaseYear?.takeIf { "releaseYear" !in product.attributes }?.let { ProductAttribute("출시 연도", "${it}년") }
+                product.attributeSpecs.forEach { spec ->
+                    product.attributes[spec.key]?.let { value ->
+                        ProductAttribute(spec.label, com.ssafy.dib.feature.main.displayProductAttribute(spec, value))
+                    }
+                }
             }
         }
         if (product.memberId.isNotBlank()) {

@@ -2,7 +2,19 @@ package com.ssafy.dib.domain.product
 
 import com.ssafy.dib.core.network.ApiResult
 
-data class ProductCategory(val categoryId: String, val name: String)
+data class ProductAttributeSpec(
+    val key: String,
+    val label: String,
+    val type: String,
+    val required: Boolean,
+    val placeholder: String
+)
+
+data class ProductCategory(
+    val categoryId: String,
+    val name: String,
+    val attributeSpecs: List<ProductAttributeSpec> = emptyList()
+)
 
 /** 서버 카테고리를 받지 못했을 때 사용하는 기본 카테고리 목록. ID와 이름은 CategoryScreen과 동일하다. */
 val DefaultProductCategories: List<ProductCategory> = listOf(
@@ -29,6 +41,8 @@ data class ProductRegistration(
     val condition: String,
     val modelName: String? = null,
     val releaseYear: Int? = null,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String> = emptyMap(),
     val marketPrice: Long? = null,
     val startPrice: Long? = null,
     val auctionTime: Int? = null,
@@ -50,6 +64,8 @@ data class ProductUpdate(
     val condition: String,
     val modelName: String?,
     val releaseYear: Int?,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String> = emptyMap(),
     val marketPrice: Long? = null,
     // 검수 통과 전 상품에는 경매 행이 없다. 경매가 SCHEDULED 일 때만 보내고, 그 외에는 null 로 보내 404 AUCTION_NOT_FOUND 를 피한다
     val startPrice: Long? = null,
@@ -75,6 +91,9 @@ data class ProductDetail(
     val condition: String,
     val modelName: String?,
     val releaseYear: Int?,
+    val purchaseYear: Int? = null,
+    val attributes: Map<String, String> = emptyMap(),
+    val attributeSpecs: List<ProductAttributeSpec> = emptyList(),
     val marketPrice: Long?,
     val thumbnailUrl: String?,
     val status: String,

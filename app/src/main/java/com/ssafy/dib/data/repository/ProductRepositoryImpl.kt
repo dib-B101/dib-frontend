@@ -112,7 +112,9 @@ class ProductRepositoryImpl(private val remote: ProductRemoteDataSource) : Produ
         }
 }
 
-internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name)
+internal fun CategoryDto.toDomain() = ProductCategory(categoryId.idValue(), name, attributeSpecs.map {
+    com.ssafy.dib.domain.product.ProductAttributeSpec(it.key, it.label, it.type, it.required, it.placeholder)
+})
 internal fun ProductCardDto.toDomain() = RegisteredProduct(
     productId = productId?.idValue().orEmpty(),
     title = title ?: name ?: "등록 상품",
@@ -147,6 +149,11 @@ internal fun ProductDetailResponse.toDomain(): ProductDetail {
         condition = product.condition,
         modelName = product.modelName,
         releaseYear = product.releaseYear,
+        purchaseYear = product.purchaseYear,
+        attributes = product.attributes,
+        attributeSpecs = product.attributeSpecs.map {
+            com.ssafy.dib.domain.product.ProductAttributeSpec(it.key, it.label, it.type, it.required, it.placeholder)
+        },
         marketPrice = product.marketPrice,
         thumbnailUrl = product.thumbnailUrl,
         status = product.status,

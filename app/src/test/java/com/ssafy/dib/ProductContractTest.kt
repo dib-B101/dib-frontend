@@ -26,6 +26,22 @@ class ProductContractTest {
     }
 
     @Test
+    fun mapsCategorySpecificFieldsAndProductValues() {
+        val categories = DibJson.instance.decodeFromString(
+            CategoryListResponse.serializer(),
+            """{"items":[{"categoryId":16,"name":"e쿠폰","attributeSpecs":[{"key":"expiryDate","label":"유효기간","type":"DATE","required":true,"placeholder":"YYYY-MM-DD"}]}]}"""
+        )
+        val product = decodeProductDetail(DibJson.instance.parseToJsonElement(
+            """{"productId":8,"memberId":17,"categoryId":16,"title":"쿠폰","description":"미사용","condition":"GOOD","purchaseYear":2026,"attributes":{"expiryDate":"2027-12-31"},"attributeSpecs":[{"key":"expiryDate","label":"유효기간","type":"DATE","required":true,"placeholder":"YYYY-MM-DD"}]}"""
+        )).toDomain()
+
+        assertEquals("expiryDate", categories.items.single().toDomain().attributeSpecs.single().key)
+        assertEquals(2026, product.purchaseYear)
+        assertEquals("2027-12-31", product.attributes["expiryDate"])
+        assertEquals("유효기간", product.attributeSpecs.single().label)
+    }
+
+    @Test
     fun productPayloadKeepsNumericCategoryId() {
         val payload = ProductCreatePayload(
             title = "필름 카메라",
