@@ -1,5 +1,6 @@
 package com.ssafy.dib.core.network
 
+import com.ssafy.dib.BuildConfig
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.DeserializationStrategy
@@ -116,7 +117,7 @@ class DibHttpClient(
             )
         } catch (error: IOException) {
             ApiResult.Failure(
-                ApiFailure(null, ApiErrorCodes.NETWORK_UNAVAILABLE, "네트워크 연결을 확인해주세요.", cause = error)
+                ApiFailure(null, ApiErrorCodes.NETWORK_UNAVAILABLE, networkErrorMessage(error), cause = error)
             )
         }
 
@@ -137,9 +138,15 @@ class DibHttpClient(
             )
         } catch (error: IOException) {
             ApiResult.Failure(
-                ApiFailure(null, ApiErrorCodes.NETWORK_UNAVAILABLE, "네트워크 연결을 확인해주세요.", cause = error)
+                ApiFailure(null, ApiErrorCodes.NETWORK_UNAVAILABLE, networkErrorMessage(error), cause = error)
             )
         }
+
+    private fun networkErrorMessage(error: IOException): String {
+        if (!BuildConfig.DEBUG) return "네트워크 연결을 확인해주세요."
+        val detail = error.message?.take(160)?.takeIf(String::isNotBlank) ?: "상세 메시지 없음"
+        return "네트워크 진단: ${error.javaClass.simpleName}: $detail"
+    }
 
     fun <T> jsonBody(value: T, serializer: SerializationStrategy<T>) =
         json.encodeToString(serializer, value).toRequestBody(JSON_MEDIA_TYPE.toMediaType())
