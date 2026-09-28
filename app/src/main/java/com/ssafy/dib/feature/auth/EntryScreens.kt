@@ -104,7 +104,14 @@ fun WelcomeScreen(
     // 원본 로고와 제목 PNG의 투명 여백만 화면에서 잘라 사용한다.
     val logoBitmap = ImageBitmap.imageResource(R.drawable.dib_official_logo)
     val headlineBitmap = ImageBitmap.imageResource(R.drawable.welcome_headline)
-    val logoPainter = remember(logoBitmap) { BitmapPainter(logoBitmap, IntOffset(31, 32), IntSize(339, 200)) }
+    // drawable-xxhdpi 이미지는 기기 밀도에 맞춰 축소되므로 원본 픽셀 좌표도 함께 축소한다.
+    val logoPainter = remember(logoBitmap) {
+        val left = 31 * logoBitmap.width / 390
+        val top = 32 * logoBitmap.height / 245
+        val width = (339 * logoBitmap.width / 390).coerceAtMost(logoBitmap.width - left)
+        val height = (200 * logoBitmap.height / 245).coerceAtMost(logoBitmap.height - top)
+        BitmapPainter(logoBitmap, IntOffset(left, top), IntSize(width, height))
+    }
     val headlinePainter = remember(headlineBitmap) { BitmapPainter(headlineBitmap, IntOffset(83, 247), IntSize(1538, 471)) }
     val headlineRatio = 1538f / 471f
     BoxWithConstraints(modifier.fillMaxSize().background(WelcomeCanvas).safeDrawingPadding()) {
